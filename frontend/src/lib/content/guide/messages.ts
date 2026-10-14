@@ -9,6 +9,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'The inbox',
+			tryHref: '/messages',
 			body: [
 				'Inbox and Sent, and a row per conversation: who, what about, and when. A dot marks what you have not read.',
 				"Messaging can be turned off site-wide, and a minor's account cannot send or receive at all — a decision made in the account model, not hidden in the interface."
@@ -30,6 +31,7 @@ const EN: GuideChapterDoc = {
 		},
 		{
 			heading: 'Writing to somebody',
+			tryHref: '/messages/new',
 			body: [
 				'There is no "write to anybody" box, because there is no people search yet. You start a message from where you met them: the "Contact" link on a tutoring listing, or the message link on somebody\'s profile. Opening /messages/new on its own says exactly that.',
 				'Arriving from one of those links, the form already knows who it is to; you add a subject and the message.'
@@ -41,6 +43,7 @@ const EN: GuideChapterDoc = {
 		},
 		{
 			heading: 'Notifications',
+			tryHref: '/notifications',
 			body: [
 				'Everything the site has to tell you, newest first, with a dot on the unread ones and "Mark all as read" at the top: a submission decided, somebody joining your course, somebody asking to book an hour, an event you are going to being moved or called off.',
 				'Which of them you want is set per kind in your settings. The bell in the bar carries the count and updates without a reload.'
@@ -62,6 +65,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Skrzynka',
+			tryHref: '/messages',
 			body: [
 				'Odebrane i wysłane, a w nich wiersz na rozmowę: kto, o czym i kiedy. Kropka oznacza to, czego jeszcze nie przeczytałeś.',
 				'Wiadomości można wyłączyć dla całego serwisu, a konto osoby niepełnoletniej nie może ich ani wysyłać, ani odbierać — to decyzja wpisana w model kont, a nie ukryta w interfejsie.'
@@ -83,6 +87,7 @@ const PL: GuideChapterDoc = {
 		},
 		{
 			heading: 'Napisanie do kogoś',
+			tryHref: '/messages/new',
 			body: [
 				'Nie ma pola „napisz do kogokolwiek”, bo nie ma jeszcze wyszukiwarki osób. Wiadomość zaczyna się tam, gdzie kogoś spotkałeś: od odnośnika „Contact” przy ogłoszeniu korepetycyjnym albo od odnośnika na czyimś profilu. Samo wejście na /messages/new mówi dokładnie to.',
 				'Wchodząc z takiego odnośnika, formularz już wie, do kogo pisze; Ty dokładasz temat i treść.'
@@ -94,6 +99,7 @@ const PL: GuideChapterDoc = {
 		},
 		{
 			heading: 'Powiadomienia',
+			tryHref: '/notifications',
 			body: [
 				'Wszystko, co serwis ma Ci do powiedzenia, od najnowszego, z kropką przy nieprzeczytanych i przyciskiem „Mark all as read” u góry: rozstrzygnięte zgłoszenie, ktoś dołączył do Twojego kursu, ktoś prosi o godzinę, wydarzenie, na które się wybierasz, zostało przesunięte albo odwołane.',
 				'To, które z nich chcesz dostawać, ustawia się osobno dla każdego rodzaju w ustawieniach. Dzwonek na pasku nosi licznik i odświeża się bez przeładowania strony.'

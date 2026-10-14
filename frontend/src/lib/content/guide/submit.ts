@@ -9,6 +9,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'The form',
+			tryHref: '/submit',
 			body: [
 				'Discipline, then subject, then a title. Difficulty, who it is for, and what kind of source it came from — an exercise sheet, a midterm, an exam. The language is the language the exercise is *written* in, not your interface language.',
 				'The line under the heading tells you what will happen when you press Submit. For most accounts it says the exercise will be reviewed first; for a verified contributor it says it publishes straight away.'
@@ -53,6 +54,8 @@ const EN: GuideChapterDoc = {
 		},
 		{
 			heading: 'A material instead',
+			tryHref: '/submit-material',
+			tryFlag: 'material_submissions',
 			body: [
 				'A material is a file or a link rather than a problem — a course script, a sheet of formulas, a collection of past papers. PDF, PNG, JPEG, LaTeX, Word and OpenDocument are accepted, and every upload has its file type verified and is scanned where a scanner is configured.',
 				'Give it either a file or a link, never both. Choosing several files makes several materials, one per file, because a material holds exactly one thing.'
@@ -80,6 +83,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Formularz',
+			tryHref: '/submit',
 			body: [
 				'Kierunek, potem przedmiot, potem tytuł. Trudność, dla kogo jest zadanie i z jakiego źródła pochodzi — ćwiczenia, kolokwium, egzamin. Język to język, w którym zadanie jest *napisane*, a nie język Twojego interfejsu.',
 				'Zdanie pod nagłówkiem mówi, co się stanie po wysłaniu. Dla większości kont: zadanie najpierw trafi do sprawdzenia; dla zweryfikowanego autora: publikuje się od razu.'
@@ -124,6 +128,8 @@ const PL: GuideChapterDoc = {
 		},
 		{
 			heading: 'Albo materiał',
+			tryHref: '/submit-material',
+			tryFlag: 'material_submissions',
 			body: [
 				'Materiał to plik albo odnośnik, a nie zadanie — skrypt, zestaw wzorów, zbiór dawnych egzaminów. Przyjmowane są PDF, PNG, JPEG, LaTeX, Word i OpenDocument; typ każdego pliku jest sprawdzany, a tam, gdzie skonfigurowano skaner, plik jest skanowany.',
 				'Podaj albo plik, albo odnośnik — nigdy oba naraz. Wybranie kilku plików tworzy kilka materiałów, po jednym na plik, bo materiał mieści dokładnie jedną rzecz.'

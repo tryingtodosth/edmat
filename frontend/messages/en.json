@@ -4166,6 +4166,8 @@
 	"contestsAbout_presetStaffOnly": "platform operators only",
 	"contestsAbout_viaLabel": "why they are suggested",
 	"guide_contests_blurb": "Founding a contest, entering one, judging it, and what a prize brings with it.",
+	"guideTry_openThisScreen": "Open this screen →",
+	"guideTry_whichScreen": "({step})",
 	"contestLabel_rowContest": "a contest",
 	"contests_accept": "Accept",
 	"contests_advancedCount": "{count} entrants went through.",

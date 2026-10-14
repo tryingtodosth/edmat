@@ -10,6 +10,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'The front page',
+			tryHref: '/',
 			body: [
 				'A search box, a row of age bands, and tabs across the newest exercises, materials, concepts, courses, tutoring and events. The search box looks inside statements and titles, so "całka" or "Cauchy" is a reasonable thing to type into it.',
 				'Everything below the tabs is a card. A card is a link; the small + on an exercise card puts it straight into your set without opening it.'
@@ -22,12 +23,12 @@ const EN: GuideChapterDoc = {
 		{
 			heading: 'The bar at the top',
 			body: [
-				'Left: the sections — exercises, help wanted, tutoring, about, and a calendar icon for events. Right: the theme switch, the reading-size button marked "Aa", the language picker, and your saved set under the bookmark.',
+				'Left: the sections — exercises, materials, courses, a rosette for contests, help wanted, tutoring, an "i" for about, and a calendar icon for events. On a narrower screen more of them turn into icons, and on a phone they move into the menu behind the ☰ button. Right: the theme switch, the reading-size button marked "Aa", the language picker, and your saved set under the bookmark.',
 				'The language picker changes the interface only. Which languages of *content* you are shown is a separate setting, and the two are deliberately independent: you may well want the English interface and the Polish original of an exercise.'
 			],
 			screenshot: {
 				src: '/guide/start/02-header.png',
-				alt: 'The top bar: the EdMat logo, the section links, and on the right the theme, reading size, language picker, saved set and the log-in links.'
+				alt: 'The top bar: the EdMat logo, the links Exercises, Materials and Courses, the contests rosette, Help wanted, Tutoring, the about and events icons, and on the right the theme, reading size, language picker, saved set and the Log in and Sign up links.'
 			}
 		},
 		{
@@ -43,10 +44,12 @@ const EN: GuideChapterDoc = {
 		},
 		{
 			heading: 'Making an account',
+			tryHref: '/register',
+			tryFor: 'guests',
 			body: [
 				'A display name, an email, a year of birth, a password and the language you would rather read. The year of birth is asked for one reason — to find out whether you are old enough to open an account by yourself — and is not stored; only the answer is.',
 				'If you are under 16, a parent or guardian creates the account from their own settings page. There is no email on a child account and nothing is ever sent to one.',
-				'Password reset does not work yet: there is no mail server behind this site, so the reset page honestly accepts the address and does nothing with it.'
+				'A forgotten password is "Forgotten your password?" on the sign-in page: give the address you registered with and a link to set a new one arrives by email.'
 			],
 			screenshot: {
 				src: '/guide/start/04-register.png',
@@ -56,12 +59,12 @@ const EN: GuideChapterDoc = {
 		{
 			heading: 'Your own menu',
 			body: [
-				'Once signed in, your name opens the menu that holds everything that belongs to you: your profile, your schedule and agenda, the materials you co-author, volunteering, your tasks, organisations and work, and your settings.',
+				'Once signed in, your name opens the menu that holds everything that belongs to you: your profile, your schedule and agenda, the materials you co-author, volunteering, your contests and flashcard decks, your tasks, organisations and work, and your settings.',
 				'The "+ Add…" button beside it is the short way to announce an event or put up a tutoring listing. Courses and organisations are started from their own pages instead.'
 			],
 			screenshot: {
 				src: '/guide/start/05-account-menu.png',
-				alt: 'The account menu open: Profile, My schedule, My agenda, Co-authoring, Volunteering, My volunteering offers, My tasks, My organisations, My work, Settings, Report issue, Log out.'
+				alt: 'The account menu open: Profile, My schedule, My agenda, Co-authoring, Volunteering, My volunteering offers, My contests, My decks, My tasks, My organisations, My work, Settings, Report issue, Log out.'
 			}
 		}
 	],
@@ -76,6 +79,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Strona główna',
+			tryHref: '/',
 			body: [
 				'Pole wyszukiwania, rząd przedziałów wiekowych i zakładki z najnowszymi zadaniami, materiałami, pojęciami, kursami, korepetycjami i wydarzeniami. Wyszukiwarka zagląda do treści i tytułów, więc „całka” albo „Cauchy” to sensowne hasła.',
 				'Wszystko pod zakładkami to kafelki. Kafelek jest odnośnikiem; mały znak + na kafelku zadania wrzuca je do Twojego zestawu bez otwierania.'
@@ -88,12 +92,12 @@ const PL: GuideChapterDoc = {
 		{
 			heading: 'Pasek u góry',
 			body: [
-				'Po lewej działy: zadania, szukamy pomocy, korepetycje, o nas i ikona kalendarza prowadząca do wydarzeń. Po prawej przełącznik motywu, przycisk wielkości tekstu („Aa”), wybór języka i Twój zestaw pod ikoną zakładki.',
+				'Po lewej działy: zadania, materiały, kursy, rozeta prowadząca do konkursów, szukamy pomocy, korepetycje, „i” prowadzące do strony o nas i ikona kalendarza prowadząca do wydarzeń. Na węższym ekranie więcej z nich zamienia się w ikony, a na telefonie przenoszą się do menu pod przyciskiem ☰. Po prawej przełącznik motywu, przycisk wielkości tekstu („Aa”), wybór języka i Twój zestaw pod ikoną zakładki.',
 				'Wybór języka zmienia tylko interfejs. To, w jakich językach widzisz *treści*, jest osobnym ustawieniem — i to rozdzielenie jest celowe: można chcieć angielskiego interfejsu i polskiego oryginału zadania.'
 			],
 			screenshot: {
 				src: '/guide/start/02-header.png',
-				alt: 'Górny pasek: logo EdMat, odnośniki do działów, a po prawej motyw, wielkość tekstu, wybór języka, zestaw i odnośniki do logowania.'
+				alt: 'Górny pasek: logo EdMat, odnośniki do zadań, materiałów i kursów, rozeta konkursów, szukamy pomocy, korepetycje, ikony strony o nas i wydarzeń, a po prawej motyw, wielkość tekstu, wybór języka, zestaw i odnośniki do logowania i rejestracji.'
 			}
 		},
 		{
@@ -109,10 +113,12 @@ const PL: GuideChapterDoc = {
 		},
 		{
 			heading: 'Zakładanie konta',
+			tryHref: '/register',
+			tryFor: 'guests',
 			body: [
 				'Nazwa wyświetlana, e-mail, rok urodzenia, hasło i język, w którym wolisz czytać. Rok urodzenia służy jednemu: sprawdzeniu, czy możesz samodzielnie założyć konto — i nie jest zapisywany, zapisywana jest tylko odpowiedź.',
 				'Jeśli masz mniej niż 16 lat, konto zakłada rodzic lub opiekun ze swoich ustawień. Konto dziecka nie ma adresu e-mail i nic nigdy na nie nie jest wysyłane.',
-				'Odzyskiwanie hasła jeszcze nie działa: za tą stroną nie stoi serwer pocztowy, więc formularz uczciwie przyjmuje adres i nic z nim nie robi.'
+				'Zapomniane hasło to odnośnik „Nie pamiętasz hasła?” na stronie logowania: wystarczy podać adres, na który założono konto, a przyjdzie na niego link do ustawienia nowego hasła.'
 			],
 			screenshot: {
 				src: '/guide/start/04-register.png',
@@ -122,12 +128,12 @@ const PL: GuideChapterDoc = {
 		{
 			heading: 'Twoje własne menu',
 			body: [
-				'Po zalogowaniu Twoje nazwisko otwiera menu ze wszystkim, co należy do Ciebie: profil, grafik i plan dnia, współtworzone materiały, wolontariat, zadania do zrobienia, organizacje, panel pracy i ustawienia.',
+				'Po zalogowaniu Twoje nazwisko otwiera menu ze wszystkim, co należy do Ciebie: profil, grafik i plan dnia, współtworzone materiały, wolontariat, Twoje konkursy i talie fiszek, zadania do zrobienia, organizacje, panel pracy i ustawienia.',
 				'Przycisk „+ Add…” obok to krótka droga do ogłoszenia wydarzenia albo wystawienia ogłoszenia korepetycyjnego. Kursy i organizacje zakłada się z ich własnych stron.'
 			],
 			screenshot: {
 				src: '/guide/start/05-account-menu.png',
-				alt: 'Otwarte menu konta: Profile, My schedule, My agenda, Co-authoring, Volunteering, My volunteering offers, My tasks, My organisations, My work, Settings, Report issue, Log out.'
+				alt: 'Otwarte menu konta: Profile, My schedule, My agenda, Co-authoring, Volunteering, My volunteering offers, My contests, My decks, My tasks, My organisations, My work, Settings, Report issue, Log out.'
 			}
 		}
 	],

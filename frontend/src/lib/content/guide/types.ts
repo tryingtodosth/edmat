@@ -16,6 +16,9 @@
  * as well. The cost is named rather than paid: `HISTORY.md` §17BR.H.
  */
 
+import type { PathnameWithSearchOrHash } from '$app/types';
+import type { FeatureFlagKey } from '$lib/types';
+
 /** A picture of the real app, taken by `e2e/guide-screenshots.mjs`. */
 export interface GuideScreenshot {
 	/** Path under `static/`, e.g. `/guide/exercises/03-exercise.png`. */
@@ -30,6 +33,25 @@ export interface GuideStep {
 	/** One or more paragraphs. Plain text — no Markdown, no HTML, nothing to sanitize. */
 	body: string[];
 	screenshot?: GuideScreenshot;
+	/**
+	 * The real screen this step describes, drawn as "Open this screen →" under the step so a reader
+	 * can go and try it. Typed as SvelteKit's own `PathnameWithSearchOrHash`, so an address that is
+	 * not a route of this app is a TYPE error, not a broken link somebody finds later; the chapter
+	 * page passes it through `resolve()` and `localizedPath()` (so `/tutoring` becomes `/korki` for a
+	 * Polish reader). Only addresses that exist on every deployment: a hub, a form, a corpus slug —
+	 * never a numeric id from the development database. `e2e/guide-try-links.mjs` opens every one.
+	 */
+	tryHref?: PathnameWithSearchOrHash;
+	/**
+	 * The kill switch for `tryHref` when it is not the chapter's own (the help chapter's offers board
+	 * answers to `volunteering`, not `needs`). Off, the link is not drawn — house rule 3, for a page
+	 * that is otherwise only writing. Without it the chapter's `flag` decides.
+	 */
+	tryFlag?: FeatureFlagKey;
+	/** Who the link is for: `guests` hides it once signed in (registering), `members` shows it only
+	 *  to somebody signed in (a form that founds something), `moderators` only to people who have
+	 *  the moderation page at all. Absent, it is for everybody. */
+	tryFor?: 'guests' | 'members' | 'moderators';
 }
 
 /** A chapter, in one language. */

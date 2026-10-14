@@ -2275,6 +2275,43 @@ Seven things about it that are not obvious, each of which has already cost a wro
 `scripts/check_accessibility.ts`'s anonymous list). Nothing in the manual calls an API, so a chapter
 page renders with the backend down.
 
+**2026-10-14 (next loop, WP4): the twelfth chapter's pictures, the "Open this screen" links.**
+
+- `chapters.contests` makes **three contests through the real API** (a finished `university` one by
+  kasia with results and an answered complaint, a `challenge` taking entries, a `challenge` whose
+  round is open with ania's half-written answer), idempotently by title, and shoots eleven pictures
+  (1.2 MB). The wizard is driven to its last screen and never submitted. Its people screen is shot
+  with the leftover `e2e-coop-…` / `E2E Circle …` reasons filtered out of the suggestion response in
+  the browser (`withoutScratchSuggestions`) — `hideScratch()` one layer down — and kasia is given a
+  private course roster (`Analiza matematyczna II — ćwiczenia`, Michał and Ola as staff) so the
+  screen has a real reason to show.
+- `PICTURES=start/02-header,…` re-shoots only the named pictures and leaves the rest of the chapter
+  alone; `E2E_TOKENS='{"email":"token",…}'` replaces the ten sign-ins that otherwise trip the login
+  throttle on a second run inside the hour.
+- **`vite.config.ts`'s `fs.allow` entry is now the symlink's real path**, computed: the literal
+  `/Projects/edmat/frontend/node_modules` was one machine's layout and allowed nothing under
+  `/home/<user>/Projects/`, so KaTeX's fonts were 403 again in every worktree there.
+- **The fonts in the pictures are the machine's** (`system-ui`): this one has only DejaVu, so the
+  2026-10-14 pictures (contests, and start 01/02/05) are drawn in DejaVu while the older ones are in
+  Noto. Same layout, different face — re-shoot everything on one machine before a release if that
+  matters.
+
+`frontend/e2e/guide-try-links.mjs` checks the manual's "Open this screen →" links
+(`GuideStep.tryHref`, typed as SvelteKit's `PathnameWithSearchOrHash`, so a link to a route that does
+not exist is a `svelte-check` error before it is anything else). It reads the declared links out of
+`lib/content/guide/*.ts`, counts them on every chapter page signed out in Polish and in English, opens
+every one (a heading, not the 404), checks `/tutoring` is written `/korki` for a Polish reader, that a
+moderator sees the moderation chapter's links and a signed-in reader the contest wizard's, **turns the
+`volunteering` switch off through the API and checks a non-staff reader loses that link but keeps the
+`needs` one** (then puts it back), and photographs `start` and `contests` at 1280 and 390 in both
+languages with a no-horizontal-scroll check (`e2e/screenshots/guide-*.png`, gitignored). Last run: 94/94, zero page
+errors.
+
+```bash
+E2E_BASE=http://localhost:5203 E2E_API=http://127.0.0.1:8053/api \
+  E2E_STAFF_TOKEN=<u-kasia> E2E_USER_TOKEN=<demo-ania> node e2e/guide-try-links.mjs
+```
+
 **`flashcards` (learning cycle step A, 2026-10-05).** `backend/flashcards/tests.py` is 64 tests in
 eight classes, and the order is the point: `SchedulingTests` first, because `scheduling.review` is a
 pure function and the only honest way to test an algorithm is a **table** of grade sequences against

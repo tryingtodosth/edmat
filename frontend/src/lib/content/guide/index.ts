@@ -12,6 +12,7 @@
  * writing. `null` is for the chapters that describe things no switch can remove.
  */
 import { m } from '$lib/paraglide/messages.js';
+import type { Pathname } from '$app/types';
 import type { FeatureFlagKey } from '$lib/types';
 import type { GuideChapterDoc } from './types';
 import { startChapterFor } from './start';
@@ -35,8 +36,9 @@ export interface GuideChapterEntry {
 	docFor(locale: string): GuideChapterDoc;
 	/** One line for the hub's list. */
 	blurbFor(locale: string): string;
-	/** A design showcase page under `/about/` that draws the same thing from sample data. */
-	showcase?: string;
+	/** A design showcase page under `/about/` that draws the same thing from sample data. Typed as a
+	 *  route so a showcase that does not exist is a type error (the chapter page links it). */
+	showcase?: Pathname;
 	/** The kill switch for the surface described here, or `null` if there is none. */
 	flag: FeatureFlagKey | null;
 	/** True while the chapter is a placeholder (the screens do not exist yet). */
@@ -98,7 +100,7 @@ function entry(
 	slug: string,
 	docFor: (locale: string) => GuideChapterDoc,
 	flag: FeatureFlagKey | null,
-	extra: { showcase?: string; pending?: boolean } = {}
+	extra: { showcase?: Pathname; pending?: boolean } = {}
 ): GuideChapterEntry {
 	return {
 		slug,
@@ -125,10 +127,9 @@ export const GUIDE_CHAPTERS: GuideChapterEntry[] = [
 	// Contests (`contests/`, 2026-10-09). Built by hand rather than through `entry()` for one
 	// reason: its blurb is a catalogue key, not a row of `BLURBS` (see that object's tail).
 	//
-	// `pending` is NOT set. The chapter is written in full against the pages as step A's brief
-	// describes them; what is missing is its screenshots, which its own closing note says and which
-	// the integrator takes after the merge. Marking it pending would tell a reader there is nothing
-	// there to read, which is the opposite of true.
+	// `pending` is NOT set, and never was: the chapter was written in full before the pages it
+	// describes had merged, then checked against them and photographed on 2026-10-14 (its own header
+	// comment says what changed).
 	{
 		slug: 'contests',
 		docFor: contestsChapterFor,
@@ -168,9 +169,14 @@ const HUB_EN: GuideHubDoc = {
 		items: [
 			'Your learning record and what a profile shows about you.',
 			'Co-authoring a material: versions, a team, an invite link.',
-			'Organisations, tasks, plans, decisions and the work dashboard.',
+			'Organisations, tasks, plans, goals and their definitions of done, decisions and the work dashboard.',
 			'The conference desks: tickets, the cloakroom, the shifts rota, rooms and buildings.',
-			'The activity feed, reporting content, and the legal notice channel.'
+			'The activity feed, reporting content, and the legal notice channel.',
+			'Signing in with Google, Apple or Microsoft, where this site has it switched on.',
+			'Your data: downloading everything the site holds about you, and deleting your account (Settings → "Your data and deleting your account").',
+			'Licences: which licence an exercise, a solution or a material carries, and making it more open.',
+			'Attachments: files hung on a course, an event, a task or a contest, and who has read them.',
+			'The "AI-assisted" mark on a piece of content, and voting on whether it fits.'
 		]
 	}
 };
@@ -189,9 +195,14 @@ const HUB_PL: GuideHubDoc = {
 		items: [
 			'Twój zapis nauki i to, co profil o Tobie pokazuje.',
 			'Współtworzenie materiału: wersje, zespół, link zapraszający.',
-			'Organizacje, zadania, plany, decyzje i panel pracy.',
+			'Organizacje, zadania, plany, cele i ich definicje ukończenia, decyzje i panel pracy.',
 			'Stanowiska konferencyjne: bilety, szatnia, grafik dyżurów, sale i budynki.',
-			'Strumień aktywności, zgłaszanie treści i kanał zgłoszeń prawnych.'
+			'Strumień aktywności, zgłaszanie treści i kanał zgłoszeń prawnych.',
+			'Logowanie przez Google, Apple albo Microsoft, tam gdzie serwis ma je włączone.',
+			'Twoje dane: pobranie wszystkiego, co serwis o Tobie przechowuje, i usunięcie konta (Ustawienia → „Twoje dane i usuwanie konta”).',
+			'Licencje: na jakiej licencji jest zadanie, rozwiązanie albo materiał i jak ją otworzyć szerzej.',
+			'Załączniki: pliki przypięte do kursu, wydarzenia, zadania albo konkursu i to, kto je przeczytał.',
+			'Oznaczenie „przy pomocy AI” na treści i głosowanie, czy do niej pasuje.'
 		]
 	}
 };

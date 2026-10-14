@@ -103,7 +103,11 @@
 			const payload = await getContestPresets();
 			presets = payload.presets;
 			law = payload.law;
-			presetKey = presets[0]?.key ?? '';
+			// The default goes through `applyPreset` like a click does. Setting only `presetKey` left
+			// `chosen` empty, so screen 3's `bind:chosen={chosen[slot.role]}` bound `undefined` and
+			// the page died (`props_invalid_value`) for everybody who kept the pre-selected kind —
+			// found by the manual's screenshot run, 2026-10-14.
+			if (presets[0]) applyPreset(presets[0]);
 		} catch {
 			failed = true;
 		} finally {

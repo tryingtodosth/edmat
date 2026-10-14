@@ -9,6 +9,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Start with a discipline',
+			tryHref: '/disciplines',
 			body: [
 				'A discipline is a field of study — mathematics, physics, computer science. Each card says how many subjects sit under it. Disciplines somebody has proposed but a moderator has not yet accepted are listed separately, under "Others".'
 			],
@@ -19,6 +20,7 @@ const EN: GuideChapterDoc = {
 		},
 		{
 			heading: 'A subject, and its filters',
+			tryHref: '/branches/analiza-matematyczna',
 			body: [
 				'A subject page is the working view: the filter column on the left narrows by topic, difficulty and source — an exercise sheet, a midterm, an exam — and the search box inside it searches only this subject. The count under the filters is how many exercises match.',
 				'If the page says that items in other languages are hidden, that is the content-language setting, not an empty database. "Show them" lifts it for this list.',
@@ -64,6 +66,7 @@ const EN: GuideChapterDoc = {
 		},
 		{
 			heading: 'My set, and printing it',
+			tryHref: '/my-set',
 			body: [
 				'"My set" is the study sheet you are building. For each exercise you decide whether the hint, the answer and the solution are printed with it — the checkboxes along the top set all of them at once.',
 				'"Export to PDF" opens your browser\'s own print dialogue; choose "Save as PDF" there. Giving the set a name saves it to your account.'
@@ -95,6 +98,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Zacznij od kierunku',
+			tryHref: '/disciplines',
 			body: [
 				'Kierunek to dziedzina — matematyka, fizyka, informatyka. Każdy kafelek mówi, ile przedmiotów się pod nim kryje. Kierunki zaproponowane, ale jeszcze nieprzyjęte przez moderatora, są wypisane osobno, pod nagłówkiem „Others”.'
 			],
@@ -105,6 +109,7 @@ const PL: GuideChapterDoc = {
 		},
 		{
 			heading: 'Przedmiot i jego filtry',
+			tryHref: '/branches/analiza-matematyczna',
 			body: [
 				'Strona przedmiotu to widok roboczy: kolumna filtrów po lewej zawęża po dziale, trudności i źródle — ćwiczenia, kolokwium, egzamin — a wyszukiwarka w niej przeszukuje tylko ten przedmiot. Liczba pod filtrami to liczba pasujących zadań.',
 				'Jeśli strona pisze, że ukryto pozycje w innych językach, to ustawienie języka treści, a nie pusta baza. Przycisk „Show them” zdejmuje je dla tej listy.',
@@ -150,6 +155,7 @@ const PL: GuideChapterDoc = {
 		},
 		{
 			heading: 'Mój zestaw i drukowanie',
+			tryHref: '/my-set',
 			body: [
 				'„My set” to arkusz, który składasz. Przy każdym zadaniu decydujesz, czy drukuje się z nim wskazówka, odpowiedź i rozwiązanie — pola na górze ustawiają to naraz dla wszystkich.',
 				'„Export to PDF” otwiera zwykłe okno drukowania przeglądarki; tam wybierz „Zapisz jako PDF”. Nadanie zestawowi nazwy zapisuje go na koncie.'

@@ -11,6 +11,13 @@
 // One chapter at a time, while you are iterating:
 //   ONLY=exercises,submit node e2e/guide-screenshots.mjs
 //
+// Only some pictures of a chapter (the rest stay as they are):
+//   ONLY=start PICTURES=start/01-home,start/02-header node e2e/guide-screenshots.mjs
+//
+// Signing in as ten accounts trips the ~10/hour login throttle on a second run; pass the tokens
+// instead, as a JSON object of email -> token (e2e/CLAUDE.md trap 30):
+//   E2E_TOKENS='{"kasia@edmat.example":"…",…}' node e2e/guide-screenshots.mjs
+//
 // Five things about it that are not obvious:
 //
 //  1. **The pictures are of the ENGLISH interface** (`english.mjs`), one set only. The Polish
@@ -55,6 +62,10 @@ const API = process.env.E2E_API ?? 'http://127.0.0.1:8138/api';
 const PASSWORD = 'password123';
 const OUT = new URL('../static/guide/', import.meta.url).pathname;
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(',')) : null;
+// `PICTURES=start/02-header,start/05-account-menu` re-shoots only those pictures and leaves every
+// other file in the chapter as it is (implies KEEP): for when one screen changed and the rest did
+// not, so a re-run does not churn pictures nobody needed to look at again.
+const PICTURES = process.env.PICTURES ? new Set(process.env.PICTURES.split(',')) : null;
 
 const MAX_BYTES = 400 * 1024;
 const MAX_TOTAL = 8 * 1024 * 1024;
@@ -78,7 +89,10 @@ function watch(page) {
 
 // ---- the API, for signing in and for the handful of rows the seeds do not make ----------------
 
-const tokens = new Map();
+// `E2E_TOKENS` (optional) is a JSON object of email → DRF token, read once instead of signing in.
+// A full run signs in as ten accounts and the login throttle is ~10/hour per IP (e2e/CLAUDE.md
+// traps 1 and 30), so a second run inside the hour fails at its first sign-in without it.
+const tokens = new Map(Object.entries(JSON.parse(process.env.E2E_TOKENS || '{}')));
 async function tokenFor(email) {
 	if (tokens.has(email)) return tokens.get(email);
 	const response = await fetch(`${API}/auth/login/`, {
@@ -150,7 +164,7 @@ async function open(email, { height = 950 } = {}) {
  * show seeded data only (the brief's "crop or mask anything else").
  */
 const SCRATCH =
-	/(^|\b)(asd[a-z]*|tax-(disc|branch)|e2e-other|Linking check \d|Published hours \d|Real availability \d|Plans e2e \d|Topologia \d|Analiza od zera \d|pw-verify|debug2|uxreview|Zzz |Test EN|Test submitted|single report test)/i;
+	/(^|\b)(asd[a-z]*|tax-(disc|branch)|e2e-other|Linking check \d|Published hours \d|Real availability \d|Plans e2e \d|Topologia \d|Analiza od zera \d|pw-verify|debug2|uxreview|Zzz |Test EN|Test submitted|single report test|E2E Konkurs \d)/i;
 
 async function hideScratch(page) {
 	await page.evaluate((source) => {
@@ -169,6 +183,7 @@ async function hideScratch(page) {
 
 /** Playwright's own screenshot, plus the budget check and a hidden caret. */
 async function shoot(page, chapter, name, { locator, clip, padding = 16 } = {}) {
+	if (PICTURES && !PICTURES.has(`${chapter}/${name}`)) return null;
 	const dir = `${OUT}${chapter}/`;
 	mkdirSync(dir, { recursive: true });
 	const path = `${dir}${name}.png`;
@@ -331,6 +346,17 @@ chapters.start = async () => {
 		.locator('header button')
 		.filter({ hasText: 'Michał' })
 		.first();
+	// The session is restored AFTER hydration (`authStore.init()` asks /auth/me/), and until it has
+	// been the header draws neither "Log in" nor the name — so wait for the name itself. Without
+	// this the picture was of a header with no account button and a menu that never opened, which
+	// is what the 2026-10-07 set shipped.
+	await accountButton.waitFor({ timeout: 30000 }).catch(() => {});
+	await signedIn.page
+		.locator('.panel .grid .exercise-card, .panel .status')
+		.first()
+		.waitFor({ timeout: 20000 })
+		.catch(() => {});
+	check('start/05-account-menu: the account button is there', (await accountButton.count()) > 0);
 	if (await accountButton.count()) {
 		await accountButton.click();
 		await settle(signedIn.page);
@@ -1127,6 +1153,697 @@ chapters.flashcards = async () => {
 	await student.ctx.close();
 };
 
+// ---- contests ----------------------------------------------------------------------------------
+//
+// The development database has no contests (`seed_contest_demo` exists but is not part of the
+// standard seed), so this chapter makes its own THREE, through the real API, as the people who
+// would really make them — one per state a reader meets:
+//
+//   * FINISHED — a `university` contest with a prize, run by Kasia, judged by Michał and Ola, four
+//     demo students entered, scored, results published, one complaint answered. The results page,
+//     the jury's grid, the rules and the compliance panel are photographed on it.
+//   * REGISTERING — a prize-free `challenge` run by Michał, registration open, its round not yet
+//     started. Piotr, who has not entered, is the one photographed in front of its entry form.
+//   * RUNNING — a second `challenge` by Michał whose round is open, with Ania half-way through
+//     her answers. The stage page is photographed as her.
+//
+// **Idempotent by title**: a contest that already exists is reused at whatever state it reached,
+// and each step below is skipped once its effect is visible, so a re-run does not pile up copies
+// and an interrupted run resumes. The wizard (pictures 6–9) is driven up to its last screen and
+// NOT submitted, so it creates nothing.
+//
+// Organisers are not bypassed by `is_staff` (e2e/CLAUDE.md trap 32), so every write is made with
+// the token of whoever the rule says may make it: the organiser for the contest, each juror for
+// their own marks, each entrant for their own registration, answers and complaint.
+
+const CONTEST_FINISHED = 'Konkurs z analizy II — jesień 2026';
+const CONTEST_REGISTERING = 'Wyzwanie tygodnia: pochodne kierunkowe';
+const CONTEST_RUNNING = 'Wyzwanie tygodnia: funkcje uwikłane';
+const DAY = 86400000;
+const at = (days) => new Date(Date.now() + days * DAY).toISOString();
+
+/** The twelve paragraphs of a regulamin, short but real — they are photographed. */
+function rulesFor(organiser, contact, { prize }) {
+	return {
+		organiser: `Organizatorem jest ${organiser}, ${contact}. Serwis EdMat udostępnia tylko narzędzie i nie jest organizatorem ani fundatorem nagród.`,
+		subject: 'Samodzielne rozwiązanie zadań z analizy matematycznej funkcji wielu zmiennych.',
+		dates: prize
+			? 'Zgłoszenia przyjmuje się do dnia rozpoczęcia rundy. Runda trwa 14 dni. Wyniki ogłasza się w ciągu 7 dni od jej zamknięcia. O nagrodę można ubiegać się w ciągu 60 dni od ogłoszenia wyników.'
+			: 'Zgłoszenia przyjmuje się do dnia rozpoczęcia rundy. Runda trwa 14 dni. Ranking publikuje się w ciągu 7 dni od jej zamknięcia.',
+		participants:
+			'Udział jest otwarty dla każdej zarejestrowanej osoby. Członkowie jury i ich osoby bliskie nie biorą udziału. Udział nie zależy od zakupu czegokolwiek.',
+		entry:
+			'Zgłoszenie przez formularz na stronie konkursu; jedno na osobę. Zgłaszając się, uczestnik akceptuje regulamin w wersji wskazanej przy zgłoszeniu.',
+		criteria_jury:
+			'Każde zadanie oceniane jest w skali 0–5 punktów za poprawność i kompletność uzasadnienia. Remisy rozstrzyga się merytorycznie.',
+		...(prize
+			? {
+					prizes:
+						'Trzy nagrody rzeczowe: książki z analizy matematycznej o wartości do 200 zł każda. Wartość nagrody nie przekracza 2 000 zł; organizator powołuje się na zwolnienie dla konkursów w dziedzinie nauki.'
+				}
+			: {}),
+		results:
+			'Wyniki ogłasza się na stronie konkursu. Publikuje się inicjały; pełne imię i nazwisko wyłącznie za osobną, odwołalną zgodą.',
+		complaints:
+			'Reklamację można złożyć w ciągu 14 dni od ogłoszenia wyników, przez stronę konkursu. Organizator odpowiada w ciągu 14 dni, z uzasadnieniem. Droga sądowa pozostaje otwarta.',
+		personal_data:
+			'Administratorem danych jest organizator (§1); podstawą jest art. 6 ust. 1 lit. b RODO. Serwis EdMat jest podmiotem przetwarzającym. Przysługuje prawo dostępu, sprostowania, usunięcia i skargi do Prezesa UODO.',
+		copyright_image:
+			'Uczestnik oświadcza, że praca jest jego własna. Rozwiązania pozostają własnością autorów; organizator może je pokazać jury w celu oceny.',
+		final:
+			'Regulamin obowiązuje w wersji opublikowanej na stronie konkursu. Zmiany nie mogą naruszać praw nabytych przez uczestników.'
+	};
+}
+
+/** Find a contest by its exact title, as somebody who can see it whatever its state. */
+async function contestByTitle(token, title) {
+	const found = await api(`/contests/?q=${encodeURIComponent(title)}`, { token });
+	return (Array.isArray(found.body) ? found.body : []).find((c) => c.title === title) ?? null;
+}
+
+/** Create (or find) a contest and walk it to `announced`, registration open. */
+async function foundContest(token, fields, { jury, rules: bodies }) {
+	let contest = await contestByTitle(token, fields.title);
+	if (!contest) {
+		const made = await api('/contests/', { token, method: 'POST', body: fields });
+		check(
+			`contests: "${fields.title}" founded`,
+			made.status === 201,
+			JSON.stringify(made.body).slice(0, 200)
+		);
+		contest = made.body;
+	}
+	const id = contest.id;
+	if (contest.status === 'draft') {
+		for (const userId of jury) {
+			await api(`/contests/${id}/staff/`, {
+				token,
+				method: 'POST',
+				body: { user_id: userId, role: 'jury' }
+			});
+		}
+		const skeleton = await api(`/contests/${id}/rules/`, { token });
+		const sections = (skeleton.body?.sections ?? []).map((s) => ({
+			key: s.key,
+			order: s.order,
+			body: bodies[s.key] ?? s.body ?? ''
+		}));
+		await api(`/contests/${id}/rules/`, { token, method: 'PUT', body: { sections } });
+		await api(`/contests/${id}/rules/publish/`, { token, method: 'POST' });
+		const announced = await api(`/contests/${id}/announce/`, { token, method: 'POST' });
+		check(
+			`contests: "${fields.title}" announced`,
+			announced.status === 200,
+			JSON.stringify(announced.body).slice(0, 200)
+		);
+	}
+	contest = (await api(`/contests/${id}/`, { token })).body;
+	if (contest.status === 'announced') {
+		await api(`/contests/${id}/transition/`, {
+			token,
+			method: 'POST',
+			body: { status: 'registration_open' }
+		});
+	}
+	return (await api(`/contests/${id}/`, { token })).body;
+}
+
+/** Enter `who` (a token) into a contest that is still taking entries, and accept the entry. */
+async function enter(contestId, organiserToken, entrantToken, affiliation) {
+	const made = await api(`/contests/${contestId}/registrations/`, {
+		token: entrantToken,
+		method: 'POST',
+		body: { affiliation }
+	});
+	if (made.status === 201) {
+		await api(`/contest-registrations/${made.body.id}/decide/`, {
+			token: organiserToken,
+			method: 'POST',
+			body: { decision: 'accepted' }
+		});
+	}
+}
+
+/** The stage a preset laid out, with these exercises on it (only while it is still scheduled). */
+async function stageWith(contestId, token, exerciseIds) {
+	const stages = await api(`/contests/${contestId}/stages/`, { token });
+	const stage = (stages.body ?? [])[0];
+	if (stage && stage.status === 'scheduled' && !stage.problem_count) {
+		for (const exerciseId of exerciseIds) {
+			await api(`/contest-stages/${stage.id}/problems/`, {
+				token,
+				method: 'POST',
+				body: { exercise_id: exerciseId, points: 5 }
+			});
+		}
+	}
+	return (await api(`/contests/${contestId}/stages/`, { token })).body?.[0] ?? null;
+}
+
+const contestIds = {};
+
+async function arrangeContests() {
+	const kasia = await tokenFor('kasia@edmat.example');
+	const michal = await tokenFor('michal@edmat.example');
+	const ola = await tokenFor('ola@edmat.example');
+	const entrants = [
+		['ania@edmat.example', 'UW, MIM, II rok'],
+		['piotr@edmat.example', 'UW, MIM, II rok'],
+		['zofia@edmat.example', 'PW, MiNI, II rok'],
+		['jakub@edmat.example', 'UW, Fizyka, II rok']
+	];
+	const tokenOf = {};
+	for (const [email] of entrants) tokenOf[email] = await tokenFor(email);
+	const idOf = async (token) => (await api('/auth/me/', { token })).body?.id;
+	const michalId = await idOf(michal);
+	const olaId = await idOf(ola);
+
+	// ---- FINISHED -----------------------------------------------------------------------------
+	let finished = await foundContest(
+		kasia,
+		{
+			title: CONTEST_FINISHED,
+			description:
+				'Trzy zadania z analizy funkcji wielu zmiennych dla studentów drugiego roku. Prace ocenia dwuosobowe jury według kryteriów z regulaminu; trzy najlepsze osoby dostają książki.',
+			preset_key: 'university',
+			visibility: 'public',
+			starts_at: at(-24),
+			ends_at: at(-6),
+			registration_opens_at: at(-34),
+			registration_closes_at: at(-24),
+			has_prize: true,
+			prize_claim_deadline: at(50),
+			prize_description:
+				'Książki z analizy matematycznej dla trzech najlepszych osób (do 200 zł każda).',
+			prize_total_value_pln: 600,
+			merit_criteria:
+				'Każde zadanie 0–5 punktów: poprawność rachunku (0–2) i kompletność uzasadnienia (0–3). Remisy rozstrzyga się merytorycznie.',
+			data_controller_name: 'Kasia Wiśniewska, Koło Naukowe Matematyków UW',
+			data_controller_contact: 'kasia@edmat.example',
+			laureate_min_pct: 85,
+			finalist_min_pct: 60,
+			distinction_count: 1
+		},
+		{
+			jury: [michalId, olaId],
+			rules: rulesFor('Kasia Wiśniewska, Koło Naukowe Matematyków UW', 'kasia@edmat.example', {
+				prize: true
+			})
+		}
+	);
+	contestIds.finished = finished.id;
+	if (finished.status === 'registration_open') {
+		for (const [email, affiliation] of entrants) {
+			await enter(finished.id, kasia, tokenOf[email], affiliation);
+		}
+	}
+	let stage = await stageWith(finished.id, kasia, [50, 52, 100]);
+	contestIds.finishedStage = stage?.id;
+	if (stage?.status === 'scheduled') {
+		await api(`/contest-stages/${stage.id}/open/`, { token: kasia, method: 'POST' });
+		stage = (await api(`/contests/${finished.id}/stages/`, { token: kasia })).body[0];
+	}
+	if (stage?.status === 'open') {
+		// Answers of visibly different quality, each written to ITS problem (50: the partial
+		// derivatives of x^{y^z}; 52: a directional derivative of the l4 norm; 100: the points of a
+		// set furthest from the z-axis). `null` is a problem left blank.
+		const good = [
+			'Liczę wprost: \\( f_x = y^z x^{y^z-1} \\), \\( f_y = x^{y^z} \\ln x \\cdot z y^{z-1} \\), \\( f_z = x^{y^z} \\ln x \\cdot y^z \\ln y \\). Każdy krok uzasadniam regułą łańcuchową.',
+			'Poza zerem \\( \\nabla f = (x^3, y^3)/(x^4+y^4)^{3/4} \\), więc pochodna kierunkowa to iloczyn skalarny gradientu z wektorem kierunku; w zerze liczę ją z definicji.',
+			'Z warunków dostaję \\( x^2+y^2+z^2 = 9 \\), więc maksymalizuję \\( x^2+y^2 = 9 - z^2 \\), czyli minimalizuję \\( |z| \\) na tym zbiorze.'
+		];
+		const weak = [
+			'\\( f_x = y^z x^{y^z-1} \\), pozostałe analogicznie.',
+			'Liczę z definicji jako granicę ilorazu różnicowego.',
+			'Szkic: mnożniki Lagrange’a, bez rachunku.'
+		];
+		const papers = [
+			[good[0], good[1], good[2]],
+			[good[0], weak[1], good[2]],
+			[weak[0], good[1], null],
+			[weak[0], weak[1], null]
+		];
+		const problems =
+			(await api(`/contest-stages/${stage.id}/problems/`, { token: kasia })).body ?? [];
+		for (const [index, [email]] of entrants.entries()) {
+			const token = tokenOf[email];
+			await api(`/contest-stages/${stage.id}/submission/`, {
+				token,
+				method: 'PUT',
+				body: {
+					answers: problems
+						.map((p, i) => ({ problem_id: p.id, text: papers[index][i] }))
+						.filter((answer) => answer.text)
+				}
+			});
+			await api(`/contest-stages/${stage.id}/submit/`, { token, method: 'POST' });
+		}
+		await api(`/contest-stages/${stage.id}/close/`, { token: kasia, method: 'POST' });
+	}
+	finished = (await api(`/contests/${finished.id}/`, { token: kasia })).body;
+	if (finished.status === 'running' || finished.status === 'judging') {
+		// Each juror marks every cell, the second a point harsher on the first problem, so the
+		// mean the ranking takes is visible in the grid.
+		const marks = [
+			[5, 5, 4],
+			[4, 4, 3],
+			[3, 3, 2],
+			[2, 1, 1]
+		];
+		for (const [juror, shift] of [
+			[michal, 0],
+			[ola, -1]
+		]) {
+			const sheet = (await api(`/contest-stages/${stage.id}/submissions/`, { token: juror })).body;
+			const problems = sheet?.problems ?? [];
+			for (const submission of sheet?.submissions ?? []) {
+				const row = marks[(submission.registration?.number ?? 1) - 1] ?? [3, 3, 3];
+				await api(`/contest-submissions/${submission.id}/scores/`, {
+					token: juror,
+					method: 'POST',
+					body: {
+						scores: problems.map((p, i) => ({
+							problem: p.id,
+							points: Math.max(0, row[i] + (i === 0 ? shift : 0)),
+							note:
+								row[i] >= 4 ? 'Pełne.' : row[i] === 0 ? 'Brak odpowiedzi.' : 'Brak uzasadnienia.'
+						}))
+					}
+				});
+			}
+		}
+		await api(`/contest-stages/${stage.id}/advance/`, { token: kasia, method: 'POST' });
+		const published = await api(`/contests/${finished.id}/publish-results/`, {
+			token: kasia,
+			method: 'POST'
+		});
+		check(
+			'contests: the finished contest publishes its results',
+			published.status === 200,
+			JSON.stringify(published.body).slice(0, 200)
+		);
+		// One complaint from the last place, answered with reasons — the inbox on /manage.
+		const jakub = tokenOf['jakub@edmat.example'];
+		const lodged = await api(`/contests/${finished.id}/complaints/`, {
+			token: jakub,
+			method: 'POST',
+			body: {
+				text: 'Uważam, że zadanie 2 oceniono za nisko — rachunek był poprawny, zabrakło tylko jednego zdania.'
+			}
+		});
+		if (lodged.status === 201) {
+			await api(`/contest-complaints/${lodged.body.id}/answer/`, {
+				token: kasia,
+				method: 'POST',
+				body: {
+					answer:
+						'Jury ponownie przeczytało rozwiązanie zadania 2. Zgodnie z §6 regulaminu za uzasadnienie przyznaje się do 3 punktów, a brakujące zdanie było jego główną częścią. Ocena bez zmian. Droga sądowa pozostaje otwarta.'
+				}
+			});
+		}
+	}
+	finished = (await api(`/contests/${finished.id}/`, { token: kasia })).body;
+	check(
+		'contests: the finished contest has published results',
+		finished.status === 'results_published',
+		finished.status
+	);
+
+	// ---- REGISTERING --------------------------------------------------------------------------
+	const challengeFields = (title, description, startsIn) => ({
+		title,
+		description,
+		preset_key: 'challenge',
+		visibility: 'public',
+		starts_at: at(startsIn),
+		ends_at: at(startsIn + 14),
+		registration_opens_at: at(startsIn - 10),
+		registration_closes_at: at(startsIn + 7),
+		merit_criteria:
+			'Każde zadanie 0–5 punktów za poprawność i jakość uzasadnienia. Remisy rozstrzyga się merytorycznie.',
+		data_controller_name: 'Michał Zieliński',
+		data_controller_contact: 'michal@edmat.example'
+	});
+	const registering = await foundContest(
+		michal,
+		challengeFields(
+			CONTEST_REGISTERING,
+			'Dwa zadania o pochodnych kierunkowych na jeden tydzień. Bez nagrody — ranking i informacja zwrotna od jury.',
+			4
+		),
+		{ jury: [olaId], rules: rulesFor('Michał Zieliński', 'michal@edmat.example', { prize: false }) }
+	);
+	contestIds.registering = registering.id;
+	await stageWith(registering.id, michal, [51, 52]);
+	if (registering.status === 'registration_open') {
+		await enter(registering.id, michal, tokenOf['zofia@edmat.example'], 'PW, MiNI, II rok');
+	}
+
+	// ---- RUNNING ------------------------------------------------------------------------------
+	const running = await foundContest(
+		michal,
+		challengeFields(
+			CONTEST_RUNNING,
+			'Dwa zadania o twierdzeniu o funkcji uwikłanej. Bez nagrody — ranking i informacja zwrotna od jury.',
+			-3
+		),
+		{ jury: [olaId], rules: rulesFor('Michał Zieliński', 'michal@edmat.example', { prize: false }) }
+	);
+	contestIds.running = running.id;
+	if (running.status === 'registration_open') {
+		await enter(running.id, michal, tokenOf['ania@edmat.example'], 'UW, MIM, II rok');
+		await enter(running.id, michal, tokenOf['jakub@edmat.example'], 'UW, Fizyka, II rok');
+	}
+	let round = await stageWith(running.id, michal, [90, 70]);
+	if (round?.status === 'scheduled') {
+		// The round closes a week from now whenever this runs, so the countdown reads the same.
+		await api(`/contest-stages/${round.id}/`, {
+			token: michal,
+			method: 'PATCH',
+			body: { opens_at: at(-3), closes_at: at(4) }
+		});
+		await api(`/contest-stages/${round.id}/open/`, { token: michal, method: 'POST' });
+		round = (await api(`/contests/${running.id}/stages/`, { token: michal })).body[0];
+	}
+	contestIds.runningStage = round?.id;
+	check('contests: the running contest has an open round', round?.status === 'open', round?.status);
+	// Ania's half-written draft: one answer in, one to go. Re-written every run (a draft is hers to
+	// overwrite), so the picture never shows a previous run's leftovers.
+	if (round?.status === 'open') {
+		const problems =
+			(await api(`/contest-stages/${round.id}/problems/`, { token: michal })).body ?? [];
+		await api(`/contest-stages/${round.id}/submission/`, {
+			token: tokenOf['ania@edmat.example'],
+			method: 'PUT',
+			body: {
+				answers: problems.slice(0, 1).map((p) => ({
+					problem_id: p.id,
+					text: 'Niech \\( F(x,y) = y^3 + x^2 - 2xy \\). Wtedy \\( F(1,1) = 0 \\) i \\( F_y(1,1) = 3 - 2 = 1 \\neq 0 \\), więc z twierdzenia o funkcji uwikłanej…'
+				}))
+			}
+		});
+	}
+}
+
+/**
+ * The wizard's people screen suggests from four rosters, and on the development database Kasia's
+ * only shared rosters were left by earlier browser runs ("co-writes e2e-coop-1790…-skrypt with
+ * you"). Two things make the picture honest instead: a real roster of her own — a course she runs
+ * with Michał and Ola as staff, made here idempotently and left private (`only_you`, the default) —
+ * and, in the browser, the suggestion response with the leftover reasons taken OUT before the page
+ * sees it. That is `hideScratch()` one layer down: the page draws exactly what it would for a
+ * database without the leftovers, and nobody's data is rewritten.
+ */
+const KASIA_COURSE = 'Analiza matematyczna II — ćwiczenia';
+async function arrangeKasiaRoster(kasia, staffIds) {
+	const courses = await api('/courses/', { token: kasia });
+	let course = (Array.isArray(courses.body) ? courses.body : []).find(
+		(c) => c.title === KASIA_COURSE
+	);
+	if (!course) {
+		const made = await api('/courses/', {
+			token: kasia,
+			method: 'POST',
+			body: { title: KASIA_COURSE }
+		});
+		check(
+			'contests: Kasia has a course roster to suggest from',
+			made.ok,
+			JSON.stringify(made.body).slice(0, 160)
+		);
+		course = made.body;
+	}
+	for (const userId of staffIds) {
+		await api(`/courses/${course.id}/staff/`, {
+			token: kasia,
+			method: 'POST',
+			body: { user_id: userId, role: 'assistant' }
+		});
+	}
+}
+
+let suggestionsFiltered = 0;
+async function withoutScratchSuggestions(page) {
+	await page.route(/\/contests\/people-suggestions\//, async (route) => {
+		const response = await route.fetch();
+		const payload = await response.json().catch(() => null);
+		if (!Array.isArray(payload?.people)) return route.fulfill({ response });
+		suggestionsFiltered += 1;
+		const people = payload.people
+			.map((person) => ({ ...person, via: person.via.filter((v) => !/e2e/i.test(v)) }))
+			.filter((person) => person.via.length > 0);
+		return route.fulfill({ response, json: { ...payload, people } });
+	});
+}
+
+chapters.contests = async () => {
+	await arrangeContests();
+	const { finished, finishedStage, registering, running, runningStage } = contestIds;
+
+	// 1. The hub, as an organiser who also sits on a jury, so every tab has a count on it.
+	{
+		const { ctx, page } = await open('michal@edmat.example');
+		await visit(page, '/contests', { wait: '.cards > li', extra: 1500 });
+		await page
+			.waitForFunction(() => document.querySelectorAll('[role="tab"]').length === 4, null, {
+				timeout: 30000
+			})
+			.catch(() => {});
+		await hideScratch(page);
+		await settle(page, 600);
+		const cards = await rect(page, '.cards');
+		await shoot(page, 'contests', '01-hub', {
+			clip: {
+				x: 0,
+				y: 56,
+				width: WIDTH,
+				height: Math.round((cards?.y ?? 500) + (cards?.height ?? 400) + 24 - 56)
+			}
+		});
+		await ctx.close();
+	}
+
+	// 2. Entering: Piotr, who has not entered, in front of the open form.
+	{
+		const { ctx, page } = await open('piotr@edmat.example');
+		await visit(page, `/contests/${registering}`, { wait: '.hero', extra: 1500 });
+		const takePart = page.getByRole('button', { name: 'Take part' }).first();
+		if (await takePart.count()) {
+			await takePart.click();
+			await page
+				.locator('form.register')
+				.waitFor({ timeout: 10000 })
+				.catch(() => {});
+			await page.locator('form.register input[type="text"]').first().fill('UW, MIM, II rok');
+			await page.locator('form.register h2').first().click(); // blur: no focus ring in the picture
+			await settle(page, 600);
+		}
+		check(
+			'contests/02-enter: the entry form is open',
+			(await page.locator('form.register').count()) === 1
+		);
+		const form = await rect(page, 'form.register');
+		const top = await rect(page, '.hero');
+		await shoot(page, 'contests', '02-enter', {
+			clip: {
+				x: 0,
+				y: Math.max(56, Math.round((top?.y ?? 100) - 24)),
+				width: WIDTH,
+				height: Math.round(
+					(form?.y ?? 700) + (form?.height ?? 300) + 24 - Math.max(56, (top?.y ?? 100) - 24)
+				)
+			}
+		});
+		await ctx.close();
+	}
+
+	// 3. Answering: Ania on the open round, one answer written and one to go.
+	{
+		const { ctx, page } = await open('ania@edmat.example');
+		await visit(page, `/contests/${running}/stages/${runningStage}`, {
+			wait: '.problem',
+			extra: 1500
+		});
+		await page
+			.locator('.problem .katex')
+			.first()
+			.waitFor({ timeout: 20000 })
+			.catch(() => {});
+		await settle(page, 800);
+		const second = await rect(page, '.problem >> nth=1');
+		await shoot(page, 'contests', '03-stage', {
+			clip: { x: 0, y: 56, width: WIDTH, height: Math.round((second?.y ?? 700) + 150 - 56) }
+		});
+		await ctx.close();
+	}
+
+	// 4. The results, as the laureate — her row marked, the certificate link beside it.
+	{
+		const { ctx, page } = await open('ania@edmat.example');
+		await visit(page, `/contests/${finished}/results`, { wait: '.ranking tbody tr', extra: 1200 });
+		const table = await rect(page, '.ranking');
+		await shoot(page, 'contests', '04-results', {
+			clip: {
+				x: 0,
+				y: 56,
+				width: WIDTH,
+				height: Math.round((table?.y ?? 300) + (table?.height ?? 150) + 24 - 56)
+			}
+		});
+		await ctx.close();
+	}
+
+	// 5. The complaints window, as the entrant whose complaint was answered with reasons.
+	{
+		const { ctx, page } = await open('jakub@edmat.example');
+		await visit(page, `/contests/${finished}/results`, { wait: '.complaints', extra: 1500 });
+		await shoot(page, 'contests', '05-complaints', {
+			locator: page.locator('.complaints').first()
+		});
+		await ctx.close();
+	}
+
+	// 6–9. The wizard, driven to its last screen and NOT submitted: it creates nothing.
+	{
+		const kasia = await tokenFor('kasia@edmat.example');
+		const ids = [];
+		for (const email of ['michal@edmat.example', 'ola@edmat.example']) {
+			ids.push((await api('/auth/me/', { token: await tokenFor(email) })).body?.id);
+		}
+		await arrangeKasiaRoster(kasia, ids);
+		const { ctx, page } = await open('kasia@edmat.example');
+		await withoutScratchSuggestions(page);
+		await visit(page, '/contests/new', { wait: '.presets', extra: 2000 });
+		const presets = await rect(page, '.presets > li:nth-child(4)');
+		await shoot(page, 'contests', '06-kind', {
+			clip: {
+				x: 0,
+				y: 56,
+				width: WIDTH,
+				height: Math.round((presets?.y ?? 700) + (presets?.height ?? 100) + 12 - 56)
+			}
+		});
+
+		const next = page.locator('.nav button.primary').filter({ hasText: 'Next' });
+		await next.click();
+		await page
+			.locator('.grid')
+			.waitFor({ timeout: 10000 })
+			.catch(() => {});
+		const field = (label, selector) =>
+			page.locator('.field', { hasText: label }).first().locator(selector);
+		await field('Title', 'input').fill('Wyzwanie: szeregi potęgowe');
+		await field('What it is, in a few sentences', 'textarea').fill(
+			'Trzy zadania o promieniu zbieżności na dwa tygodnie. Bez nagrody — ranking i komentarz jury.'
+		);
+		const dates = page.locator('.grid input[type="date"]');
+		const day = (offset) => new Date(Date.now() + offset * DAY).toISOString().slice(0, 10);
+		if ((await dates.count()) >= 3) {
+			await dates.nth(0).fill(day(14));
+			await dates.nth(1).fill(day(21));
+			await dates.nth(2).fill(day(28));
+		}
+		await field('What the jury marks against', 'textarea').fill(
+			'Każde zadanie 0–5 punktów: poprawność rachunku (0–2) i kompletność uzasadnienia (0–3).'
+		);
+		await field('Who is responsible for the entrants', 'input').fill('Kasia Wiśniewska');
+		await field('and how to reach them', 'input').fill('kasia@edmat.example');
+		await page.locator('h1').first().click(); // blur, so no field is drawn focused
+		await settle(page, 600);
+		const prize = await rect(page, 'fieldset:has(input[type="checkbox"])');
+		await shoot(page, 'contests', '07-form', {
+			clip: {
+				x: 0,
+				y: 56,
+				width: WIDTH,
+				height: Math.round((prize?.y ?? 760) + (prize?.height ?? 130) + 16 - 56)
+			}
+		});
+
+		await next.click();
+		await page
+			.locator('.pickers')
+			.waitFor({ timeout: 10000 })
+			.catch(() => {});
+		await page
+			.locator('.suggestions label')
+			.first()
+			.waitFor({ timeout: 15000 })
+			.catch(() => {});
+		const suggestion = page
+			.locator('.picker')
+			.first()
+			.locator('.suggestions input[type="checkbox"]')
+			.first();
+		if (await suggestion.count()) await suggestion.check();
+		await settle(page, 600);
+		check(
+			'contests/08-people: the suggestion list went through the leftover filter',
+			suggestionsFiltered > 0
+		);
+		check(
+			'contests/08-people: somebody is suggested, with a reason',
+			(await page.locator('.suggestions .via').count()) > 0
+		);
+		const pickers = await rect(page, '.pickers');
+		await shoot(page, 'contests', '08-people', {
+			clip: {
+				x: 0,
+				y: 56,
+				width: WIDTH,
+				height: Math.round((pickers?.y ?? 300) + (pickers?.height ?? 500) + 60 - 56)
+			}
+		});
+
+		await next.click();
+		await page
+			.locator('.will-create')
+			.waitFor({ timeout: 10000 })
+			.catch(() => {});
+		await settle(page, 600);
+		const willCreate = await rect(page, '.will-create');
+		const from = Math.round((willCreate?.y ?? 900) - 330);
+		await shoot(page, 'contests', '09-law', {
+			clip: {
+				x: 0,
+				y: from,
+				width: WIDTH,
+				height: Math.round((willCreate?.y ?? 900) + (willCreate?.height ?? 250) + 16 - from)
+			}
+		});
+		await ctx.close();
+	}
+
+	// 10. The compliance panel, on the organiser's own page for the finished contest.
+	{
+		const { ctx, page } = await open('kasia@edmat.example');
+		await visit(page, `/contests/${finished}/manage`, { wait: '.panel', extra: 2000 });
+		const panel = await rect(page, '.panel');
+		await shoot(page, 'contests', '10-compliance', {
+			clip: { x: 0, y: Math.round((panel?.y ?? 1500) - 16), width: WIDTH, height: 760 }
+		});
+		await ctx.close();
+	}
+
+	// 11. Judging: Michał's grid for the closed round, his marks and Ola's beside them.
+	{
+		const { ctx, page } = await open('michal@edmat.example');
+		await visit(page, `/contests/${finished}/judge`, { wait: '.matrix .row', extra: 1500 });
+		await page
+			.locator('.matrix .katex')
+			.first()
+			.waitFor({ timeout: 20000 })
+			.catch(() => {});
+		await settle(page, 800);
+		const second = await rect(page, '.matrix .row >> nth=1');
+		await shoot(page, 'contests', '11-judge', {
+			clip: { x: 0, y: 56, width: WIDTH, height: Math.round((second?.y ?? 600) - 12 - 56) }
+		});
+		await ctx.close();
+	}
+	check('contests: the finished round is the one photographed', Boolean(finishedStage));
+};
+
 // ================================================================================================
 
 const order = [
@@ -1140,7 +1857,8 @@ const order = [
 	'help',
 	'messages',
 	'moderation',
-	'flashcards'
+	'flashcards',
+	'contests'
 ];
 
 try {
@@ -1148,7 +1866,7 @@ try {
 	for (const name of order) {
 		if (ONLY && !ONLY.has(name)) continue;
 		console.log(`\n${name}`);
-		if (!process.env.KEEP) rmSync(`${OUT}${name}`, { recursive: true, force: true });
+		if (!process.env.KEEP && !PICTURES) rmSync(`${OUT}${name}`, { recursive: true, force: true });
 		try {
 			await chapters[name]();
 		} catch (error) {

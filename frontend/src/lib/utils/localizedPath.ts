@@ -21,5 +21,14 @@ import type { ResolvedPathname } from '$app/types';
 import { localizeHref } from '$lib/paraglide/runtime';
 
 export function localizedPath(path: ResolvedPathname): ResolvedPathname {
-	return localizeHref(path) as ResolvedPathname;
+	const href = localizeHref(path);
+	// **While prerendering**, `resolve()` hands back a RELATIVE path (`../../tutoring`) and Paraglide
+	// resolves it against the prerenderer's own origin, so the written HTML said
+	// `href="http://sveltekit-prerender/korki"` — on every prerendered page's Materials link and on
+	// the manual's "Open this screen" links, live for anybody who clicked before hydration or read
+	// the page without JS (found 2026-10-14 by reading `build/about/guide/tutoring.html`). An
+	// absolute answer to a relative question is that, and the honest fallback is the canonical path,
+	// which `hooks.ts` reroutes for either language; hydration then writes the localized one.
+	if (/^[a-z][a-z0-9+.-]*:\/\//i.test(href) && !/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) return path;
+	return href as ResolvedPathname;
 }

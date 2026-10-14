@@ -9,6 +9,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'The listings',
+			tryHref: '/tutoring',
 			body: [
 				"Filter by subject and by whether the tutor works online or in person. Each card carries the rate the tutor quotes, the age band, the subject, the rating other students left, and the tutor's name.",
 				'In Polish the page is at /korki, which is the word a Polish reader would search for; in English it is /tutoring. Both are the same page.'
@@ -53,6 +54,7 @@ const EN: GuideChapterDoc = {
 		},
 		{
 			heading: 'Putting up your own listing',
+			tryHref: '/tutoring/new',
 			body: [
 				'"+ Add…" in the bar, then "New listing". A listing takes a description — which may contain mathematics, a chemical structure, a drawing or a picture, like everything else here — and the hours you are free, which you set once as a weekly pattern on your schedule page.'
 			]
@@ -68,6 +70,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Lista ogłoszeń',
+			tryHref: '/tutoring',
 			body: [
 				'Filtr po przedmiocie i po tym, czy korepetytor uczy online czy na miejscu. Każdy kafelek niesie podaną stawkę, przedział wiekowy, przedmiot, ocenę od innych uczniów i nazwisko korepetytora.',
 				'Po polsku strona jest pod /korki — bo takiego słowa szuka polski czytelnik — a po angielsku pod /tutoring. To ta sama strona.'
@@ -112,6 +115,7 @@ const PL: GuideChapterDoc = {
 		},
 		{
 			heading: 'Własne ogłoszenie',
+			tryHref: '/tutoring/new',
 			body: [
 				'„+ Add…” na pasku, potem „New listing”. Ogłoszenie przyjmuje opis — w którym, jak wszędzie tutaj, mogą być wzory, struktura chemiczna, szkic albo obrazek — oraz godziny, w których jesteś wolny; te ustawia się raz, jako tygodniowy wzorzec, na stronie grafiku.'
 			]

@@ -11,6 +11,9 @@
 	import { getLocale } from '$lib/paraglide/runtime.js';
 	import { m } from '$lib/paraglide/messages.js';
 	import { GUIDE_CHAPTERS, chapterBySlug } from '$lib/content/guide';
+	import type { GuideStep } from '$lib/content/guide/types';
+	import type { PathnameWithSearchOrHash, ResolvedPathname } from '$app/types';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
@@ -30,6 +33,28 @@
 			? true
 			: featureFlagsStore.isEnabled(entry.flag) || authStore.isModerator
 	);
+
+	/** `resolve()` for an address that is already a checked `Pathname` — checked where it is WRITTEN,
+	 *  in `lib/content/guide/` (`GuideStep.tryHref`, `GuideChapterEntry.showcase`). `resolve()`'s
+	 *  parameter type distributes over the route union and cannot accept the union itself, so the
+	 *  cast says "some route" to it; the type error for a route that does not exist has already
+	 *  happened by then. */
+	function hrefFor(path: PathnameWithSearchOrHash): ResolvedPathname {
+		return resolve(path as '/');
+	}
+
+	/** Whether a step's "Open this screen" link is drawn for this reader. A killed feature's link
+	 *  goes with it (house rule 3) — the step's own `tryFlag` if it has one, else the chapter's —
+	 *  with the same moderator bypass `live` above has, because the pages themselves let staff in.
+	 *  `guests` and `moderators` say who the screen is for at all. */
+	function showTry(step: GuideStep): boolean {
+		if (!step.tryHref) return false;
+		if (step.tryFor === 'guests' && authStore.isAuthenticated) return false;
+		if (step.tryFor === 'members' && !authStore.isAuthenticated) return false;
+		if (step.tryFor === 'moderators' && !authStore.canModerate) return false;
+		const flag = step.tryFlag ?? entry?.flag ?? null;
+		return flag === null || featureFlagsStore.isEnabled(flag) || authStore.isModerator;
+	}
 </script>
 
 <PageHead
@@ -63,13 +88,13 @@
 			{/if}
 			{#if entry.showcase}
 				<p class="chapter__showcase">
-					<!-- `rel="external"` because the showcase pages are step G's and land in a separate
-					     merge: the prerenderer CRAWLS the links on a prerendered page and fails the
-					     build on a 404, so without this the manual could not be built before G has
-					     merged. It costs a full page load instead of a client-side navigation on one
-					     link. The integrator may drop it once /about/<feature> exists. -->
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a fixed /about/<feature> path from lib/content/guide/index.ts -->
-					<a href={entry.showcase} rel="external">{m.guide_seeTheDesign()}</a>
+					<!-- A plain client-side link since 2026-10-14: the `rel="external"` that used to sit here
+					     only existed so the manual could be built before the /about/<feature> showcase
+					     pages had merged (the prerenderer crawls links and fails on a 404). They have, so
+					     it cost a full page load for nothing. `showcase` is typed as a `Pathname`, so a
+					     wrong address is a type error rather than a 404. -->
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `hrefFor()` IS `resolve()`, for a value already typed as a route (see its comment); the rule cannot see through it without type-aware linting -->
+					<a href={hrefFor(entry.showcase)}>{m.guide_seeTheDesign()}</a>
 					<!-- "See the design →" -->
 				</p>
 			{/if}
@@ -85,6 +110,19 @@
 					{#each step.body as paragraph (paragraph)}
 						<p>{paragraph}</p>
 					{/each}
+					{#if step.tryHref && showTry(step)}
+						<p class="chapter__try">
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps `resolve()` so /tutoring renders as /korki for a Polish reader; see lib/utils/localizedPath.ts -->
+							<a href={localizedPath(hrefFor(step.tryHref))}>
+								{m.guideTry_openThisScreen()}
+								<!-- "Open this screen →" -->
+								<span class="chapter__try-which"
+									>{m.guideTry_whichScreen({ step: step.heading })}</span
+								>
+								<!-- "({step})" -->
+							</a>
+						</p>
+					{/if}
 					{#if step.screenshot}
 						<figure class="chapter__shot">
 							<img
@@ -187,6 +225,16 @@
 	.chapter__showcase {
 		margin: 0;
 		font-size: var(--font-size-sm);
+	}
+	.chapter__try {
+		font-size: var(--font-size-sm);
+
+		a {
+			font-weight: 600;
+		}
+	}
+	.chapter__try-which {
+		@include mix.visually-hidden;
 	}
 	.chapter__missing {
 		color: var(--text-secondary);

@@ -9,6 +9,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'The list',
+			tryHref: '/concepts',
 			body: [
 				'Search, filter by subject or tag, sort, or jump by first letter. Each card says which readers its article was written for, which language it is in, and how many articles the concept has.',
 				'A concept with no article for your kind of reader says so on its card rather than opening into an empty page.'
@@ -58,6 +59,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Lista',
+			tryHref: '/concepts',
 			body: [
 				'Wyszukiwarka, filtr po przedmiocie albo tagu, sortowanie i skok po pierwszej literze. Każdy kafelek mówi, dla jakich czytelników napisano artykuł, w jakim jest języku i ile artykułów ma pojęcie.',
 				'Pojęcie, które nie ma artykułu dla Twojego rodzaju czytelnika, pisze to na kafelku, zamiast otwierać pustą stronę.'

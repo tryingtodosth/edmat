@@ -9,6 +9,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'What is being asked for',
+			tryHref: '/needs',
 			body: [
 				'Each posting says what kind of help it is — general help, expertise, equipment, a venue — how many people are wanted, whether it can be done remotely, and roughly how many hours it is. It also says what it is *for*, because a posting always belongs to something: a course, an event, a material, an organisation.',
 				'Filter by kind, by skill level, or to remote-only work, or search the text.'
@@ -38,6 +39,8 @@ const EN: GuideChapterDoc = {
 		},
 		{
 			heading: 'The other side of it',
+			tryHref: '/volunteering',
+			tryFlag: 'volunteering',
 			body: [
 				'The volunteering board is the supply side: people saying what they can help with, how much time they have, and which languages they can do it in. The "Speaks…" filter is that last one.',
 				'Your own offer is written and withdrawn from "My volunteering offers" in your account menu. It is deliberately a separate board from help wanted, because "I need somebody" and "I can do something" are two different questions and mixing them makes both harder to read.'
@@ -58,6 +61,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'O co ktoś prosi',
+			tryHref: '/needs',
 			body: [
 				'Każde ogłoszenie mówi, jakiego rodzaju to pomoc — ogólna, fachowa, sprzęt, lokal — ile osób jest potrzebnych, czy da się to zrobić zdalnie i ile mniej więcej godzin zajmie. Mówi też, *do czego* jest, bo ogłoszenie zawsze należy do czegoś: kursu, wydarzenia, materiału, organizacji.',
 				'Filtruj po rodzaju, po wymaganym poziomie albo do pracy wyłącznie zdalnej, albo przeszukaj treść.'
@@ -87,6 +91,8 @@ const PL: GuideChapterDoc = {
 		},
 		{
 			heading: 'Druga strona',
+			tryHref: '/volunteering',
+			tryFlag: 'volunteering',
 			body: [
 				'Tablica wolontariatu to strona podaży: ludzie piszą, w czym mogą pomóc, ile mają czasu i w jakich językach dadzą radę. Filtr „Speaks…” dotyczy tego ostatniego.',
 				'Własną ofertę pisze się i wycofuje z „My volunteering offers” w menu konta. To celowo osobna tablica od „szukamy pomocy”, bo „potrzebuję kogoś” i „mogę coś zrobić” to dwa różne pytania, a zmieszane utrudniają czytanie obu.'

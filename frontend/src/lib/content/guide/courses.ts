@@ -9,6 +9,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Finding one',
+			tryHref: '/courses',
 			body: [
 				'Every course that is listed shows who runs it, how many people are taking part, which age band it is for and which subject it belongs to. The tick box narrows the list to courses you are already in.',
 				'Not every course is here. A course starts out visible to nobody but its own staff, and the person running it decides when — and whether — to list it publicly. Some are only reachable by an invite link.'
@@ -73,6 +74,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Jak znaleźć kurs',
+			tryHref: '/courses',
 			body: [
 				'Każdy wypisany kurs pokazuje, kto go prowadzi, ile osób bierze udział, dla jakiego wieku jest i do którego przedmiotu należy. Pole wyboru zawęża listę do kursów, w których już jesteś.',
 				'Nie każdy kurs tu jest. Kurs zaczyna jako widoczny tylko dla prowadzących, a osoba prowadząca decyduje, kiedy — i czy — wystawić go publicznie. Do niektórych wchodzi się wyłącznie z zaproszenia.'

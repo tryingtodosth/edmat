@@ -4166,6 +4166,8 @@
 	"contestsAbout_presetStaffOnly": "tylko operator platformy",
 	"contestsAbout_viaLabel": "skąd ta podpowiedź",
 	"guide_contests_blurb": "Założenie konkursu, zgłoszenie się, ocenianie i to, co przynosi ze sobą nagroda.",
+	"guideTry_openThisScreen": "Otwórz ten ekran →",
+	"guideTry_whichScreen": "({step})",
 	"contestLabel_rowContest": "konkurs",
 	"contests_accept": "Przyjmij",
 	"contests_advancedCount": "Dalej przeszło: {count}.",

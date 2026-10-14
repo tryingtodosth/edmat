@@ -1,5 +1,6 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, searchForWorkspaceRoot, type Plugin } from 'vite';
 
@@ -41,9 +42,18 @@ export default defineConfig({
 	// mathematics draws it in a fallback face and logs a console error. Production bundles the
 	// fonts, so this is a dev-server-only hazard — and exactly the kind that puts wrong-looking
 	// mathematics into a screenshot.
+	//
+	// The allowed path is the symlink's REAL path, worked out here, rather than a literal: the
+	// literal that stood here (`/Projects/edmat/frontend/node_modules`) was one machine's layout,
+	// and on a checkout under `/home/<user>/Projects/` it allowed nothing — the fonts 403'd again
+	// and the manual's 2026-10-14 contest pictures were first taken in fallback glyphs. In the main
+	// checkout the real path is inside the workspace root anyway, so this adds nothing there.
 	server: {
 		fs: {
-			allow: [searchForWorkspaceRoot(process.cwd()), '/Projects/edmat/frontend/node_modules']
+			allow: [
+				searchForWorkspaceRoot(process.cwd()),
+				realpathSync(fileURLToPath(new URL('./node_modules', import.meta.url)))
+			]
 		}
 	},
 	resolve: { alias: nodeBuiltinShims },

@@ -15,6 +15,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Make a deck',
+			tryHref: '/my-set',
 			body: [
 				'The shortest way in is a set you have already saved. On "My set", every saved set carries a "Make a deck from this set" button, and the deck it makes has one card per exercise in the set.',
 				'The same button sits on a lesson inside a course, on a session in an event programme, and on a concept page — anything you are already reading can become a deck. The "+" on an exercise card has a Decks section that folds open as well, for putting the one exercise in front of you into a deck you already have.',
@@ -27,6 +28,7 @@ const EN: GuideChapterDoc = {
 		},
 		{
 			heading: 'Your decks, and what is waiting',
+			tryHref: '/flashcards',
 			body: [
 				'"My decks" in the account menu is the list. Each deck says how many cards it holds, where it came from, and how many are waiting for you; the line above the list adds them up across every deck.',
 				'A deck you have never reviewed counts all of its cards as waiting, because a card you have not seen yet is a card to learn. The box under that line starts an empty deck, if you would rather build one card at a time.'
@@ -107,6 +109,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Zrób talię',
+			tryHref: '/my-set',
 			body: [
 				'Najkrótsza droga to zapisany zestaw. Na stronie „My set” każdy zapisany zestaw ma przycisk „Make a deck from this set”, a powstała talia ma jedną kartę na każde zadanie z zestawu.',
 				'Ten sam przycisk jest przy lekcji w kursie, przy sesji w programie wydarzenia i na stronie pojęcia — wszystko, co właśnie czytasz, może stać się talią. Menu „+” przy kafelku zadania ma też rozwijaną sekcję „Decks”, żeby wrzucić jedno zadanie do talii, którą już masz.',
@@ -119,6 +122,7 @@ const PL: GuideChapterDoc = {
 		},
 		{
 			heading: 'Twoje talie i to, co czeka',
+			tryHref: '/flashcards',
 			body: [
 				'„My decks” w menu konta to lista. Każda talia mówi, ile ma kart, skąd pochodzi i ile czeka na Ciebie; wiersz nad listą sumuje to po wszystkich taliach.',
 				'Talia, której jeszcze nie powtarzałeś, liczy wszystkie swoje karty jako czekające, bo karta nieobejrzana to karta do nauczenia. Pole pod tym wierszem zakłada pustą talię, jeśli wolisz budować ją po jednej karcie.'

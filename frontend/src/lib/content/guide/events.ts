@@ -9,6 +9,7 @@ const EN: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'What is coming up',
+			tryHref: '/events',
 			body: [
 				'Two tabs — what is still ahead, and what has already happened. Each card carries the date and time, who is hosting, whether it is in person or online, and how many places are left.'
 			],
@@ -62,6 +63,7 @@ const PL: GuideChapterDoc = {
 	steps: [
 		{
 			heading: 'Co się szykuje',
+			tryHref: '/events',
 			body: [
 				'Dwie zakładki — co dopiero będzie i co już było. Każdy kafelek niesie datę i godzinę, kto prowadzi, czy to spotkanie na żywo czy online, i ile zostało miejsc.'
 			],
