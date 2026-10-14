@@ -14,8 +14,8 @@ Read `backend/exercises/CLAUDE.md` as well — it owns the invariants this impor
 ## 1. What one exercise actually becomes
 
 ```
-Exercise                  structure only: branch, number, topics, difficulty, audience, tags,
-                          published, original_locale, submitted_by      (never `verified` — derived)
+Exercise                  structure only: branch, number, topics, difficulty, audience, licence,
+                          tags, published, original_locale, submitted_by (never `verified` — derived)
  └─ ExerciseTranslation    title + statement + answer, one row per (locale, status);
                            the ORIGINAL is a row too (locale='pl', status='published')
  └─ SolutionEntry ×0..2    the hint and the solution, as pinned published entries in the peer pool
@@ -40,6 +40,7 @@ cd backend
 | `--dry-run` | parse, validate, write, roll back. Changes nothing, prints exactly what a real run would do |
 | `--create-topics` | create the topic rows the files reference and the branch lacks (approved, named from `batch.yaml`'s `topic_names:`) |
 | `--locale`, `--audience` | defaults for files that do not say; `pl` and `university` |
+| `--licence <key>` | default licence for files that do not say; **`unknown`** if nothing says (see §4) |
 | `--author <username>` | credit a real account as submitter and solution author. Omit for corpus-style content nobody here wrote |
 | `--no-write-back` | do not write allocated `number:` values back into the source files (then a re-run duplicates — see §4) |
 
@@ -120,6 +121,14 @@ It is **idempotent by `(branch, number)`**: a file carrying `number:` only ever 
 - **`audience` is required by meaning, not by syntax.** It defaults to `university`, which is a
   factual claim about who the exercise is for (`AUDIENCE-BRIEF.md`). A school sheet imported as
   `university` is mis-filed in every list and filter.
+- **The licence is declared, never assumed.** `licence:` per file, in `batch.yaml` or `--licence`;
+  with none of them the rows are `unknown` ("rights not yet clarified — shown for study only",
+  `LEGAL.md` §3). Only declare a Creative Commons licence when the rights holder actually granted it —
+  a TA's sheet transcribed from a course is the University's (LEGAL.md §3), not yours to license.
+  Keys: `cc0-1.0` `cc-by-4.0` `cc-by-sa-4.0` `cc-by-nc-4.0` `cc-by-nc-sa-4.0` `edmat-only` `unknown`
+  (`backend/licensing/licences.py`); anything else is refused. A re-run only ever **widens** a row's
+  licence, and records the change; a narrower file is warned about and left (a CC grant is
+  irrevocable).
 - **An import never republishes.** If the row is unpublished — a moderator removed it, or reports
   auto-hid it — a re-run leaves it hidden and says so. A file *can* hide a row (`published: false`).
 - **Flags are not remembered.** The file is the source of truth and `update_or_create` overwrites, so

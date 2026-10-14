@@ -19,7 +19,7 @@ Policz pochodną \(f(x)=\sin(x^2)\).
 ```
 
 That is enough: the number is allocated and written back, `topics` may be empty, `audience` defaults
-to `university`, `locale` to `pl`, `published` to `true`.
+to `university`, `locale` to `pl`, `published` to `true`, `licence` to `unknown`.
 
 ## Everything
 
@@ -30,6 +30,7 @@ title: Całka Gaussa
 topics: [calki, teoria-miary]
 difficulty: trudne
 audience: university
+licence: cc-by-sa-4.0       # only if the rights holder granted it; omit → unknown
 locale: pl
 published: true
 tags: [calka-gaussa, wspolrzedne-biegunowe]
@@ -63,6 +64,7 @@ Podnieś całkę do kwadratu i użyj współrzędnych biegunowych.
 | `number` | no | integer ≥ 1. Omitted → allocated from the branch's highest, skipping numbers this batch claims, then **written into the file** |
 | `topics` | no | slugs of `Topic` rows **of that branch**. Unknown → refused unless `--create-topics` |
 | `audience` | no | `early_years` `primary` `secondary` `university` `adult` `senior` `all` (`config/audience.py`) |
+| `licence` | no | `cc0-1.0` `cc-by-4.0` `cc-by-sa-4.0` `cc-by-nc-4.0` `cc-by-nc-sa-4.0` `edmat-only` `unknown` (`backend/licensing/licences.py`). Default `unknown`. Covers the statement, answer, hint and solution in the file. A re-run only widens an existing row's licence |
 | `locale` | no | the language the body is written in. Default `pl` |
 | `published` | no | `false` imports it hidden — a staging state, not a draft workflow. `true` never *re*-publishes an existing row that is unpublished or auto-hidden: that was somebody's decision, and the run warns instead |
 | `tags` | no | free slugs; created on demand, never removed by a later run |
@@ -93,6 +95,7 @@ Body text is Markdown with raw HTML passthrough and literal LaTeX delimiters: `\
 branch: analiza-matematyczna     # --branch overrides this
 locale: pl
 audience: university
+licence: unknown                 # fallback for files that omit it; --licence overrides this
 difficulty: średnie              # fallback for files that omit it
 topic_names:                     # used only by --create-topics — and this ORDER is the order the
   teoria-miary: Elementy teorii miary   # created topics get, which is how /branches/<slug> sorts
@@ -104,7 +107,7 @@ topic_names:                     # used only by --create-topics — and this ORD
 
 - no front matter, invalid YAML, front matter that is not a mapping
 - missing or empty `title`; missing or empty statement section
-- unknown/missing `difficulty`; unknown `audience`
+- unknown/missing `difficulty`; unknown `audience`; unknown `licence`
 - unknown front-matter key; `verified:`
 - a `## heading` that is not one of the four
 - unbalanced `\(`/`\)` or `\[`/`\]` in title, statement, hint, answer or solution — counted with
