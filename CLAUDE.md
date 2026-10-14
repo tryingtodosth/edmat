@@ -196,8 +196,8 @@ Learn these five and most of the schema reads itself.
   (and a request for it comes back 400 with the reason — house rule 10). A status people can set by
   hand is a status that stops meaning anything.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirty-eight exist today (counted with `FeatureFlag.objects.count()` on the dev
-  database, 2026-10-14, with `social_login` and `contests` both applied — this number had drifted twice before, so count it rather than increment it,
+  with an `is_staff` bypass. Thirty-nine exist today (counted with `FeatureFlag.objects.count()` on the dev
+  database, 2026-10-14, with `social_login` and `contests` both applied; thirty-nine since `client_errors`, moderation 0055, 2026-10-14 — this number had drifted twice before, so count it rather than increment it,
   which is how the "thirty-three" that preceded "thirty-four" turned out to be two short rather than one) — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
@@ -218,7 +218,8 @@ Learn these five and most of the schema reads itself.
   with it) and `attachments` (0052, attachments on anything — `attachments/`; off, every
   `/api/<kind>/<id>/attachments/` closes for a non-staff caller, the panel leaves every page it is
   mounted on, and "Attach something" goes with it) and `social_login` (0054, sign-in with an external provider — `sso/`; with no credentials configured
-it shows nothing anyway) and `contests` (0053, contests — `contests/`;
+it shows nothing anyway) and `client_errors` (0055, the first-party browser error reporter —
+  `analytics/client_errors.py`; off, the server drops every report and the dashboard section goes) and `contests` (0053, contests — `contests/`;
   off, every `/api/contests/…` and `/api/contest-presets/` closes for a non-staff caller, the hub,
   the Add… entry, the account-menu item, the work-dashboard sections and the feed rows go with it,
   while a contest node's tasks, plans and goals stay reachable by id for its staff, because those
@@ -390,7 +391,9 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/auth/{confirm-email,confirm-email/resend,password-reset/confirm,me/mail}/   mail (backend/mail/)
 /api/mail/{status,outbound,outbound/{id}/retry,test,inbound,inbound/fetch}/  the Mail tab, SUPERUSER only
 /api/analytics/{overview,traffic,content,community,moderation,coverage,cohorts,health,…}/  usage statistics, STAFF only
-/api/auth/sso/{providers,<p>/start,<p>/callback,exchange,ticket,complete,identities}/  sign-in with Google / Apple / GitHub / Facebook / Microsoft
+/api/client-errors/                                                   a browser error report (sendBeacon, no cookie; analytics/)
+/api/courses/{id}/materials/                                           a general course's materials, its versions' included
+/api/auth/sso/{providers,<p>/start,<p>/callback,exchange,ticket,complete,identities,link/…}/  sign-in with Google / Apple / GitHub / Facebook / Microsoft
 /api/auth/me/{export,erasure,password}/ /api/auth/erasure/cancel/   GDPR self-service and the password form
 ```
 
@@ -428,7 +431,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /moderation /legal/queue /issues                              staff + reports
 /privacy /terms /legal /levels                                standing pages
 /moderation/analytics                                         usage statistics (staff)
-/auth/sso/done /auth/sso/complete                              the provider sign-in's return and signup pages
+/auth/sso/done /auth/sso/complete /auth/sso/link                the provider sign-in's return, signup and confirm-and-link pages
 /settings/account /cancel-deletion                             download my data, delete my account, change my mind
 /about                                                        the project itself: the EdMat organisation's page (goals, needs, open board), the research thread, the showcase index
 /about/<feature> /about/guide /about/guide/[chapter]          the design showcase (sample data) and the manual

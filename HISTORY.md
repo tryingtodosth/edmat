@@ -16693,3 +16693,132 @@ Per agent: `test sso accounts.test_password` 118, `test accounts identity mail l
   wrote" option; blockers are checked when deletion is requested, not again at erasure.
 - Neither `deploy/cron/edmat-analytics` nor `edmat-retention` is installed by `apply-on-server.sh`;
   each command should be dry-run on webek4 before its cron line goes in.
+
+## 17CL — Round three: confirm-and-link sign-in, a first-party error reporter, CC BY suggested, a choice at deletion (2026-10-14, `ux/colour-pass`)
+
+The owner's third set of answers, the same evening as §17CJ–§17CK. The session building it was cut
+off at 20:27 with all five sub-agents mid-verification; a new session found their edits intact,
+relaunched each to *finish and verify* rather than restart (each got its predecessor's brief and last
+notes), and every one passed on re-run. Lesson kept: a toolchain in a session's `/tmp` scratch dir
+dies with the session — Node 24 now lives under `~/.local/opt/`.
+
+### Linking a provider to an existing account — option A (`LINKING-AND-ERRORS.md` §2.4)
+
+Owner: *"lets research whats the correct way to do it (meaning industry standard)"*, then *"yes, go
+with A"*. A provider identity EdMat has never seen, carrying an existing account's address, used to
+end at `email_in_use`. It now goes to `/auth/sso/link?ticket=…` and **the person proves the account**
+— by its password (throttled like login; five failures kill the ticket) or, only if the address is
+confirmed, by a mailed single-use link that works in the browser that started. The ticket lives 30
+minutes, is stored hashed, and is purged by the hourly `sso_purge`. Minors and guardian-managed
+accounts are refused (`minor`) at the callback and again at the proof; two accounts sharing one
+address are still `email_in_use`. Every link — from here or from Settings — mails the account.
+**Still never linked by e-mail alone**: the address is how the account is *found*, never what
+*proves* it. The mail log stores `[[link]]`, not a working link (`mail/` rule).
+
+### A first-party browser error reporter — option B
+
+Owner: *"if we dont have to get a special GDPR cookie like consent and keep being free of these cookie
+popups its a green light"*. `POST /api/client-errors/` takes a `text/plain` `sendBeacon` from a
+lazily imported reporter (≈1 KB gzipped, not in the entry chunk): kind, message, a path-only stack,
+the route *template* (`/exercises/[id]`, never the id), the build id and the locale. No cookie, no
+storage, no `Authorization`; GPC/DNT send nothing; at most five per page load, deduplicated. Grouped
+on the Analytics dashboard by a normalised message (whole numbers masked — `\b\d+\b`, after an earlier
+`\d+` turned `e2e` into `eNe` in a screenshot). Reports kept 30 days, counts and groups 90, purged by
+the nightly `rollup_analytics`. Its own flag, `client_errors` (moderation 0055) — **39 flags**.
+`ANALYTICS-LAW.md` row 8 and `/privacy` say what is sent. This is technique class A of that file: it
+reads nothing from the device that the page did not itself produce, so PKE art. 399 does not apply.
+
+### Licences: CC BY suggested where the work is plainly the author's own
+
+Owner: *"for exercises without a source and materials created from scratch on edmat CC-BY should be
+suggested"*. The picker pre-selects CC BY 4.0 with a "Suggested" tag and a reason line when an
+exercise names no source (type "other", no name, no source material) and when a material version is
+written in the editor with no source URL; naming a source moves it back to "EdMat only" with "may be
+somebody else's work", until the author clicks — after that it never moves. **The API default is
+still `edmat-only`**: a suggestion is the form's, never the server's. Terms § 9 point 3 no longer calls
+"EdMat only" the default. Solutions and hints are not suggested CC BY: the composer has no source
+field, so there is no way to tell an author's own answer from a copied key.
+
+### Deleting an account: a choice for EdMat-only content, and minors are guardian-only
+
+Owner: *"user is asked about it"* and *"guardian only"*. The deletion plan counts what the person
+wrote under `edmat-only`/`unknown` and asks: keep it, anonymised, or remove it — **hidden**
+(`published=False` / `is_removed`), never deleted, so threads under it stay whole. CC-licensed content
+stays either way (the licence was irrevocable when granted), and so do co-authored items and
+translations. No answer when there is something to answer is 400 `choice_required`. A minor deleting
+their own account gets 400 `guardian_managed` and a line telling them to ask their parent or guardian;
+the guardian's path answers "remove". `accounts` 0027; privacy (rights, deletion, publication row) and
+terms § 19 in both languages.
+
+### And one bug found by the next loop's first package
+
+`/flashcards` told a brand-new account "3 cards waiting across 1 deck" while it owned none.
+`flashcards.rules.my_study_decks` counted decks placed on any node the person could **see**, so a
+deck on a public course was work waiting for everybody on the site. It now asks `is_node_member`,
+which is what its own docstring ("placed where they study") always said; a regression test covers
+it, and grading a card in such a deck still makes it yours to finish.
+
+Also this evening: `TERMS_VERSION` and the privacy policy's date bumped to 2026-10-15 (owner: *"its
+going to be deployed tomorrow, yes bump"*); `apply-on-server.sh` step 3f backfills the analytics
+(`rollup_analytics --days 90`), prints dry runs of everything the first nightly retention will
+remove, and installs `/etc/cron.d/edmat-analytics` and `edmat-retention` (owner: *"use cron, and
+install them using the apply on server script"*).
+
+### Verified
+
+Per part, on re-run: `sso mail` 151, `analytics` 48 + `analytics.test_client_errors` 17, `licensing`
+32, `accounts.test_erasure accounts.test_minors licensing` 100, `flashcards` 66 — all OK;
+`e2e/sso.mjs` 45/45, `e2e/client-errors.mjs` 29/29, `e2e/licences.mjs` 36/36,
+`e2e/account-erasure.mjs` 28/28, each against a migrated copy of the database, screenshots looked at.
+The full suite after the courses merge (§17CM) is on the board entry and in the commit message.
+
+### Left open
+
+- Linking: the page reveals which proofs an account has (a password? a confirmed address?) — the
+  price of offering them; a mailed link opened in another browser cannot hand the request across.
+- Errors: SvelteKit's `handleError` path is tested at the API only; the reporter cannot know the flag
+  until flags load (the server drops reports while it is off).
+- Licences: no suggestion on the concept-article editor or the solution/hint composers;
+  `/submit-material` cannot tell a file the author wrote from someone else's.
+- Deletion: a hidden item can be restored only by staff; `unknown` follows the same choice as
+  `edmat-only`; "ask us to remove one item" is text, not a form.
+
+## 17CM — Courses as communities: Materials and Courses back in the bar, a general course and its university versions (2026-10-14, `ux/colour-pass`)
+
+Owner: *"bring back materials to navbar and adding, as its a crucial module. also, lets bring back
+courses. here we will be having people creating communities around both general topics, and specific
+courses on universities for all the materials to be in one place"*; then *"a default/general course,
+and subcourses for specific universities and faculties"*. On exams: *"it's really difficult call to
+make about exams, as lecturers oppose the idea of sharing exams"* — so nothing exam-specific was
+built, and the ~175 midterm/exam corpus rows are left as they are. `COURSES-MATERIALS-RESEARCH.md` is
+the research behind it, with the owner's decisions at its top.
+
+- **Why they had left:** §17BQ's trimmed bar (2026-10-01, owner's call) — it "was saying that
+  Materials, Courses and Concepts are as central as the exercises". This reverses it for Materials and
+  Courses by the owner's new call; Concepts stays out. Bar: Exercises, Materials, Courses, Help wanted,
+  Tutoring; About and Contests become icons at every width so it fits (Help wanted and Tutoring fold to
+  icons at 1024). The Add… menu has "Add a material" and "Start a course or community" again, behind
+  their flags and the creation gate.
+- **`Course.kind`**: `topic` (a general course) or `university`, with `university`, `faculty`,
+  `course_code`, `current_term`, and a one-level `parent` — a university/faculty version hangs under a
+  general course (`courses` 0021). The rules are in `courses/rules.py`: `visible_courses` is the one
+  visibility filter, `subcourse_block_reason` returns the refusal word (seven, mirrored in
+  `labels.ts`). Any creation-gated user may add a version.
+- **Materials in one place**: `GET /api/courses/{id}/materials/` lists a general course's materials
+  with every version's; the course page shows them above its content, and lists its versions grouped by
+  university and faculty. `/courses` became "Courses & communities" with General / Versions / All chips
+  and university and faculty filters.
+- Built on its own branch (`worktree-agent-a6724ecc52a16612c`), merged with only the catalogues'
+  tails conflicting, merged as JSON three-way (no key changed on both sides).
+
+**Verified:** `test courses materials config` 600 OK; `check`, `makemigrations --check`,
+`check_databases_declared` 0; `npm run check` 0/0; `e2e/courses-communities.mjs` 45/45 (run twice),
+`navbar-stages.mjs` 62/62; `events-and-nav.mjs` 88/95 — the seven failures reproduce on the c45dd2c
+frontend with the c45dd2c script, so they predate this. Screenshots looked at (bar in en/pl at 1280 and
+1024, drawer at 390, Add menu, both forms, a general course with a version, the hub).
+
+**Left open:** no duplicate guard on (university, course_code) yet (the index is there); a version
+cannot be moved to another general course; terms are not filed inside one standing course; a material
+still belongs to exactly one `Branch`. Decisions waiting (`COURSES-MATERIALS-RESEARCH.md`): a corpus
+sign-off with UW, whether `Material.branch` stays required, enforcing one canonical general course per
+subject, a university as an Organization, the USOS API, recruiting course representatives.

@@ -138,6 +138,12 @@ SUBPROJECT_BY_REF = {
     # a licence per item, GitHub and Facebook. `accounts` again — erasure and export are its own
     # rule module; the licensing half is content, and a section gets one key.
     '17CK': 'accounts',
+    # 17CL is round three of the same evening: confirm-and-link sign-in, the browser error reporter,
+    # CC BY suggested, the choice at account deletion. `accounts`, like the two before it.
+    '17CL': 'accounts',
+    # 17CM is courses as communities — Materials and Courses back in the bar, a general course and
+    # its university/faculty versions.
+    '17CM': 'courses',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

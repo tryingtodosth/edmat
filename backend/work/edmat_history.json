@@ -1494,5 +1494,27 @@
   "summary": "Same day as §17CJ, after the owner answered its questions. Four sub-agents again, plus the text changes done by the orchestrating session.",
   "subproject": "accounts",
   "listed": true
+ },
+ {
+  "ref": "17CL",
+  "title": "Round three: confirm-and-link sign-in, a first-party error reporter, CC BY suggested, a choice at deletion",
+  "heading": "17CL — Round three: confirm-and-link sign-in, a first-party error reporter, CC BY suggested, a choice at deletion (2026-10-14, `ux/colour-pass`)",
+  "line": 16697,
+  "date": "2026-10-14",
+  "date_source": "heading",
+  "summary": "The owner's third set of answers, the same evening as §17CJ–§17CK. The session building it was cut off at 20:27 with all five sub-agents mid-verification; a new session found their edits intact, relaunched each to finish and verify rather than restart (each got its predecessor's brief and last notes), and every one passed on re-run. Lesson kept: a toolchain in a session's /tmp scratch dir dies…",
+  "subproject": "accounts",
+  "listed": true
+ },
+ {
+  "ref": "17CM",
+  "title": "Courses as communities: Materials and Courses back in the bar, a general course and its university versions",
+  "heading": "17CM — Courses as communities: Materials and Courses back in the bar, a general course and its university versions (2026-10-14, `ux/colour-pass`)",
+  "line": 16786,
+  "date": "2026-10-14",
+  "date_source": "heading",
+  "summary": "Owner: \"bring back materials to navbar and adding, as its a crucial module. also, lets bring back courses. here we will be having people creating communities around both general topics, and specific courses on universities for all the materials to be in one place\"; then \"a default/general course, and subcourses for specific universities and faculties\". On exams: \"it's really difficult call to…",
+  "subproject": "courses",
+  "listed": true
  }
 ]
