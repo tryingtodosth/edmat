@@ -1,9 +1,10 @@
 // The design showcase under `/about/<feature>` (HISTORY.md §17BR.G, prompts/08-about-showcase.md).
 //
-// Seven prerendered pages built from sample data in `lib/content/showcase/`. What this script is
+// Eight prerendered pages built from sample data in `lib/content/showcase/`, plus — since
+// 2026-10-14 — screenshots of the running site and links to the real pages. What this script is
 // actually for:
 //
-//   1. all seven open, in BOTH interface languages, each with its own `<h1>`, the honest "nothing
+//   1. all eight open, in BOTH interface languages, each with its own `<h1>`, the honest "nothing
 //      here is live" notice, and at least one sample frame — with zero console/page errors and
 //      zero failed requests;
 //   2. nothing on them reaches the API. The whole claim of these pages is that they need no
@@ -14,11 +15,15 @@
 //      database. `SampleFrame` wraps them in `inert`; this clicks one and asserts the URL did not
 //      move, which is the only way to tell a working `inert` from a decorative attribute;
 //   4. every link a reader CAN follow goes somewhere that exists (the allowlist below);
-//   5. the index of the seven is on `/about` with seven cards, and no page overflows at phone
-//      width.
-//
-// Deliberately NOT asserted: that `/flashcards`, `/users/{id}` or any other surface the seven
-// pages DESCRIBE exists. Those belong to the other steps of this cycle and are not on this branch.
+//   5. the index of the eight is on `/about` with eight cards, and no page overflows at phone
+//      width;
+//   6. the real screens and the ways out (2026-10-14): each page's "Try it yourself" row has the
+//      links it should, every screenshot is a real PNG of the size it claims and sits OUTSIDE any
+//      inert frame, every followable link answers 200 from the server, the "Read the manual
+//      chapter" link agrees with the manual's own `GUIDE_CHAPTERS[].showcase` (read off the
+//      chapter pages, in both directions), a killed feature's links disappear (the flag list is
+//      intercepted in the browser — no database row is touched), and a screenshot's "Open the real
+//      page" really navigates.
 //
 // Run (ports must match the servers you started):
 //   E2E_BASE=http://localhost:5237 E2E_API=http://127.0.0.1:8137/api node e2e/showcase.mjs
@@ -64,35 +69,83 @@ const check = (label, ok, extra = '') => {
 	console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label} ${ok ? '' : extra}`);
 };
 
-/** The seven, with the `<h1>` each must show in each language. */
+/**
+ * The eight, with the `<h1>` each must show in each language, how many sample frames, how many
+ * "Try it yourself" links (all features on), how many screenshots, and the manual chapter it links.
+ */
 const PAGES = [
 	{
 		slug: 'exercises',
 		pl: 'Zadanie, zestaw, talia',
 		en: 'An exercise, a set, a deck',
-		frames: 4
+		frames: 4,
+		tries: 3,
+		shots: 2,
+		guide: 'exercises'
 	},
 	{
 		slug: 'flashcards',
 		pl: 'Fiszki i powtórki w odstępach',
 		en: 'Flashcards and spaced review',
-		frames: 4
+		frames: 4,
+		tries: 2,
+		shots: 2,
+		guide: 'flashcards'
 	},
-	{ slug: 'learning-record', pl: 'Rejestr nauki', en: 'The learning record', frames: 4 },
+	{
+		slug: 'learning-record',
+		pl: 'Rejestr nauki',
+		en: 'The learning record',
+		frames: 4,
+		tries: 1,
+		shots: 0,
+		guide: null
+	},
 	{
 		slug: 'courses',
 		pl: 'Kurs, tydzień, zaświadczenie',
 		en: 'A course, a week, a certificate',
-		frames: 5
+		frames: 5,
+		tries: 2,
+		shots: 1,
+		guide: 'courses'
 	},
-	{ slug: 'schools', pl: 'Szkoła w EdMacie', en: 'A school on EdMat', frames: 3 },
+	{
+		slug: 'schools',
+		pl: 'Szkoła w EdMacie',
+		en: 'A school on EdMat',
+		frames: 3,
+		tries: 2,
+		shots: 0,
+		guide: null
+	},
 	{
 		slug: 'concepts',
 		pl: 'Pojęcia i co trzeba wiedzieć wcześniej',
 		en: 'Concepts, and what to learn first',
-		frames: 5
+		frames: 5,
+		tries: 1,
+		shots: 1,
+		guide: 'concepts'
 	},
-	{ slug: 'events', pl: 'Co zostaje po wydarzeniu', en: 'What an event leaves behind', frames: 4 }
+	{
+		slug: 'events',
+		pl: 'Co zostaje po wydarzeniu',
+		en: 'What an event leaves behind',
+		frames: 4,
+		tries: 1,
+		shots: 1,
+		guide: 'events'
+	},
+	{
+		slug: 'contests',
+		pl: 'Konkursy i to, co przynosi ze sobą nagroda',
+		en: 'Contests, and what a prize brings with it',
+		frames: 4,
+		tries: 1,
+		shots: 0,
+		guide: 'contests'
+	}
 ];
 
 /**
@@ -102,6 +155,16 @@ const PAGES = [
  */
 const ALLOWED = [
 	'/about',
+	'/about/contests',
+	'/about/guide/exercises',
+	'/about/guide/flashcards',
+	'/about/guide/courses',
+	'/about/guide/concepts',
+	'/about/guide/events',
+	'/about/guide/contests',
+	'/flashcards',
+	'/contests',
+	'/settings',
 	'/about/exercises',
 	'/about/flashcards',
 	'/about/learning-record',
@@ -174,6 +237,27 @@ function watch(page) {
 /** Which API paths this page asked for that the root layout does not ask for everywhere. */
 const beyondBoot = (api) => [...new Set(api.paths.filter((p) => !LAYOUT_BOOT.includes(p)))];
 
+/** Bring every lazy screenshot on the page into view and wait until it has decoded. */
+async function loadShots(page) {
+	const imgs = page.locator('figure.shot img');
+	for (let i = 0; i < (await imgs.count()); i++) {
+		const img = imgs.nth(i);
+		await img.scrollIntoViewIfNeeded();
+		await img
+			.evaluate((el) =>
+				el.complete && el.naturalWidth > 0
+					? null
+					: new Promise((r) => {
+							el.addEventListener('load', r, { once: true });
+							el.addEventListener('error', r, { once: true });
+							setTimeout(r, 8000);
+						})
+			)
+			.catch(() => {});
+	}
+	await page.evaluate(() => window.scrollTo(0, 0));
+}
+
 async function open(page, path) {
 	// 'load', not 'networkidle': the notification SSE stream never settles on an authenticated page
 	// and the dev server's first compile is slow enough to look like a hang either way.
@@ -196,12 +280,12 @@ try {
 			String(await index.count())
 		);
 		const cards = index.locator('.showcase-index__card');
-		check('/about: seven showcase cards', (await cards.count()) === 7, String(await cards.count()));
+		check('/about: eight showcase cards', (await cards.count()) === 8, String(await cards.count()));
 		const hrefs = await index
 			.locator('.showcase-index__card a')
 			.evaluateAll((els) => els.map((el) => el.getAttribute('href')));
 		check(
-			'/about: every card points at one of the seven pages',
+			'/about: every card points at one of the eight pages',
 			PAGES.every((p) => hrefs.includes(`/about/${p.slug}`)),
 			hrefs.join(' ')
 		);
@@ -209,7 +293,12 @@ try {
 		await ctx.close();
 	}
 
-	// ---- 2. All seven, Polish (the base locale) and English ------------------------------------
+	// ---- 2. All eight, Polish (the base locale) and English ------------------------------------
+	/** Every followable link and every screenshot seen on any page, fetched once each in step 7. */
+	const seenLinks = new Set();
+	const seenImages = new Set();
+	/** showcase slug -> the manual chapter its "Read the manual chapter" link names (or null). */
+	const guideLinkOf = {};
 	for (const locale of ['pl', 'en']) {
 		for (const spec of PAGES) {
 			const ctx =
@@ -237,9 +326,82 @@ try {
 				`got ${frames}`
 			);
 			check(
-				`${locale} /about/${spec.slug}: six links to the other showcase pages`,
-				(await page.locator('.showcase__others li a').count()) === 6
+				`${locale} /about/${spec.slug}: seven links to the other showcase pages`,
+				(await page.locator('.showcase__others li a').count()) === 7
 			);
+
+			// The ways out: "Try it yourself", the manual, and the screenshots.
+			const tries = await page.locator('.showcase__try a.showcase__try-link').count();
+			check(
+				`${locale} /about/${spec.slug}: ${spec.tries} "Try it yourself" link(s)`,
+				tries === spec.tries,
+				`got ${tries}`
+			);
+			const guideHrefs = await page
+				.locator('.showcase__try a.showcase__guide-link')
+				.evaluateAll((els) => els.map((a) => new URL(a.href).pathname));
+			const expectedGuide = spec.guide ? [`/about/guide/${spec.guide}`] : [];
+			check(
+				`${locale} /about/${spec.slug}: manual link is ${expectedGuide[0] ?? 'absent'}`,
+				JSON.stringify(guideHrefs) === JSON.stringify(expectedGuide),
+				guideHrefs.join(' ')
+			);
+			guideLinkOf[spec.slug] = guideHrefs[0]?.replace('/about/guide/', '') ?? null;
+
+			const shots = page.locator('article.showcase figure.shot');
+			check(
+				`${locale} /about/${spec.slug}: ${spec.shots} screenshot(s)`,
+				(await shots.count()) === spec.shots,
+				`got ${await shots.count()}`
+			);
+			if (spec.shots > 0) {
+				// Scroll each into view so the lazy image actually loads, then ask the browser what
+				// it decoded — a broken path is naturalWidth 0, a wrong size claim shifts layout.
+				const facts = [];
+				for (let i = 0; i < spec.shots; i++) {
+					const img = shots.nth(i).locator('img');
+					await img.scrollIntoViewIfNeeded();
+					await img
+						.evaluate((el) =>
+							el.complete && el.naturalWidth > 0
+								? null
+								: new Promise((r) => {
+										el.addEventListener('load', r, { once: true });
+										el.addEventListener('error', r, { once: true });
+										setTimeout(r, 8000);
+									})
+						)
+						.catch(() => {});
+					facts.push(
+						await img.evaluate((el) => ({
+							src: new URL(el.src).pathname,
+							natural: [el.naturalWidth, el.naturalHeight],
+							claimed: [Number(el.getAttribute('width')), Number(el.getAttribute('height'))],
+							lazy: el.getAttribute('loading') === 'lazy',
+							alt: (el.getAttribute('alt') ?? '').trim().length,
+							inert: !!el.closest('[inert]'),
+							inFrame: !!el.closest('figure.frame')
+						}))
+					);
+				}
+				for (const f of facts) seenImages.add(f.src);
+				check(
+					`${locale} /about/${spec.slug}: every screenshot decoded at the size it claims`,
+					facts.every(
+						(f) =>
+							f.natural[0] > 0 && f.natural[0] === f.claimed[0] && f.natural[1] === f.claimed[1]
+					),
+					JSON.stringify(facts.map((f) => [f.src, f.natural, f.claimed]))
+				);
+				check(
+					`${locale} /about/${spec.slug}: screenshots are lazy, have alt text, and are not inside a sample frame`,
+					facts.every((f) => f.lazy && f.alt > 20 && !f.inert && !f.inFrame)
+				);
+				check(
+					`${locale} /about/${spec.slug}: each screenshot has an "open the real page" link`,
+					(await page.locator('figure.shot a.shot__open').count()) === spec.shots
+				);
+			}
 
 			// Every link a reader can actually follow — which excludes the ones inside an inert
 			// frame, because those are part of a picture.
@@ -252,6 +414,7 @@ try {
 					.filter((a) => !a.closest('[inert]'))
 					.map((a) => new URL(a.href).pathname)
 			);
+			for (const href of followable) seenLinks.add(href);
 			const strays = followable.filter((href) => !ALLOWED.includes(href));
 			check(
 				`${locale} /about/${spec.slug}: every followable link is a route that exists`,
@@ -260,6 +423,7 @@ try {
 			);
 
 			if (locale === 'en') {
+				await loadShots(page);
 				await page.screenshot({
 					path: `${SHOTS}showcase-${spec.slug}.png`,
 					fullPage: true
@@ -368,11 +532,14 @@ try {
 
 	// ---- 5. Phone width, and the dark theme ----------------------------------------------------
 	{
-		for (const slug of ['exercises', 'courses', 'learning-record']) {
+		for (const slug of ['exercises', 'courses', 'learning-record', 'flashcards', 'concepts']) {
 			const ctx = await englishContext(browser, BASE, { viewport: PHONE });
 			const page = await ctx.newPage();
 			watch(page);
 			await open(page, `/about/${slug}`);
+			// The screenshots are lazy, so a full-page shot taken from the top shows empty boxes.
+			// Scroll each into view and wait for it, so the picture of the phone is the real one.
+			await loadShots(page);
 			const overflow = await page.evaluate(
 				() => document.documentElement.scrollWidth - document.documentElement.clientWidth
 			);
@@ -394,10 +561,174 @@ try {
 			document.documentElement.setAttribute('data-theme', 'dark');
 		});
 		await page.waitForTimeout(200);
+		await loadShots(page);
 		await page.screenshot({ path: `${SHOTS}showcase-courses-dark.png`, fullPage: true });
 		check(
 			'dark theme: the page still has its samples',
 			(await page.locator('figure.frame').count()) === 5
+		);
+		await ctx.close();
+	}
+
+	// ---- 7. Every link a reader can follow, and every picture, answers ------------------------
+	// Fetched from the server rather than clicked: the dev server SSRs every route, so an unknown
+	// path is a real 404 here, and a static PNG must come back as an image.
+	{
+		// `/dziennik/` is the one exception: a separate static bundle the vhost serves beside the SPA
+		// (HISTORY.md §17BO), so the dev server honestly has no such page.
+		for (const href of [...seenLinks].filter((h) => h !== '/dziennik/').sort()) {
+			const res = await fetch(`${BASE}${href}`, { redirect: 'manual' });
+			check(`link ${href} answers 200`, res.status === 200, String(res.status));
+		}
+		for (const src of [...seenImages].sort()) {
+			const res = await fetch(`${BASE}${src}`);
+			check(
+				`screenshot ${src} is served as a PNG`,
+				res.status === 200 && (res.headers.get('content-type') ?? '').includes('image/png'),
+				`${res.status} ${res.headers.get('content-type')}`
+			);
+		}
+	}
+
+	// ---- 8. The manual link agrees with the manual --------------------------------------------
+	// `components/showcase/hrefs.ts: SHOWCASE_GUIDE` is kept by hand (it says why). The truth is
+	// `GUIDE_CHAPTERS[].showcase`, which each chapter page draws as its "see the design" link — so
+	// read it off every chapter the hub lists, and require the two directions to match exactly.
+	{
+		const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+		const page = await ctx.newPage();
+		watch(page);
+		await page.goto(`${BASE}/about/guide`, { waitUntil: 'load' });
+		await page.locator('h1').first().waitFor();
+		const chapters = [
+			...new Set(
+				await page.evaluate(() =>
+					Array.from(document.querySelectorAll('main a[href]'))
+						.map((a) => new URL(a.href).pathname)
+						.filter((p) => /^\/about\/guide\/[a-z-]+$/.test(p))
+						.map((p) => p.split('/').pop())
+				)
+			)
+		];
+		check('manual hub lists at least ten chapters', chapters.length >= 10, String(chapters.length));
+		const fromManual = {};
+		for (const chapter of chapters) {
+			await page.goto(`${BASE}/about/guide/${chapter}`, { waitUntil: 'load' });
+			await page.locator('h1').first().waitFor();
+			const targets = await page.evaluate(
+				(slugs) => {
+					return Array.from(document.querySelectorAll('main a[href]'))
+						.map((a) => new URL(a.href).pathname)
+						.filter((p) => slugs.some((s) => p === `/about/${s}`));
+				},
+				PAGES.map((p) => p.slug)
+			);
+			for (const t of new Set(targets)) fromManual[t.replace('/about/', '')] = chapter;
+		}
+		for (const spec of PAGES) {
+			check(
+				`manual and /about/${spec.slug} agree on its chapter (${fromManual[spec.slug] ?? 'none'})`,
+				(fromManual[spec.slug] ?? null) === guideLinkOf[spec.slug],
+				`manual says ${fromManual[spec.slug] ?? 'none'}, showcase says ${guideLinkOf[spec.slug]}`
+			);
+		}
+		await ctx.close();
+	}
+
+	// ---- 9. A killed feature's links disappear ------------------------------------------------
+	// The flag list is rewritten IN THE BROWSER (page.route), so no database row changes and no
+	// other worktree is affected. Signed out = not staff, so there is no moderator bypass (e2e
+	// trap 10).
+	{
+		const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+		const page = await ctx.newPage();
+		watch(page);
+		await page.route('**/api/feature-flags/**', async (route) => {
+			const res = await route.fetch();
+			const flags = await res.json();
+			const off = new Set(['flashcards', 'concepts']);
+			await route.fulfill({
+				response: res,
+				json: flags.map((f) => (off.has(f.key) ? { ...f, is_enabled: false } : f))
+			});
+		});
+		const booted = page
+			.waitForResponse((r) => r.url().includes('/feature-flags/'), { timeout: 30000 })
+			.catch(() => null);
+		await open(page, '/about/flashcards');
+		await booted;
+		await page.waitForTimeout(1500);
+		const links = await page.evaluate(() =>
+			Array.from(document.querySelectorAll('article.showcase a[href]'))
+				.filter((a) => !a.closest('[inert]'))
+				.map((a) => new URL(a.href).pathname)
+		);
+		check(
+			'flashcards off: no followable link to /flashcards is left',
+			!links.includes('/flashcards'),
+			links.join(' ')
+		);
+		check(
+			'flashcards off: the screenshots stay, without their "open" links',
+			(await page.locator('figure.shot').count()) === 2 &&
+				(await page.locator('figure.shot a.shot__open').count()) === 0
+		);
+		check(
+			'flashcards off: /my-set (no switch) is still offered',
+			links.includes('/my-set'),
+			links.join(' ')
+		);
+		check(
+			'flashcards off: the manual link stays (the chapter is prose)',
+			links.includes('/about/guide/flashcards')
+		);
+		check(
+			'flashcards off: the page says the feature is switched off',
+			(await page.locator('.showcase__notice--off').count()) === 1
+		);
+		await page.screenshot({ path: `${SHOTS}showcase-flashcards-killed.png`, fullPage: true });
+
+		const rebooted = page
+			.waitForResponse((r) => r.url().includes('/feature-flags/'), { timeout: 30000 })
+			.catch(() => null);
+		await open(page, '/about/concepts');
+		await rebooted;
+		await page.waitForTimeout(1500);
+		const conceptLinks = await page.evaluate(() =>
+			Array.from(document.querySelectorAll('article.showcase a[href]'))
+				.filter((a) => !a.closest('[inert]'))
+				.map((a) => new URL(a.href).pathname)
+		);
+		check(
+			'concepts off: the "Try it" row is down to the manual link, and /concepts is gone',
+			!conceptLinks.includes('/concepts') &&
+				(await page.locator('.showcase__try a.showcase__try-link').count()) === 0 &&
+				(await page.locator('.showcase__try a.showcase__guide-link').count()) === 1,
+			conceptLinks.join(' ')
+		);
+		await ctx.close();
+	}
+
+	// ---- 10. A screenshot's link really goes to the real page ---------------------------------
+	{
+		const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+		const page = await ctx.newPage();
+		watch(page);
+		const booted = page
+			.waitForResponse((r) => r.url().includes('/feature-flags/'), { timeout: 30000 })
+			.catch(() => null);
+		await open(page, '/about/concepts');
+		await booted;
+		const link = page.locator('figure.shot a.shot__open').first();
+		await link.scrollIntoViewIfNeeded();
+		await Promise.all([
+			page.waitForURL((u) => u.pathname === '/concepts', { timeout: 15000 }).catch(() => {}),
+			link.click()
+		]);
+		check(
+			'clicking "Open the real page" under the concepts screenshot lands on /concepts',
+			new URL(page.url()).pathname === '/concepts',
+			page.url()
 		);
 		await ctx.close();
 	}

@@ -272,7 +272,26 @@ const EN: CoursesShowcase = {
 	certificateCaption:
 		'The whole document. Everything it does not say is as deliberate as everything it does.',
 	closing:
-		'A gradebook, a guardian’s signature on a completion and a class timetable are all left out on purpose. The school half of this — a course run by a school, with guardians on its roster — has its own page.'
+		'A gradebook, a guardian’s signature on a completion and a class timetable are all left out on purpose. The school half of this — a course run by a school, with guardians on its roster — has its own page.',
+	tryIt: [
+		{ label: 'Browse the courses', route: '/courses' },
+		{ label: 'Your flashcard decks', route: '/flashcards' }
+	],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/courses/03-content.png',
+			focus: [248, 1032],
+			width: 1280,
+			height: 760,
+			route: '/courses',
+			alt: 'Screenshot of a course’s content as the person running it sees it: a chapter called “Program” with two lessons, “Ciągi i granice” and “Szeregi liczbowe”, each with a description, “Make a deck from this week”, “Link a saved set”, a progress bar reading “0 of 4 have finished this” and a folded discussion.',
+			caption:
+				'A course’s content, as the person running it sees it: lessons with how many have finished them, and “Make a deck from this week” on each.',
+			linkLabel: 'Find a course'
+		}
+	]
 };
 
 const PL: CoursesShowcase = {
@@ -403,7 +422,26 @@ const PL: CoursesShowcase = {
 	certificateCaption:
 		'Cały dokument. Wszystko, czego nie mówi, jest tak samo celowe jak wszystko, co mówi.',
 	closing:
-		'Dziennik ocen, podpis opiekuna na zaświadczeniu i plan lekcji celowo zostały pominięte. Szkolna połowa tego — kurs prowadzony przez szkołę, z opiekunami na liście uczestników — ma własną stronę.'
+		'Dziennik ocen, podpis opiekuna na zaświadczeniu i plan lekcji celowo zostały pominięte. Szkolna połowa tego — kurs prowadzony przez szkołę, z opiekunami na liście uczestników — ma własną stronę.',
+	tryIt: [
+		{ label: 'Przeglądaj kursy', route: '/courses' },
+		{ label: 'Twoje talie fiszek', route: '/flashcards' }
+	],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/courses/03-content.png',
+			focus: [248, 1032],
+			width: 1280,
+			height: 760,
+			route: '/courses',
+			alt: 'Zrzut ekranu treści kursu oczami osoby, która go prowadzi: rozdział „Program” z dwiema lekcjami, „Ciągi i granice” i „Szeregi liczbowe”, każda z opisem, przyciskami „Make a deck from this week” i „Link a saved set”, paskiem postępu „0 of 4 have finished this” i zwiniętą dyskusją.',
+			caption:
+				'Treść kursu oczami prowadzącej osoby: lekcje z liczbą osób, które je skończyły, i „zrób talię z tego tygodnia” przy każdej.',
+			linkLabel: 'Znajdź kurs'
+		}
+	]
 };
 
 export function coursesShowcaseFor(locale: string): CoursesShowcase {

@@ -35,9 +35,11 @@
 					<ConceptCard {concept} />
 				{/each}
 			</SampleFrame>
-			<p class="more">
-				<a href={resolve('/concepts')}>{doc.conceptsLinkLabel}</a>
-			</p>
+			{#if !featureOff}
+				<p class="more">
+					<a href={resolve('/concepts')}>{doc.conceptsLinkLabel}</a>
+				</p>
+			{/if}
 		</section>
 	</DiscussableSection>
 

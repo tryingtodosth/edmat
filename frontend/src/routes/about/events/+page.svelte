@@ -33,9 +33,11 @@
 			<SampleFrame caption={doc.cardCaption}>
 				<EventCard event={doc.event} />
 			</SampleFrame>
-			<p class="more">
-				<a href={resolve('/events')}>{doc.eventsLinkLabel}</a>
-			</p>
+			{#if !featureOff}
+				<p class="more">
+					<a href={resolve('/events')}>{doc.eventsLinkLabel}</a>
+				</p>
+			{/if}
 		</section>
 	</DiscussableSection>
 

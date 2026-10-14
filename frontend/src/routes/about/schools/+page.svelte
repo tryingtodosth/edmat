@@ -47,9 +47,11 @@
 					<p class="org__runs">{doc.org.runs}</p>
 				</div>
 			</SampleFrame>
-			<p class="more">
-				<a href={resolve('/organizations')}>{doc.organizationsLinkLabel}</a>
-			</p>
+			{#if !featureOff}
+				<p class="more">
+					<a href={resolve('/organizations')}>{doc.organizationsLinkLabel}</a>
+				</p>
+			{/if}
 		</section>
 	</DiscussableSection>
 

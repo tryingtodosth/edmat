@@ -21,6 +21,8 @@ export interface FlashcardsShowcase extends ShowcaseDoc {
 	decksHeading: string;
 	decks: ShowcaseDeck[];
 	decksCaption: string;
+	/** The link under the sample decks, to the reader's own real ones at `/flashcards`. */
+	decksLinkLabel: string;
 	cardHeading: string;
 	card: { frontLabel: string; backLabel: string; front: string; back: string; hint: string };
 	cardCaption: string;
@@ -85,6 +87,7 @@ const EN: FlashcardsShowcase = {
 			isPublic: false
 		}
 	],
+	decksLinkLabel: 'Open your own decks',
 	decksCaption:
 		'Each deck says how many cards it holds and how many are due today, and where it came from. The middle one is placed on a course, so the class can study it too.',
 	cardHeading: 'One card, both faces',
@@ -150,7 +153,36 @@ const EN: FlashcardsShowcase = {
 	placementCaption:
 		'The same deck as a participant of that course sees it: theirs to study, with their own schedule, not the teacher’s.',
 	closing:
-		'A public deck library, decks you can copy from strangers, and a reminder when cards fall due are all deliberately not in this first version. What exists is enough to revise from and enough for a teacher to hand a week of cards to a class.'
+		'A public deck library, decks you can copy from strangers, and a reminder when cards fall due are all deliberately not in this first version. What exists is enough to revise from and enough for a teacher to hand a week of cards to a class.',
+	tryIt: [
+		{ label: 'Open your decks', route: '/flashcards' },
+		{ label: 'Build a set to make a deck from', route: '/my-set' }
+	],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/flashcards/02-decks.png',
+			focus: [268, 1012],
+			width: 1280,
+			height: 580,
+			route: '/flashcards',
+			alt: 'Screenshot of My decks: “5 cards waiting across 2 decks”, a box to name a new deck, and two decks — “Definitions I keep forgetting”, built by hand, and “Limits and sequences”, made from an exercise set — each with Open and Review buttons and a count to review.',
+			caption:
+				'Your decks: how many cards are waiting across all of them, and a Review button on each.'
+		},
+		{
+			src: '/guide/flashcards/06-grades.png',
+			focus: [308, 972],
+			width: 1280,
+			height: 700,
+			route: '/flashcards',
+			alt: 'Screenshot of a review session in the deck “Limits and sequences”, card 1 of 3: an exercise statement asking for partial derivatives, the answer revealed under it, and four buttons — Again, Hard, Good, Easy — numbered 1 to 4.',
+			caption:
+				'A review: the card turned over and the four grades — the same four the sample card below lets you try.',
+			linkLabel: 'Open a deck and review it'
+		}
+	]
 };
 
 const PL: FlashcardsShowcase = {
@@ -194,6 +226,7 @@ const PL: FlashcardsShowcase = {
 		},
 		{ name: 'Zwartość', cardCount: 9, dueCount: 3, source: 'concept', isPublic: false }
 	],
+	decksLinkLabel: 'Otwórz swoje talie',
 	decksCaption:
 		'Każda talia mówi, ile ma fiszek i ile z nich jest dziś do powtórki, oraz skąd powstała. Środkowa leży na kursie, więc klasa też może się z niej uczyć.',
 	cardHeading: 'Jedna fiszka, obie strony',
@@ -259,7 +292,35 @@ const PL: FlashcardsShowcase = {
 	placementCaption:
 		'Ta sama talia widziana przez uczestnika kursu: do uczenia się, z własnym harmonogramem, nie z harmonogramem prowadzącego.',
 	closing:
-		'Publiczna biblioteka talii, kopiowanie talii od obcych i przypomnienie, gdy fiszki się nazbierają, celowo nie weszły do tej pierwszej wersji. To, co jest, wystarcza, by powtarzać, i wystarcza, by prowadzący podał klasie tydzień fiszek.'
+		'Publiczna biblioteka talii, kopiowanie talii od obcych i przypomnienie, gdy fiszki się nazbierają, celowo nie weszły do tej pierwszej wersji. To, co jest, wystarcza, by powtarzać, i wystarcza, by prowadzący podał klasie tydzień fiszek.',
+	tryIt: [
+		{ label: 'Otwórz swoje talie', route: '/flashcards' },
+		{ label: 'Złóż zestaw, z którego zrobisz talię', route: '/my-set' }
+	],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/flashcards/02-decks.png',
+			focus: [268, 1012],
+			width: 1280,
+			height: 580,
+			route: '/flashcards',
+			alt: 'Zrzut ekranu listy talii: „5 cards waiting across 2 decks”, pole na nazwę nowej talii i dwie talie — „Definitions I keep forgetting”, ułożona ręcznie, oraz „Limits and sequences”, zrobiona z zestawu zadań — każda z przyciskami Open i Review i liczbą kart do powtórki.',
+			caption: 'Twoje talie: ile kart czeka łącznie i przycisk powtórki przy każdej.'
+		},
+		{
+			src: '/guide/flashcards/06-grades.png',
+			focus: [308, 972],
+			width: 1280,
+			height: 700,
+			route: '/flashcards',
+			alt: 'Zrzut ekranu powtórki w talii „Limits and sequences”, karta 1 z 3: treść zadania o pochodnych cząstkowych, odsłonięta pod nią odpowiedź i cztery przyciski — Again, Hard, Good, Easy — ponumerowane od 1 do 4.',
+			caption:
+				'Powtórka: odwrócona karta i cztery oceny — te same, które można wypróbować na przykładowej karcie poniżej.',
+			linkLabel: 'Otwórz talię i powtórz ją'
+		}
+	]
 };
 
 export function flashcardsShowcaseFor(locale: string): FlashcardsShowcase {

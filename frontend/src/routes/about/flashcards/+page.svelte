@@ -1,13 +1,15 @@
 <script lang="ts">
 	// `/about/flashcards` — decks, a card with two faces, the four grades, and placement.
 	//
-	// This page deliberately does NOT link to `/flashcards`: that route belongs to the step this
-	// page describes and does not exist on this branch. Linking it would be a dead address on the
-	// one page whose job is to be honest about what is real. The integrator can add the link once
-	// the two branches have met — it is named in `HISTORY.md` §17BR.G as left open.
+	// `/flashcards` exists (step A merged long ago), so this page links it twice: in the shell's
+	// "Try it yourself" row and under the sample decks. Both answer to the `flashcards` switch —
+	// the row through `SHOWCASE_LIVE`, the inline link through `featureOff` below — so a killed
+	// feature leaves no link behind. (Until 2026-10-14 this comment said the route did not exist;
+	// that was true on the branch the page was written on, and stopped being true at the merge.)
 	//
 	// The flip card is the one live sample in the whole showcase (`SampleFrame live`): it flips and
 	// it grades, and it writes nothing, because there is no deck behind it.
+	import { resolve } from '$app/paths';
 	import { getLocale } from '$lib/paraglide/runtime.js';
 	import { m } from '$lib/paraglide/messages.js';
 	import { flashcardsShowcaseFor, type ShowcaseGradeKey } from '$lib/content/showcase/flashcards';
@@ -53,6 +55,11 @@
 					{/each}
 				</div>
 			</SampleFrame>
+			{#if !featureOff}
+				<p class="more">
+					<a href={resolve('/flashcards')}>{doc.decksLinkLabel}</a>
+				</p>
+			{/if}
 		</section>
 	</DiscussableSection>
 
@@ -190,6 +197,10 @@
 		font-variant-numeric: tabular-nums;
 	}
 
+	.more {
+		margin: var(--space-3) 0 0;
+		font-size: var(--font-size-sm);
+	}
 	.body,
 	.note {
 		max-width: 70ch;

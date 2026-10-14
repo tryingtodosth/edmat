@@ -169,7 +169,22 @@ const EN: ConceptsShowcase = {
 	deckCaption:
 		'Nine exercises linked to the concept, as nine cards. The button is not shown at all when a concept has no exercises on it yet.',
 	closing:
-		'A path you can tick off as you go would be a course, and this site already has those. What a concept offers is the order, not the teaching.'
+		'A path you can tick off as you go would be a course, and this site already has those. What a concept offers is the order, not the teaching.',
+	tryIt: [{ label: 'Browse the concepts', route: '/concepts' }],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/concepts/01-hub.png',
+			focus: [98, 1182],
+			width: 1280,
+			height: 780,
+			route: '/concepts',
+			alt: 'Screenshot of the Concepts page: search, subject, tag and order filters, an A to Z row, and concept cards — Integral, Mechanika kwantowa, Limit, Derivative — each with its level, language, number of articles, a one-line summary, its subject and tags.',
+			caption:
+				'The concepts list: one card per idea, with its level, its language and how many articles it has.'
+		}
+	]
 };
 
 const PL: ConceptsShowcase = {
@@ -288,7 +303,21 @@ const PL: ConceptsShowcase = {
 	deckCaption:
 		'Dziewięć zadań powiązanych z pojęciem jako dziewięć fiszek. Przycisku nie ma wcale, gdy pojęcie nie ma jeszcze żadnych zadań.',
 	closing:
-		'Ścieżka, którą da się odhaczać po kolei, byłaby kursem, a te ten serwis już ma. Pojęcie oferuje kolejność, nie nauczanie.'
+		'Ścieżka, którą da się odhaczać po kolei, byłaby kursem, a te ten serwis już ma. Pojęcie oferuje kolejność, nie nauczanie.',
+	tryIt: [{ label: 'Przeglądaj pojęcia', route: '/concepts' }],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/concepts/01-hub.png',
+			focus: [98, 1182],
+			width: 1280,
+			height: 780,
+			route: '/concepts',
+			alt: 'Zrzut ekranu strony Pojęcia: filtry wyszukiwania, przedmiotu, tagu i kolejności, rząd liter od A do Z i karty pojęć — Integral, Mechanika kwantowa, Limit, Derivative — każda z poziomem, językiem, liczbą artykułów, jednozdaniowym opisem, przedmiotem i tagami.',
+			caption: 'Lista pojęć: jedna karta na jedną ideę, z poziomem, językiem i liczbą artykułów.'
+		}
+	]
 };
 
 export function conceptsShowcaseFor(locale: string): ConceptsShowcase {

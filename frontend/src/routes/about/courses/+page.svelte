@@ -35,9 +35,11 @@
 				<CourseCard course={doc.course} />
 				<p class="run-by">{doc.runByLine}</p>
 			</SampleFrame>
-			<p class="more">
-				<a href={resolve('/courses')}>{doc.coursesLinkLabel}</a>
-			</p>
+			{#if !featureOff}
+				<p class="more">
+					<a href={resolve('/courses')}>{doc.coursesLinkLabel}</a>
+				</p>
+			{/if}
 		</section>
 	</DiscussableSection>
 

@@ -446,7 +446,7 @@ node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the 
 node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
 node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck
 node e2e/about-page.mjs               # /about as the project's organisation page (2026-10-08): both locales, both themes, phone width, the open board drawn for a stranger with nothing to press, the tutoring kill switch hiding its card; needs the EdMat seed; kasia's token or login only to flip the flag
-node e2e/showcase.mjs                 # the seven design-showcase pages under /about/<feature>; signs nobody in and needs no backend data (set E2E_NO_BACKEND=1 to run with the API down)
+node e2e/showcase.mjs                 # the eight design-showcase pages under /about/<feature>, their screenshots and live links; signs nobody in and needs no backend data (set E2E_NO_BACKEND=1 to run with the API down)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/exercise-card-click.mjs      # E2E_BASE=http://localhost:5173, E2E_BRANCH=<slug>, default analiza-matematyczna; signs nobody in, saves to the guest working set only
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
@@ -2053,6 +2053,20 @@ the URL did not move), and that the one live sample — the flashcard — flips,
 a grade and costs nothing. Finally three pages at 390px with a `scrollWidth` overflow check, the
 dark theme, and a plain `fetch` of `/about/exercises` asserting the server-rendered HTML carries
 typeset KaTeX (≥ 4 `.katex` nodes) and its `figcaption`s rather than just the shell.
+
+**Extended 2026-10-14 (261 checks)** when the pages gained real screens and ways out (`ShowcaseShot`,
+the "Try it yourself" row, the manual link): all **eight** pages now (`/about/contests` was missing,
+and the index expected seven cards of eight); per page the expected count of "Try it" links,
+screenshots and the manual chapter it names; every screenshot scrolled into view and checked to
+decode at the pixel size its `width`/`height` claim, lazy, with alt text and **outside** any inert
+frame; every followable link and every PNG fetched from the dev server (200, `image/png`; `/dziennik/`
+excepted — it is the vhost's, not the app's); the manual link cross-checked against the manual
+itself, by opening every chapter the `/about/guide` hub lists and reading which showcase page it
+links (`hrefs.ts: SHOWCASE_GUIDE` is hand-kept and says why); a kill-switch pass that rewrites the
+flag list **in the browser** with `page.route` (no database row touched, signed out so no staff
+bypass) and asserts the `/flashcards` and `/concepts` links leave while the pictures, `/my-set` and
+the manual link stay; and a real click on a screenshot's "Open the real page". The "no API beyond
+the boot requests" check still holds — the pictures are static files.
 
     cd frontend && E2E_BASE=http://localhost:5237 E2E_API=http://127.0.0.1:8137/api node e2e/showcase.mjs
 

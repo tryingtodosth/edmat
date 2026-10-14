@@ -118,7 +118,11 @@ const EN: SchoolsShowcase = {
 		'There is no connection between it and anything on EdMat — not a link, not an account, not a row.'
 	],
 	closing:
-		'So: a school can teach on EdMat today, with classes, guardians and the whole catalogue behind it. What it cannot do here is keep its official register, and the demonstration is how to see what that would look like instead of guessing.'
+		'So: a school can teach on EdMat today, with classes, guardians and the whole catalogue behind it. What it cannot do here is keep its official register, and the demonstration is how to see what that would look like instead of guessing.',
+	tryIt: [
+		{ label: 'Browse the organisations', route: '/organizations' },
+		{ label: 'Browse the courses', route: '/courses' }
+	]
 };
 
 const PL: SchoolsShowcase = {
@@ -201,7 +205,11 @@ const PL: SchoolsShowcase = {
 		'Nie ma żadnego połączenia między nią a czymkolwiek w EdMacie — ani linku, ani konta, ani wiersza w bazie.'
 	],
 	closing:
-		'Czyli: szkoła może dziś uczyć w EdMacie, z klasami, opiekunami i całym katalogiem za plecami. Czego nie może, to prowadzić tutaj swojego urzędowego dziennika — a demonstracja jest sposobem, by zobaczyć, jak to by wyglądało, zamiast zgadywać.'
+		'Czyli: szkoła może dziś uczyć w EdMacie, z klasami, opiekunami i całym katalogiem za plecami. Czego nie może, to prowadzić tutaj swojego urzędowego dziennika — a demonstracja jest sposobem, by zobaczyć, jak to by wyglądało, zamiast zgadywać.',
+	tryIt: [
+		{ label: 'Przeglądaj organizacje', route: '/organizations' },
+		{ label: 'Przeglądaj kursy', route: '/courses' }
+	]
 };
 
 export function schoolsShowcaseFor(locale: string): SchoolsShowcase {

@@ -212,7 +212,22 @@ const EN: EventsShowcase = {
 	crossCaption:
 		'One course, filtered by its own visibility: a private course run by the same society does not appear here just because somebody can see the event.',
 	closing:
-		'The mirror image — a course page listing the events its organisation has run — is not built yet, and is named here so that nobody assumes it is missing by accident. Nor is a take-home of a session’s materials: a deck holds exercises and concepts, not files.'
+		'The mirror image — a course page listing the events its organisation has run — is not built yet, and is named here so that nobody assumes it is missing by accident. Nor is a take-home of a session’s materials: a deck holds exercises and concepts, not files.',
+	tryIt: [{ label: 'See what is coming up', route: '/events' }],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/events/01-hub.png',
+			focus: [98, 826],
+			width: 1280,
+			height: 480,
+			route: '/events',
+			alt: 'Screenshot of the Events page: a short explanation, Coming up and Already happened tabs, and two event cards with their date, title, level, host, format and places left.',
+			caption:
+				'The events list as it really is. On the development server these pictures come from, both upcoming events are test rows, which their “TEST=FAKE” titles say.'
+		}
+	]
 };
 
 const PL: EventsShowcase = {
@@ -386,7 +401,22 @@ const PL: EventsShowcase = {
 	crossCaption:
 		'Jeden kurs, przefiltrowany przez własną widoczność: prywatny kurs prowadzony przez to samo koło nie pojawi się tutaj tylko dlatego, że ktoś widzi wydarzenie.',
 	closing:
-		'Odbicie w drugą stronę — strona kursu wypisująca wydarzenia prowadzone przez jego organizację — nie jest jeszcze zbudowane i jest tu nazwane, żeby nikt nie uznał, że zniknęło przez przypadek. Nie ma też zabrania do domu materiałów sesji: talia trzyma zadania i pojęcia, nie pliki.'
+		'Odbicie w drugą stronę — strona kursu wypisująca wydarzenia prowadzone przez jego organizację — nie jest jeszcze zbudowane i jest tu nazwane, żeby nikt nie uznał, że zniknęło przez przypadek. Nie ma też zabrania do domu materiałów sesji: talia trzyma zadania i pojęcia, nie pliki.',
+	tryIt: [{ label: 'Zobacz, co się zbliża', route: '/events' }],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/events/01-hub.png',
+			focus: [98, 826],
+			width: 1280,
+			height: 480,
+			route: '/events',
+			alt: 'Zrzut ekranu strony Wydarzenia: krótkie wyjaśnienie, zakładki Coming up i Already happened oraz dwie karty wydarzeń z datą, tytułem, poziomem, organizatorem, formą i liczbą wolnych miejsc.',
+			caption:
+				'Lista wydarzeń taka, jaka naprawdę jest. Na serwerze deweloperskim, z którego pochodzą zrzuty, oba nadchodzące wydarzenia są testowe — mówią to ich tytuły „TEST=FAKE”.'
+		}
+	]
 };
 
 export function eventsShowcaseFor(locale: string): EventsShowcase {

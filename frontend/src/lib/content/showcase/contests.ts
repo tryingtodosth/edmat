@@ -240,28 +240,23 @@ const EN: ContestsShowcase = {
 	created: [
 		{
 			module: 'A plan',
-			what:
-				'The timeline, one step per phase: announce, registration opens and closes, each stage opening and closing, judging, results, the complaints window closing, prizes handed over, closed. Due dates worked out from your own dates.'
+			what: 'The timeline, one step per phase: announce, registration opens and closes, each stage opening and closing, judging, results, the complaints window closing, prizes handed over, closed. Due dates worked out from your own dates.'
 		},
 		{
 			module: 'A goal',
-			what:
-				'The definition of done, one line per condition — the rules published, the jury appointed, every stage scored, results out, every complaint answered. It reads as met when the lines are ticked and in no other way.'
+			what: 'The definition of done, one line per condition — the rules published, the jury appointed, every stage scored, results out, every complaint answered. It reads as met when the lines are ticked and in no other way.'
 		},
 		{
 			module: 'Tasks',
-			what:
-				'One per item of the legal checklist, on the organiser or the secretary by role, due by phase, each carrying the article it comes from, how well that article was checked, and the sentence saying none of it is advice.'
+			what: 'One per item of the legal checklist, on the organiser or the secretary by role, due by phase, each carrying the article it comes from, how well that article was checked, and the sentence saying none of it is advice.'
 		},
 		{
 			module: 'Needs',
-			what:
-				'"Jury member wanted", and a proctor for an on-site stage. An open need is readable by everybody, which is the point — it is how a contest asks the site for help instead of only its own staff.'
+			what: '"Jury member wanted", and a proctor for an on-site stage. An open need is readable by everybody, which is the point — it is how a contest asks the site for help instead of only its own staff.'
 		},
 		{
 			module: 'A poll',
-			what:
-				'"Confirm the final ranking", for the jury, as a draft. A vote there records agreement; it decides nothing the criteria did not already decide.'
+			what: '"Confirm the final ranking", for the jury, as a draft. A vote there records agreement; it decides nothing the criteria did not already decide.'
 		}
 	],
 	createdCaption:
@@ -286,7 +281,8 @@ const EN: ContestsShowcase = {
 		'What EdMat does owe is to act when somebody reports a contest — a prize that does not exist, a name used without permission. A contest can be reported like anything else here, and a decision about one comes with its reasons.'
 	],
 	closing:
-		'The research this page stands on is in CONTESTS-LAW.md in the repository, with every source and every open question ranked. Nothing on this page has been read by a Polish lawyer, and the parts that most need one are marked.'
+		'The research this page stands on is in CONTESTS-LAW.md in the repository, with every source and every open question ranked. Nothing on this page has been read by a Polish lawyer, and the parts that most need one are marked.',
+	tryIt: [{ label: 'Browse the contests', route: '/contests' }]
 };
 
 const PL: ContestsShowcase = {
@@ -464,28 +460,23 @@ const PL: ContestsShowcase = {
 	created: [
 		{
 			module: 'Plan',
-			what:
-				'Kalendarz, krok na fazę: ogłoszenie, otwarcie i zamknięcie zapisów, otwarcie i zamknięcie każdego etapu, ocenianie, wyniki, zamknięcie okna reklamacji, wydanie nagród, zamknięcie. Terminy wyliczone z Twoich własnych dat.'
+			what: 'Kalendarz, krok na fazę: ogłoszenie, otwarcie i zamknięcie zapisów, otwarcie i zamknięcie każdego etapu, ocenianie, wyniki, zamknięcie okna reklamacji, wydanie nagród, zamknięcie. Terminy wyliczone z Twoich własnych dat.'
 		},
 		{
 			module: 'Cel',
-			what:
-				'Definicja ukończenia, linia na warunek — regulamin opublikowany, jury powołane, każdy etap oceniony, wyniki ogłoszone, każda reklamacja z odpowiedzią. Cel jest osiągnięty, kiedy linie są odhaczone, i w żaden inny sposób.'
+			what: 'Definicja ukończenia, linia na warunek — regulamin opublikowany, jury powołane, każdy etap oceniony, wyniki ogłoszone, każda reklamacja z odpowiedzią. Cel jest osiągnięty, kiedy linie są odhaczone, i w żaden inny sposób.'
 		},
 		{
 			module: 'Zadania',
-			what:
-				'Po jednym na pozycję listy kontrolnej, na organizatorze albo sekretarzu zależnie od roli, z terminem zależnym od fazy, każde z artykułem, z którego wynika, z informacją, jak dobrze ten artykuł sprawdzono, i ze zdaniem, że nic z tego nie jest poradą.'
+			what: 'Po jednym na pozycję listy kontrolnej, na organizatorze albo sekretarzu zależnie od roli, z terminem zależnym od fazy, każde z artykułem, z którego wynika, z informacją, jak dobrze ten artykuł sprawdzono, i ze zdaniem, że nic z tego nie jest poradą.'
 		},
 		{
 			module: 'Potrzeby',
-			what:
-				'„Poszukiwany członek jury” i opiekun etapu stacjonarnego. Otwartą potrzebę widzi każdy, i to jest sens — tak konkurs prosi serwis o pomoc, a nie tylko własnych organizatorów.'
+			what: '„Poszukiwany członek jury” i opiekun etapu stacjonarnego. Otwartą potrzebę widzi każdy, i to jest sens — tak konkurs prosi serwis o pomoc, a nie tylko własnych organizatorów.'
 		},
 		{
 			module: 'Głosowanie',
-			what:
-				'„Zatwierdzenie końcowego rankingu”, dla jury, jako wersja robocza. Głos zapisuje zgodę; nie rozstrzyga niczego, czego nie rozstrzygnęły już kryteria.'
+			what: '„Zatwierdzenie końcowego rankingu”, dla jury, jako wersja robocza. Głos zapisuje zgodę; nie rozstrzyga niczego, czego nie rozstrzygnęły już kryteria.'
 		}
 	],
 	createdCaption:
@@ -510,7 +501,8 @@ const PL: ContestsShowcase = {
 		'Czego EdMat jest winien, to zadziałać, kiedy ktoś zgłosi konkurs — nagrodę, której nie ma, nazwę użytą bez prawa. Konkurs można zgłosić jak wszystko inne tutaj, a decyzja o nim przychodzi z uzasadnieniem.'
 	],
 	closing:
-		'Badania, na których stoi ta strona, są w pliku CONTESTS-LAW.md w repozytorium, z każdym źródłem i z pytaniami otwartymi ułożonymi według wagi. Nic na tej stronie nie było czytane przez polskiego prawnika, a te fragmenty, które najbardziej go potrzebują, są oznaczone.'
+		'Badania, na których stoi ta strona, są w pliku CONTESTS-LAW.md w repozytorium, z każdym źródłem i z pytaniami otwartymi ułożonymi według wagi. Nic na tej stronie nie było czytane przez polskiego prawnika, a te fragmenty, które najbardziej go potrzebują, są oznaczone.',
+	tryIt: [{ label: 'Przeglądaj konkursy', route: '/contests' }]
 };
 
 export function contestsShowcaseFor(locale: string): ContestsShowcase {

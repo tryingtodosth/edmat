@@ -196,7 +196,8 @@ const EN: LearningRecordShowcase = {
 	consentCaption:
 		'The fourth switch is the new one. It starts off, and the sentence under it is the whole of what it does.',
 	closing:
-		'A record for one term rather than all of them, a record a course’s staff can see for their own participants, and a record anybody can print are all left for later. What exists is one honest summary on one page, under four switches its owner controls.'
+		'A record for one term rather than all of them, a record a course’s staff can see for their own participants, and a record anybody can print are all left for later. What exists is one honest summary on one page, under four switches its owner controls.',
+	tryIt: [{ label: 'Choose what your profile shows', route: '/settings' }]
 };
 
 const PL: LearningRecordShowcase = {
@@ -345,7 +346,8 @@ const PL: LearningRecordShowcase = {
 	consentCaption:
 		'Czwarty przełącznik jest nowy. Startuje wyłączony, a zdanie pod nim jest całością tego, co robi.',
 	closing:
-		'Rejestr za jeden semestr zamiast za wszystkie, rejestr widoczny dla prowadzących własnego kursu i rejestr do wydruku zostały na później. To, co jest, to jedno uczciwe podsumowanie na jednej stronie, pod czterema przełącznikami jego właściciela.'
+		'Rejestr za jeden semestr zamiast za wszystkie, rejestr widoczny dla prowadzących własnego kursu i rejestr do wydruku zostały na później. To, co jest, to jedno uczciwe podsumowanie na jednej stronie, pod czterema przełącznikami jego właściciela.',
+	tryIt: [{ label: 'Wybierz, co pokazuje Twój profil', route: '/settings' }]
 };
 
 export function learningRecordShowcaseFor(locale: string): LearningRecordShowcase {

@@ -61,10 +61,12 @@
 					{/each}
 				</ul>
 			</SampleFrame>
-			<p class="more">
-				<a href={resolve('/contests')}>{m.contests_title()}</a>
-				<!-- "Contests" — the hub, which is the real thing this page is a picture of. -->
-			</p>
+			{#if !featureOff}
+				<p class="more">
+					<a href={resolve('/contests')}>{m.contests_title()}</a>
+					<!-- "Contests" — the hub, which is the real thing this page is a picture of. -->
+				</p>
+			{/if}
 		</section>
 	</DiscussableSection>
 

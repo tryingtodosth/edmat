@@ -7,6 +7,12 @@
 	 * the sentence saying nothing here is live. A page that forgot it would be the one page a reader
 	 * mistook for the real thing.
 	 *
+	 * **Three kinds of thing, kept apart on the page (2026-10-14).** The notice says which is which:
+	 * the framed samples are drawings fed sample data and cannot be clicked; the screenshots
+	 * (`ShowcaseShot`, outside any frame) are pictures of the running site; and the "Try it yourself"
+	 * row and the manual link are real links. Every live link is filtered through its feature's kill
+	 * switch here, in one place, via `SHOWCASE_LIVE` — a content file names a route, never a flag.
+	 *
 	 * The claims under the lead are a `<dl>` and not a list of headings on purpose: four `<h3>`s
 	 * directly under the `<h1>` would skip a level, which axe's `heading-order` rule rightly
 	 * refuses, and inventing an `<h2>` to put above them would be furniture with nothing to say.
@@ -17,7 +23,11 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import { SHOWCASE_PAGES, type ShowcaseDoc, type ShowcaseSlug } from '$lib/content/showcase';
-	import { SHOWCASE_HREF } from './hrefs';
+	import { SHOWCASE_GUIDE, SHOWCASE_HREF, SHOWCASE_LIVE } from './hrefs';
+	import ShowcaseShot from './ShowcaseShot.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import { authStore } from '$lib/state/auth.svelte';
+	import type { FeatureFlagKey } from '$lib/types';
 	import { providePageDiscussions } from '$lib/components/discussion/pageDiscussions.svelte';
 
 	let {
@@ -55,6 +65,18 @@
 	$effect(() => pageDiscussions.load(`about/${slug}`, discussionSections));
 
 	const others = $derived(SHOWCASE_PAGES.filter((p) => p.slug !== slug));
+
+	// A live link is drawn only when its feature is on — or for a moderator, the same bypass
+	// `FeatureGate` and the backend have. The store fails open before its first fetch resolves, so
+	// the prerendered HTML carries every link and a killed one leaves on hydration.
+	function reachable(flag: FeatureFlagKey | null): boolean {
+		return flag === null || featureFlagsStore.isEnabled(flag) || authStore.isModerator;
+	}
+	const tryLinks = $derived(
+		(doc.tryIt ?? []).filter((link) => reachable(SHOWCASE_LIVE[link.route].flag))
+	);
+	const shots = $derived(doc.shots ?? []);
+	const guideHref = $derived(SHOWCASE_GUIDE[slug] ?? null);
 	// Reactive, not read once: `locale.svelte.ts` overwrites `getLocale` with a rune, so the picker
 	// retitles these links without a reload, the same way it rewrites every `m.*()` string.
 	const locale = $derived(getLocale());
@@ -72,11 +94,41 @@
 		{#each doc.lead as paragraph, i (paragraph)}
 			<p class="showcase__lead" class:showcase__lead--first={i === 0}>{paragraph}</p>
 		{/each}
-		<aside class="showcase__notice">{m.showcase_notice()}</aside>
-		<!-- "Everything on this page is sample data…" -->
+		<aside class="showcase__notice">
+			{#if shots.length > 0}
+				{m.showcaseTry_noticeWithShots()}
+				<!-- "The framed samples on this page are sample data… The pictures marked “Screenshot” are of the running site…" -->
+			{:else}
+				{m.showcase_notice()}
+				<!-- "The framed samples on this page are sample data… nothing in them can be clicked…" -->
+			{/if}
+		</aside>
 		{#if featureOff}
 			<aside class="showcase__notice showcase__notice--off">{m.showcase_flagOff()}</aside>
 			<!-- "A moderator has this part of the site switched off right now…" -->
+		{/if}
+		{#if tryLinks.length > 0 || guideHref}
+			<nav class="showcase__try" aria-labelledby="showcase-try">
+				<h2 id="showcase-try">{m.showcaseTry_heading()}</h2>
+				<!-- "Try it yourself" -->
+				<ul>
+					{#each tryLinks as link (link.route)}
+						<li>
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- every href comes from SHOWCASE_LIVE in components/showcase/hrefs.ts, which is built from resolve() per route -->
+							<a class="showcase__try-link" href={SHOWCASE_LIVE[link.route].href}
+								>{link.label}&nbsp;→</a
+							>
+						</li>
+					{/each}
+					{#if guideHref}
+						<li>
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the href comes from SHOWCASE_GUIDE in components/showcase/hrefs.ts, built from resolve() per chapter -->
+							<a class="showcase__guide-link" href={guideHref}>{m.showcaseTry_readGuide()}</a>
+							<!-- "Read the manual chapter" -->
+						</li>
+					{/if}
+				</ul>
+			</nav>
 		{/if}
 	</header>
 
@@ -89,6 +141,21 @@
 				</div>
 			{/each}
 		</dl>
+	{/if}
+
+	{#if shots.length > 0}
+		<section class="showcase__shots" aria-labelledby="showcase-shots">
+			<h2 id="showcase-shots">{m.showcaseTry_shotsHeading()}</h2>
+			<!-- "On the real site" -->
+			<div class="showcase__shots-grid">
+				{#each shots as shot (shot.src)}
+					<ShowcaseShot
+						{shot}
+						href={reachable(SHOWCASE_LIVE[shot.route].flag) ? SHOWCASE_LIVE[shot.route].href : null}
+					/>
+				{/each}
+			</div>
+		</section>
 	{/if}
 
 	{@render children()}
@@ -183,6 +250,55 @@
 	.showcase__notice--off {
 		background: var(--status-warning-bg);
 		color: var(--text-primary);
+	}
+
+	// "Try it yourself": real links, so they look like links a reader is meant to press — a row of
+	// outlined pills, the manual link last and quieter. Wraps to as many lines as a phone needs.
+	.showcase__try {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+
+		h2 {
+			margin: 0;
+			font-size: var(--font-size-base);
+		}
+		ul {
+			list-style: none;
+			margin: 0;
+			padding: 0;
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: var(--space-2) var(--space-3);
+		}
+	}
+	.showcase__try-link {
+		display: inline-block;
+		padding: var(--space-1) var(--space-3);
+		border: 1px solid var(--accent);
+		border-radius: 999px;
+		color: var(--accent);
+		font-weight: 600;
+		text-decoration: none;
+		font-size: var(--font-size-sm);
+	}
+	.showcase__try-link:hover,
+	.showcase__try-link:focus-visible {
+		background: var(--accent-soft);
+	}
+	.showcase__guide-link {
+		font-size: var(--font-size-sm);
+		color: var(--accent);
+	}
+
+	// Screenshots one under another, each at most its own (cropped) pixel width: two to a row made
+	// a 1280-wide screen about 470 px wide, and its text unreadable — the first run of this, looked
+	// at, showed exactly that. Each box carries its aspect ratio, so nothing reflows on load.
+	.showcase__shots-grid {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-6);
 	}
 
 	// The claims. An accent rule above each one rather than a bullet, matching /about's pillars.

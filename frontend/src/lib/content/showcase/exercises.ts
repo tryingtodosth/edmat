@@ -162,7 +162,37 @@ const EN: ExercisesShowcase = {
 	browseLinkLabel: 'Browse the disciplines',
 	setLinkLabel: 'Open My set',
 	snapshotNote:
-		'The membership is a snapshot and the content is not. Which exercises went into the deck was decided when you pressed the button, so adding a fourth to the set later does not change the deck — but each card still points at the live exercise, so a corrected answer reaches the card without anybody rebuilding it.'
+		'The membership is a snapshot and the content is not. Which exercises went into the deck was decided when you pressed the button, so adding a fourth to the set later does not change the deck — but each card still points at the live exercise, so a corrected answer reaches the card without anybody rebuilding it.',
+	tryIt: [
+		{ label: 'Browse the exercises', route: '/disciplines' },
+		{ label: 'Open My set', route: '/my-set' },
+		{ label: 'Your flashcard decks', route: '/flashcards' }
+	],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/exercises/02-branch.png',
+			focus: [98, 1182],
+			width: 1280,
+			height: 820,
+			route: '/disciplines',
+			alt: 'Screenshot of a branch page: a filter panel with search, topic, difficulty and source on the left, and exercise cards on the right — “Całka Gaussa”, “Granica ciągu”, “Normy ℓ¹ i ℓ∞” and more — each with difficulty, level and source badges, a star rating and a plus button.',
+			caption:
+				'A branch page: every exercise of one subject as a card, with the filters on the left and a plus on each card to put it in your set.',
+			linkLabel: 'Browse to a branch'
+		},
+		{
+			src: '/guide/exercises/06-my-set.png',
+			focus: [258, 1022],
+			width: 1280,
+			height: 800,
+			route: '/my-set',
+			alt: 'Screenshot of My set: Export to PDF and Clear set buttons, a box to save the set under a name, a saved set called “Before the midterm” with Share, Load and “Make a deck from this set”, and the first two exercises with Hint, Answer and Solution checkboxes.',
+			caption:
+				'My set: the exercises you collected, what to print with each, a name to save them under — and “Make a deck from this set”.'
+		}
+	]
 };
 
 const PL: ExercisesShowcase = {
@@ -262,7 +292,37 @@ const PL: ExercisesShowcase = {
 	browseLinkLabel: 'Przeglądaj dziedziny',
 	setLinkLabel: 'Otwórz Mój zestaw',
 	snapshotNote:
-		'Skład jest migawką, a treść nie. To, które zadania weszły do talii, zostało ustalone w chwili naciśnięcia przycisku, więc dodanie czwartego do zestawu później nie zmienia talii — ale każda fiszka wciąż wskazuje na żywe zadanie, więc poprawiona odpowiedź dociera do fiszki bez przebudowywania czegokolwiek.'
+		'Skład jest migawką, a treść nie. To, które zadania weszły do talii, zostało ustalone w chwili naciśnięcia przycisku, więc dodanie czwartego do zestawu później nie zmienia talii — ale każda fiszka wciąż wskazuje na żywe zadanie, więc poprawiona odpowiedź dociera do fiszki bez przebudowywania czegokolwiek.',
+	tryIt: [
+		{ label: 'Przeglądaj zadania', route: '/disciplines' },
+		{ label: 'Otwórz Mój zestaw', route: '/my-set' },
+		{ label: 'Twoje talie fiszek', route: '/flashcards' }
+	],
+	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
+	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
+	shots: [
+		{
+			src: '/guide/exercises/02-branch.png',
+			focus: [98, 1182],
+			width: 1280,
+			height: 820,
+			route: '/disciplines',
+			alt: 'Zrzut ekranu strony przedmiotu: po lewej panel filtrów z wyszukiwarką, tematem, trudnością i źródłem, po prawej karty zadań — „Całka Gaussa”, „Granica ciągu”, „Normy ℓ¹ i ℓ∞” i kolejne — każda z oznaczeniem trudności, poziomu i źródła, oceną w gwiazdkach i przyciskiem plusa.',
+			caption:
+				'Strona przedmiotu: każde zadanie jako karta, filtry po lewej i plus na każdej karcie, żeby dodać zadanie do zestawu.',
+			linkLabel: 'Przejdź do przedmiotu'
+		},
+		{
+			src: '/guide/exercises/06-my-set.png',
+			focus: [258, 1022],
+			width: 1280,
+			height: 800,
+			route: '/my-set',
+			alt: 'Zrzut ekranu Mojego zestawu: przyciski eksportu do PDF i czyszczenia zestawu, pole do zapisania zestawu pod nazwą, zapisany zestaw „Before the midterm” z przyciskami udostępniania, wczytania i „Make a deck from this set” oraz dwa pierwsze zadania z polami Hint, Answer i Solution.',
+			caption:
+				'Mój zestaw: zebrane zadania, co wydrukować przy każdym, nazwa, pod którą go zapisać — i „zrób talię z tego zestawu”.'
+		}
+	]
 };
 
 export function exercisesShowcaseFor(locale: string): ExercisesShowcase {

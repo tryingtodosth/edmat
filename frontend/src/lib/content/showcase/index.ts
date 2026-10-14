@@ -9,12 +9,18 @@
  * all of it. The *chrome* around the writing (the "sample" badge, the grade buttons, the
  * back-link) is ordinary UI and does live in the catalogues, under the `showcase_` prefix.
  *
- * **Everything on these pages is sample data.** Nothing is seeded into a production table, nothing
+ * **Every SAMPLE on these pages is sample data.** Nothing is seeded into a production table, nothing
  * is fetched, and no id here points at a real row — which is why every sample is rendered inside
  * `components/showcase/SampleFrame.svelte`, whose `inert` wrapper means a reader cannot click
  * through to a row that does not exist. That posture is `/dziennik`'s (HISTORY.md §17BO), applied
  * to one page at a time rather than to a whole second product: a recorded picture with no server
  * behind it, honest about being one.
+ *
+ * **Beside the samples, real screens and real links (2026-10-14).** A page may also carry `shots` —
+ * screenshots of the running site the manual already took, drawn outside the frame by
+ * `ShowcaseShot.svelte` — and `tryIt`, the live pages to go and use. The two kinds never mix: a
+ * framed thing is a drawing and cannot be clicked, a screenshot is a picture of the real page and
+ * links to it. Every live link answers to its feature's kill switch (`components/showcase/hrefs.ts`).
  *
  * **These pages describe the learning cycle of 2026-10-05** (`prompts/00-DESIGN.md`) — flashcards,
  * the learning record, school mode and the completion certificate, concept paths, event take-home
@@ -54,6 +60,63 @@ function pick(locale: string, en: string, pl: string): string {
 }
 
 /**
+ * The live pages a showcase page may send a reader to — "Try it yourself" and a screenshot's
+ * "Open the real page". A union of route strings rather than hrefs, because this file is data and
+ * must not import `$app/paths`: `components/showcase/hrefs.ts: SHOWCASE_LIVE` resolves each one
+ * once and pairs it with the kill switch it answers to, so a killed feature's link disappears
+ * everywhere it is drawn and no content file can forget the flag. Adding a route is a line here
+ * and a line there; TypeScript refuses the build until both exist.
+ */
+export type ShowcaseLiveRoute =
+	| '/disciplines'
+	| '/my-set'
+	| '/flashcards'
+	| '/concepts'
+	| '/contests'
+	| '/courses'
+	| '/events'
+	| '/organizations'
+	| '/settings';
+
+/** One link in the "Try it yourself" row: a real page, named for what the reader will do there. */
+export interface ShowcaseTryLink {
+	label: string;
+	route: ShowcaseLiveRoute;
+}
+
+/**
+ * A screenshot of the running site, drawn OUTSIDE `SampleFrame` by `ShowcaseShot.svelte` — it is a
+ * picture of the real page, not a sample, and it says so.
+ *
+ * Only pictures that already exist under `static/guide/` are used: `e2e/guide-screenshots.mjs`
+ * takes them against seeded data, and re-running it keeps these current too. They are of the
+ * English interface, one set only (`content/guide/types.ts` says why); the caption and alt text
+ * are in the page's language. `width`/`height` are the PNG's real pixel size, so the browser
+ * reserves the box before the lazy image arrives and nothing below it moves.
+ */
+export interface ShowcaseShot {
+	/** Path under `static/`, e.g. `/guide/flashcards/02-decks.png`. */
+	src: string;
+	width: number;
+	height: number;
+	/** What the picture shows, for a reader who cannot see it. Never empty. */
+	alt: string;
+	/** One sentence under the picture: what to look at in it. */
+	caption: string;
+	/** The live page this is a picture of — or, for one row's page, the list that leads to it. */
+	route: ShowcaseLiveRoute;
+	/** Overrides "Open the real page" when `route` is the list rather than the page pictured. */
+	linkLabel?: string;
+	/**
+	 * The columns of the PNG worth showing, `[left, right]` in its own pixels. The manual shoots
+	 * every page at 1280 wide, so a centred page is a third empty margin; drawn whole in a column
+	 * under 1000 px its text shrinks to unreadable. The shell crops to these columns with CSS alone
+	 * (the file is not touched) and never draws them wider than they are. Omitted = the full width.
+	 */
+	focus?: [number, number];
+}
+
+/**
  * What every showcase page carries. The page-specific sample objects live in each page's own
  * module, which extends this.
  */
@@ -68,6 +131,11 @@ export interface ShowcaseDoc {
 	points?: { heading: string; body: string }[];
 	/** Closing paragraph. Optional; most pages have one. */
 	closing?: string;
+	/** The real pages to go and use, drawn as a row under the hero. A killed feature's link is
+	 *  dropped by the shell, not here. */
+	tryIt?: ShowcaseTryLink[];
+	/** Screenshots of the running site, drawn after the hero and before the samples. */
+	shots?: ShowcaseShot[];
 }
 
 /** A labelled row — a lesson's item, a session's link, a class in a school, a card in a deck. */
@@ -91,7 +159,7 @@ export interface ShowcaseDeck {
 	isPublic: boolean;
 }
 
-/** The index itself: what the section on `/about` says above the grid of seven cards. */
+/** The index itself: what the section on `/about` says above the grid of eight cards. */
 export interface ShowcaseIndexDoc {
 	heading: string;
 	intro: string;
@@ -102,14 +170,14 @@ export interface ShowcaseIndexDoc {
 const INDEX_EN: ShowcaseIndexDoc = {
 	heading: 'See how each part of it works',
 	intro:
-		'Eight pages, one per piece of the site, each drawn with the real components and sample data — so you can see what a course with a deck on it, a learning record, a school on EdMat or a contest with a jury actually looks like without signing in or joining anything. Nothing on them is live.',
+		'Eight pages, one per piece of the site, each drawn with the real components and sample data — so you can see what a course with a deck on it, a learning record, a school on EdMat or a contest with a jury actually looks like without signing in or joining anything. The framed samples are not live; the screenshots are of the running site, and every page links to the real thing so you can try it yourself.',
 	cardCta: 'See the design'
 };
 
 const INDEX_PL: ShowcaseIndexDoc = {
 	heading: 'Zobacz, jak działa każda część',
 	intro:
-		'Osiem stron, jedna na każdy element serwisu, narysowanych prawdziwymi komponentami na przykładowych danych — żeby dało się zobaczyć, jak naprawdę wygląda kurs z talią fiszek, rejestr nauki, szkoła w EdMacie albo konkurs z jury, bez zakładania konta i bez dołączania do czegokolwiek. Nic na nich nie jest prawdziwe.',
+		'Osiem stron, jedna na każdy element serwisu, narysowanych prawdziwymi komponentami na przykładowych danych — żeby dało się zobaczyć, jak naprawdę wygląda kurs z talią fiszek, rejestr nauki, szkoła w EdMacie albo konkurs z jury, bez zakładania konta i bez dołączania do czegokolwiek. Przykłady w ramkach nie są prawdziwe, zrzuty ekranu pochodzą z działającego serwisu, a każda strona prowadzi do prawdziwej wersji, żeby można było samemu spróbować.',
 	cardCta: 'Zobacz'
 };
 
