@@ -26,11 +26,20 @@
 	// wider than they are, and the image inside is scaled up and shifted left so exactly those
 	// columns fill it. Percentages, so it holds at any width the box is drawn at. The box's own
 	// aspect ratio is what keeps the layout still while the lazy image loads.
+	//
+	// `focusY` crops rows the same way. A percentage `margin-top` is measured against the box's
+	// WIDTH, not its height, which is exactly what makes it work here: the image is scaled by
+	// `boxWidth / visible`, so `top` source pixels are `top / visible` of the box's width.
 	const left = $derived(shot.focus?.[0] ?? 0);
 	const visible = $derived((shot.focus?.[1] ?? shot.width) - left);
-	const boxStyle = $derived(`max-width: ${visible}px; aspect-ratio: ${visible} / ${shot.height};`);
+	const top = $derived(shot.focusY?.[0] ?? 0);
+	const visibleHeight = $derived((shot.focusY?.[1] ?? shot.height) - top);
+	const boxStyle = $derived(
+		`max-width: ${visible}px; aspect-ratio: ${visible} / ${visibleHeight};`
+	);
 	const imgStyle = $derived(
-		`width: ${(shot.width / visible) * 100}%; margin-left: ${(-left / visible) * 100}%;`
+		`width: ${(shot.width / visible) * 100}%; margin-left: ${(-left / visible) * 100}%;` +
+			` margin-top: ${(-top / visible) * 100}%;`
 	);
 </script>
 

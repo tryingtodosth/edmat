@@ -23,11 +23,11 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import { SHOWCASE_PAGES, type ShowcaseDoc, type ShowcaseSlug } from '$lib/content/showcase';
-	import { SHOWCASE_GUIDE, SHOWCASE_HREF, SHOWCASE_LIVE } from './hrefs';
+	import { SHOWCASE_GUIDE, SHOWCASE_HREF, SHOWCASE_LIVE, liveHref } from './hrefs';
 	import ShowcaseShot from './ShowcaseShot.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
-	import type { FeatureFlagKey } from '$lib/types';
+	import type { ShowcaseLiveRoute } from '$lib/content/showcase';
 	import { providePageDiscussions } from '$lib/components/discussion/pageDiscussions.svelte';
 
 	let {
@@ -69,12 +69,16 @@
 	// A live link is drawn only when its feature is on — or for a moderator, the same bypass
 	// `FeatureGate` and the backend have. The store fails open before its first fetch resolves, so
 	// the prerendered HTML carries every link and a killed one leaves on hydration.
-	function reachable(flag: FeatureFlagKey | null): boolean {
+	//
+	// A `signedIn` route (`/work`) is also dropped for a signed-out reader, because that page answers
+	// them with an error rather than a sign-in prompt.
+	function reachable(route: ShowcaseLiveRoute | undefined): boolean {
+		if (!route) return false;
+		const { flag, signedIn } = SHOWCASE_LIVE[route];
+		if (signedIn && !authStore.isAuthenticated) return false;
 		return flag === null || featureFlagsStore.isEnabled(flag) || authStore.isModerator;
 	}
-	const tryLinks = $derived(
-		(doc.tryIt ?? []).filter((link) => reachable(SHOWCASE_LIVE[link.route].flag))
-	);
+	const tryLinks = $derived((doc.tryIt ?? []).filter((link) => reachable(link.route)));
 	const shots = $derived(doc.shots ?? []);
 	const guideHref = $derived(SHOWCASE_GUIDE[slug] ?? null);
 	// Reactive, not read once: `locale.svelte.ts` overwrites `getLocale` with a rune, so the picker
@@ -114,10 +118,8 @@
 				<ul>
 					{#each tryLinks as link (link.route)}
 						<li>
-							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- every href comes from SHOWCASE_LIVE in components/showcase/hrefs.ts, which is built from resolve() per route -->
-							<a class="showcase__try-link" href={SHOWCASE_LIVE[link.route].href}
-								>{link.label}&nbsp;→</a
-							>
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- every href comes from SHOWCASE_LIVE in components/showcase/hrefs.ts (built from resolve() per route), through liveHref()'s localizedPath -->
+							<a class="showcase__try-link" href={liveHref(link.route)}>{link.label}&nbsp;→</a>
 						</li>
 					{/each}
 					{#if guideHref}
@@ -151,7 +153,7 @@
 				{#each shots as shot (shot.src)}
 					<ShowcaseShot
 						{shot}
-						href={reachable(SHOWCASE_LIVE[shot.route].flag) ? SHOWCASE_LIVE[shot.route].href : null}
+						href={shot.route && reachable(shot.route) ? liveHref(shot.route) : null}
 					/>
 				{/each}
 			</div>

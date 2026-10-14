@@ -92,7 +92,11 @@
 		schools: resolve('/about/schools'),
 		concepts: resolve('/about/concepts'),
 		events: resolve('/about/events'),
-		contests: resolve('/about/contests')
+		contests: resolve('/about/contests'),
+		'goals-and-work': resolve('/about/goals-and-work'),
+		tutoring: resolve('/about/tutoring'),
+		materials: resolve('/about/materials'),
+		conference: resolve('/about/conference')
 	};
 
 	const flagOn = $derived(

@@ -3743,6 +3743,7 @@
 	"showcaseTry_shotBadge": "Zrzut ekranu działającego serwisu (w wersji angielskiej)",
 	"showcaseTry_openReal": "Otwórz prawdziwą stronę",
 	"showcaseTry_noticeWithShots": "Przykłady w ramkach to dane przykładowe, narysowane prawdziwymi komponentami — bez konta, bez wiersza w bazie i bez niczego, co dałoby się kliknąć. Obrazki podpisane „Zrzut ekranu” pochodzą z działającego serwisu, a linki pod nimi, tak jak te w „Wypróbuj w serwisie”, prowadzą do prawdziwych stron.",
+	"showcaseModules_sectionOff": "Ta część jest teraz wyłączona w serwisie — poniższy opis wciąż jest aktualny.",
 	"showcase_flipShow": "Odwróć fiszkę",
 	"showcase_flipHide": "Odwróć z powrotem",
 	"showcase_hintShow": "Pokaż wskazówkę",

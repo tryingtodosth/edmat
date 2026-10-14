@@ -3743,6 +3743,7 @@
 	"showcaseTry_shotBadge": "Screenshot of the running site",
 	"showcaseTry_openReal": "Open the real page",
 	"showcaseTry_noticeWithShots": "The framed samples on this page are sample data, drawn with the real components — no account, no row in the database, and nothing in them can be clicked. The pictures marked “Screenshot” are of the running site, and the links under them, like the ones under “Try it yourself”, go to the real pages.",
+	"showcaseModules_sectionOff": "This part is switched off on this site right now — what follows describes it all the same.",
 	"showcase_flipShow": "Turn the card over",
 	"showcase_flipHide": "Turn it back",
 	"showcase_hintShow": "Show the hint",

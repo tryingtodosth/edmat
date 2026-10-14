@@ -62,6 +62,11 @@ const config = {
 				// contests: showcase (B) appends '/about/contests' directly below this comment, and the
 				// manual chapter it writes under H's list further down.
 				'/about/contests',
+				// WP5 (2026-10-14): the four module pages.
+				'/about/goals-and-work',
+				'/about/tutoring',
+				'/about/materials',
+				'/about/conference',
 
 				// learning: guide (H) appends its /about/guide/** pages here, after G's.
 				// The manual: the hub is an ordinary route and `'*'` would reach it, but the eleven

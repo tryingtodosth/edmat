@@ -187,6 +187,12 @@ async function main() {
 		// note; it is the one showcase page with a TABLE on it, which is a shape axe has more to
 		// say about than a column of prose.
 		{ name: 'Showcase: contests', url: '/about/contests' },
+		// The four module pages (2026-10-14, WP5): prose, one framed sample each, a definition list
+		// of licences on materials, and screenshots whose alt text axe checks for presence.
+		{ name: 'Showcase: goals and work', url: '/about/goals-and-work' },
+		{ name: 'Showcase: tutoring', url: '/about/tutoring' },
+		{ name: 'Showcase: materials', url: '/about/materials' },
+		{ name: 'Showcase: conference', url: '/about/conference' },
 
 		// The user manual (HISTORY.md §17BR.H): the hub and every chapter. Prose and screenshots, so
 		// the only thing axe has to say about them is whether the headings nest, the images carry

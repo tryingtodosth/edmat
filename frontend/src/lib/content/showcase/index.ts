@@ -29,9 +29,13 @@
  * design is and must be re-read once its feature has actually landed.
  */
 
-/** The eight pages, by their URL segment under `/about/`. `contests` is the eighth (2026-10-09,
+/** The twelve pages, by their URL segment under `/about/`. `contests` is the eighth (2026-10-09,
  *  CONTESTS-BRIEF.md §3.B) and the only one whose subject is mostly law rather than design — see
- *  `content/showcase/contests.ts` for what that changes about how it is written. */
+ *  `content/showcase/contests.ts` for what that changes about how it is written. The last four
+ *  (2026-10-14, WP5) show modules that had no page here: the management layer, tutoring,
+ *  materials and the conference layer. They are written against the merged code rather than a
+ *  brief, lean on screenshots more than on samples, and share one section shape
+ *  (`ShowcaseModuleDoc` below). */
 export type ShowcaseSlug =
 	| 'exercises'
 	| 'flashcards'
@@ -40,7 +44,11 @@ export type ShowcaseSlug =
 	| 'schools'
 	| 'concepts'
 	| 'events'
-	| 'contests';
+	| 'contests'
+	| 'goals-and-work'
+	| 'tutoring'
+	| 'materials'
+	| 'conference';
 
 /**
  * One entry of the index. The shape is fixed by `prompts/08-about-showcase.md` because step H (the
@@ -76,7 +84,18 @@ export type ShowcaseLiveRoute =
 	| '/courses'
 	| '/events'
 	| '/organizations'
-	| '/settings';
+	| '/settings'
+	| '/about'
+	| '/work'
+	| '/tasks'
+	| '/needs'
+	| '/tutoring'
+	| '/bookings'
+	| '/materials'
+	| '/material-projects'
+	| '/conference'
+	| '/venues'
+	| '/volunteering/hours';
 
 /** One link in the "Try it yourself" row: a real page, named for what the reader will do there. */
 export interface ShowcaseTryLink {
@@ -103,8 +122,14 @@ export interface ShowcaseShot {
 	alt: string;
 	/** One sentence under the picture: what to look at in it. */
 	caption: string;
-	/** The live page this is a picture of — or, for one row's page, the list that leads to it. */
-	route: ShowcaseLiveRoute;
+	/**
+	 * The live page this is a picture of — or, for one row's page, the list that leads to it.
+	 *
+	 * Optional since 2026-10-14: a picture of a page a visitor cannot open — the door scanner, the
+	 * cloakroom desk, a ticket, each behind an event id and a staff or attendee right — carries no
+	 * link at all rather than one to a page that would refuse them. The caption says who sees it.
+	 */
+	route?: ShowcaseLiveRoute;
 	/** Overrides "Open the real page" when `route` is the list rather than the page pictured. */
 	linkLabel?: string;
 	/**
@@ -114,6 +139,13 @@ export interface ShowcaseShot {
 	 * (the file is not touched) and never draws them wider than they are. Omitted = the full width.
 	 */
 	focus?: [number, number];
+	/**
+	 * The rows worth showing, `[top, bottom]` in the PNG's own pixels — the vertical twin of
+	 * `focus`, for a picture the manual took with something below the subject (its 760-px tutoring
+	 * shot ends in the site footer). Same CSS-only crop; the file is not touched. Omitted = the full
+	 * height.
+	 */
+	focusY?: [number, number];
 }
 
 /**
@@ -159,7 +191,29 @@ export interface ShowcaseDeck {
 	isPublic: boolean;
 }
 
-/** The index itself: what the section on `/about` says above the grid of eight cards. */
+/**
+ * One section of a module page (the four added 2026-10-14): a heading, its prose, and optionally a
+ * framed sample of rows or a plain list of facts. `key` is the section's discussion key AND the key
+ * the route page uses to say which kill switch the section answers to — the route, not this file,
+ * names flags, the same division `SHOWCASE_LIVE` keeps.
+ */
+export interface ShowcaseModuleSection {
+	key: string;
+	heading: string;
+	body: string[];
+	/** A framed sample, drawn by `SampleRows` inside `SampleFrame` — only where it adds something
+	 *  a screenshot does not show. */
+	sample?: { caption: string; title?: string; rows: ShowcaseRow[] };
+	/** A plain definition list of facts (not a sample: nothing invented in it). */
+	facts?: { term: string; detail: string }[];
+}
+
+/** A module page: the shared shell's fields plus its sections, in order. */
+export interface ShowcaseModuleDoc extends ShowcaseDoc {
+	sections: ShowcaseModuleSection[];
+}
+
+/** The index itself: what the section on `/about` says above the grid of cards. */
 export interface ShowcaseIndexDoc {
 	heading: string;
 	intro: string;
@@ -170,14 +224,14 @@ export interface ShowcaseIndexDoc {
 const INDEX_EN: ShowcaseIndexDoc = {
 	heading: 'See how each part of it works',
 	intro:
-		'Eight pages, one per piece of the site, each drawn with the real components and sample data — so you can see what a course with a deck on it, a learning record, a school on EdMat or a contest with a jury actually looks like without signing in or joining anything. The framed samples are not live; the screenshots are of the running site, and every page links to the real thing so you can try it yourself.',
+		'Twelve pages, one per piece of the site, each drawn with the real components, sample data and screenshots — so you can see what a course with a deck on it, a learning record, a tutoring booking, a team’s task board or a conference door scanner actually looks like without signing in or joining anything. The framed samples are not live; the screenshots are of the running site, and every page links to the real thing so you can try it yourself.',
 	cardCta: 'See the design'
 };
 
 const INDEX_PL: ShowcaseIndexDoc = {
 	heading: 'Zobacz, jak działa każda część',
 	intro:
-		'Osiem stron, jedna na każdy element serwisu, narysowanych prawdziwymi komponentami na przykładowych danych — żeby dało się zobaczyć, jak naprawdę wygląda kurs z talią fiszek, rejestr nauki, szkoła w EdMacie albo konkurs z jury, bez zakładania konta i bez dołączania do czegokolwiek. Przykłady w ramkach nie są prawdziwe, zrzuty ekranu pochodzą z działającego serwisu, a każda strona prowadzi do prawdziwej wersji, żeby można było samemu spróbować.',
+		'Dwanaście stron, jedna na każdy element serwisu, pokazanych prawdziwymi komponentami, przykładowymi danymi i zrzutami ekranu — żeby dało się zobaczyć, jak naprawdę wygląda kurs z talią fiszek, rejestr nauki, rezerwacja korepetycji, tablica zadań zespołu albo skaner biletów na konferencji, bez zakładania konta i bez dołączania do czegokolwiek. Przykłady w ramkach nie są prawdziwe, zrzuty ekranu pochodzą z działającego serwisu, a każda strona prowadzi do prawdziwej wersji, żeby można było samemu spróbować.',
 	cardCta: 'Zobacz'
 };
 
@@ -266,6 +320,47 @@ export const SHOWCASE_PAGES: ShowcasePage[] = [
 				l,
 				'A jury, stages and a published ranking — and the Polish law that a promised prize turns on, with every citation saying how well it was checked.',
 				'Jury, etapy i publikowany ranking — oraz polskie prawo, które włącza przyrzeczona nagroda, z informacją przy każdym powołaniu, jak dobrze zostało sprawdzone.'
+			)
+	},
+	{
+		slug: 'goals-and-work',
+		titleFor: (l) =>
+			pick(l, 'Goals, plans and the work behind them', 'Cele, plany i praca za nimi'),
+		blurbFor: (l) =>
+			pick(
+				l,
+				'A goal with its definition of done, plans and tasks that serve it, help wanted, polls with a written decision — and one page listing everything waiting on you.',
+				'Cel z definicją ukończenia, plany i zadania, które mu służą, prośby o pomoc, głosowania z zapisaną decyzją — i jedna strona ze wszystkim, co czeka na ciebie.'
+			)
+	},
+	{
+		slug: 'tutoring',
+		titleFor: (l) => pick(l, 'Tutoring you can book', 'Korepetycje z rezerwacją'),
+		blurbFor: (l) =>
+			pick(
+				l,
+				'A listing, the hours a tutor publishes, and a booking that is a request until the tutor confirms it. No money passes through EdMat.',
+				'Ogłoszenie, godziny, które publikuje korepetytor, i rezerwacja, która jest prośbą, dopóki korepetytor jej nie potwierdzi. Przez EdMat nie przechodzą żadne pieniądze.'
+			)
+	},
+	{
+		slug: 'materials',
+		titleFor: (l) => pick(l, 'Materials, co-authored', 'Materiały pisane wspólnie'),
+		blurbFor: (l) =>
+			pick(
+				l,
+				'A material with what it covers, a team that publishes it version by version, files attached to the work around it, and the licence each one carries.',
+				'Materiał z tym, co omawia, zespół, który publikuje go wersja po wersji, pliki dołączone do pracy wokół niego i licencja, którą ma każdy z nich.'
+			)
+	},
+	{
+		slug: 'conference',
+		titleFor: (l) => pick(l, 'Running a conference', 'Prowadzenie konferencji'),
+		blurbFor: (l) =>
+			pick(
+				l,
+				'A building and its rooms, documents by who may read them, tickets scanned at the door, a volunteer rota and a cloakroom desk — on an invented demo conference.',
+				'Budynek i jego sale, dokumenty według tego, kto może je czytać, bilety skanowane przy wejściu, grafik wolontariuszy i szatnia — na wymyślonej konferencji demonstracyjnej.'
 			)
 	}
 ];

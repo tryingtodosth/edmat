@@ -446,7 +446,8 @@ node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the 
 node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
 node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck
 node e2e/about-page.mjs               # /about as the project's organisation page (2026-10-08): both locales, both themes, phone width, the open board drawn for a stranger with nothing to press, the tutoring kill switch hiding its card; needs the EdMat seed; kasia's token or login only to flip the flag
-node e2e/showcase.mjs                 # the eight design-showcase pages under /about/<feature>, their screenshots and live links; signs nobody in and needs no backend data (set E2E_NO_BACKEND=1 to run with the API down)
+node e2e/showcase.mjs                 # the twelve design-showcase pages under /about/<feature>, their screenshots, live links and switches; signs nobody in (E2E_TOKEN adds the signed-in /work check; E2E_NO_BACKEND=1 runs with the API down)
+node e2e/showcase-screens.mjs         # re-takes the module pages' screenshots into static/showcase/<slug>/ (E2E_TOKENS=<json of DRF tokens>; writes one demo goal)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/exercise-card-click.mjs      # E2E_BASE=http://localhost:5173, E2E_BRANCH=<slug>, default analiza-matematyczna; signs nobody in, saves to the guest working set only
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
@@ -2068,7 +2069,33 @@ bypass) and asserts the `/flashcards` and `/concepts` links leave while the pict
 the manual link stay; and a real click on a screenshot's "Open the real page". The "no API beyond
 the boot requests" check still holds — the pictures are static files.
 
+**Extended again 2026-10-14 (426 checks), the four module pages (WP5)** — `/about/goals-and-work`,
+`/tutoring`, `/materials`, `/conference`: their h1s, one sample frame each, "Try it" counts (the
+goals page's `/work` link is drawn only for a signed-in reader, so a signed-out run expects three,
+and `E2E_TOKEN` adds a signed-in check for the fourth), screenshot counts, and how many screenshots
+carry a link (the conference's ticket, scanner, rota and cloakroom pictures carry none — those pages
+need an event id and a staff right). The tutoring and materials pages must link `/korki` and
+`/materialy` in Polish and the canonical paths in English. A second kill-switch pass turns off
+`tutoring`; `needs`+`tasks`+`organizations`; `coauthoring`+`attachments`; and
+`events`+`venues`+`tickets`+`cloakroom`, asserting each page's links leave, its page-wide notice
+appears only when its main feature is off, and each section whose own feature is off says so in one
+line. **The "no API beyond the boot requests" check was VACUOUS until this pass**: it was read straight
+after `load`, before hydration, so it never saw `/api/discussions/` (every showcase page asks for its
+discussion policy) nor `/api/disciplines/` + `/api/branches/` (the root layout's
+`taxonomyStore.preload()`, on every page). Adding a wait for the flag request turned all sixteen
+checks red. It now waits for hydration, counts those two as boot requests, and allows exactly one
+discussion-policy request for the page's own `about/<slug>` key.
+
     cd frontend && E2E_BASE=http://localhost:5237 E2E_API=http://127.0.0.1:8137/api node e2e/showcase.mjs
+
+**`e2e/showcase-screens.mjs` (new 2026-10-14)** takes the module pages' pictures into
+`frontend/static/showcase/<slug>/` with the guide script's shapes (English interface, clipped shots,
+the 400 KB budget). It signs in from DRF tokens in a JSON file (`E2E_TOKENS`, trap 30) rather than
+the login endpoint. The development database had no goal anywhere, so it writes ONE through the real
+API — on the seeded `TEST=FAKE Dni Dydaktyki Fizyki 2026` conference, as its organiser, found by title
+so a re-run does not add a second. The tutoring page reuses `static/guide/tutoring/01–02`, checked
+against today's screen; `03`/`04` were not reused because the reviews panel under the booking box has
+changed since. Last run: 13 pictures, 921 KB in total, largest 135 KB.
 
 Thirteen screenshots in `e2e/screens/showcase-*.png`, meant to be looked at — three real defects in
 this step were found that way and by nothing else (a lost space in a deck tile, a table column cut

@@ -182,6 +182,64 @@ page.on('request', (r) => {
 	if (r.url().includes('/api/discussions/thread/')) threadCalls.push(`${r.method()} ${r.url()}`);
 });
 
+console.log('\n== the four module showcase pages (2026-10-14) ==');
+// Run FIRST, as the anonymous reader the context starts as, so that its result does not depend on
+// the `/about` checks below — which still look for the sections `/about` had before it became the
+// EdMat organisation's page (`about#mission`, `#origin`, `#features`), and fail on that, not on
+// anything here. Each draws one quiet discussion per section, asked for in ONE policy request under its own
+// `about/<slug>` key (`ShowcasePage` → `providePageDiscussions`), and opening one asks for that
+// section's thread and nothing else. The section counts are the content files' own
+// (`lib/content/showcase/<slug>.ts: sections`).
+// Its own context, so its requests never reach the thread-request log the `/about` checks below
+// count from.
+const moduleCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const modulePage = await moduleCtx.newPage();
+modulePage.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+for (const [slug, sections, first] of [
+	['goals-and-work', 6, 'goals'],
+	['tutoring', 4, 'listing'],
+	['materials', 4, 'material'],
+	['conference', 6, 'venue']
+]) {
+	const policyAsked = modulePage
+		.waitForRequest((r) => r.url().includes('/api/discussions/?'), { timeout: 30000 })
+		.catch(() => null);
+	await modulePage.goto(`${BASE}/about/${slug}`, { waitUntil: 'load' });
+	const policy = await policyAsked;
+	check(
+		`/about/${slug}: one policy request, for page about/${slug}`,
+		policy !== null && new URL(policy.url()).searchParams.get('page') === `about/${slug}`,
+		policy?.url() ?? 'none'
+	);
+	await modulePage
+		.waitForSelector('.section-discussion__toggle', { timeout: 30000 })
+		.catch(() => {});
+	const drawn = await modulePage.locator('.section-discussion__toggle').count();
+	check(`/about/${slug}: ${sections} collapsed discussions`, drawn === sections, `found ${drawn}`);
+	// e2e trap 27: register the thread wait BEFORE the click.
+	const threadAsked = modulePage
+		.waitForResponse((r) => r.url().includes('/api/discussions/thread/'), { timeout: 15000 })
+		.catch(() => null);
+	await modulePage
+		.locator(`section[data-section="${first}"]`)
+		.locator('xpath=following-sibling::*[1]')
+		.locator('.section-discussion__toggle')
+		.click()
+		.catch(() => {});
+	const thread = await threadAsked;
+	const params = thread ? new URL(thread.url()).searchParams : null;
+	check(
+		`/about/${slug}: opening the first section asks for about/${slug}#${first}`,
+		params?.get('page') === `about/${slug}` && params?.get('section') === first,
+		thread?.url() ?? 'no thread request'
+	);
+}
+await modulePage.screenshot({
+	path: 'e2e/screens/about-discussions-4-module-page.png',
+	fullPage: false
+});
+await moduleCtx.close();
+
 console.log('\n== an anonymous reader on /about ==');
 await page.goto(`${BASE}/about`, { waitUntil: 'load' });
 // 60s, not 15: on a cold Vite dev server /about's module graph is compiled on this first request,
@@ -369,6 +427,12 @@ await page.goto(`${BASE}/about`, { waitUntil: 'load' });
 await page.waitForTimeout(2500);
 check(
 	'with the flag off, no affordance anywhere on the page',
+	(await page.locator('.section-discussion__toggle').count()) === 0
+);
+await page.goto(`${BASE}/about/conference`, { waitUntil: 'load' });
+await page.waitForTimeout(2500);
+check(
+	'with the flag off, none on a module showcase page either',
 	(await page.locator('.section-discussion__toggle').count()) === 0
 );
 const offPolicy = await api('/discussions/?page=about&sections=mission');
