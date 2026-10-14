@@ -3,6 +3,8 @@
 	import { getLocale } from '$lib/paraglide/runtime';
 	import InsertStrip from '$lib/components/editor/InsertStrip.svelte';
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import LicencePicker from '$lib/components/shared/LicencePicker.svelte';
+	import type { Licence } from '$lib/types/licence';
 	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
@@ -59,6 +61,8 @@
 	let title = $state('');
 	let difficulty = $state<Difficulty>('medium');
 	let audience = $state<Audience | ''>('');
+	// Who else may reuse it (backend licensing/). `edmat-only` until the author opens it.
+	let licence = $state<Licence>('edmat-only');
 	let selectedTopicIds = $state<string[]>([]);
 	let sourceType = $state<SourceType>('other');
 	let sourceName = $state('');
@@ -248,6 +252,7 @@
 			topicIds: selectedTopicIds,
 			difficulty,
 			audience: audience as Audience,
+			licence,
 			source: { type: sourceType, name: sourceName.trim() || undefined },
 			tags: tagsInput
 				.split(',')
@@ -569,6 +574,10 @@
 					/>
 					<span class="markdown-hint">{m.submit_requirementsHint()}</span>
 				</div>
+
+				<!-- The licence covers the statement, answer, hint and solution in this form — one
+				     author, one form, one choice (backend licensing/). -->
+				<LicencePicker bind:value={licence} />
 
 				<button type="button" class="preview-toggle" onclick={() => (showPreview = !showPreview)}>
 					{m.submit_preview()}

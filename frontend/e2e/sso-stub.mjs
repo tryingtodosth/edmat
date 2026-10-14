@@ -1,4 +1,4 @@
-// A local stand-in for Google, Apple and Microsoft's sign-in endpoints, so the whole "Sign in with
+// A local stand-in for Google, Apple, GitHub, Facebook and Microsoft's sign-in endpoints, so the whole "Sign in with
 // …" round trip (backend `sso/`) can be driven in a browser on a machine with no client id.
 //
 //   node e2e/sso-stub.mjs            # listens on SSO_STUB_PORT (default 8049)
@@ -28,6 +28,10 @@ const KID = 'stub-1';
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const jwk = { ...publicKey.export({ format: 'jwk' }), kid: KID, use: 'sig', alg: 'RS256' };
 const codes = new Map(); // code -> { provider, clientId, nonce, email, sub, challenge, redirectUri }
+const tokens = new Map(); // access token -> the same entry (GitHub and Facebook have no id_token)
+// GitHub's and Facebook's ids are numbers; derive a stable one from whatever "subject" was typed.
+const numericId = (sub) =>
+	Number.parseInt(createHash('sha256').update(String(sub)).digest('hex').slice(0, 10), 16);
 
 const b64url = (buf) => Buffer.from(buf).toString('base64url');
 const esc = (s) =>
@@ -144,6 +148,68 @@ ${[...q.entries()].map(([k, v]) => `<input type="hidden" name="${esc(k)}" value=
 				});
 			}
 			answer(res, provider, redirectUri, params);
+			return;
+		}
+		// ---- GitHub and Facebook: OAuth 2.0 with no id_token -------------------------------------
+		if ((provider === 'github' || provider === 'facebook') && action === 'token') {
+			// GitHub: a POST, answered 200 even on failure ({error}); Facebook: a GET with the query.
+			const form = req.method === 'POST' ? await readBody(req) : url.searchParams;
+			const entry = codes.get(form.get('code'));
+			codes.delete(form.get('code'));
+			let error = '';
+			if (!entry || entry.provider !== provider) error = 'bad_verification_code';
+			else if (form.get('redirect_uri') !== entry.redirectUri) error = 'redirect_uri_mismatch';
+			else if (form.get('client_id') !== entry.clientId || !form.get('client_secret'))
+				error = 'incorrect_client_credentials';
+			else if (entry.challenge) {
+				const computed = createHash('sha256')
+					.update(form.get('code_verifier') ?? '')
+					.digest('base64url');
+				if (computed !== entry.challenge) error = 'invalid_grant';
+			}
+			res.writeHead(error && provider === 'facebook' ? 400 : 200, {
+				'Content-Type': 'application/json'
+			});
+			if (error) {
+				res.end(
+					JSON.stringify(provider === 'facebook' ? { error: { message: error } } : { error })
+				);
+				return;
+			}
+			const access = randomBytes(16).toString('hex');
+			tokens.set(access, entry);
+			res.end(JSON.stringify({ access_token: access, token_type: 'bearer' }));
+			return;
+		}
+		if (provider === 'github' && (action === 'userinfo' || action === 'emails')) {
+			const auth = req.headers.authorization ?? '';
+			const entry = tokens.get(auth.replace(/^Bearer /, ''));
+			if (!entry || !req.headers['user-agent']) {
+				res.writeHead(401);
+				res.end('{}');
+				return;
+			}
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(
+				JSON.stringify(
+					action === 'userinfo'
+						? { id: numericId(entry.sub), login: entry.sub, name: entry.name, email: null }
+						: [{ email: entry.email, primary: true, verified: true, visibility: 'private' }]
+				)
+			);
+			return;
+		}
+		if (provider === 'facebook' && action === 'userinfo') {
+			const entry = tokens.get(url.searchParams.get('access_token') ?? '');
+			if (!entry || !url.searchParams.get('appsecret_proof')) {
+				res.writeHead(400);
+				res.end('{}');
+				return;
+			}
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(
+				JSON.stringify({ id: String(numericId(entry.sub)), name: entry.name, email: entry.email })
+			);
 			return;
 		}
 		if (action === 'token' && req.method === 'POST') {

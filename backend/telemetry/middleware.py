@@ -59,9 +59,8 @@ def redact_query_string(path: str, query_string: str) -> str:
 def objects_to_analytics(request) -> bool:
     """`Sec-GPC: 1` (Global Privacy Control) or `DNT: 1` — an objection under GDPR Art. 21.
 
-    Analytics rest on GDPR art. 6(1)(e) public task (UW is a public university), with 6(1)(f) as the
-    fallback analysis — see ANALYTICS-LAW.md §4 — and Art. 21(1) gives a person the right to object
-    under either; Art. 21(5) says the objection may be made "by automated means using technical
+    Analytics rest on GDPR art. 6(1)(f) legitimate interest (the controller is the student team, not
+    the University — LEGAL.md §1), and Art. 21(1) gives a person the right to object to it; Art. 21(5) says the objection may be made "by automated means using technical
     specifications". GPC is such a specification (and is what California's CCPA regulations already
     require honouring); DNT is its retired predecessor and means the same thing, so it is read the
     same way. Both are headers the browser sends by itself, so honouring them needs no cookie and no

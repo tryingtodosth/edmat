@@ -1,4 +1,6 @@
-"""The only two server-to-server calls the flow makes: POST the code to a token endpoint, GET a JWKS.
+"""The only server-to-server calls the flow makes: POST (or, for Facebook, GET) the code to a token
+endpoint; GET a JWKS; and, for the OAuth 2.0 providers with no id_token (GitHub, Facebook), GET the
+person's profile with the access token.
 
 Standard-library `urllib`, because `requests` is not a dependency of this project and two calls do
 not justify one. Kept in its own module so the tests replace exactly this seam
@@ -22,7 +24,10 @@ class ProviderHttpError(Exception):
     object. Its message is for the server log, never for the browser."""
 
 
-def _read(request) -> dict:
+USER_AGENT = 'EdMat sign-in (+https://edmat.net)'  # GitHub's API refuses a request without one
+
+
+def _read(request, *, allow_list: bool = False):
     try:
         with urllib.request.urlopen(request, timeout=TIMEOUT) as response:  # noqa: S310 — https URLs from the registry
             body = response.read(MAX_BYTES + 1)
@@ -38,7 +43,7 @@ def _read(request) -> dict:
         data = json.loads(body.decode('utf-8'))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ProviderHttpError('not JSON') from exc
-    if not isinstance(data, dict):
+    if not isinstance(data, dict) and not (allow_list and isinstance(data, list)):
         raise ProviderHttpError('not a JSON object')
     return data
 
@@ -49,10 +54,12 @@ def post_form(url: str, data: dict) -> dict:
         url,
         data=encoded,
         method='POST',
-        headers={'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'},
+        headers={'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'User-Agent': USER_AGENT},
     )
     return _read(request)
 
 
-def get_json(url: str) -> dict:
-    return _read(urllib.request.Request(url, headers={'Accept': 'application/json'}))
+def get_json(url: str, *, headers: dict | None = None, allow_list: bool = False):
+    """A JSON object — or, with `allow_list`, an array (GitHub's `/user/emails`)."""
+    merged = {'Accept': 'application/json', 'User-Agent': USER_AGENT, **(headers or {})}
+    return _read(urllib.request.Request(url, headers=merged), allow_list=allow_list)

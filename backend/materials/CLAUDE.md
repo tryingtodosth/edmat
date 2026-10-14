@@ -79,3 +79,10 @@ real deployment. Scan status is surfaced to the reviewing moderator, not hidden.
 from `moderation` with the submission model) + `manage.py test coauthoring.test_submit_path` for the
 upload→publish path itself. E2E: `material-claims.mjs`, `material-claims-rework.mjs` (kind split,
 importance vote, comment votes), `material-types.mjs`.
+
+## Licence (2026-10-14, `licensing/CLAUDE.md`)
+
+This app's content carries a per-item `licence` (`licensing/licences.py`, default `edmat-only`, the
+corpus `unknown`). It is set at creation and changed ONLY through `licensing.rules.change_licence`
+(`/api/licences/<kind>/<id>/`) — only ever widened, recorded, read-only in the admin. Which rows here
+carry their own and which contribute under their parent's is the table in `licensing/CLAUDE.md`.

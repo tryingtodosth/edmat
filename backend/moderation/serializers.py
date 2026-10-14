@@ -129,6 +129,15 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     ['material_locator: keep this under 120 characters.']
                 )
+        # `licence` — the author's choice for this exercise (licensing/licences.py). Absent means
+        # the default `edmat-only`, which opens nothing; `unknown` is never a person's choice.
+        from licensing.licences import DEFAULT_LICENCE, licence_validation_error
+
+        licence = value.get('licence', DEFAULT_LICENCE)
+        reason = licence_validation_error(licence)
+        if reason:
+            raise serializers.ValidationError([f'licence: {reason}'])
+        value['licence'] = licence
         return value
 
 

@@ -34,7 +34,7 @@ from .models import (
     WeeklyCohort,
 )
 from .privacy import K_ANONYMITY, k, k_rate
-from .rollup import adult_accounts, monday, percentile, rollup_range
+from .rollup import counted_people, monday, percentile, rollup_range
 
 ALLOWED_DAYS = (7, 30, 90, 365)
 DEFAULT_DAYS = 30
@@ -456,7 +456,7 @@ class CoverageView(AnalyticsView):
 
 class CohortsView(AnalyticsView):
     """Retention: each signup week in the period, its size, and how many of it were active in each
-    following week. All people counts, all suppressed; minors' accounts are in none of them."""
+    following week. All people counts, all suppressed; minors' and staff accounts are in none of them."""
 
     MAX_OFFSET = 12
 
@@ -465,10 +465,10 @@ class CohortsView(AnalyticsView):
 
         p = self.period
         weeks = live.week_starts(p.start, p.end)
-        # Minors are left out of the sizes exactly as they are left out of the active counts, or the
+        # Minors and staff are left out of the sizes exactly as they are left out of the active counts, or the
         # rate would divide adults by everybody.
         sizes = live._weekly(
-            adult_accounts(get_user_model().objects.all()), 'date_joined', p.start, p.end
+            counted_people(get_user_model().objects.all()), 'date_joined', p.start, p.end
         )
         active: dict[tuple[dt.date, dt.date], int] = {
             (row.cohort_week, row.week): row.users

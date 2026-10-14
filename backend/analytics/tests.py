@@ -342,6 +342,33 @@ class RollupTests(TestCase):
         self.assertEqual(sum(WeeklyCohort.objects.values_list('users', flat=True)), 1)
         self.assertEqual(DailyContentView.objects.get(date=DAY).views, 3)
 
+    def test_staff_are_not_counted_as_people_but_their_requests_count(self):
+        """Owner's decision 2026-10-14: staff (is_staff or is_superuser) are in no people-count —
+        active accounts, cohorts — while their requests stay in the traffic figures."""
+        User.objects.filter(pk=7).update(is_staff=True)
+        User.objects.filter(pk=1500).update(is_superuser=True)
+        carol = User.objects.create(pk=9, username='carol')
+        User.objects.filter(pk=9).update(date_joined=at(DAY))  # a cohort no later than DAY's week
+        for pk in (7, 1500, carol.pk):
+            log(user_id=pk, path='/api/exercises/12/')
+        rollup_day(DAY)
+        rollup_week(DAY)
+        self.assertEqual(DailyActiveUsers.objects.get(date=DAY).users, 1)
+        self.assertEqual(sum(WeeklyCohort.objects.values_list('users', flat=True)), 1)
+        auth = DailyRouteStat.objects.get(date=DAY, route='/api/exercises/:pk/', audience='auth')
+        self.assertEqual(auth.requests, 3)
+        self.assertEqual(DailyContentView.objects.get(date=DAY).views, 3)
+
+    def test_registrations_and_funnel_leave_staff_out(self):
+        from .live import accounts, contribution_funnel
+
+        start, end = at(DAY, 0), at(DAY + dt.timedelta(days=1), 0)
+        for pk, staff in ((31, False), (32, True)):
+            User.objects.create(pk=pk, username=f'r{pk}', is_staff=staff)
+        User.objects.filter(pk__in=[31, 32]).update(date_joined=at(DAY))
+        self.assertEqual(accounts(start, end)['registered'], 1)
+        self.assertEqual(contribution_funnel(start, end)['registered'], 1)
+
     def test_aggregates_older_than_25_months_are_purged(self):
         from .rollup import months_before, purge_aggregates
 

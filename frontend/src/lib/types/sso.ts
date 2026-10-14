@@ -4,7 +4,7 @@
 // `lib/utils/labels.ts: SSO_ERROR_LABELS`.
 
 /** Every provider the backend can know. A new one is a registry entry there and a mark here. */
-export type SsoProviderId = 'google' | 'apple' | 'microsoft';
+export type SsoProviderId = 'google' | 'apple' | 'github' | 'facebook' | 'microsoft';
 
 export interface SsoProvider {
 	id: SsoProviderId;

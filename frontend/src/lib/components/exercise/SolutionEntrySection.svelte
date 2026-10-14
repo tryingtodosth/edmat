@@ -14,6 +14,8 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import SolutionEntryCard from './SolutionEntryCard.svelte';
 	import ContentLocaleSelect from '$lib/components/shared/ContentLocaleSelect.svelte';
+	import LicencePicker from '$lib/components/shared/LicencePicker.svelte';
+	import type { Licence } from '$lib/types/licence';
 	import { getLocale } from '$lib/paraglide/runtime';
 
 	let {
@@ -39,6 +41,8 @@
 	let showComposer = $state(false);
 	let composerBody = $state('');
 	let composerLocale = $state('');
+	// Its own licence (backend licensing/) — `edmat-only` unless the author opens it.
+	let composerLicence = $state<Licence>('edmat-only');
 	let composerPreview = $state(false);
 	let composerBusy = $state(false);
 	let composerError = $state<string | null>(null);
@@ -92,7 +96,8 @@
 			const entry = await submitSolutionEntry(exerciseId, {
 				kind,
 				locale: (composerLocale || contentLocale).trim(),
-				body: composerBody
+				body: composerBody,
+				licence: composerLicence
 			});
 			// The files go up one at a time against the entry that now exists. A failed upload must
 			// NOT lose the entry — the words are the valuable part and they are already saved — so
@@ -178,6 +183,7 @@
 					allowFiles={composerFiles.length < MAX_ENTRY_FILES}
 					onFiles={addFiles}
 				/>
+				<LicencePicker bind:value={composerLicence} name="licence-{kind}" compact />
 				{#if composerFiles.length > 0 || fileError}
 					<div class="composer__files">
 						{#each composerFiles as f, i (i)}

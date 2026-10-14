@@ -15,7 +15,7 @@
 	} from '$lib/services/children';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { ApiError } from '$lib/api/client';
-	import { formatDateTime } from '$lib/utils/datetime';
+	import { formatDate, formatDateTime } from '$lib/utils/datetime';
 
 	let children = $state<Child[]>([]);
 	let username = $state('');
@@ -53,8 +53,12 @@
 	async function remove(c: Child) {
 		if (!confirm(m.guardian_deleteConfirm({ name: c.displayName }))) return;
 		await deleteChild(c.id);
-		children = children.filter((x) => x.id !== c.id);
-		await authStore.init();
+		// The child stays listed until the grace period ends, marked, so it can still be taken back.
+		children = await getChildren();
+	}
+	async function cancelRemoval(c: Child) {
+		await setChildActive(c.id, true);
+		children = await getChildren();
 	}
 	async function setSuspended(c: Child, suspend: boolean) {
 		if (suspend && !confirm(m.guardian_suspendConfirm({ name: c.displayName }))) return;
@@ -84,7 +88,11 @@
 				<li>
 					<div class="row">
 						<strong>{c.displayName}</strong> <span class="user">@{c.username}</span>
-						{#if !c.isActive}<span class="suspended">{m.guardian_suspended()}</span>{/if}
+						{#if c.erasureDueAt}<span class="suspended"
+								>{m.account_guardianPending({ date: formatDate(c.erasureDueAt) })}</span
+							>
+							<!-- "To be deleted on {date}" -->
+						{:else if !c.isActive}<span class="suspended">{m.guardian_suspended()}</span>{/if}
 						<button type="button" onclick={() => toggle(c)} aria-expanded={open === c.id}
 							>{m.guardian_whatTheyWrote()}</button
 						>
@@ -92,14 +100,21 @@
 							<button type="button" onclick={() => setSuspended(c, true)}
 								>{m.guardian_suspendAccount()}</button
 							>
+						{:else if c.erasureDueAt}
+							<button type="button" onclick={() => cancelRemoval(c)}
+								>{m.account_guardianCancel()}</button
+							>
+							<!-- "Cancel the deletion" -->
 						{:else}
 							<button type="button" onclick={() => setSuspended(c, false)}
 								>{m.guardian_reactivateAccount()}</button
 							>
 						{/if}
-						<button type="button" class="danger" onclick={() => remove(c)}
-							>{m.guardian_deleteAccount()}</button
-						>
+						{#if !c.erasureDueAt}
+							<button type="button" class="danger" onclick={() => remove(c)}
+								>{m.guardian_deleteAccount()}</button
+							>
+						{/if}
 					</div>
 					{#if open === c.id}
 						{@const cc = content[c.id]}

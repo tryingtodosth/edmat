@@ -365,6 +365,7 @@ class ConceptViewSet(viewsets.GenericViewSet):
             tags=data.get('tags') or [],
             submit=data.get('submit', False),
             request=request,
+            licence=data.get('licence'),
         )
         concept = self._concept(concept.slug) or concept
         return Response(self._detail(concept, request), status=status.HTTP_201_CREATED)
@@ -485,6 +486,7 @@ class ConceptViewSet(viewsets.GenericViewSet):
             change_note=data.get('change_note', ''),
             submit=data.get('submit', False),
             request=request,
+            licence=data.get('licence'),
         )
         article.refresh_from_db()
         return Response(

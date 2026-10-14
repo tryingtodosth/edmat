@@ -17,15 +17,9 @@
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import { completeSsoSignup, forgetSsoKey, getSsoTicket } from '$lib/services/sso';
 	import type { SsoTicket } from '$lib/types/sso';
-	import { ssoErrorLabel } from '$lib/utils/labels';
+	import { ssoErrorLabel, ssoProviderName } from '$lib/utils/labels';
 	import { takeReturnTo } from '$lib/utils/returnTo';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
-
-	const PROVIDER_NAMES: Record<string, () => string> = {
-		google: m.sso_provider_google, // "Google"
-		apple: m.sso_provider_apple, // "Apple"
-		microsoft: m.sso_provider_microsoft // "Microsoft"
-	};
 
 	let ticketValue = '';
 	let ticket = $state<SsoTicket | null>(null);
@@ -39,7 +33,7 @@
 	let fieldErrors = $state<Record<string, string>>({});
 	let formError = $state('');
 
-	let providerName = $derived(ticket ? (PROVIDER_NAMES[ticket.provider]?.() ?? '') : '');
+	let providerName = $derived(ticket ? ssoProviderName(ticket.provider) : '');
 	let isRelay = $derived(
 		!!ticket && ticket.email.toLowerCase().endsWith('@privaterelay.appleid.com')
 	);

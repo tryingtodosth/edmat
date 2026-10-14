@@ -45,6 +45,11 @@ The mailbox is OVH MX Plan (`MXPLAN 001`): SMTP `ssl0.ovh.net:465` (SSL), IMAP `
   not staff — they show every registered address and what strangers mailed us. The frontend tab
   in `/moderation` is guarded by `authStore.user.isSuperuser` as well.
 
+- **`account_erasure`** (2026-10-14): "your account will be deleted on …" with a cancel link, queued
+  by `accounts/erasure.py` to a CONFIRMED address only; the link (`/cancel-deletion?token=`) is built
+  at send time from `accounts.erasure.cancel_token` like the others. Retention of `OutboundEmail`
+  (finished rows) and `InboundEmail` is 12 months — `accounts/retention.py`, not this app.
+
 ## Endpoints
 
 `POST /api/auth/password-reset/` (accounts view → `request_password_reset`, always 202) ·

@@ -36,6 +36,7 @@ def create_material(
     audience,
     submitted_by,
     locale,
+    licence=None,
     title,
     description,
     file=None,
@@ -101,6 +102,8 @@ def create_material(
         slug=slug,
         type=type,
         audience=audience,
+        # The project's chosen licence; None (a caller that never asked) is the model default.
+        **({'licence': licence} if licence else {}),
         file=file or '',
         # A link-only material has no file and lives at its own URL — see Material.url for why this
         # is not `source_url`, which is next to it and answers a different question.

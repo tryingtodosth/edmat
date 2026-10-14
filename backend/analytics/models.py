@@ -8,9 +8,9 @@ analytics. A rollup (`rollup.py`, run daily by `manage.py rollup_analytics`) rea
 log shards, counts, and writes the counts below. The raw rows then age out under
 `enforce_log_retention` exactly as they did before this app existed; the counts stay.
 
-**Legal basis**: GDPR art. 6(1)(e) public task (UW is a public university), with 6(1)(f) as the
-fallback analysis — see ANALYTICS-LAW.md §4 — and art. 5(1)(b) / art. 89(1) statistical
-compatibility for reusing the security log. ANALYTICS-LAW.md §3 classifies every figure here.
+**Legal basis**: GDPR art. 6(1)(f) legitimate interest — the controller is the student team, not
+the University (LEGAL.md §1); ANALYTICS-LAW.md §4's (e) recommendation assumed a university
+controller — and art. 5(1)(b) / art. 89(1) statistical compatibility for reusing the security log. ANALYTICS-LAW.md §3 classifies every figure here.
 
 **What can never be in these tables**, pinned by `tests.NoPersonalColumnsTests`:
 
@@ -24,7 +24,8 @@ compatibility for reusing the security log. ANALYTICS-LAW.md §3 classifies ever
 **Who is left out on purpose.** Rows whose browser sent `Sec-GPC: 1` or `DNT: 1`
 (`RequestLog.analytics_opt_out`) are skipped by every rollup — an Art. 21 objection, honoured by
 construction. Bots (`classify.classify_user_agent`) are counted only as bots and never feed a human
-metric. Minors' accounts are never counted as active accounts or in a cohort (`rollup.adult_accounts`).
+metric. Minors' and staff accounts are never counted as people — active accounts, cohorts,
+registrations (`rollup.counted_people`); staff REQUESTS still count as traffic.
 The aggregates themselves are deleted after 25 months (`rollup.purge_aggregates`).
 
 **Small numbers that describe people are suppressed on the way out** (`privacy.K_ANONYMITY`, below

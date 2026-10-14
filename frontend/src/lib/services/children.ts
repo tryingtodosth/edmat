@@ -8,6 +8,7 @@ interface RawChild {
 	username: string;
 	display_name: string;
 	is_active: boolean;
+	erasure_due_at?: string | null;
 }
 interface RawItem {
 	id: number;
@@ -21,6 +22,9 @@ export interface Child {
 	username: string;
 	displayName: string;
 	isActive: boolean;
+	/** Set while a deletion the guardian asked for is waiting out its grace period
+	 * (`backend/accounts/erasure.py`); reactivating the account cancels it. */
+	erasureDueAt: string | null;
 }
 export interface ChildContent {
 	comments: { id: string; body: string; createdAt: string; held: boolean }[];
@@ -32,7 +36,8 @@ function mapChild(c: RawChild): Child {
 		id: String(c.id),
 		username: c.username,
 		displayName: c.display_name,
-		isActive: c.is_active
+		isActive: c.is_active,
+		erasureDueAt: c.erasure_due_at ?? null
 	};
 }
 
@@ -52,6 +57,8 @@ export async function createChild(
 	});
 	return mapChild(c);
 }
+/** Asks for the child's account to be deleted: switched off now, erased after the grace period,
+ * cancelled by reactivating it (`setChildActive(id, true)`). */
 export async function deleteChild(id: string): Promise<void> {
 	await apiClient.delete(`/auth/children/${id}/`);
 }

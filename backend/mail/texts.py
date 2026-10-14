@@ -41,6 +41,16 @@ TEXTS = {
             'Wyłącz te wiadomości: {site}/settings\n\n'
             '— EdMat (wiadomość automatyczna, nie odpowiadaj na nią)'
         ),
+        'erasure_subject': 'EdMat: Twoje konto zostanie usunięte',
+        'erasure_body': (
+            'Cześć {name},\n\n'
+            'poproszono o usunięcie konta EdMat „{username}”. Konto jest już wyłączone, a {date} '
+            'zostanie usunięte na stałe.\n\n'
+            'Jeśli to pomyłka albo to nie Ty, otwórz ten link, żeby anulować usunięcie:\n\n'
+            f'{L}\n\n'
+            'Możesz też po prostu zalogować się przed tą datą — zapytamy, czy anulować usunięcie.\n\n'
+            '— EdMat (wiadomość automatyczna, nie odpowiadaj na nią)'
+        ),
         'test_subject': 'EdMat: wiadomość testowa',
         'test_body': 'To jest wiadomość testowa z EdMat, wysłana z zakładki Poczta w panelu moderacji.\n\n— EdMat',
     },
@@ -70,6 +80,16 @@ TEXTS = {
         'digest_outro': (
             '\nAll of them: {site}/notifications\n'
             'Turn these messages off: {site}/settings\n\n'
+            '— EdMat (automated message, please do not reply)'
+        ),
+        'erasure_subject': 'EdMat: your account will be deleted',
+        'erasure_body': (
+            'Hello {name},\n\n'
+            'somebody asked for the EdMat account "{username}" to be deleted. The account is already '
+            'switched off, and on {date} it will be deleted for good.\n\n'
+            'If this was a mistake, or not you, open this link to cancel the deletion:\n\n'
+            f'{L}\n\n'
+            'You can also simply sign in before that date — we will ask whether to cancel it.\n\n'
             '— EdMat (automated message, please do not reply)'
         ),
         'test_subject': 'EdMat: test message',

@@ -271,6 +271,16 @@ class ModerationQueueView(APIView):
         return Response(build_moderation_queue_payload(user=request.user, request=request))
 
 
+def _submission_licence(payload) -> str:
+    """The licence a submission's draft asked for, re-checked at apply time: a draft written before
+    the licence existed has none (the default), and a hand-edited payload cannot smuggle `unknown`
+    or a stray key past the serializer's check into a published row."""
+    from licensing.licences import DEFAULT_LICENCE, is_selectable
+
+    licence = payload.get('licence') or DEFAULT_LICENCE
+    return licence if is_selectable(licence) else DEFAULT_LICENCE
+
+
 def _apply_submission(submission, reviewer):
     """Builds a real Exercise + ExerciseTranslation from the submission's own JSON payload — same
     structural/translation-field split as everywhere else (CLAUDE.md Section 9). Auto-assigns the
@@ -324,6 +334,7 @@ def _apply_submission(submission, reviewer):
                     verified=False,
                     original_locale=payload.get('locale', 'pl'),
                     submitted_by=submission.submitted_by,
+                    licence=_submission_licence(payload),
                 )
             break
         except (IntegrityError, OperationalError):
@@ -426,6 +437,9 @@ def _apply_submission(submission, reviewer):
                 status='published',
                 pinned=submission.reviewed_by_id is not None,
                 reviewed_by=submission.reviewed_by,
+                # The same author, the same form, the same choice: the founding hint and solution
+                # carry the licence the submitter picked for the exercise.
+                licence=exercise.licence,
             )
     submission.resulting_exercise = exercise
     from activity.services import record_activity

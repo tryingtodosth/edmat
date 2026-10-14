@@ -3,8 +3,9 @@
 Built 2026-10-14. The staff dashboard at `/moderation/analytics` (frontend `routes/moderation/analytics/`,
 `lib/services/analytics.ts`, `lib/components/analytics/`). Legal reading: `ANALYTICS-LAW.md` at the
 repo root — §3 classifies every figure here (all class A, except active accounts and cohorts, class B
-with the conditions below), §4 the basis: **GDPR art. 6(1)(e) public task (UW is a public university),
-with 6(1)(f) as the fallback analysis — see ANALYTICS-LAW.md §4**, plus art. 5(1)(b)/89(1) for reusing
+with the conditions below), the basis: **GDPR art. 6(1)(f) legitimate interest — the controller is the student
+team, not the University (LEGAL.md §1); ANALYTICS-LAW.md §4's (e) recommendation assumed a university
+controller**, plus art. 5(1)(b)/89(1) for reusing
 the security log statistically.
 
 ## Where the numbers come from
@@ -34,6 +35,15 @@ the security log statistically.
   purpose the log exists for, and the objection does not reach that (ANALYTICS-LAW.md §3 row 12).
 - **Minors are never counted as active accounts or in a cohort** (`rollup.adult_accounts`:
   `Profile.is_minor` or a `Guardianship` child) — §3 row 5. Their requests still count as requests.
+- **Staff are never counted as people** (`rollup.without_staff`: `is_staff` or `is_superuser` at
+  rollup/request time) — not in active accounts, cohorts and their sizes, registrations or the
+  funnel. Owner's decision 2026-10-14. Their REQUESTS stay in every traffic figure: a request is a
+  request. `counted_people` = adults who are not staff; use it for any new people-count.
+- **No per-account "exclude me from statistics" switch — on purpose** (owner, 2026-10-14): the
+  request log is what spam and scam handling runs on. The GPC/DNT objection is honoured for
+  STATISTICS only; it never touches the security log, which anti-abuse reads. Keep the two apart in
+  any wording: "left out of the statistics", never "not logged".
+- **No client-side error beacon** (ANALYTICS-LAW.md §3 row 8 is class B): undecided by the owner, not built.
 - **k = 10** (`privacy.K_ANONYMITY`): counts of PEOPLE (active accounts, registrations, guardian
   accounts, funnel, cohort cells and sizes, client families) leave the API as `null` when 1–9, drawn
   "<10"; a rate only when both its counts would be shown; a referrer host seen fewer than 10 times is

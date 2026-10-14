@@ -1472,5 +1472,27 @@
   "summary": "The owner: \"prepare prod to have [the no-reply address] connected: mail confirmation, notifications, etc. … would be super cool to have access to list of emails sent and received as superuser todoonet on prod accessible through moderation tab. it comes from MXPLAN 001\", with the SMTP/IMAP hosts and the password; mid-way, \"the new prod bundle should also include the previously prepared materials…",
   "subproject": "accounts",
   "listed": true
+ },
+ {
+  "ref": "17CJ",
+  "title": "Consent-free analytics, the terms of use, a rewritten privacy policy, and sign-in with Google / Apple / Microsoft",
+  "heading": "17CJ — Consent-free analytics, the terms of use, a rewritten privacy policy, and sign-in with Google / Apple / Microsoft (2026-10-14, `ux/colour-pass`)",
+  "line": 16466,
+  "date": "2026-10-14",
+  "date_source": "heading",
+  "summary": "The owner: \"research what kind of analytics can we get from users with our functional cookies etc without asking for their consent: the goal is to analyze the data we collect in order to improve the service, so no google analytics, adds, and selling their data, but prepare new moderation tab button thats going to redirect to the dashboard … also, prepare our term and conditions and privacy policy…",
+  "subproject": "accounts",
+  "listed": true
+ },
+ {
+  "ref": "17CK",
+  "title": "The owner's answers: students as provider, self-service export and deletion, a licence per item, GitHub and Facebook",
+  "heading": "17CK — The owner's answers: students as provider, self-service export and deletion, a licence per item, GitHub and Facebook (2026-10-14, `ux/colour-pass`)",
+  "line": 16591,
+  "date": "2026-10-14",
+  "date_source": "heading",
+  "summary": "Same day as §17CJ, after the owner answered its questions. Four sub-agents again, plus the text changes done by the orchestrating session.",
+  "subproject": "accounts",
+  "listed": true
  }
 ]

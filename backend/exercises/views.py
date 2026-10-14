@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Avg, Count, Max, Q
 from config.audience import apply_audience_filter
+from licensing.licences import apply_licence_filter
 from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -359,6 +360,8 @@ def _filter_exercises(qs, params):
     if difficulty:
         qs = qs.filter(difficulty=difficulty)
     qs = apply_audience_filter(qs, params)
+    # `?licence=cc-by-4.0,cc0-1.0` — what a reader may reuse; unknown keys degrade to no filter.
+    qs = apply_licence_filter(qs, params)
     source_type = params.get('source_type')
     if source_type:
         qs = qs.filter(source__type=source_type)

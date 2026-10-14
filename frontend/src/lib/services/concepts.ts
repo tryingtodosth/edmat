@@ -249,6 +249,7 @@ export async function createConcept(draft: ConceptDraft): Promise<Concept> {
 		...revisionBody(draft),
 		audience: draft.audience,
 		locale: draft.locale,
+		...(draft.licence ? { licence: draft.licence } : {}),
 		branches: draft.branches ?? [],
 		tags: draft.tags ?? []
 	};
@@ -287,7 +288,12 @@ export async function createArticle(
 	slug: string,
 	draft: ConceptArticleDraft
 ): Promise<ConceptArticle> {
-	const body = { ...revisionBody(draft), audience: draft.audience, locale: draft.locale };
+	const body = {
+		...revisionBody(draft),
+		audience: draft.audience,
+		locale: draft.locale,
+		...(draft.licence ? { licence: draft.licence } : {})
+	};
 	try {
 		return mapConceptArticle(
 			await apiClient.post<RawConceptArticle>(

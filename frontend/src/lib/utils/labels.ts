@@ -1659,10 +1659,142 @@ export const SSO_ERROR_LABELS: Record<string, () => string> = {
 	code_invalid: m.sso_error_codeInvalid, // "This sign-in link has expired or was opened in a different tab or browser from the one that started it. Start again from the sign-in page."
 	wrong_account: m.sso_error_wrongAccount, // "Linking has to finish in the account that started it. Sign in to that account and try again."
 	ticket_invalid: m.sso_error_ticketInvalid, // "This sign-up has expired (it lasts half an hour) or was opened in a different tab. Start again from the sign-in page."
-	set_password_first: m.sso_error_setPasswordFirst // "This is the only way into your account. Set a password first (use “Forgotten your password?”), then unlink it."
+	set_password_first: m.sso_error_setPasswordFirst // "This is the only way into your account. Set a password first (Settings → Password), then unlink it."
 };
+
+/** A provider's own name, for the done, complete and Settings pages (brand names, the same in both
+ * languages, but still catalogue strings — house rule 1). Mirrors `backend/sso/providers.py`. */
+export const SSO_PROVIDER_NAMES: Record<string, () => string> = {
+	google: m.sso_provider_google, // "Google"
+	apple: m.sso_provider_apple, // "Apple"
+	github: m.sso_provider_github, // "GitHub"
+	facebook: m.sso_provider_facebook, // "Facebook"
+	microsoft: m.sso_provider_microsoft // "Microsoft"
+};
+
+export function ssoProviderName(id: string | null | undefined): string {
+	const name = id ? SSO_PROVIDER_NAMES[id] : undefined;
+	return name ? name() : (id ?? '');
+}
 
 export function ssoErrorLabel(code: string | null | undefined): string {
 	const label = code ? SSO_ERROR_LABELS[code] : undefined;
 	return label ? label() : m.sso_error_generic(); // "Signing in did not work. Try again, or sign in with your password."
+}
+
+// ---- content licences (backend licensing/licences.py, 2026-10-14) ----------------------------
+// MIRRORS backend/licensing/licences.py by hand — the keys, the URLs and the four permission facts.
+// Add or rename a key in both files (and in types/licence.ts); the backend file says the same.
+
+import type { Licence } from '$lib/types/licence';
+
+/** What a person may pick, most open first, `edmat-only` (the default) last. Never `unknown`. */
+export const SELECTABLE_LICENCES: Licence[] = [
+	'cc0-1.0',
+	'cc-by-4.0',
+	'cc-by-sa-4.0',
+	'cc-by-nc-4.0',
+	'cc-by-nc-sa-4.0',
+	'edmat-only'
+];
+
+export const DEFAULT_LICENCE: Licence = 'edmat-only';
+
+export interface LicenceFacts {
+	/** The official short name — a proper noun, the same in every language. Empty for the two
+	 *  EdMat-specific keys, whose short name is a translated label (`LICENCE_SHORT`). */
+	code: string;
+	deedUrl: string;
+	legalcodeEn: string;
+	/** The OFFICIAL Polish translation of the legal code; empty where none exists (CC0). */
+	legalcodePl: string;
+	publicReuse: boolean;
+}
+
+const CC = 'https://creativecommons.org/licenses';
+
+export const LICENCE_FACTS: Record<Licence, LicenceFacts> = {
+	'cc0-1.0': {
+		code: 'CC0 1.0',
+		deedUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+		legalcodeEn: 'https://creativecommons.org/publicdomain/zero/1.0/legalcode.en',
+		legalcodePl: '',
+		publicReuse: true
+	},
+	'cc-by-4.0': {
+		code: 'CC BY 4.0',
+		deedUrl: `${CC}/by/4.0/`,
+		legalcodeEn: `${CC}/by/4.0/legalcode.en`,
+		legalcodePl: `${CC}/by/4.0/legalcode.pl`,
+		publicReuse: true
+	},
+	'cc-by-sa-4.0': {
+		code: 'CC BY-SA 4.0',
+		deedUrl: `${CC}/by-sa/4.0/`,
+		legalcodeEn: `${CC}/by-sa/4.0/legalcode.en`,
+		legalcodePl: `${CC}/by-sa/4.0/legalcode.pl`,
+		publicReuse: true
+	},
+	'cc-by-nc-4.0': {
+		code: 'CC BY-NC 4.0',
+		deedUrl: `${CC}/by-nc/4.0/`,
+		legalcodeEn: `${CC}/by-nc/4.0/legalcode.en`,
+		legalcodePl: `${CC}/by-nc/4.0/legalcode.pl`,
+		publicReuse: true
+	},
+	'cc-by-nc-sa-4.0': {
+		code: 'CC BY-NC-SA 4.0',
+		deedUrl: `${CC}/by-nc-sa/4.0/`,
+		legalcodeEn: `${CC}/by-nc-sa/4.0/legalcode.en`,
+		legalcodePl: `${CC}/by-nc-sa/4.0/legalcode.pl`,
+		publicReuse: true
+	},
+	'edmat-only': { code: '', deedUrl: '', legalcodeEn: '', legalcodePl: '', publicReuse: false },
+	unknown: { code: '', deedUrl: '', legalcodeEn: '', legalcodePl: '', publicReuse: false }
+};
+
+export const LICENCE_NAMES: Record<Licence, () => string> = {
+	'cc0-1.0': m.licence_name_cc0, // "CC0 1.0 Universal (public domain dedication)"
+	'cc-by-4.0': m.licence_name_ccBy, // "Creative Commons Attribution 4.0 International"
+	'cc-by-sa-4.0': m.licence_name_ccBySa, // "Creative Commons Attribution-ShareAlike 4.0 International"
+	'cc-by-nc-4.0': m.licence_name_ccByNc, // "Creative Commons Attribution-NonCommercial 4.0 International"
+	'cc-by-nc-sa-4.0': m.licence_name_ccByNcSa, // "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International"
+	'edmat-only': m.licence_name_edmatOnly, // "All rights reserved — published on EdMat only"
+	unknown: m.licence_name_unknown // "Rights not yet clarified"
+};
+
+export const LICENCE_SUMMARIES: Record<Licence, () => string> = {
+	'cc0-1.0': m.licence_summary_cc0, // "Anyone may copy, change and use it for any purpose, even commercially, without having to name you."
+	'cc-by-4.0': m.licence_summary_ccBy, // "Anyone may copy, change and use it for any purpose, even commercially, as long as they name you."
+	'cc-by-sa-4.0': m.licence_summary_ccBySa, // "Anyone may copy, change and use it for any purpose, as long as they name you and share their changes under the same licence."
+	'cc-by-nc-4.0': m.licence_summary_ccByNc, // "Anyone may copy and change it for non-commercial purposes, as long as they name you."
+	'cc-by-nc-sa-4.0': m.licence_summary_ccByNcSa, // "Anyone may copy and change it for non-commercial purposes, as long as they name you and share their changes under the same licence."
+	'edmat-only': m.licence_summary_edmatOnly, // "You keep all rights. EdMat may only host, show, translate for display and archive it, …"
+	unknown: m.licence_summary_unknown // "Nobody has yet established who holds the rights to this content …"
+};
+
+/** The badge text: the official code for a CC licence, a translated label for EdMat's two. */
+export function licenceShort(licence: Licence): string {
+	if (licence === 'edmat-only') return m.licence_short_edmatOnly(); // "EdMat only"
+	if (licence === 'unknown') return m.licence_short_unknown(); // "Rights unclear"
+	return LICENCE_FACTS[licence].code;
+}
+
+/** The refusal reasons `licensing/rules.py` returns, each with its own sentence (house rule 6). */
+export function licenceReasonLabel(reason: string): string {
+	switch (reason) {
+		case 'licence_narrowing':
+			return m.licence_reason_narrowing(); // "A licence can only be made more open, never narrower."
+		case 'licence_other_contributors':
+			return m.licence_reason_otherContributors(); // "Other people’s work is part of this, so it cannot be relicensed without them."
+		case 'licence_note_required':
+			return m.licence_reason_noteRequired(); // "Say why: a staff change needs a reason."
+		case 'licence_not_selectable':
+		case 'licence_unknown_key':
+			return m.licence_reason_notSelectable(); // "That licence cannot be chosen."
+		case 'licence_conflict':
+			return m.licence_reason_conflict(); // "Somebody changed the licence in the meantime. …"
+		default:
+			return m.licence_reason_generic(); // "The licence could not be changed."
+	}
 }

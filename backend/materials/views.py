@@ -3,6 +3,7 @@ from django.db import transaction
 from django.db.models import Max, Q
 from rest_framework import permissions, status, viewsets
 from config.audience import apply_audience_filter
+from licensing.licences import apply_licence_filter
 from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -78,6 +79,7 @@ def _notify_material_reply(comment, material, locale):
 # numeric PK as a string (lib/api/mappers.ts's `mapTopic`), so no new id shape needed on that side.
 def _filter_materials(qs, params):
     qs = apply_audience_filter(qs, params)
+    qs = apply_licence_filter(qs, params)
     branch = params.get('branch')
     if branch:
         qs = qs.filter(branch__slug=branch)

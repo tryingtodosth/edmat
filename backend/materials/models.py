@@ -24,6 +24,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
+from licensing.models import licence_field
 
 from exercises.models import Tag
 from taxonomy.models import Branch, ProposableNode, Subtopic, Topic
@@ -210,6 +211,11 @@ class Material(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL
     )
     tags = models.ManyToManyField(Tag, blank=True, related_name='materials')
+    # The licence the author chose for this material (licensing/licences.py, 2026-10-14). A
+    # co-authored version is a contribution INTO the material under this licence (the Wikipedia
+    # shape), so versions carry none of their own — and `licensing.rules` refuses a change while
+    # any other person's version is in it. The seven corpus PDFs are `unknown` (LEGAL.md §3).
+    licence = licence_field()
     published = models.BooleanField(default=True)
     featured = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)

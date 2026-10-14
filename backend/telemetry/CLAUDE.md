@@ -24,7 +24,8 @@ up into aggregates), `routers.py`
   analytics. The row is still WRITTEN — the objection is to statistics, not to the security log — and
   every rollup in `analytics/` skips it. Per request, never remembered: remembering it would need a
   visitor identifier. `db_default=False`, so a process on the old model can still insert while a shard
-  is migrated. Basis for the statistics: art. 6(1)(e), 6(1)(f) as fallback — `ANALYTICS-LAW.md` §4.
+  is migrated. Basis for the statistics: art. 6(1)(f) legitimate interest — the controller is the student team,
+  not the University (`LEGAL.md` §1).
   `test_ip_is_the_only_directly_identifying_field` lists it; `AnalyticsObjectionTests` pins it.
 - **Retention is now scheduled**: `deploy/cron/edmat-analytics` runs `analytics`' rollup and THEN
   `enforce_log_retention` nightly (rollup first — a day can be recounted only while its rows exist).

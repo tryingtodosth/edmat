@@ -175,6 +175,8 @@ def _claim_attempt(provider: Provider, state: str) -> SsoAttempt:
 
 
 def _exchange_code(provider: Provider, attempt: SsoAttempt, code: str) -> dict:
+    """The code for claims: a verified id_token (OIDC), or — for a provider with none (GitHub,
+    Facebook) — the profile read from its API with the access token, which is then dropped."""
     data = {
         'grant_type': 'authorization_code',
         'code': code,
@@ -185,10 +187,23 @@ def _exchange_code(provider: Provider, attempt: SsoAttempt, code: str) -> dict:
     if provider.pkce:
         data['code_verifier'] = attempt.code_verifier
     try:
-        response = http.post_form(provider.endpoint('token'), data)
+        response = provider.request_token(data)
     except http.ProviderHttpError as exc:
         log.warning('sso %s: token request failed: %s', provider.id, exc)
         raise Refusal('provider_error') from exc
+    if provider.protocol != 'oidc':
+        access_token = response.get('access_token')
+        if not access_token or not isinstance(access_token, str):
+            log.warning('sso %s: no access token in the token response', provider.id)
+            raise Refusal('provider_error')
+        try:
+            claims = provider.fetch_identity(access_token)
+        except (http.ProviderHttpError, ValueError, TypeError, AttributeError) as exc:
+            log.warning('sso %s: identity request failed: %s', provider.id, exc)
+            raise Refusal('provider_error') from exc
+        if not provider.issuer_ok(claims) or not str(claims.get('sub') or '').strip():
+            raise Refusal('provider_error')
+        return claims
     try:
         return verify_id_token(provider, response.get('id_token'), nonce=attempt.nonce)
     except TokenRejected as exc:

@@ -56,12 +56,11 @@ const tokenFor = async (email, password = 'password123') => {
 };
 const kasia = await tokenFor('kasia@edmat.example');
 const auth = (t) => ({ 'Content-Type': 'application/json', Authorization: `Token ${t}` });
-const CHILD = 'e2e-zosia';
-// Reset: a leftover child from an earlier run.
-for (const c of await (await fetch(`${API}/api/auth/children/`, { headers: auth(kasia) })).json()) {
-	if (c.username === CHILD)
-		await fetch(`${API}/api/auth/children/${c.id}/`, { method: 'DELETE', headers: auth(kasia) });
-}
+// A fresh username per run (2026-10-14): deleting a child's account now waits out a 14-day grace
+// period (`backend/accounts/erasure.py`), so the previous run's child still holds its username until
+// `erase_due_accounts` runs. Rows below are found by `@<username>`, never by the display name, which
+// every leftover child shares.
+const CHILD = `e2e-zosia-${Date.now() % 1000000}`;
 const login = async (p, id, password = 'password123') => {
 	await p.goto(`${BASE}/login`, { waitUntil: 'networkidle', timeout: 90000 });
 	await settle(p, 800);
@@ -100,7 +99,7 @@ await gp.locator('form.add input[type="text"]').first().fill('Zosia');
 await gp.locator('form.add input[type="text"]').nth(1).fill(CHILD);
 await gp.locator('form.add input[type="password"]').fill('a-strong-passw0rd!');
 await gp.locator('form.add button[type="submit"]').click();
-await gp.locator('.children li', { hasText: 'Zosia' }).waitFor({ timeout: 15000 });
+await gp.locator('.children li', { hasText: `@${CHILD}` }).waitFor({ timeout: 15000 });
 check('the child appears in the guardian panel', true);
 const children = await (await fetch(`${API}/api/auth/children/`, { headers: auth(kasia) })).json();
 const child = children.find((c) => c.username === CHILD);
@@ -174,7 +173,7 @@ check(
 
 // 4. The guardian sees it in the panel and registers the child for an event.
 await k.reload({ waitUntil: 'load' });
-const row = k.locator('.guardian .children li', { hasText: 'Zosia' });
+const row = k.locator('.guardian .children li', { hasText: `@${CHILD}` });
 await row.waitFor({ timeout: 60000 });
 await row.locator('button', { hasText: 'What they wrote' }).click();
 await row.locator('.items li').first().waitFor({ timeout: 10000 });
@@ -248,19 +247,38 @@ check(
 // 5. Delete the child's account from the panel.
 k.on('dialog', (d) => d.accept());
 await k.goto(`${BASE}/settings`, { waitUntil: 'load' });
-const row2 = k.locator('.guardian .children li', { hasText: 'Zosia' });
+const row2 = k.locator('.guardian .children li', { hasText: `@${CHILD}` });
 await row2.waitFor({ timeout: 60000 });
 await row2.locator('button', { hasText: 'Delete account' }).click();
 await settle(k, 1500);
+// Since 2026-10-14 a delete is a request with a 14-day grace period: the child is switched off at
+// once and stays listed, marked, with "Cancel the deletion" in place of "Delete account".
 check(
-	'deleting removes the child from the panel',
-	(await k.locator('.guardian .children li', { hasText: 'Zosia' }).count()) === 0
+	'deleting marks the child as to be deleted in the panel',
+	/To be deleted on/.test(await row2.innerText()) &&
+		(await row2.locator('button', { hasText: 'Cancel the deletion' }).count()) === 1,
+	(await row2.innerText()).slice(0, 200)
 );
+const afterDelete = (
+	await (await fetch(`${API}/api/auth/children/`, { headers: auth(kasia) })).json()
+).find((c) => c.username === CHILD);
 check(
-	'…and from the API',
-	!(await (await fetch(`${API}/api/auth/children/`, { headers: auth(kasia) })).json()).some(
-		(c) => c.username === CHILD
-	)
+	'…and the API says the account is off and when it goes',
+	!!afterDelete && afterDelete.is_active === false && !!afterDelete.erasure_due_at,
+	JSON.stringify(afterDelete)
+);
+const childLogin = await fetch(`${API}/api/auth/login/`, {
+	method: 'POST',
+	headers: { 'Content-Type': 'application/json' },
+	body: JSON.stringify({ username: CHILD, password: 'a-strong-passw0rd!' })
+});
+const childLoginBody = await childLogin.json();
+check(
+	'…and the child signing in is told, and cannot undo it',
+	childLogin.status === 403 &&
+		childLoginBody.detail === 'erasure_pending' &&
+		childLoginBody.can_cancel === false,
+	JSON.stringify(childLoginBody)
 );
 // Cleanup events.
 for (const [id, t] of [

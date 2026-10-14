@@ -13,16 +13,17 @@
  * claim about what the software does was checked against the code on 2026-10-14.
  *
  * OPEN DECISIONS THE OWNER MUST MAKE BEFORE THIS IS PUBLISHED (also listed in LEGAL.md §10):
- *  1. WHO THE SERVICE PROVIDER IS — decided by the owner 2026-10-14: Ośrodek Komputerowy WF UW.
- *     ANALYTICS-LAW.md §4.2 notes the Ośrodek has no legal personality of its own, so § 2 names it
- *     together with the University it belongs to (and privacy.ts names the University as the GDPR
- *     controller). The UW address is the one on UW's own privacy notices; confirm with IOD UW.
+ *  1. WHO THE SERVICE PROVIDER IS — decided by the owner 2026-10-14: the STUDENTS who run EdMat;
+ *     Ośrodek Komputerowy WF UW provides and oversees the servers. The team stays anonymous "at
+ *     least for now" (owner) — u.ś.u.d.e. art. 5 expects a natural-person provider to be named,
+ *     which is the known gap this leaves; LEGAL.md §1.
  *  2. THE CONTACT ADDRESS. There is no public contact mailbox; `no-reply@edmat.net` is send-only by
  *     its name. `CONTACT_EN`/`CONTACT_PL` are visible placeholders until one exists.
- *  3. THE CONTENT LICENCE (§ 9). LEGAL.md §2–3 said CC BY-SA 4.0 must not be switched on before a
- *     lawyer has read LEGAL.md §3. This text switches it on for content posted after acceptance,
- *     because the brief for this document asked for the clause. If review has not happened, § 9
- *     must be reduced to the operating licence (point 2) before publication.
+ *  3. THE CONTENT LICENCE (§ 9). Owner, 2026-10-14: "should be specific to each exercise,
+ *     materials etc." — § 9 no longer switches any licence on site-wide. Each item carries the
+ *     licence its author picks (backend `licensing/`), default "EdMat only" (= point 2 alone); the
+ *     corpus is "rights not yet clarified" (point 8, LEGAL.md §3). A lawyer should still read points
+ *     2, 3, 5 and 8 before publication — the CC choice is now the author's, not the site's.
  *  4. E-MAIL NOTICES (§ 5, § 19, § 20) are a promise: no mailer for terms changes or closure exists
  *     yet; today only a superuser's `direct` send could do it.
  *  5. DEADLINES (14 days for an answer, 14 days' notice of changes) are common practice, not a
@@ -47,8 +48,12 @@ export interface TermsOfUse {
 
 // The one datum the law requires (u.ś.u.d.e. art. 5: an electronic address) that does not exist
 // yet. Shown verbatim so nobody mistakes the page for finished. See open decision 2 above.
-const CONTACT_EN = '[contact e-mail address — to be filled in]';
-const CONTACT_PL = '[adres e-mail do kontaktu — do uzupełnienia]';
+// Owner's decision 2026-10-14: the team stays anonymous "at least for now", reachable through the
+// site or through OKWF. The issues form is private by default (issues/models.py `is_public`).
+const CONTACT_EN =
+	'through the “Report issue” form at the top of every page (only the team sees your message unless you choose to publish it; leave an e-mail address if you want an answer), or by post through Ośrodek Komputerowy Wydziału Fizyki UW, ul. Pasteura 5, 02-093 Warszawa';
+const CONTACT_PL =
+	'przez formularz „Zgłoś błąd” u góry każdej strony (wiadomość widzi tylko zespół, chyba że sam zdecydujesz się ją opublikować; podaj adres e-mail, jeśli chcesz dostać odpowiedź) albo pocztą za pośrednictwem Ośrodka Komputerowego Wydziału Fizyki UW, ul. Pasteura 5, 02-093 Warszawa';
 
 const EN: TermsOfUse = {
 	title: 'Terms of use',
@@ -86,7 +91,8 @@ const EN: TermsOfUse = {
 		{
 			heading: '§ 2. Who provides the service and how to contact us',
 			body: [
-				'The service is provided by Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego (the Computer Centre of the Faculty of Physics, University of Warsaw), ul. Pasteura 5, 02-093 Warszawa — the “Provider” — a unit of Uniwersytet Warszawski, ul. Krakowskie Przedmieście 26/28, 00-927 Warszawa. EdMat is a student project, built by students of the Faculty.',
+				'EdMat is a student project. The service is provided by a group of students of the University of Warsaw who build and run it (the “Provider”).',
+				'It runs on servers of Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego (the Computer Centre of the Faculty of Physics, University of Warsaw), ul. Pasteura 5, 02-093 Warszawa, which provides and oversees them. The Ośrodek is not a party to these terms.',
 				`Contact for anything concerning these terms, a complaint, or your account: ${CONTACT_EN}. The page /legal is our single point of contact for authorities, the European Commission and users under Articles 11 and 12 of the Digital Services Act. You can write to us in Polish or English.`,
 				'To report a specific piece of content as illegal, use the form at /legal/notice (§ 12). You do not need an account for that.'
 			]
@@ -184,12 +190,13 @@ const EN: TermsOfUse = {
 			heading: '§ 9. Your content and its licence',
 			body: [
 				'1. You keep the copyright in what you create. You declare that the content you publish is your own, or that you are allowed to publish it on these terms, and that publishing it does not infringe anybody’s rights. If you publish something somebody else made (for example an exercise from a course), say where it comes from in the source field; if you are not sure you may publish it, do not.',
-				'2. So that we can run the service, you grant the provider a free, non-exclusive licence, unlimited in time and territory, to use your content in the service in these fields of exploitation: recording and reproducing it by any technique, including digitally; storing it in computer memory and on servers; making it available to the public so that anyone can access it at a place and time of their choosing; displaying, printing and distributing copies of it as part of the service; and translating, adapting, formatting and combining it with other content where the service needs that (for example rendering mathematics, building a study set, or attaching a translation).',
-				'3. Content you publish publicly in the database — exercises, solutions, hints, materials and their versions, translations and concept articles — is published under the Creative Commons Attribution-ShareAlike 4.0 International licence (CC BY-SA 4.0). By publishing it you grant everyone that licence, in the same fields of exploitation as in point 2 and also for making and sharing derivative works. Others may reuse and improve your work, including outside EdMat, as long as they name you and share their changes under the same licence. Comments, reviews, posts, messages, listings, events and contests are not covered by point 3; only point 2 applies to them.',
-				'4. Your personal rights as author (moral rights) cannot be waived under Polish law. You undertake not to exercise them against the ordinary way the service presents and edits content — for example showing your work without your full name if you chose a display name, fixing formatting or typesetting, or showing it beside other people’s improved versions. Attribution is shown under the display name you chose.',
-				'5. Points 3 and 4 apply to content published after you accept this version of the terms. Content published earlier is used on the basis of point 2 only.',
-				'6. If your account is deleted, content licensed under point 3 may remain published without your name, because others may already rely on the licence. You may ask us to remove it too, and we will unless it has become part of somebody else’s work in a way that cannot be separated.',
-				'7. We do not check whether user content is correct, complete or original. Solutions may contain mistakes; treat them as help, not as the authoritative answer.'
+				'2. So that we can run the service, you grant the provider a free, non-exclusive licence, worldwide, to use your content in the service in these fields of exploitation (art. 50 of the Polish Copyright Act): recording it and reproducing it digitally; storing it in computer memory and on servers, including backups; making it available to the public so that anyone can access it at a place and time of their choosing; displaying it; translating, formatting and combining it with other content to the extent the service needs to show it (for example rendering mathematics, building a study set, or showing it beside a translation); and keeping an archived copy for moderation, for handling complaints and notices, and for meeting legal obligations. This licence lasts as long as the content is on the service, and afterwards for as long as a legal obligation or a pending dispute requires the archived copy. It applies to everything you publish, whatever licence you choose under point 3, and gives nobody but the provider any right.',
+				'3. Each exercise, hint, solution, material and concept article you publish carries a licence you choose for that item, and the item shows it. You can choose one of: Creative Commons CC0 1.0, CC BY 4.0, CC BY-SA 4.0, CC BY-NC 4.0 or CC BY-NC-SA 4.0, or “EdMat only”. “EdMat only” is the default: it grants nothing beyond point 2, so nobody outside the service may reuse your work without asking you. If you choose a Creative Commons licence, you grant everyone that licence, on the terms of its own legal code (linked on the item), in the fields of exploitation listed in point 2 and also for making and sharing derivative works where that licence allows it. Comments, reviews, posts, messages, listings, events and contests carry no such licence; only point 2 applies to them.',
+				'4. Your personal rights as author (moral rights) cannot be waived under Polish law. You undertake not to exercise them against the ordinary way the service presents and edits content — for example showing your work under the display name you chose rather than your full name, fixing formatting or typesetting, or showing it beside other people’s versions and translations. Attribution is shown under the display name you chose.',
+				'5. A translation of somebody else’s exercise is published under the licence of the exercise it translates, as it stood when you wrote the translation. An improved version of somebody else’s material, or a revision of somebody else’s concept article, is contributed under the licence that material or article carries. You may change the licence of your own item at any time to a more open one (for example from “EdMat only” to CC BY 4.0, or from CC BY-SA 4.0 to CC BY 4.0), but not to a narrower one, because a Creative Commons licence already granted cannot be withdrawn; anybody who took a copy keeps the licence it carried then. An item that includes other people’s contributions cannot be relicensed without them. Each change is recorded and the item shows since when its licence applies. Content published before you accepted this version of the terms carries “EdMat only” unless you choose otherwise.',
+				'6. If your account is deleted, content you published under a Creative Commons licence may remain published without your name, because others may already rely on the licence. Content under “EdMat only” is removed or kept without your name as the privacy policy describes. You may ask us to remove openly licensed content too, and we will unless it has become part of somebody else’s work in a way that cannot be separated.',
+				'7. We do not check whether user content is correct, complete or original. Solutions may contain mistakes; treat them as help, not as the authoritative answer.',
+				'8. Material by somebody else keeps its own licence, and you may only choose a licence for what you hold the rights to. Name the author and the source of anything you include. Content whose rights have not yet been clarified — in particular exercises and materials imported into the database from course archives — is marked “rights not yet clarified” and is shown for study only: neither we nor you grant any licence on it, and you should not copy it elsewhere. If you hold the rights to such content, tell us (§ 12) and we will mark it with the licence you grant, or remove it.'
 			]
 		},
 		{
@@ -223,7 +230,7 @@ const EN: TermsOfUse = {
 			heading: '§ 13. Reasons for decisions and how to contest them',
 			body: [
 				'Whenever we remove, hide or limit your content, or suspend or end your account, we tell you, with a statement of reasons: what we did and how far it reaches, the facts we relied on, whether an automated step was involved, which law or which provision of these terms it is based on, and how you can contest it. Exceptions are only those the law allows, for example when we have no way to reach you.',
-				`You can contest such a decision, and the decision on a notice you sent, free of charge, within 6 months of being told about it, by writing to ${CONTACT_EN} or by replying in the thread of the notice. Say which decision you contest and why. Your complaint is decided by a person — where possible not the one who made the original decision — never by an automated step alone, and you receive a reasoned answer without undue delay, at the latest within 14 days. If the complaint shows the decision was wrong, we reverse it.`,
+				`You can contest such a decision, and the decision on a notice you sent, free of charge, within 6 months of being told about it, by writing to us ${CONTACT_EN}, or by replying in the thread of the notice. Say which decision you contest and why. Your complaint is decided by a person — where possible not the one who made the original decision — never by an automated step alone, and you receive a reasoned answer without undue delay, at the latest within 14 days. If the complaint shows the decision was wrong, we reverse it.`,
 				'You may also take the dispute to an out-of-court dispute settlement body certified under Article 21 of the Digital Services Act (the European Commission publishes the list); we will engage with it in good faith. From 6 November 2026 you can also complain to the President of the Office of Electronic Communications (Prezes UKE), Poland’s Digital Services Coordinator. None of this limits your right to go to court.'
 			]
 		},
@@ -252,7 +259,7 @@ const EN: TermsOfUse = {
 		{
 			heading: '§ 17. Responsibility',
 			body: [
-				'We try to keep EdMat available and working, but it is a free service run by a university unit, and it may be unavailable at times — for example for maintenance, updates or because of a failure. We will announce planned longer breaks on the site when we can.',
+				'We try to keep EdMat available and working, but it is a free service run by students, and it may be unavailable at times — for example for maintenance, updates or because of a failure. We will announce planned longer breaks on the site when we can.',
 				'We host content that users provide. We are not responsible for that content as long as we do not know that it is illegal and, once we learn of it, act on it promptly. We are not responsible for the correctness of exercises and solutions written by users, or for arrangements between users (§ 15, § 16).',
 				'You are responsible for the content you publish and for how you use the service. Nothing in these terms excludes or limits any liability that cannot be excluded or limited under the law, in particular liability for damage caused intentionally, or any right you have as a consumer.'
 			]
@@ -260,13 +267,13 @@ const EN: TermsOfUse = {
 		{
 			heading: '§ 18. Complaints about the service',
 			body: [
-				`If the service does not work as these terms describe, you can complain by writing to ${CONTACT_EN}. Please describe the problem, say when it happened, and give a way to answer you (the e-mail address you write from is enough). We answer within 14 days of receiving the complaint, by e-mail or the way you asked. Complaints about a moderation decision follow § 13.`
+				`If the service does not work as these terms describe, you can complain by writing to us ${CONTACT_EN}. Please describe the problem, say when it happened, and give a way to answer you (the e-mail address you write from is enough). We answer within 14 days of receiving the complaint, by e-mail or the way you asked. Complaints about a moderation decision follow § 13.`
 			]
 		},
 		{
 			heading: '§ 19. Ending the agreement',
 			body: [
-				`You can end the agreement at any time, without giving a reason and free of charge, by asking us to delete your account at ${CONTACT_EN}. Until a delete button exists in Settings, deletion is done by a person, and we confirm it when it is done. A guardian can delete a child’s account directly in Settings. What happens to your content is set out in § 9 point 6 and in the privacy policy.`,
+				`You can end the agreement at any time, without giving a reason and free of charge, by deleting your account in Settings → Your data and your account, or by asking us to delete it, ${CONTACT_EN}. Deletion asks for your password, shows you what will be deleted and what will stay, switches the account off at once and erases it 14 days later; until then you can cancel it by signing in or through the link we e-mail you, and the agreement ends when the account is erased. If you still run a course, event, contest or organisation that others take part in, you are asked to hand it over or close it first. A guardian deletes a child’s account in their own Settings, in the same way. Content published for others stays without your name as set out in § 9 point 6, and so do records other people rely on (for example a moderation decision, a vote counted in a result or a booking the other side had); the privacy policy lists exactly what is deleted and what is kept.`,
 				'We can end the agreement only for a serious reason: a serious or repeated breach of these terms or of the law, in particular after a warning has had no effect; using the account to attack the service or other users; or a court or authority order. We give 14 days’ notice, except where the breach is so serious, or the safety of others or of the service so much at risk, that the account must be suspended at once. Either way you receive a statement of reasons and can contest it (§ 13).',
 				'If we decide to close the service altogether, we will announce it at least 30 days in advance on the site and by e-mail to confirmed addresses.'
 			]
@@ -332,7 +339,8 @@ const PL: TermsOfUse = {
 		{
 			heading: '§ 2. Kto świadczy usługę i jak się z nami skontaktować',
 			body: [
-				'Usługodawcą jest Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego, ul. Pasteura 5, 02-093 Warszawa — jednostka Uniwersytetu Warszawskiego, ul. Krakowskie Przedmieście 26/28, 00-927 Warszawa. EdMat jest projektem studenckim, tworzonym przez studentów Wydziału.',
+				'EdMat jest projektem studenckim. Usługodawcą jest grupa studentów Uniwersytetu Warszawskiego, którzy go tworzą i prowadzą („Usługodawca”).',
+				'Serwis działa na serwerach Ośrodka Komputerowego Wydziału Fizyki Uniwersytetu Warszawskiego, ul. Pasteura 5, 02-093 Warszawa, który je udostępnia i nadzoruje. Ośrodek nie jest stroną tego regulaminu.',
 				`Kontakt we wszystkich sprawach dotyczących regulaminu, reklamacji lub Twojego konta: ${CONTACT_PL}. Strona /legal jest naszym jedynym punktem kontaktowym dla organów, Komisji Europejskiej i użytkowników w rozumieniu art. 11 i 12 Aktu o usługach cyfrowych. Możesz pisać do nas po polsku lub po angielsku.`,
 				'Aby zgłosić konkretną treść jako nielegalną, skorzystaj z formularza pod adresem /legal/notice (§ 12). Nie potrzebujesz do tego konta.'
 			]
@@ -430,12 +438,13 @@ const PL: TermsOfUse = {
 			heading: '§ 9. Twoje treści i licencja',
 			body: [
 				'1. Prawa autorskie do tego, co tworzysz, pozostają przy Tobie. Oświadczasz, że publikowane przez Ciebie treści są Twoje albo że wolno Ci je opublikować na zasadach regulaminu i że ich publikacja nie narusza niczyich praw. Jeśli publikujesz coś, co stworzył ktoś inny (np. zadanie z zajęć), wskaż źródło w polu źródła; jeśli nie masz pewności, czy możesz to opublikować — nie publikuj.',
-				'2. Abyśmy mogli prowadzić serwis, udzielasz usługodawcy nieodpłatnej, niewyłącznej licencji, nieograniczonej czasowo ani terytorialnie, na korzystanie z Twoich treści w serwisie na następujących polach eksploatacji: utrwalanie i zwielokrotnianie dowolną techniką, w tym cyfrową; wprowadzanie do pamięci komputera i na serwery; publiczne udostępnianie w taki sposób, aby każdy mógł mieć do nich dostęp w miejscu i czasie przez siebie wybranym; wyświetlanie, drukowanie i rozpowszechnianie egzemplarzy w ramach serwisu; tłumaczenie, opracowanie, formatowanie i łączenie z innymi treściami w zakresie potrzebnym serwisowi (np. składanie wzorów matematycznych, tworzenie zestawu do nauki, dołączanie tłumaczenia).',
-				'3. Treści publikowane publicznie w bazie — zadania, rozwiązania, wskazówki, materiały i ich wersje, tłumaczenia oraz artykuły o pojęciach — są udostępniane na licencji Creative Commons Uznanie autorstwa – Na tych samych warunkach 4.0 Międzynarodowe (CC BY-SA 4.0). Publikując je, udzielasz tej licencji każdemu, na polach eksploatacji wymienionych w pkt 2, a także w zakresie tworzenia i rozpowszechniania utworów zależnych. Inni mogą wykorzystywać i ulepszać Twoją pracę, także poza EdMat, o ile wskażą Cię jako autora i udostępnią swoje zmiany na tej samej licencji. Pkt 3 nie obejmuje komentarzy, recenzji, wpisów, wiadomości, ogłoszeń, wydarzeń ani konkursów; do nich stosuje się wyłącznie pkt 2.',
-				'4. Autorskich praw osobistych nie można się zrzec według prawa polskiego. Zobowiązujesz się nie wykonywać ich wobec zwykłego sposobu, w jaki serwis prezentuje i redaguje treści — np. pokazywania Twojej pracy bez pełnego imienia i nazwiska, jeśli wybrałeś nazwę wyświetlaną, poprawiania formatowania lub składu albo pokazywania jej obok ulepszonych wersji innych osób. Autorstwo jest wskazywane pod wybraną przez Ciebie nazwą wyświetlaną.',
-				'5. Pkt 3 i 4 dotyczą treści opublikowanych po zaakceptowaniu tej wersji regulaminu. Z treści opublikowanych wcześniej korzystamy wyłącznie na podstawie pkt 2.',
-				'6. Jeśli Twoje konto zostanie usunięte, treści objęte licencją z pkt 3 mogą pozostać opublikowane bez Twojego imienia, ponieważ inni mogą już korzystać z licencji. Możesz poprosić o ich usunięcie — zrobimy to, chyba że stały się częścią cudzej pracy w sposób, którego nie da się rozdzielić.',
-				'7. Nie sprawdzamy, czy treści użytkowników są poprawne, kompletne i oryginalne. Rozwiązania mogą zawierać błędy; traktuj je jako pomoc, a nie wiążącą odpowiedź.'
+				'2. Abyśmy mogli prowadzić serwis, udzielasz usługodawcy nieodpłatnej, niewyłącznej licencji, nieograniczonej terytorialnie, na korzystanie z Twoich treści w serwisie na następujących polach eksploatacji (art. 50 ustawy o prawie autorskim i prawach pokrewnych): utrwalanie i zwielokrotnianie techniką cyfrową; wprowadzanie do pamięci komputera i na serwery, w tym do kopii zapasowych; publiczne udostępnianie w taki sposób, aby każdy mógł mieć do nich dostęp w miejscu i czasie przez siebie wybranym; wyświetlanie; tłumaczenie, formatowanie i łączenie z innymi treściami w zakresie potrzebnym do ich wyświetlenia w serwisie (np. składanie wzorów matematycznych, tworzenie zestawu do nauki, pokazywanie obok tłumaczenia); przechowywanie kopii archiwalnej na potrzeby moderacji, rozpatrywania skarg i zgłoszeń oraz wykonywania obowiązków prawnych. Licencja trwa, dopóki treść znajduje się w serwisie, a potem tak długo, jak kopii archiwalnej wymaga obowiązek prawny lub toczący się spór. Obejmuje wszystko, co publikujesz, niezależnie od licencji wybranej na podstawie pkt 3, i nie daje żadnych praw nikomu poza usługodawcą.',
+				'3. Każde publikowane przez Ciebie zadanie, wskazówka, rozwiązanie, materiał i artykuł o pojęciu ma licencję, którą wybierasz dla tej konkretnej treści, i jest ona przy niej pokazana. Do wyboru są: Creative Commons CC0 1.0, CC BY 4.0 (Uznanie autorstwa), CC BY-SA 4.0 (Uznanie autorstwa – Na tych samych warunkach), CC BY-NC 4.0 (Uznanie autorstwa – Użycie niekomercyjne), CC BY-NC-SA 4.0 (Uznanie autorstwa – Użycie niekomercyjne – Na tych samych warunkach) albo „Tylko EdMat”. „Tylko EdMat” jest ustawieniem domyślnym: nie daje niczego ponad pkt 2, więc nikt spoza serwisu nie może wykorzystać Twojej pracy bez Twojej zgody. Wybierając licencję Creative Commons, udzielasz jej każdemu, na warunkach jej tekstu (link przy treści), na polach eksploatacji wymienionych w pkt 2, a także w zakresie tworzenia i rozpowszechniania utworów zależnych, jeśli dana licencja na to pozwala. Komentarze, recenzje, wpisy, wiadomości, ogłoszenia, wydarzenia i konkursy nie mają takiej licencji; stosuje się do nich wyłącznie pkt 2.',
+				'4. Autorskich praw osobistych nie można się zrzec według prawa polskiego. Zobowiązujesz się nie wykonywać ich wobec zwykłego sposobu, w jaki serwis prezentuje i redaguje treści — np. pokazywania Twojej pracy pod wybraną przez Ciebie nazwą wyświetlaną zamiast pełnego imienia i nazwiska, poprawiania formatowania lub składu albo pokazywania jej obok wersji i tłumaczeń innych osób. Autorstwo jest wskazywane pod wybraną przez Ciebie nazwą wyświetlaną.',
+				'5. Tłumaczenie cudzego zadania jest publikowane na licencji zadania, które tłumaczy, w brzmieniu z chwili napisania tłumaczenia. Ulepszona wersja cudzego materiału albo zmiana cudzego artykułu o pojęciu jest wnoszona na licencji, którą ten materiał lub artykuł ma. Licencję własnej treści możesz w każdej chwili zmienić na bardziej otwartą (np. z „Tylko EdMat” na CC BY 4.0 albo z CC BY-SA 4.0 na CC BY 4.0), ale nie na węższą, bo udzielonej licencji Creative Commons nie można odwołać; kto pobrał kopię, zachowuje licencję, na której ją pobrał. Treści zawierającej wkład innych osób nie można przelicencjonować bez nich. Każda zmiana jest zapisywana, a przy treści widać, od kiedy obowiązuje jej licencja. Treści opublikowane przed zaakceptowaniem tej wersji regulaminu mają licencję „Tylko EdMat”, chyba że wybierzesz inną.',
+				'6. Jeśli Twoje konto zostanie usunięte, treści opublikowane na licencji Creative Commons mogą pozostać w serwisie bez Twojego imienia, ponieważ inni mogą już korzystać z licencji. Treści z licencją „Tylko EdMat” są usuwane albo zachowywane bez Twojego imienia zgodnie z polityką prywatności. Możesz poprosić o usunięcie także treści na otwartej licencji — zrobimy to, chyba że stały się częścią cudzej pracy w sposób, którego nie da się rozdzielić.',
+				'7. Nie sprawdzamy, czy treści użytkowników są poprawne, kompletne i oryginalne. Rozwiązania mogą zawierać błędy; traktuj je jako pomoc, a nie wiążącą odpowiedź.',
+				'8. Cudze materiały zachowują własną licencję, a licencję możesz wybrać tylko dla tego, do czego masz prawa. Wskaż autora i źródło wszystkiego, co dołączasz. Treści, których sytuacja prawna nie została jeszcze wyjaśniona — w szczególności zadania i materiały zaimportowane do bazy z archiwów zajęć — są oznaczone jako „prawa autorskie jeszcze niewyjaśnione” i pokazywane wyłącznie do nauki: ani my, ani Ty nie udzielamy do nich żadnej licencji i nie należy ich kopiować gdzie indziej. Jeśli masz prawa do takiej treści, daj nam znać (§ 12) — oznaczymy ją licencją, której udzielisz, albo ją usuniemy.'
 			]
 		},
 		{
@@ -469,7 +478,7 @@ const PL: TermsOfUse = {
 			heading: '§ 13. Uzasadnienie decyzji i jak je zakwestionować',
 			body: [
 				'Za każdym razem, gdy usuwamy, ukrywamy lub ograniczamy Twoją treść albo zawieszamy lub kończymy Twoje konto, informujemy Cię o tym wraz z uzasadnieniem: co zrobiliśmy i w jakim zakresie, na jakich faktach się opieraliśmy, czy brał w tym udział krok zautomatyzowany, na jakim przepisie prawa lub postanowieniu regulaminu decyzja się opiera i jak możesz ją zakwestionować. Wyjątki są tylko takie, na jakie pozwala prawo, np. gdy nie mamy jak się z Tobą skontaktować.',
-				`Możesz zakwestionować taką decyzję, a także decyzję w sprawie wysłanego przez Ciebie zgłoszenia, bezpłatnie, w terminie 6 miesięcy od otrzymania informacji o niej, pisząc na adres ${CONTACT_PL} albo odpowiadając w wątku zgłoszenia. Wskaż, którą decyzję kwestionujesz i dlaczego. Twoją skargę rozpatruje człowiek — w miarę możliwości inny niż ten, który podjął pierwotną decyzję — nigdy wyłącznie krok zautomatyzowany, a uzasadnioną odpowiedź otrzymasz bez zbędnej zwłoki, najpóźniej w ciągu 14 dni. Jeśli skarga wykaże, że decyzja była błędna, cofamy ją.`,
+				`Możesz zakwestionować taką decyzję, a także decyzję w sprawie wysłanego przez Ciebie zgłoszenia, bezpłatnie, w terminie 6 miesięcy od otrzymania informacji o niej, pisząc do nas ${CONTACT_PL}, albo odpowiadając w wątku zgłoszenia. Wskaż, którą decyzję kwestionujesz i dlaczego. Twoją skargę rozpatruje człowiek — w miarę możliwości inny niż ten, który podjął pierwotną decyzję — nigdy wyłącznie krok zautomatyzowany, a uzasadnioną odpowiedź otrzymasz bez zbędnej zwłoki, najpóźniej w ciągu 14 dni. Jeśli skarga wykaże, że decyzja była błędna, cofamy ją.`,
 				'Możesz też skierować spór do pozasądowego organu rozstrzygania sporów certyfikowanego na podstawie art. 21 Aktu o usługach cyfrowych (ich listę publikuje Komisja Europejska); będziemy z nim współpracować w dobrej wierze. Od 6 listopada 2026 r. możesz także złożyć skargę do Prezesa Urzędu Komunikacji Elektronicznej (Prezesa UKE), polskiego koordynatora do spraw usług cyfrowych. Nic z powyższego nie ogranicza Twojego prawa do drogi sądowej.'
 			]
 		},
@@ -498,7 +507,7 @@ const PL: TermsOfUse = {
 		{
 			heading: '§ 17. Odpowiedzialność',
 			body: [
-				'Staramy się, by EdMat był dostępny i działał, ale jest to bezpłatna usługa prowadzona przez jednostkę uczelni i czasami może być niedostępny — np. z powodu konserwacji, aktualizacji lub awarii. Planowane dłuższe przerwy w miarę możliwości zapowiadamy w serwisie.',
+				'Staramy się, by EdMat był dostępny i działał, ale jest to bezpłatna usługa prowadzona przez studentów i czasami może być niedostępny — np. z powodu konserwacji, aktualizacji lub awarii. Planowane dłuższe przerwy w miarę możliwości zapowiadamy w serwisie.',
 				'Przechowujemy treści dostarczane przez użytkowników. Nie odpowiadamy za te treści, dopóki nie wiemy o ich bezprawnym charakterze, a po uzyskaniu takiej wiedzy niezwłocznie działamy. Nie odpowiadamy za poprawność zadań i rozwiązań napisanych przez użytkowników ani za ustalenia między użytkownikami (§ 15, § 16).',
 				'Za publikowane treści i sposób korzystania z serwisu odpowiadasz Ty. Żadne postanowienie regulaminu nie wyłącza ani nie ogranicza odpowiedzialności, której według prawa nie można wyłączyć ani ograniczyć, w szczególności za szkodę wyrządzoną umyślnie, ani żadnych praw przysługujących Ci jako konsumentowi.'
 			]
@@ -506,13 +515,13 @@ const PL: TermsOfUse = {
 		{
 			heading: '§ 18. Reklamacje',
 			body: [
-				`Jeśli serwis nie działa tak, jak opisuje to regulamin, możesz złożyć reklamację, pisząc na adres ${CONTACT_PL}. Opisz problem, podaj, kiedy wystąpił, i wskaż, jak mamy Ci odpowiedzieć (wystarczy adres e-mail, z którego piszesz). Odpowiadamy w ciągu 14 dni od otrzymania reklamacji, e-mailem lub w sposób, o który poprosisz. Skargi na decyzje moderacyjne rozpatrujemy zgodnie z § 13.`
+				`Jeśli serwis nie działa tak, jak opisuje to regulamin, możesz złożyć reklamację, pisząc do nas ${CONTACT_PL}. Opisz problem, podaj, kiedy wystąpił, i wskaż, jak mamy Ci odpowiedzieć (wystarczy adres e-mail, z którego piszesz). Odpowiadamy w ciągu 14 dni od otrzymania reklamacji, e-mailem lub w sposób, o który poprosisz. Skargi na decyzje moderacyjne rozpatrujemy zgodnie z § 13.`
 			]
 		},
 		{
 			heading: '§ 19. Rozwiązanie umowy',
 			body: [
-				`Możesz w każdej chwili, bez podania przyczyny i bezpłatnie, rozwiązać umowę, prosząc o usunięcie konta pod adresem ${CONTACT_PL}. Dopóki w Ustawieniach nie ma przycisku usuwania konta, usuwa je człowiek, a my potwierdzamy, gdy to nastąpi. Opiekun może usunąć konto dziecka bezpośrednio w Ustawieniach. Co dzieje się z Twoimi treściami, określa § 9 pkt 6 i polityka prywatności.`,
+				`Możesz w każdej chwili, bez podania przyczyny i bezpłatnie, rozwiązać umowę, usuwając konto w Ustawieniach → Twoje dane i Twoje konto albo prosząc nas o jego usunięcie ${CONTACT_PL}. Usunięcie wymaga podania hasła, pokazuje, co zostanie usunięte, a co zostanie, od razu wyłącza konto i kasuje je 14 dni później; do tego czasu możesz je anulować, logując się albo przez link, który wyślemy e-mailem, a umowa rozwiązuje się z chwilą skasowania konta. Jeśli wciąż prowadzisz kurs, wydarzenie, konkurs lub organizację, w których biorą udział inni, najpierw poprosimy Cię o ich przekazanie lub zamknięcie. Opiekun usuwa konto dziecka w swoich Ustawieniach, w ten sam sposób. Treści opublikowane dla innych pozostają bez Twojego imienia zgodnie z § 9 pkt 6, podobnie jak zapisy, na których polegają inni (na przykład decyzja moderacyjna, głos policzony w wyniku czy rezerwacja drugiej strony); polityka prywatności wymienia dokładnie, co jest usuwane, a co zachowywane.`,
 				'Możemy rozwiązać umowę tylko z ważnego powodu: poważnego lub powtarzającego się naruszenia regulaminu lub prawa, w szczególności gdy ostrzeżenie nie przyniosło skutku; używania konta do ataków na serwis lub innych użytkowników; albo nakazu sądu lub organu. Zachowujemy 14-dniowy okres wypowiedzenia, chyba że naruszenie jest tak poważne albo bezpieczeństwo innych lub serwisu tak zagrożone, że konto trzeba zawiesić natychmiast. W każdym przypadku otrzymasz uzasadnienie i możesz je zakwestionować (§ 13).',
 				'Jeśli zdecydujemy o całkowitym zamknięciu serwisu, ogłosimy to co najmniej 30 dni wcześniej w serwisie i e-mailem na potwierdzone adresy.'
 			]

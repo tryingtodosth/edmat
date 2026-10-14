@@ -109,6 +109,7 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
             'vote_summary',
             'comment_count',
             'attachments',
+            'licence',
             'created_at',
         ]
         read_only_fields = [
@@ -116,6 +117,8 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
             'author',
             'status',
             'pinned',
+            # Changed only through `/api/licences/solution_entry/<id>/` (licensing/rules.py).
+            'licence',
             'is_removed',
             'auto_hidden_at',
             'reviewed_by',
@@ -153,7 +156,17 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
 class SolutionEntryCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = SolutionEntry
-        fields = ['kind', 'locale', 'body']
+        # `licence` optional: absent is the model default `edmat-only`, which opens nothing.
+        fields = ['kind', 'locale', 'body', 'licence']
+        extra_kwargs = {'licence': {'required': False}}
+
+    def validate_licence(self, value):
+        from licensing.licences import licence_validation_error
+
+        reason = licence_validation_error(value)
+        if reason:
+            raise serializers.ValidationError(reason)
+        return value
 
     def validate_body(self, value):
         if not value.strip():
@@ -222,6 +235,7 @@ class ExerciseListSerializer(serializers.ModelSerializer):
             'topics',
             'difficulty',
             'audience',
+            'licence',
             'tags',
             'published',
             'verified',
@@ -297,12 +311,16 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     # every exercise's own requirement rows when nothing in that view ever reads them.
     requirements = serializers.SerializerMethodField()
     contributors = serializers.SerializerMethodField()
+    # The licence of the TEXT being shown — differs from `licence` only when the reader is shown
+    # somebody else's translation, which carries the licence it was contributed under.
+    text_licence = serializers.SerializerMethodField()
 
     class Meta(ExerciseListSerializer.Meta):
         fields = ExerciseListSerializer.Meta.fields + [
             'statement',
             'answer',
             'entries',
+            'text_licence',
             'translated_by',
             'available_locales',
             'requirements',
@@ -328,6 +346,10 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     def get_translated_by(self, obj):
         t = self._translation(obj)
         return t.translated_by_id if t else None
+
+    def get_text_licence(self, obj):
+        t = self._translation(obj)
+        return (t.licence or obj.licence) if t else obj.licence
 
     def get_contributors(self, obj):
         """Everybody with a real account who worked on this exercise, named and in one list.
@@ -417,9 +439,11 @@ class ExerciseTranslationSerializer(serializers.ModelSerializer):
             'translated_by',
             'reviewed_by',
             'review_note',
+            'licence',
             'created_at',
         ]
-        read_only_fields = ['status', 'translated_by', 'reviewed_by', 'review_note', 'created_at']
+        # `licence` is never chosen: a translation is a derivative (ExerciseTranslation.save()).
+        read_only_fields = ['status', 'translated_by', 'reviewed_by', 'review_note', 'licence', 'created_at']
 
 
 class ExerciseSourceTranslationSerializer(serializers.ModelSerializer):

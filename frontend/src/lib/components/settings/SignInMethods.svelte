@@ -12,16 +12,11 @@
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { ApiError } from '$lib/api/client';
 	import { getSsoIdentities, getSsoProviders, unlinkSsoIdentity } from '$lib/services/sso';
+	import { PASSWORD_CHANGED_EVENT } from '$lib/services/password';
 	import type { SsoIdentities, SsoProvider, SsoIdentity } from '$lib/types/sso';
 	import { formatDate } from '$lib/utils/format';
-	import { ssoErrorLabel } from '$lib/utils/labels';
+	import { ssoErrorLabel, ssoProviderName } from '$lib/utils/labels';
 	import SsoButtons from '$lib/components/auth/SsoButtons.svelte';
-
-	const PROVIDER_NAMES: Record<string, () => string> = {
-		google: m.sso_provider_google, // "Google"
-		apple: m.sso_provider_apple, // "Apple"
-		microsoft: m.sso_provider_microsoft // "Microsoft"
-	};
 
 	let mine = $state<SsoIdentities | null>(null);
 	let providers = $state<SsoProvider[]>([]);
@@ -45,10 +40,15 @@
 
 	onMount(() => {
 		load().catch(() => {});
+		// Settings → Password says when a first password is set; "Not set" and the last-way-in
+		// refusal must not go on saying otherwise.
+		const reload = () => load().catch(() => {});
+		window.addEventListener(PASSWORD_CHANGED_EVENT, reload);
+		return () => window.removeEventListener(PASSWORD_CHANGED_EVENT, reload);
 	});
 
 	function name(identity: SsoIdentity): string {
-		return PROVIDER_NAMES[identity.provider]?.() ?? identity.provider;
+		return ssoProviderName(identity.provider);
 	}
 
 	async function unlink(identity: SsoIdentity) {
@@ -88,7 +88,7 @@
 			{:else}
 				<span class="hint">
 					{m.sso_settings_passwordNotSet()}
-					<!-- "Not set. You can set one with a link sent to your address:" -->
+					<!-- "Not set. Set one under Password, or with a link sent to your address:" -->
 					<a href={resolve('/forgot-password')}>{m.mail_forgot_link()}</a>
 				</span>
 			{/if}

@@ -113,7 +113,9 @@ export const authStore = {
 	async login(
 		email: string,
 		password: string
-	): Promise<{ ok: true } | { ok: false; error: string }> {
+	): Promise<
+		{ ok: true } | { ok: false; error: string; erasureDueAt?: string; canCancelErasure?: boolean }
+	> {
 		try {
 			const res = await apiClient.post<{ token: string; profile: RawProfile }>('/auth/login/', {
 				username: email, // the backend's LoginView resolves an email in this field to its real username
@@ -126,7 +128,18 @@ export const authStore = {
 			editorPrefsStore.syncFromProfile(user.editorMode);
 			a11yPrefsStore.syncFromProfile(user.textSize, user.highContrast);
 			return { ok: true };
-		} catch {
+		} catch (e) {
+			// The right password on an account waiting out its deletion grace period
+			// (`backend/accounts/erasure_views.py`): the sign-in page offers to cancel it.
+			const body = e instanceof ApiError ? (e.body as Record<string, unknown> | null) : null;
+			if (e instanceof ApiError && e.status === 403 && body?.detail === 'erasure_pending') {
+				return {
+					ok: false,
+					error: 'erasurePending',
+					erasureDueAt: String(body.due_at ?? ''),
+					canCancelErasure: body.can_cancel === true
+				};
+			}
 			return { ok: false, error: 'invalidCredentials' };
 		}
 	},

@@ -10,6 +10,8 @@
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
 	import SsoButtons from '$lib/components/auth/SsoButtons.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
+	import { cancelErasureWithPassword } from '$lib/services/account';
+	import { formatDate } from '$lib/utils/datetime';
 
 	afterNavigate((nav) => rememberReturnTo(nav.from?.url));
 
@@ -17,12 +19,44 @@
 	let password = $state('');
 	let error = $state(false);
 	let submitting = $state(false);
+	// The right password on an account waiting out its deletion grace period
+	// (`backend/accounts/erasure.py`): say when, and offer to take it back.
+	let erasurePending = $state<{ dueAt: string; canCancel: boolean } | null>(null);
+
+	function afterSignIn() {
+		notificationStore.refresh();
+		messagesStore.refresh();
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- an in-app path remembered at runtime (validated same-origin in returnTo.ts), not a literal route resolve() could name
+		goto(takeReturnTo(page.url));
+	}
+
+	async function cancelDeletion() {
+		submitting = true;
+		try {
+			const res = await cancelErasureWithPassword(email, password);
+			authStore.adoptSession(res.token, res.profile);
+			erasurePending = null;
+			afterSignIn();
+		} catch {
+			error = true;
+		} finally {
+			submitting = false;
+		}
+	}
 
 	async function handleSubmit() {
 		submitting = true;
 		error = false;
+		erasurePending = null;
 		const result = await authStore.login(email, password);
 		submitting = false;
+		if (!result.ok && result.error === 'erasurePending') {
+			erasurePending = {
+				dueAt: result.erasureDueAt ?? '',
+				canCancel: result.canCancelErasure === true
+			};
+			return;
+		}
 		if (result.ok) {
 			// The root layout's own onMount only ever fires once, on the very first page load — a
 			// login that happens later in the SAME session (this page, not a fresh reload) never
@@ -57,6 +91,21 @@
 
 		{#if error}
 			<p class="error">{m.auth_login_error()}</p>
+		{/if}
+		{#if erasurePending}
+			<div class="erasure" role="alert" data-testid="erasure-pending">
+				<p>{m.account_loginPending({ date: formatDate(erasurePending.dueAt) })}</p>
+				<!-- "This account is switched off and will be deleted on {date}." -->
+				{#if erasurePending.canCancel}
+					<button type="button" class="submit" disabled={submitting} onclick={cancelDeletion}
+						>{m.account_loginCancel()}</button
+					>
+					<!-- "Cancel the deletion and sign in" -->
+				{:else}
+					<p>{m.account_loginGuardian()}</p>
+					<!-- "Your guardian asked for this account to be deleted…" -->
+				{/if}
+			</div>
 		{/if}
 
 		<button type="submit" class="submit" disabled={submitting}>{m.auth_login_submit()}</button>
@@ -120,6 +169,17 @@
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-sm);
 		background: var(--bg-page);
+	}
+	.erasure {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		border-radius: var(--radius-sm);
+		background: var(--status-warning-bg);
+		p {
+			margin: 0;
+		}
 	}
 	.error {
 		color: var(--status-danger);

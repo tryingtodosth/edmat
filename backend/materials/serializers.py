@@ -191,6 +191,8 @@ class MaterialSerializer(serializers.ModelSerializer):
             'slug',
             'type',
             'audience',
+            # licensing/ — changed only through `/api/licences/material/<id>/`.
+            'licence',
             'coverage',
             'requirements',
             'file',

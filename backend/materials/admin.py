@@ -32,6 +32,9 @@ class MaterialRequirementInline(admin.TabularInline):
 
 @admin.register(Material)
 class MaterialAdmin(admin.ModelAdmin):
+    # The licence changes only through licensing.rules.change_licence, which records the change and
+    # only widens it (a Creative Commons grant is irrevocable) — the admin must not be a way around it.
+    readonly_fields = ('licence',)
     list_display = [
         'slug',
         'branch',

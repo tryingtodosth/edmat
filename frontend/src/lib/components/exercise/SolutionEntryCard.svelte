@@ -27,6 +27,8 @@
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 	import ContentActionsMenu from '$lib/components/shared/ContentActionsMenu.svelte';
 	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
+	import LicenceNotice from '$lib/components/shared/LicenceNotice.svelte';
+	import { LICENCE_SUMMARIES, licenceShort } from '$lib/utils/labels';
 
 	let {
 		entry,
@@ -296,6 +298,15 @@
 				<span class="badge badge--rejected">{m.entry_rejectedBadge()}</span>
 			{/if}
 			<span class="badge badge--lang">{entry.locale.toUpperCase()}</span>
+			<!-- Its own licence (backend licensing/): a solution is its author's work, not the
+			     statement's. The summary is the title, so the badge stays one word wide. -->
+			<span
+				class="badge badge--licence"
+				data-testid="entry-licence"
+				title={`${m.licence_entryTitle({ licence: licenceShort(entry.licence) })} — ${LICENCE_SUMMARIES[entry.licence]()}`}
+				>{licenceShort(entry.licence)}</span
+			>
+			<!-- "This entry is licensed under {licence}" -->
 			<AiAssistChip kind="solution_entry" id={entry.id} />
 			{#if entry.authorId}
 				<a class="entry__author" href={resolve('/users/[id]', { id: entry.authorId })}
@@ -336,6 +347,12 @@
 					</li>
 				{/each}
 			</ul>
+		{/if}
+
+		<!-- The author's own line, with the control that widens the licence. Everybody else reads
+		     the badge in the header; a notice under every entry would be noise. -->
+		{#if isOwn}
+			<LicenceNotice kind="solution_entry" id={entry.id} licence={entry.licence} />
 		{/if}
 
 		{#if entry.status === 'rejected' && entry.reviewNote}

@@ -99,3 +99,10 @@ used_upload_bytes` counts these too** — its own docstring makes that the rule.
 
 `manage.py test exercises` — the `many=True` regression test lives here. E2E: exercise pages are
 exercised across most scripts; KaTeX correctness via `npm run check:katex`.
+
+## Licence (2026-10-14, `licensing/CLAUDE.md`)
+
+This app's content carries a per-item `licence` (`licensing/licences.py`, default `edmat-only`, the
+corpus `unknown`). It is set at creation and changed ONLY through `licensing.rules.change_licence`
+(`/api/licences/<kind>/<id>/`) — only ever widened, recorded, read-only in the admin. Which rows here
+carry their own and which contribute under their parent's is the table in `licensing/CLAUDE.md`.

@@ -1,4 +1,5 @@
 import type { Audience } from './audience';
+import type { Licence } from './licence';
 import type { CoverageVoteSummary } from './material';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
@@ -27,6 +28,8 @@ export interface Exercise {
 	topicIds: string[];
 	difficulty: Difficulty;
 	audience: Audience;
+	/** The licence its author chose (backend `licensing/`); `unknown` for the seeded corpus. */
+	licence: Licence;
 	source: ExerciseSource;
 	tags: string[];
 	published: boolean;
@@ -90,6 +93,8 @@ export interface SolutionEntry {
 	exerciseId: string;
 	kind: SolutionEntryKind;
 	locale: string;
+	/** Its own licence — a solution is its author's work, not a derivative of the statement. */
+	licence: Licence;
 	body: string; // Markdown + LaTeX source, same pipeline as every other content field
 	authorId?: string; // absent for the migrated corpus originals
 	authorDisplayName: string;
@@ -150,4 +155,7 @@ export interface ResolvedExercise extends Exercise {
 	availableLocales: string[]; // every locale with at least one PUBLISHED translation, original first
 	requirements: ExerciseRequirement[];
 	contributors: ExerciseContributor[];
+	/** The licence of the TEXT shown — differs from `licence` only for somebody else's
+	 * translation, which keeps the licence it was contributed under. */
+	textLicence: Licence;
 }

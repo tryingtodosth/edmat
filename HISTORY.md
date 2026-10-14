@@ -16587,3 +16587,109 @@ shard, which is how shards are migrated on deploy anyway.
   for five queues.
 - SSO: Apple's server-to-server notifications and token revocation, a "set a password" form, GitHub
   (not OIDC). Audit rows reuse `password_change` rather than adding an action.
+
+## 17CK — The owner's answers: students as provider, self-service export and deletion, a licence per item, GitHub and Facebook (2026-10-14, `ux/colour-pass`)
+
+Same day as §17CJ, after the owner answered its questions. Four sub-agents again, plus the text
+changes done by the orchestrating session.
+
+### Who runs EdMat — decided twice in one afternoon
+
+First answer: *"Ośrodek Komputerowy Wydziału Fizyki UW"*. An hour later, superseding it: *"It is run on
+OKWF UW servers and overseen by them, but is run by students. so the service provider are students,
+and OKWF is servers provider"*, then *"Usługodawcą jest grupa studentów Uniwersytetu Warszawskiego"*,
+anonymous *"at least for now"*, reached *"through the website or OKWF"*.
+
+- **Provider and GDPR controller: the student group.** The Ośrodek is the hosting provider and, in
+  GDPR terms, a processor (art. 28 — no agreement signed yet). IOD UW (`iod@adm.uw.edu.pl`, as on UW's
+  own privacy notices) is offered only for the University's servers.
+- **The basis therefore moved from art. 6(1)(e) to 6(1)(f)** everywhere — `/privacy` in both locales,
+  `telemetry/models.py`, `telemetry/middleware.py`, `analytics/`. `ANALYTICS-LAW.md` §4's (e)
+  recommendation assumed a university controller; a student group is not a public authority, so
+  art. 6(1)'s last sentence does not bar (f). The paragraph now says why a small student project has
+  that interest (spam, abuse, knowing what helps people learn).
+- **Contact: the "Zgłoś błąd" issues form** (private unless the reporter publishes it —
+  `issues/models.py is_public`) or by post through the Ośrodek. The Dziekanat Studencki is no longer
+  named anywhere as a contact point; it never agreed to be one.
+- **Known gap, stated in `LEGAL.md` §1:** u.ś.u.d.e. art. 5 expects a natural-person provider to give a
+  name and address, and GDPR art. 13(1)(a) the controller's identity. Anonymity is the owner's choice
+  for now, not an oversight.
+
+### Self-service data export and account deletion (`accounts/erasure.py`)
+
+- **A registry of 199 rules** — every model that points at a user (or a `Profile`) is `delete`,
+  `anonymise`, `keep` (with a reason) or `end` (future bookings, live enrolments — the other side is
+  notified). **A completeness test fails on any new FK without a rule**; it caught the licensing app's
+  `LicenceChange.changed_by` the afternoon it was added.
+- **The `User` row becomes a scrubbed tombstone, not a deleted row.** A real delete cascades through
+  other people's halves of conversations and threads, and `Contest.organiser` is PROTECT; a single
+  shared "deleted user" breaks per-author unique constraints. Username `deleted-<pk>`, no email, an
+  unusable password, display name translated per reader by `client.ts`. Limit, stated: the pk links an
+  erased account's anonymised contributions to each other.
+- **A 14-day grace**: the account is deactivated at once (tokens revoked, profile withheld), erased by
+  `erase_due_accounts`; signing in offers "cancel deletion", and so does the notice mail. Re-auth is
+  password + typed username. Owning a course, event, contest, organisation or project others are in
+  is a 409 listing them (house rule 6). A guardian's delete of a child goes through the same module.
+- **Export**: `GET /api/auth/me/export/`, one JSON built from the same registry (3/day), including
+  decrypted messages and the last 90 days of the person's own request-log rows. Uploaded files are
+  linked, not zipped.
+- **Retention rules that did not exist**: view history 12 months, the mail log and inbox copy 12
+  months, an anonymous comment's IP hash blanked at 30 days — `deploy/cron/edmat-retention` (nightly
+  erase + retention + `purge_event_data`, hourly `sso_purge`).
+
+### A licence per item (`licensing`, the 44th app)
+
+- Seven keys: `cc0-1.0`, `cc-by-4.0`, `cc-by-sa-4.0`, `cc-by-nc-4.0`, `cc-by-nc-sa-4.0`, `edmat-only`
+  (the default — nothing is opened without the author's choice) and `unknown` (never offered to a
+  user). Exercise, SolutionEntry, Material and ConceptArticle carry their own; a translation is stamped
+  with its parent's at write time; a material project's passes to its material at first publication.
+- **Only towards more open**, by the author or staff, refused once somebody else's version is in the
+  item; each change a `LicenceChange` row, shown as "since <date>".
+- **Migration**: an exercise is `edmat-only` only with a kept `ExerciseSubmission` behind it —
+  `submitted_by` alone is not evidence, because `seed_demo_content` credits corpus rows to demo
+  accounts. On the dev DB: 742 exercises, all 1483 hints/solutions and 7 materials `unknown`.
+- Pickers on `/submit`, `/submit-material`, the solution composer and the concept editor; a licence
+  line on every detail page; `?licence=` on two lists; the importer's `licence:` key (default
+  `unknown`, re-runs only widen). **Terms § 9 rewritten**: the author keeps copyright, grants the chosen
+  licence for that item and, always, the minimal hosting licence with its fields of exploitation.
+
+### Sign-in, round two; analytics, round two
+
+- **GitHub** (OAuth App, PKCE, only the primary *verified* address from `/user/emails`) and
+  **Facebook** (Graph, `appsecret_proof`, the address always treated as unverified) — same state,
+  single-use codes, never-link-by-email. Microsoft stays, documented as "built, not requested".
+  `deploy/SSO-SETUP.md` §0 answers "can Piotr register this himself?" per provider.
+  `deploy/APPLE-REQUEST-OKWF.md` is the Polish e-mail asking the Ośrodek about UW's existing Apple
+  Developer account (UW already publishes three App Store apps; Apple waives the fee for accredited
+  educational institutions).
+- **A password form** — `/api/auth/me/password/` and a Password card in Settings: set one without a
+  current password if the account has none, change one with it.
+- **Analytics**: staff are left out of every people-count (active accounts, cohorts, registrations,
+  the funnel), not out of traffic. No per-account opt-out — the owner: the data is needed against spam
+  and scams; GPC/DNT still keeps a request out of the *statistics* and never out of the security log.
+
+### Verified
+
+Per agent: `test sso accounts.test_password` 118, `test accounts identity mail legal` 319,
+`test accounts.test_erasure` 45, `test licensing exercises materials coauthoring concepts moderation`
+678, `test analytics telemetry` 67 — all OK; `e2e/sso.mjs` 40/40, `e2e/account-erasure.mjs` 21/21,
+`e2e/licences.mjs` 27/27, `e2e/analytics.mjs` 28/28, screenshots looked at. Integrated: `check`,
+`makemigrations --check`, `check_databases_declared` 0; `npm run check` 0/0, 5107 = 5107 keys,
+`npm run build` OK. The full suite's result is on the board entry.
+
+### Left open
+
+- **Owner's decisions still waiting**: auto-linking a verified Google address (TBD); the JS error
+  beacon (TBD); whether "EdMat only" content stays nameless or goes when its author leaves; whether a
+  minor may delete their own account; the tombstone's pk linkage; a DSA notice's contact e-mail after
+  its sender leaves; the licence list (no ND) and the default (`edmat-only` vs CC BY-SA); whether a
+  staff-pinned corpus solution stays `unknown`; whether to bump `TERMS_VERSION` (§ 9 changed the same
+  day the terms were first written, before any were published).
+- **Before publishing `/terms` and `/privacy`**: a contact mailbox would still be better than the
+  form alone; the art. 28 agreement with the Ośrodek; lawyer/IOD review.
+- Facebook's deauthorize and data-deletion callbacks (the instructions URL is used instead); Apple's
+  server-to-server notifications. Decks, galleries and sketches carry no licence; no compatibility
+  check between licences on a remix. The export does not pack files; there is no "delete everything I
+  wrote" option; blockers are checked when deletion is requested, not again at erasure.
+- Neither `deploy/cron/edmat-analytics` nor `edmat-retention` is installed by `apply-on-server.sh`;
+  each command should be dry-run on webek4 before its cron line goes in.

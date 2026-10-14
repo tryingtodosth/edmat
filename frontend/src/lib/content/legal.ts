@@ -36,9 +36,9 @@ const EN: LegalContactPage = {
 		{
 			heading: 'Who runs this service',
 			body: [
-				'EdMat is a student project provided by Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego (the Computer Centre of the Faculty of Physics, University of Warsaw), which administers the systems this site runs on. The terms of use name the provider in full (§ 2).',
+				'EdMat is a student project, provided by a group of students of the University of Warsaw who build and run it, on servers provided and overseen by Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego (the Computer Centre of the Faculty of Physics). The terms of use name the provider in full (§ 2).',
 				'This page is our single point of contact under Articles 11 and 12 of the Digital Services Act, for authorities, the European Commission and users alike. You can write to us in Polish or English.',
-				"If you are a student with a question, Dziekanat Studencki (the Student Dean's Office) is your contact point and will pass your request on. For everything else, including a notice about a specific piece of content, use the form linked below."
+				'You can reach us through the “Report issue” form at the top of every page (only the team sees your message unless you choose to publish it; leave an e-mail address if you want an answer), or by post through Ośrodek Komputerowy Wydziału Fizyki UW, ul. Pasteura 5, 02-093 Warszawa. To report a specific piece of content as illegal, use the form linked below.'
 			]
 		},
 		{
@@ -70,9 +70,9 @@ const PL: LegalContactPage = {
 		{
 			heading: 'Kto prowadzi ten serwis',
 			body: [
-				'EdMat jest projektem studenckim, którego usługodawcą jest Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego, administrujący systemami, na których działa ta strona. Pełne dane usługodawcy podaje regulamin (§ 2).',
+				'EdMat jest projektem studenckim, którego usługodawcą jest grupa studentów Uniwersytetu Warszawskiego, którzy go tworzą i prowadzą, na serwerach udostępnianych i nadzorowanych przez Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego. Pełne dane usługodawcy podaje regulamin (§ 2).',
 				'Ta strona jest naszym jedynym punktem kontaktowym w rozumieniu art. 11 i 12 Aktu o usługach cyfrowych — dla organów, Komisji Europejskiej i użytkowników. Możesz pisać do nas po polsku lub po angielsku.',
-				'Jeśli jesteś studentem i masz pytanie, punktem kontaktowym jest Dziekanat Studencki, który przekaże Twoje zgłoszenie dalej. We wszystkich innych sprawach, w tym zgłoszeniu konkretnej treści, skorzystaj z formularza poniżej.'
+				'Możesz skontaktować się z nami przez formularz „Zgłoś błąd” u góry każdej strony (wiadomość widzi tylko zespół, chyba że sam zdecydujesz się ją opublikować; podaj adres e-mail, jeśli chcesz dostać odpowiedź) albo pocztą za pośrednictwem Ośrodka Komputerowego Wydziału Fizyki UW, ul. Pasteura 5, 02-093 Warszawa. Aby zgłosić konkretną treść jako nielegalną, skorzystaj z formularza poniżej.'
 			]
 		},
 		{

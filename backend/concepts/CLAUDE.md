@@ -117,3 +117,10 @@ E2E: `frontend/e2e/concepts.mjs`, and `frontend/e2e/concept-paths.mjs` for the c
 removing one — then answers **500 after creating the row**. The symptom is maximally misleading: the
 data is right and the UI shows an error. `for a in logs_0 … logs_anon; do manage.py migrate
 --database=$a; done`.
+
+## Licence (2026-10-14, `licensing/CLAUDE.md`)
+
+This app's content carries a per-item `licence` (`licensing/licences.py`, default `edmat-only`, the
+corpus `unknown`). It is set at creation and changed ONLY through `licensing.rules.change_licence`
+(`/api/licences/<kind>/<id>/`) — only ever widened, recorded, read-only in the admin. Which rows here
+carry their own and which contribute under their parent's is the table in `licensing/CLAUDE.md`.

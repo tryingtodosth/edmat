@@ -128,3 +128,10 @@ the project's only `TransactionTestCase`: it migrates the database backwards to 
 real, which is why it flushes afterwards and why Django's runner puts it last.
 E2E: `frontend/e2e/coauthoring.mjs` (the material-page panel is now `components/coop/CoopPanel`,
 which kept this script's selectors) and `e2e/materials-coop.mjs`.
+
+## Licence (2026-10-14, `licensing/CLAUDE.md`)
+
+This app's content carries a per-item `licence` (`licensing/licences.py`, default `edmat-only`, the
+corpus `unknown`). It is set at creation and changed ONLY through `licensing.rules.change_licence`
+(`/api/licences/<kind>/<id>/`) — only ever widened, recorded, read-only in the admin. Which rows here
+carry their own and which contribute under their parent's is the table in `licensing/CLAUDE.md`.

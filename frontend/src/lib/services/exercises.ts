@@ -9,6 +9,7 @@ import type {
 	SourceType
 } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
+import type { Licence } from '$lib/types/licence';
 import {
 	mapExerciseRequirement,
 	mapResolvedExerciseDetail,
@@ -308,6 +309,8 @@ export type SolutionEntryDraft = {
 	kind: SolutionEntryKind;
 	locale: string;
 	body: string;
+	/** Its own licence (backend licensing/); absent means `edmat-only`. */
+	licence?: Licence;
 };
 
 export async function submitSolutionEntry(

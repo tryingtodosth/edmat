@@ -68,6 +68,7 @@ import type {
 	GovernorNodeKind
 } from '$lib/types/governorApplication';
 import type { Issue } from '$lib/types/issue';
+import { LICENCE_KEYS, type Licence } from '$lib/types/licence';
 import type { LegalNotice, LegalNoticeContentPreview } from '$lib/types/legalNotice';
 
 function undefinedIfEmpty(value: string | null | undefined): string | undefined {
@@ -175,6 +176,12 @@ export interface RawExerciseSource {
 	name: string;
 }
 
+/** A licence key off the wire, or `fallback` when the field is absent (an older backend) or not a
+ *  key this build knows — the registry is mirrored by hand (`types/licence.ts`). */
+export function mapLicence(raw: string | null | undefined, fallback: Licence = 'unknown'): Licence {
+	return raw && (LICENCE_KEYS as readonly string[]).includes(raw) ? (raw as Licence) : fallback;
+}
+
 function mapSource(json: RawExerciseSource | null | undefined): ExerciseSource {
 	// An exercise created through the API can have no `ExerciseSource` row at all (the submit form
 	// always sends one, defaulting to `other`). One such row used to throw here and blank the whole
@@ -199,6 +206,7 @@ export interface RawExerciseCommon {
 	topics: number[];
 	difficulty: Exercise['difficulty'];
 	audience: Exercise['audience'];
+	licence?: string;
 	tags: string[];
 	published: boolean;
 	verified: boolean;
@@ -223,6 +231,7 @@ export interface RawExerciseDetail extends RawExerciseCommon {
 	available_locales: string[];
 	requirements: RawExerciseRequirement[];
 	contributors: RawExerciseContributor[];
+	text_licence?: string;
 }
 
 export interface RawSolutionEntry {
@@ -242,6 +251,7 @@ export interface RawSolutionEntry {
 	vote_summary: RawCoverageVoteSummary;
 	comment_count: number;
 	attachments?: RawSolutionEntryAttachment[];
+	licence?: string;
 	created_at: string;
 }
 
@@ -283,6 +293,7 @@ export function mapSolutionEntry(json: RawSolutionEntry): SolutionEntry {
 		voteSummary: mapVoteSummary(json.vote_summary),
 		commentCount: json.comment_count,
 		attachments: (json.attachments ?? []).map(mapSolutionEntryAttachment),
+		licence: mapLicence(json.licence),
 		createdAt: json.created_at
 	};
 }
@@ -323,6 +334,7 @@ function mapExerciseBase(json: RawExerciseCommon): Exercise {
 		topicIds: json.topics.map(String),
 		difficulty: json.difficulty,
 		audience: json.audience ?? 'university',
+		licence: mapLicence(json.licence),
 		source: mapSource(json.source),
 		tags: json.tags,
 		published: json.published,
@@ -354,7 +366,8 @@ export function mapResolvedExerciseList(json: RawExerciseCommon): ResolvedExerci
 		// and resolving contributors for all 383 exercises in a branch listing would be paid for
 		// nothing. Empty here means "not asked for", not "nobody worked on it".
 		requirements: [],
-		contributors: []
+		contributors: [],
+		textLicence: mapLicence(json.licence)
 	};
 }
 
@@ -377,7 +390,8 @@ export function mapResolvedExerciseDetail(json: RawExerciseDetail): ResolvedExer
 			displayName: c.display_name,
 			role: c.role,
 			locale: c.locale ?? undefined
-		}))
+		})),
+		textLicence: mapLicence(json.text_licence ?? json.licence)
 	};
 }
 
@@ -546,6 +560,7 @@ export interface RawMaterial {
 	slug: string;
 	type: string;
 	audience?: string;
+	licence?: string;
 	coverage: RawMaterialCoverage[];
 	requirements: RawMaterialRequirement[];
 	file: string | null;
@@ -582,6 +597,7 @@ export function mapMaterial(json: RawMaterial): Material {
 		branchId: json.branch_slug,
 		slug: json.slug,
 		audience: (json.audience ?? 'university') as Material['audience'],
+		licence: mapLicence(json.licence),
 		// A proposed type has no camelCase alias, so it passes through as its own slug. This used
 		// to be `?? 'other'`, which was right while the set was closed and became a silent lie the
 		// moment it was not: a material filed under a brand-new kind would have displayed as Other.
@@ -1936,6 +1952,7 @@ export interface RawMaterialProject {
 	locale: string;
 	type: string;
 	audience?: string;
+	licence?: string;
 	author?: string;
 	source_url?: string;
 	price_amount: string | null;
@@ -1975,6 +1992,7 @@ export function mapMaterialProject(json: RawMaterialProject): MaterialProject {
 		// reasoning (and the same real bug) `mapMaterial` documents.
 		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? json.type,
 		audience: (json.audience ?? 'university') as MaterialProject['audience'],
+		licence: mapLicence(json.licence, 'edmat-only'),
 		author: json.author ?? '',
 		sourceUrl: json.source_url ?? '',
 		priceAmount: json.price_amount != null ? Number(json.price_amount) : undefined,
@@ -2112,6 +2130,7 @@ export interface RawMaterialVersionQueueRow {
 	price_currency?: string;
 	estimated_minutes: number | null;
 	audience?: string;
+	licence?: string;
 	is_first_publication?: boolean;
 }
 
@@ -2149,6 +2168,7 @@ export function mapMaterialVersionQueueRow(
 		priceCurrency: json.price_currency ?? 'PLN',
 		estimatedMinutes: json.estimated_minutes ?? undefined,
 		audience: (json.audience ?? 'university') as MaterialVersionQueueRow['audience'],
+		licence: mapLicence(json.licence, 'edmat-only'),
 		isFirstPublication: Boolean(json.is_first_publication)
 	};
 }
@@ -2446,6 +2466,7 @@ export interface RawConceptArticleSummary {
 	id: number;
 	audience?: string;
 	locale?: string;
+	licence?: string;
 	pinned?: boolean;
 	title: string;
 	summary?: string;
@@ -2461,6 +2482,7 @@ export function mapConceptArticleSummary(json: RawConceptArticleSummary): Concep
 		id: String(json.id),
 		audience: (json.audience ?? 'all') as ConceptArticleSummary['audience'],
 		locale: json.locale ?? '',
+		licence: mapLicence(json.licence, 'edmat-only'),
 		pinned: Boolean(json.pinned),
 		title: json.title ?? '',
 		summary: json.summary ?? '',

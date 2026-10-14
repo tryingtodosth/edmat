@@ -7,6 +7,7 @@ translations elsewhere."
 from django.conf import settings
 from django.db import models
 from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
+from licensing.models import licence_field
 
 from taxonomy.models import Branch, Topic
 
@@ -87,6 +88,12 @@ class Exercise(models.Model):
         max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
     )
     tags = models.ManyToManyField(Tag, related_name='exercises', blank=True)
+    # The licence the author chose for this exercise (licensing/licences.py, 2026-10-14). Covers
+    # the statement and answer in the original language; another person's translation carries its
+    # own (`ExerciseTranslation.licence`) and every hint/solution its own (`SolutionEntry.licence`).
+    # The corpus is `unknown` (LEGAL.md §3); the model default `edmat-only` opens nothing.
+    # Changed only through `licensing.rules.change_licence`, which records it.
+    licence = licence_field()
     published = models.BooleanField(default=True)
     verified = models.BooleanField(default=False)
     original_locale = models.CharField(max_length=8)
@@ -236,6 +243,12 @@ class ExerciseTranslation(models.Model):
         settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
     review_note = models.TextField(blank=True)
+    # A translation is a DERIVATIVE of the exercise, so it is never chosen: `save()` stamps the
+    # parent's licence at the moment it is written (`licensing.licences.derivative_licence`), and it
+    # does not follow a later change of the parent — the translator contributed under THAT licence,
+    # and only they could widen it. The original-language rows do follow the exercise
+    # (`licensing.rules._carry_to_own_text`), because they are the exercise.
+    licence = licence_field(default='', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -278,6 +291,10 @@ class ExerciseTranslation(models.Model):
         self.title = sanitize_content(self.title)
         self.statement = sanitize_content(self.statement)
         self.answer = sanitize_content(self.answer)
+        if not self.licence:
+            from licensing.licences import derivative_licence
+
+            self.licence = derivative_licence(self.exercise.licence)
         super().save(*args, **kwargs)
 
 
@@ -332,6 +349,11 @@ class SolutionEntry(models.Model):
     )
     status = models.CharField(max_length=10, choices=TRANSLATION_STATUS_CHOICES, default='pending')
     pinned = models.BooleanField(default=False)
+    # Its OWN licence, not the exercise's: a solution is an independent work by a different person
+    # (it is not a derivative of the statement), and inheriting would mean the exercise's author
+    # could relicense somebody else's solution by changing their own. The corpus's pinned originals
+    # (`author=None`) are `unknown`; a new entry is what its author picked, `edmat-only` if nothing.
+    licence = licence_field()
     is_removed = models.BooleanField(default=False)
     auto_hidden_at = models.DateTimeField(null=True, blank=True)
     reviewed_by = models.ForeignKey(

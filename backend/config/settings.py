@@ -245,6 +245,9 @@ INSTALLED_APPS = [
     # Sign in with Google / Apple / Microsoft (2026-10-14): OIDC code flow + PKCE, verified
     # id_tokens, no auto-linking by email. Configured from EDMAT_SSO_* below. `sso/CLAUDE.md`.
     'sso',
+    # The content licence, per item (2026-10-14, owner: "should be specific to each exercise,
+    # materials etc."): the registry, the change rules and the change history. `licensing/CLAUDE.md`.
+    'licensing',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
@@ -779,6 +782,18 @@ REST_FRAMEWORK = {
         # who types two passwords the validators refuse would otherwise lock themselves out of the
         # link they just received. The token in the link is what actually guards this endpoint.
         'password_reset_confirm': '20/hour',
+        # Setting or changing the password from Settings (`accounts/password.py`). It checks the
+        # current password, so it is a guessing surface for whoever holds an open session: tight
+        # enough to make that useless, loose enough for somebody fumbling a new one past the
+        # validators a few times.
+        'password_change': '10/hour',
+        # Downloading everything the service holds about you (`accounts/export.py`) walks every table
+        # that points at a person — the heaviest read an account can ask for. Three a day is plenty
+        # for somebody exercising GDPR Art. 15/20, and nothing like a loop's rate.
+        'account_export': '3/day',
+        # Asking for your account to be deleted checks the current password, so it is a guessing
+        # surface for an open session — the same budget as changing the password.
+        'account_erasure': '10/hour',
         # Avatar upload is the most expensive authenticated write in the app: it decodes and
         # re-encodes a real image (accounts/avatar.py). 20/hour is far more than anyone genuinely
         # changing their profile picture needs, and low enough that the decode cost can't be used as

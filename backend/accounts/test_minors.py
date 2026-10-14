@@ -163,8 +163,16 @@ class GuardianTests(MinorCase):
         cid = content['comments'][0]['id']
         self.assertEqual(as_(self.guardian).delete(reverse('auth-child-content-item', args=[self.child.pk, 'comment', cid])).status_code, 204)
         self.assertTrue(Comment.objects.get(pk=cid).is_removed)
-        self.assertEqual(as_(self.guardian).delete(reverse('auth-child', args=[self.child.pk])).status_code, 204)
-        self.assertFalse(User.objects.filter(pk=self.child.pk).exists())
+        # Since 2026-10-14 the delete is a request through `accounts/erasure.py`: switched off now,
+        # erased after the grace period (the whole path is pinned in `test_erasure.GuardianTests`).
+        self.assertEqual(as_(self.guardian).delete(reverse('auth-child', args=[self.child.pk])).status_code, 202)
+        self.child.refresh_from_db()
+        self.assertFalse(self.child.is_active)
+        from accounts import erasure
+
+        erasure.run_due(ignore_grace=True, only_user_id=self.child.pk)
+        self.child.refresh_from_db()
+        self.assertEqual(self.child.username, f'deleted-{self.child.pk}')
 
     def test_the_guardian_can_suspend_and_reactivate_the_account_without_deleting_it(self):
         branch = make_branch(slug='m-branch-suspend')

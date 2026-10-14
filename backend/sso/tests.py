@@ -68,6 +68,8 @@ SSO_CONFIG = {
     'google': {'client_id': GOOGLE_ID, 'client_secret': 'g-secret'},
     'microsoft': {'client_id': MS_ID, 'client_secret': 'm-secret', 'tenant': 'common'},
     'apple': {'client_id': APPLE_ID, 'team_id': 'TEAM123456', 'key_id': 'KEY1234567', 'private_key_path': APPLE_KEY_PATH},
+    'github': {'client_id': 'gh-client', 'client_secret': 'gh-secret'},
+    'facebook': {'client_id': '1234567890', 'client_secret': 'fb-secret'},
 }
 
 ISSUERS = {
@@ -161,7 +163,7 @@ class SsoTestCase(APITestCase):
 class ProvidersAndFlagTests(SsoTestCase):
     def test_configured_providers_are_listed_in_order(self):
         res = self.client.get('/api/auth/sso/providers/')
-        self.assertEqual([p['id'] for p in res.data['providers']], ['google', 'apple', 'microsoft'])
+        self.assertEqual([p['id'] for p in res.data['providers']], ['google', 'apple', 'github', 'facebook', 'microsoft'])
 
     def test_nothing_configured_means_no_provider(self):
         with override_settings(EDMAT_SSO={}):
@@ -180,7 +182,7 @@ class ProvidersAndFlagTests(SsoTestCase):
             self.assertNotIn('microsoft', ids)
 
     def test_unknown_provider_is_404(self):
-        self.assertEqual(self.client.post('/api/auth/sso/github/start/', {}, format='json').status_code, 404)
+        self.assertEqual(self.client.post('/api/auth/sso/myspace/start/', {}, format='json').status_code, 404)
 
     def test_flag_off_empties_the_list_and_closes_every_flow_endpoint(self):
         state, nonce, key, _q = self.start()
@@ -884,3 +886,201 @@ class IdentityKeyTests(SsoTestCase):
         self.assertEqual(identity.issuer, f'https://login.microsoftonline.com/{MS_TENANT}/v2.0')
         self.assertEqual(identity.tenant_id, MS_TENANT)
         self.assertEqual(identity.object_id, '0bj3ct-1d')
+
+
+# ---- the OAuth 2.0 providers with no id_token: GitHub and Facebook ---------------------------------
+
+GH_USER = {'id': 583231, 'login': 'octo-ala', 'name': 'Ala Octo'}
+GH_EMAILS = [
+    {'email': 'ala@users.noreply.github.com', 'primary': False, 'verified': True, 'visibility': None},
+    {'email': 'ala@example.com', 'primary': True, 'verified': True, 'visibility': 'private'},
+]
+FB_ME = {'id': '10229876543210', 'name': 'Ala Fejs', 'email': 'ala@example.com'}
+
+
+class OAuth2TestCase(SsoTestCase):
+    def oauth_callback(self, provider, state, *, token=None, user=None, emails=None, me=None, params=None):
+        """Drives a callback for GitHub/Facebook with the provider API answered from fixtures."""
+        token = token if token is not None else {'access_token': 'provider-access-token', 'token_type': 'bearer'}
+        calls = []
+
+        def get_json(url, headers=None, allow_list=False):
+            calls.append((url, headers or {}))
+            if '/oauth/access_token' in url:
+                return token
+            if url.endswith('/user/emails'):
+                return emails if emails is not None else GH_EMAILS
+            if url.endswith('/user'):
+                return user if user is not None else GH_USER
+            if '/me?' in url:
+                return me if me is not None else FB_ME
+            raise AssertionError(f'unexpected GET {url}')
+
+        data = params if params is not None else {'state': state, 'code': 'provider-code'}
+        with mock.patch('sso.http.post_form', return_value=token) as post, mock.patch('sso.http.get_json', side_effect=get_json):
+            res = self.client.get(f'/api/auth/sso/{provider}/callback/', data)
+        self.assertEqual(res.status_code, 302, res.content)
+        self.last_post, self.calls = post, calls
+        location = urlparse(res['Location'])
+        return location.scheme + '://' + location.netloc + location.path, {k: v[0] for k, v in parse_qs(location.query).items()}
+
+    def oauth_full(self, provider, **kwargs):
+        state, _nonce, key, _q = self.start(provider)
+        where, query = self.oauth_callback(provider, state, **kwargs)
+        return where, query, key
+
+
+class GitHubTests(OAuth2TestCase):
+    def test_authorize_url_and_pkce(self):
+        _s, _n, _k, query = self.start('github')
+        self.assertEqual(query['scope'], ['read:user user:email'])
+        self.assertEqual(query['code_challenge_method'], ['S256'])
+        self.assertEqual(query['client_id'], ['gh-client'])
+
+    def test_a_new_github_identity_gets_a_ticket_with_the_primary_verified_address(self):
+        state, _n, key, _q = self.start('github')
+        where, query = self.oauth_callback('github', state)
+        self.assertEqual(where, f'{FRONT}/auth/sso/complete')
+        row = SsoSignupTicket.objects.get()
+        self.assertEqual((row.issuer, row.subject), ('https://github.com', '583231'))
+        self.assertEqual(row.email, 'ala@example.com')
+        self.assertTrue(row.email_verified)
+        self.assertEqual(row.suggested_name, 'Ala Octo')
+        # The token exchange sent the PKCE verifier; the API calls carried the token and a User-Agent
+        # (http.py adds it for every call — asserted there by the header set the provider passes).
+        _url, data = self.last_post.call_args[0]
+        self.assertEqual(data['code_verifier'], SsoAttempt.objects.get(state=state).code_verifier)
+        api = [h for u, h in self.calls if 'api.github.com' in u]
+        self.assertEqual(len(api), 2)
+        self.assertTrue(all(h.get('Authorization') == 'Bearer provider-access-token' for h in api))
+        # Completing makes the account, with the address confirmed (GitHub verified it).
+        from mail.services import is_confirmed
+
+        self.assertEqual(self.complete(query['ticket'], key).status_code, 201)
+        self.assertTrue(is_confirmed(User.objects.get(username='ala')))
+        identity = SsoIdentity.objects.get()
+        self.assertEqual((identity.provider, identity.issuer, identity.subject), ('github', 'https://github.com', '583231'))
+
+    def test_a_primary_address_github_has_not_verified_is_not_used(self):
+        emails = [
+            {'email': 'ala@example.com', 'primary': True, 'verified': False},
+            {'email': 'other@example.com', 'primary': False, 'verified': True},
+        ]
+        where, query, key = self.oauth_full('github', emails=emails)
+        self.assertEqual(query['error'], 'email_missing')
+        self.assertFalse(SsoSignupTicket.objects.exists())
+
+    def test_the_profile_email_field_is_never_used(self):
+        where, query, key = self.oauth_full('github', user={**GH_USER, 'email': 'victim@example.com'}, emails=[])
+        self.assertEqual(query['error'], 'email_missing')
+
+    def test_a_known_github_identity_signs_in_by_numeric_id_even_with_no_email(self):
+        user = User.objects.create_user('ala', 'ala@example.com', 'a-long-Passw0rd!')
+        SsoIdentity.objects.create(user=user, provider='github', issuer='https://github.com', subject='583231')
+        where, query, key = self.oauth_full('github', user={**GH_USER, 'login': 'renamed'}, emails=[])
+        self.assertEqual(self.exchange(query['code'], key).data['profile']['id'], user.pk)
+
+    def test_an_email_already_on_an_account_is_never_adopted(self):
+        User.objects.create_user('old', 'ala@example.com', 'a-long-Passw0rd!')
+        where, query, key = self.oauth_full('github')
+        self.assertEqual(query['error'], 'email_in_use')
+        self.assertFalse(SsoIdentity.objects.exists())
+
+    def test_a_refused_code_answered_with_http_200_is_a_provider_error(self):
+        where, query, key = self.oauth_full('github', token={'error': 'bad_verification_code'})
+        self.assertEqual(query['error'], 'provider_error')
+        self.assertEqual(self.calls, [])
+
+    def test_no_access_token_is_a_provider_error(self):
+        where, query, key = self.oauth_full('github', token={'token_type': 'bearer'})
+        self.assertEqual(query['error'], 'provider_error')
+
+    def test_a_profile_without_a_numeric_id_is_refused(self):
+        for bad in ({'login': 'x'}, {'id': 'abc'}, {'id': True}):
+            SsoAttempt.objects.all().delete()
+            where, query, key = self.oauth_full('github', user=bad)
+            self.assertEqual(query['error'], 'provider_error', bad)
+
+    def test_an_unreachable_api_is_a_provider_error(self):
+        from .http import ProviderHttpError
+
+        state, _n, key, _q = self.start('github')
+        with mock.patch('sso.http.post_form', return_value={'access_token': 't'}), \
+                mock.patch('sso.http.get_json', side_effect=ProviderHttpError('HTTP 401')):
+            res = self.client.get('/api/auth/sso/github/callback/', {'state': state, 'code': 'c'})
+        self.assertIn('error=provider_error', res['Location'])
+
+    def test_state_rules_hold_for_github_too(self):
+        state, _n, key, _q = self.start('github')
+        self.oauth_callback('github', state)
+        _w, query = self.oauth_callback('github', state)
+        self.assertEqual(query['error'], 'state_invalid')
+        _w, query = self.oauth_callback('github', 'forged')
+        self.assertEqual(query['error'], 'state_invalid')
+
+    def test_link_github_to_a_signed_in_account(self):
+        user = User.objects.create_user('ola', 'ola@uw.edu.pl', 'a-long-Passw0rd!')
+        state, _n, key, _q = self.start('github', intent='link', user=user)
+        _w, query = self.oauth_callback('github', state)
+        self.assertEqual(self.exchange(query['code'], key, user=user).data['kind'], 'link')
+        self.assertEqual(SsoIdentity.objects.get().user, user)
+
+
+class FacebookTests(OAuth2TestCase):
+    def test_authorize_url(self):
+        state, _n, _k, query = self.start('facebook')
+        attempt_url = urlparse(self.client.post('/api/auth/sso/facebook/start/', {}, format='json').data['authorization_url'])
+        self.assertEqual(attempt_url.netloc + attempt_url.path, 'www.facebook.com/v25.0/dialog/oauth')
+        self.assertEqual(query['scope'], ['public_profile,email'])
+        self.assertNotIn('code_challenge', query)
+
+    def test_a_new_facebook_identity_is_unverified_and_gets_the_confirmation_mail(self):
+        import hashlib
+        import hmac
+
+        from mail.services import is_confirmed
+
+        state, _n, key, _q = self.start('facebook')
+        where, query = self.oauth_callback('facebook', state)
+        self.assertEqual(where, f'{FRONT}/auth/sso/complete')
+        row = SsoSignupTicket.objects.get()
+        self.assertEqual((row.issuer, row.subject), ('https://www.facebook.com', '10229876543210'))
+        self.assertFalse(row.email_verified)
+        # The token exchange is Facebook's documented GET; the profile call carries appsecret_proof.
+        token_url = parse_qs(urlparse(self.calls[0][0]).query)
+        self.assertEqual(token_url['client_secret'], ['fb-secret'])
+        self.assertEqual(token_url['redirect_uri'], [f'{API}/auth/sso/facebook/callback/'])
+        me = parse_qs(urlparse(self.calls[1][0]).query)
+        self.assertEqual(me['fields'], ['id,name,email'])
+        expected = hmac.new(b'fb-secret', b'provider-access-token', hashlib.sha256).hexdigest()
+        self.assertEqual(me['appsecret_proof'], [expected])
+        self.last_post.assert_not_called()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.complete(query['ticket'], key).status_code, 201)
+        self.assertFalse(is_confirmed(User.objects.get(username='ala')))
+        self.assertEqual(len(django_mail.outbox), 1)
+
+    def test_no_email_permission_means_email_missing(self):
+        where, query, key = self.oauth_full('facebook', me={'id': '42', 'name': 'No Mail'})
+        self.assertEqual(query['error'], 'email_missing')
+
+    def test_a_profile_without_an_id_is_refused(self):
+        where, query, key = self.oauth_full('facebook', me={'name': 'x', 'email': 'a@b.c'})
+        self.assertEqual(query['error'], 'provider_error')
+
+    def test_a_token_error_is_a_provider_error(self):
+        where, query, key = self.oauth_full('facebook', token={'error': {'message': 'Invalid verification code'}})
+        self.assertEqual(query['error'], 'provider_error')
+
+    def test_an_email_already_on_an_account_is_never_adopted(self):
+        User.objects.create_user('old', 'ALA@example.com', 'a-long-Passw0rd!')
+        where, query, key = self.oauth_full('facebook')
+        self.assertEqual(query['error'], 'email_in_use')
+
+    def test_graph_version_override_and_its_guard(self):
+        conf = {**SSO_CONFIG, 'facebook': {**SSO_CONFIG['facebook'], 'graph_version': 'v26.0'}}
+        with override_settings(EDMAT_SSO=conf):
+            self.assertIn('/v26.0/', providers.FACEBOOK.endpoint('token'))
+        conf['facebook']['graph_version'] = '../evil'
+        with override_settings(EDMAT_SSO=conf):
+            self.assertIn('/v25.0/', providers.FACEBOOK.endpoint('token'))

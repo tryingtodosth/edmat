@@ -111,6 +111,7 @@ function materialBase(): Omit<Material, 'title' | 'description' | 'author' | 'co
 		slug: 'notes-continuity',
 		type: 'script',
 		audience: 'university',
+		licence: 'cc-by-sa-4.0',
 		requirements: [],
 		fileName: 'continuity.pdf',
 		fileUrl: '',

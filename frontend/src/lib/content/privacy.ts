@@ -20,17 +20,22 @@
  *  - the 30/90-day log retention and the 25-month statistics limit run from
  *    `deploy/cron/edmat-analytics` (rollup_analytics + enforce_log_retention) — true once that cron
  *    file is installed on webek4, not before;
- *  - the ~2-hour life of sign-in attempts: `sso_purge` runs on each sign-in start, and needs a cron
- *    line for the case where nobody signs in;
+ *  - the ~2-hour life of sign-in attempts: `sso_purge` runs on each sign-in start AND hourly from
+ *    `deploy/cron/edmat-retention` — true once that file is installed;
+ *  - the 12-month view-history and mail retention, the 30-day anonymous-comment IP hash and the
+ *    14-day deletion grace period: `enforce_data_retention` and `erase_due_accounts`, nightly from
+ *    `deploy/cron/edmat-retention` (backend/accounts/retention.py, erasure.py) — the same caveat;
  *  - "notices about changes to the terms" by e-mail: there is no mailer for them yet (a `direct`
  *    send by a superuser is the only way today);
- *  - removing a deleted moderator's name from the decision record: `pseudonymise_actor` exists but
- *    account deletion is a manual job, so the person doing it has to run it.
- * Decided by the owner 2026-10-14: the Ośrodek Komputerowy WF UW runs the service, and the
- * University (the legal entity it belongs to) is named as GDPR controller; IOD UW is
- * iod@adm.uw.edu.pl (as on UW's own privacy notices); the legal-basis paragraph says plainly that
- * this is a student project the University runs as part of its art. 11 PSWiN tasks.
- * Still open (also LEGAL.md §10): the contact mailbox, and IOD UW's confirmation of art. 6(1)(e). The sign-in
+ *  - (resolved 2026-10-14) removing a deleted moderator's name from the decision record:
+ *    `accounts/erasure.py` runs `pseudonymise_actor` as part of every erasure.
+ * Decided by the owner 2026-10-14 (second answer, superseding the first): the STUDENTS provide the
+ * service and are the GDPR controller; Ośrodek Komputerowy WF UW provides and oversees the servers
+ * (a processor, art. 28 — a written agreement with it is still owed). Because the controller is not
+ * a public authority, the basis for security, statistics and the rest is art. 6(1)(f), not the
+ * 6(1)(e) "public task" ANALYTICS-LAW.md §4 recommended for a university controller.
+ * The team stays anonymous for now and is reached through the issues form or OKWF (owner).
+ * Still open (also LEGAL.md §10): a contact mailbox, the art. 28 agreement with the Ośrodek. The sign-in
  * providers' EU entities and their Data Privacy Framework status are from memory, unverified.
  */
 
@@ -58,8 +63,12 @@ export const POLICY_LAST_UPDATED = '2026-10-14';
 
 // Placeholders for data the law requires (GDPR art. 13(1)(a)–(b)) that the project does not have
 // yet. Visible on purpose; see the header.
-const CONTACT_EN = '[contact e-mail address — to be filled in]';
-const CONTACT_PL = '[adres e-mail do kontaktu — do uzupełnienia]';
+// Owner's decision 2026-10-14: the team stays anonymous "at least for now", reachable through the
+// site or through OKWF. The issues form is private by default (issues/models.py `is_public`).
+const CONTACT_EN =
+	'through the “Report issue” form at the top of every page (only the team sees your message unless you choose to publish it; leave an e-mail address if you want an answer), or by post through Ośrodek Komputerowy Wydziału Fizyki UW, ul. Pasteura 5, 02-093 Warszawa';
+const CONTACT_PL =
+	'przez formularz „Zgłoś błąd” u góry każdej strony (wiadomość widzi tylko zespół, chyba że sam zdecydujesz się ją opublikować; podaj adres e-mail, jeśli chcesz dostać odpowiedź) albo pocztą za pośrednictwem Ośrodka Komputerowego Wydziału Fizyki UW, ul. Pasteura 5, 02-093 Warszawa';
 const IOD_EN = 'iod@adm.uw.edu.pl';
 const IOD_PL = 'iod@adm.uw.edu.pl';
 
@@ -74,14 +83,15 @@ const EN: PrivacyPolicy = {
 		{
 			heading: 'Who is responsible for your data',
 			body: [
-				'EdMat is a student project of the Faculty of Physics, University of Warsaw. It is run by Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego (the Computer Centre of the Faculty of Physics), ul. Pasteura 5, 02-093 Warszawa, which administers the systems it runs on. The Ośrodek is a unit of the University of Warsaw, and the University — as the legal entity — is the controller of your personal data within the meaning of the GDPR: Uniwersytet Warszawski, ul. Krakowskie Przedmieście 26/28, 00-927 Warszawa.',
-				`Contact about this policy or your data: ${CONTACT_EN}. The University’s data protection officer (Inspektor Ochrony Danych): ${IOD_EN}.`
+				'EdMat is a student project, run by a group of students of the University of Warsaw. They decide what the service does with your data, and are therefore its controller within the meaning of the GDPR.',
+				'The service runs on servers of Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego (the Computer Centre of the Faculty of Physics, University of Warsaw), ul. Pasteura 5, 02-093 Warszawa, which provides and oversees them and processes the data stored on them on our behalf.',
+				`Contact about this policy or your data: ${CONTACT_EN}. For anything concerning the University's servers you can also write to the University of Warsaw's data protection officer (Inspektor Ochrony Danych): ${IOD_EN}.`
 			]
 		},
 		{
 			heading: 'What we process, why, and on what basis',
 			body: [
-				'"GDPR" below is Regulation (EU) 2016/679. EdMat is a student project, and the University runs it as part of what the law makes a public university\'s job: teaching its students and making knowledge available to others (Article 11(1)(1) and (9) of the Polish Act on Higher Education and Science). So wherever we process data not to perform the agreement with you (running your account, for instance) but to keep the service secure and to make it better, the basis is Article 6(1)(e) GDPR — a task carried out in the public interest.'
+				'"GDPR" below is Regulation (EU) 2016/679. Where we process data to perform the agreement with you — running your account, for instance — the basis is Article 6(1)(b). Where we do it to keep the service secure and to make it better, the basis is our legitimate interest (Article 6(1)(f)): we are a small student project that has to fight spam and abuse and wants to know which parts of it actually help people learn. We weigh that interest against yours, keep only what that purpose needs, and you can object (Article 21).'
 			],
 			table: {
 				columns: ['Purpose — and the data it uses', 'Legal basis'],
@@ -101,7 +111,7 @@ const EN: PrivacyPolicy = {
 					['Private messages between users', 'Performing the agreement (Art. 6(1)(b))'],
 					[
 						'E-mail: confirming your address, password reset, the notification digest you switch on, notices about changes to the terms; and keeping a copy of mail sent to our address',
-						'Performing the agreement (Art. 6(1)(b)); the copy of incoming mail — our public task (Art. 6(1)(e))'
+						'Performing the agreement (Art. 6(1)(b)); the copy of incoming mail — our legitimate interest (Art. 6(1)(f))'
 					],
 					[
 						'Accounts of children under 16 and their guardians — that an account is a minor’s, and who the guardian is',
@@ -109,7 +119,7 @@ const EN: PrivacyPolicy = {
 					],
 					[
 						'Keeping the service secure and working — the request log and the record of moderation and administrative actions',
-						'Our public task (Art. 6(1)(e)), together with the duty to secure processing (Art. 32 GDPR; Art. 6(1)(c)); see also Recital 49'
+						'Our legitimate interest in keeping the service secure (Art. 6(1)(f); see Recital 49), together with the duty to secure processing (Art. 32 GDPR)'
 					],
 					[
 						'Moderation, reports and notices of illegal content, statements of reasons and complaints',
@@ -117,22 +127,22 @@ const EN: PrivacyPolicy = {
 					],
 					[
 						'Usage statistics to improve the service, computed from the request log',
-						'Our public task (Art. 6(1)(e)); statistical use compatible with the original purpose (Arts 5(1)(b) and 89(1))'
+						'Our legitimate interest (Art. 6(1)(f)); statistical use compatible with the original purpose (Arts 5(1)(b) and 89(1))'
 					],
 					[
 						'Which exercises and materials you have opened while signed in — to avoid recommending the same material twice and to weigh reports against how many people saw an exercise',
-						'Performing the agreement (Art. 6(1)(b)) and our public task (Art. 6(1)(e))'
+						'Performing the agreement (Art. 6(1)(b)) and our legitimate interest (Art. 6(1)(f))'
 					],
 					[
 						'Suggesting the interface language on your first visit, from the country of your IP address',
-						'Our public task (Art. 6(1)(e))'
+						'Our legitimate interest (Art. 6(1)(f))'
 					],
 					[
 						'Comments written without an account on the About and manual pages — the text, the name you type, and a one-way salted hash of your IP address used only to limit how fast one address can post',
-						'Our public task (Art. 6(1)(e)); the hash also protects the service (Art. 32)'
+						'Our legitimate interest (Art. 6(1)(f)); the hash also protects the service (Art. 32)'
 					],
 					[
-						'Signing in with Google, Apple or Microsoft, if you choose to',
+						'Signing in with Google, Apple, GitHub, Facebook or Microsoft, if you choose to',
 						'Performing the agreement (Art. 6(1)(b)) — you chose the method'
 					]
 				]
@@ -183,7 +193,7 @@ const EN: PrivacyPolicy = {
 					],
 					[
 						'edmat.sso.browserKey (session storage, this tab only)',
-						'A one-time random key that ties a Google, Apple or Microsoft sign-in to the tab that started it. Removed when the sign-in finishes, or when the tab closes.'
+						'A one-time random key that ties a sign-in through Google, Apple, GitHub, Facebook or Microsoft to the tab that started it. Removed when the sign-in finishes, or when the tab closes.'
 					],
 					[
 						'edmat-guest-set (local storage)',
@@ -238,7 +248,7 @@ const EN: PrivacyPolicy = {
 			body: [
 				'To find out what to improve, a nightly job on our own server turns the request log into daily counts: requests per kind of page with their outcome (success, error, refused) and how fast they were served, how often each exercise, material or other content page was opened, which websites people came from (the site’s name only, never the full address), which browser, system and kind of device were used (in coarse classes — "Firefox", "Android", "mobile"), how many searches were made (never what was searched), how many signed-in accounts were active on a day, and how many accounts created in a given week are still active in later weeks. Accounts of under-16s are never included in those two counts, and automated traffic is counted separately. Beside these, the staff dashboard shows totals read straight from the main database — registrations, the share of confirmed e-mail addresses, contributions, how fast the moderation queues move, and how much of the curriculum the exercises cover.',
 				'The counts contain no IP address, no account, no browser string and no full addresses. The browser class is worked out from each request on its own and never combined with the IP address. Visitors who are not signed in are never counted as people, only as requests. Any count of people smaller than 10 is shown as "fewer than 10". Nothing is placed on your device for this, no script reports anything from your browser, and nothing is shared with anyone. Only the site’s staff see the statistics. We keep the daily counts for up to 25 months; the request log they come from is kept as described under "How long it is kept".',
-				'The basis is our public task (Art. 6(1)(e) GDPR) — or, should that not cover it, our legitimate interest in improving the service (Art. 6(1)(f)). You can object at any time (Art. 21). The simplest way: turn on "Global Privacy Control" or "Do Not Track" in your browser — every request that carries the signal is left out of the statistics entirely (it is still logged for security, because that purpose remains). You can also object by writing to us; there is no switch for it in Settings yet.'
+				'The basis is our legitimate interest in improving the service (Art. 6(1)(f) GDPR) — knowing which pages are used, which break and which are slow, counted only in aggregate. You can object at any time (Art. 21). The simplest way: turn on "Global Privacy Control" or "Do Not Track" in your browser — every request that carries the signal is left out of the statistics entirely (it is still logged for security, because that purpose remains). You can also object by writing to us; there is no switch for it in Settings yet.'
 			]
 		},
 		{
@@ -250,27 +260,29 @@ const EN: PrivacyPolicy = {
 		{
 			heading: 'Private messages',
 			body: [
-				'The text of private messages is stored encrypted (AES-256-GCM) on our server. This is not end-to-end encryption: the key is held on the same server, so the people who administer it could technically read a message. We do not read messages, and there is no moderator view of them in the application; we would decrypt one only if the law required it. The subject line is not encrypted, and some messages written before encryption was switched on may still be stored unencrypted. Messages are kept until they are deleted, or until the account is deleted.'
+				'The text of private messages is stored encrypted (AES-256-GCM) on our server. This is not end-to-end encryption: the key is held on the same server, so the people who administer it could technically read a message. We do not read messages, and there is no moderator view of them in the application; we would decrypt one only if the law required it. The subject line is not encrypted, and some messages written before encryption was switched on may still be stored unencrypted. There is no way to delete a single message yet. When you delete your account, the conversations you had stay with the other person — they are that person’s records too — and show “Deleted account” instead of your name; your own copy goes with your account.'
 			]
 		},
 		{
-			heading: 'Signing in with Google, Apple or Microsoft',
+			heading: 'Signing in with Google, Apple, GitHub, Facebook or Microsoft',
 			body: [
-				'If you choose to sign in through one of these providers (each appears only once we have set it up), the provider sends us, once, a signed sign-in token containing: an identifier for your account with them, the provider’s own identifier, for Microsoft also your organisation’s and your account’s identifiers, your e-mail address and whether the provider has verified it (Apple may give a private relay address instead of your real one), and your name (Apple only the first time). While the link exists we keep the provider, those identifiers, the e-mail address at the time of linking and whether it was verified, when you linked it and when you last signed in with it. We never store the provider’s access or refresh tokens, your picture, or your year of birth. Your name is used only to suggest a display name, which you can change before it is saved. If the provider has not verified the address, the account is created with the address unconfirmed and we send a confirmation e-mail. A sign-in in progress leaves short-lived records — the attempt (10 minutes), a one-time login code (2 minutes) and, for a new account, a sign-up ticket holding the e-mail address and name (30 minutes) — each deleted about an hour after it expires. Accounts are never joined because e-mail addresses match: if the address already belongs to an account, you are asked to sign in with your password and connect the provider from Settings. Disconnecting a provider deletes the link and leaves a note in our administrative record. An account that signs in only through a provider can set a password through the password-reset e-mail',
-				'The provider (Google Ireland Limited, Apple Distribution International Ltd. or Microsoft Ireland Operations Limited for users in the EU) is a separate controller for its own part: it learns that you use EdMat, under its own privacy policy. These companies belong to groups based in the United States, so data may be transferred there under the EU–US Data Privacy Framework. You can disconnect a provider from your account, as long as the account keeps another way to sign in.'
+				'If you choose to sign in through one of these providers (each appears only once we have set it up), the provider sends us, once, a signed sign-in token containing: an identifier for your account with them, the provider’s own identifier, for Microsoft also your organisation’s and your account’s identifiers, your e-mail address and whether the provider has verified it (Apple may give a private relay address instead of your real one), and your name (Apple only the first time). While the link exists we keep the provider, those identifiers, the e-mail address at the time of linking and whether it was verified, when you linked it and when you last signed in with it. We never store the provider’s access or refresh tokens, your picture, or your year of birth. Your name is used only to suggest a display name, which you can change before it is saved. If the provider has not verified the address, the account is created with the address unconfirmed and we send a confirmation e-mail. A sign-in in progress leaves short-lived records — the attempt (10 minutes), a one-time login code (2 minutes) and, for a new account, a sign-up ticket holding the e-mail address and name (30 minutes) — each deleted about an hour after it expires. Accounts are never joined because e-mail addresses match: if the address already belongs to an account, you are asked to sign in with your password and connect the provider from Settings. Disconnecting a provider deletes the link and leaves a note in our administrative record. An account that signs in only through a provider can set a password in Settings.',
+				'GitHub and Facebook do not send a signed token; once, at sign-in, we ask them for your account details instead. From GitHub: your numeric account identifier, your login, your name and your e-mail addresses with which one is primary and verified — we keep only the identifier and the primary verified address, never the login or the other addresses. From Facebook: the identifier Facebook gives your account for EdMat only, your name, and your e-mail address if you allow it — always treated as unverified, so we send a confirmation e-mail. In both cases the access token is used once and thrown away.',
+				'The provider (for users in the EU: Google Ireland Limited, Apple Distribution International Ltd., GitHub, Inc., Meta Platforms Ireland Limited or Microsoft Ireland Operations Limited) is a separate controller for its own part: it learns that you use EdMat, under its own privacy policy. These companies are, or belong to groups, based in the United States, so data may be transferred there under the EU–US Data Privacy Framework. You can disconnect a provider from your account, as long as the account keeps another way to sign in.',
+				'To delete the data EdMat holds about you — including after signing in with Facebook or any other provider — open Settings → Your data and your account (/settings/account) and choose “Delete my account”, or write to us. Disconnecting a provider there removes its link at once; deleting the account removes everything described under “Your rights” below. Removing EdMat from the apps connected to your Facebook, Google, Apple or GitHub account stops the provider from signing you in here, but does not by itself delete your EdMat account.'
 			]
 		},
 		{
 			heading: 'E-mail',
 			body: [
 				'We send mail from no-reply@edmat.net: the confirmation of your address, a password reset when you ask for one, the notification digest if you switch it on (at most once an hour), and notices about changes to the terms. No marketing. Every message we send is recorded (recipient, subject, text, and whether it was delivered) so we can retry failures and answer "did you send me that?". A confirmation or reset link is never stored in that record. Mail sent to our address is copied into the service as text so that it can be answered; attachments are not kept, only their name, type and size.',
-				'Our mail is handled by OVH SAS (Roubaix, France), which provides the mailbox and the mail server and processes it on our behalf, in the European Union. We have not yet fixed a time after which the mail record and the copy of incoming mail are deleted; until we do, they are kept as long as the account they concern exists, and we will state the limit here.'
+				'Our mail is handled by OVH SAS (Roubaix, France), which provides the mailbox and the mail server and processes it on our behalf, in the European Union. The record of mail we sent is deleted 12 months after the message, and the copy of incoming mail 12 months after it arrived; when you delete your account, the record of mail sent to you is deleted with it.'
 			]
 		},
 		{
 			heading: 'Children and guardians',
 			body: [
-				'If you are under 16, your account is made for you by a parent or guardian, and we know only that the account is a minor’s and who the guardian is — not your age or birthday. Your guardian can read your comments and posts, remove any of them, pause your account or delete it. A child’s account cannot send or get private messages, cannot have a public profile or a picture, cannot share a location, cannot sign in with Google, Apple or Microsoft, and its comments and posts are checked by a moderator first. We never show ads to anyone.',
+				'If you are under 16, your account is made for you by a parent or guardian, and we know only that the account is a minor’s and who the guardian is — not your age or birthday. Your guardian can read your comments and posts, remove any of them, pause your account or delete it (it is switched off at once and deleted after 14 days, and your guardian can take it back until then). You cannot delete the account yourself — ask your guardian — but you can download your data in Settings → Your data and your account. A child’s account cannot send or get private messages, cannot have a public profile or a picture, cannot share a location, cannot sign in with Google, Apple or Microsoft, and its comments and posts are checked by a moderator first. We never show ads to anyone.',
 				'If you are a guardian: you act for the child under Article 8 GDPR, and you can exercise every right below on the child’s behalf. A child’s data that you enter (the username and display name) comes from you.'
 			]
 		},
@@ -286,7 +298,7 @@ const EN: PrivacyPolicy = {
 				'Other users see what you publish, and the people you deal with see what that needs: an event or course organiser sees what you gave when you registered, a contest organiser sees your entry (for contest entries the organiser decides what is collected and is responsible for it; we only provide the tool), a tutor sees your booking.',
 				'OVH SAS processes our e-mail on our behalf (above).',
 				'OpenStreetMap: map pictures on tutoring and event pages are loaded by your browser directly from the OpenStreetMap Foundation’s servers (United Kingdom), which therefore see your IP address. When somebody searches for an address while creating a listing, our server sends only the search text to OpenStreetMap’s Nominatim service — not who is asking. The UK has an EU adequacy decision.',
-				'Google, Apple or Microsoft, only if you sign in through them (above).',
+				'Google, Apple, GitHub, Facebook or Microsoft, only if you sign in through them (above).',
 				'Courts and public authorities, when the law obliges us to hand data over.'
 			],
 			body: [
@@ -305,24 +317,29 @@ const EN: PrivacyPolicy = {
 					['The rest of the request log', '90 days, then deleted'],
 					['Daily usage statistics (no personal data)', 'Up to 25 months'],
 					[
-						'Sign-in attempts, login codes and sign-up tickets for Google, Apple or Microsoft',
+						'Sign-in attempts, login codes and sign-up tickets for sign-in providers',
 						'Between 2 and 30 minutes, deleted about an hour after expiry'
 					],
 					[
-						'Your account, its settings, the content you posted, your messages and which exercises and materials you opened',
-						'Until the account is deleted'
+						'Your account, its settings, your private data and your messages',
+						'Until you delete the account; then switched off at once and erased 14 days later'
 					],
 					[
+						'Content you published (exercises, solutions, translations, materials, comments, reviews)',
+						'Stays published after the account is deleted, under “Deleted account” instead of your name'
+					],
+					['Which exercises and materials you opened', '12 months, then deleted'],
+					[
 						'The e-mail record and the copy of incoming mail',
-						'No fixed limit yet — while the account concerned exists (see "E-mail")'
+						'12 months, then deleted; mail sent to you is deleted with your account'
 					],
 					[
 						'Record of moderation decisions and administrative actions',
 						'Kept after the account is deleted, with the person’s name removed'
 					],
 					[
-						'A comment written without an account, with its IP hash',
-						'Until the comment is removed'
+						'The IP hash of a comment written without an account',
+						'30 days, then removed (the comment stays until it is removed)'
 					],
 					[
 						'Notices of illegal content and the decisions on them',
@@ -340,7 +357,9 @@ const EN: PrivacyPolicy = {
 		{
 			heading: 'Your rights',
 			body: [
-				`Under the GDPR you can ask us for access to your data and a copy of it; to correct it; to delete it; to restrict its processing; to receive the data you gave us in a machine-readable format and have it sent to someone else (portability, for data processed under the agreement or consent); and you can object to processing based on our public task (Art. 21), including the statistics. Where something is based on your consent, you can withdraw it at any time, as easily as you gave it; this does not affect what was done before. Write to ${CONTACT_EN}, or to the data protection officer. We answer within one month. Account deletion and data export are not yet buttons in Settings, so a person handles these requests.`,
+				`Under the GDPR you can ask us for access to your data and a copy of it; to correct it; to delete it; to restrict its processing; to receive the data you gave us in a machine-readable format and have it sent to someone else (portability, for data processed under the agreement or consent); and you can object to processing based on our legitimate interest (Art. 21), including the statistics. Where something is based on your consent, you can withdraw it at any time, as easily as you gave it; this does not affect what was done before. Write to us ${CONTACT_EN}, or to the data protection officer. We answer within one month.`,
+				'You can do two of these yourself, at any time, in Settings → Your data and your account. “Download my data” gives you one machine-readable file (JSON, every field described) with everything we hold about you: your profile and settings, your contributions, comments and reviews, your private messages decrypted, bookings, registrations, study sets and flashcards, notifications, your acceptance of the terms, the sign-in providers you linked (never their tokens) and the last 90 days of our request log about you. Other people appear in it only under the name the site showed you. “Delete my account” asks for your password, shows you exactly what will be deleted and what will stay, then switches the account off at once and erases it 14 days later; until then, signing in, or the link in the e-mail we send you, cancels it. If you run a course, event, contest or organisation that other people are still in, you are asked to hand it over or close it first.',
+				'What deleting the account does: your profile, settings, sign-in methods, private sets, history, notifications and everything private to you are deleted. What you published for others under the content licence (terms § 9) — exercises, solutions, translations, materials, comments, reviews — stays, under “Deleted account” instead of your name, because others may already rely on it; you can ask us to remove a particular item, and we will unless it has become part of someone else’s work. Records other people rely on — a moderation decision, a vote counted in a result, a jury’s score, a booking the other side had, a conversation that is also the other person’s — are kept under “Deleted account” too. The account itself becomes an empty record with a number instead of a name; that number still shows that several contributions came from the same, deleted account.',
 				'You also have the right to complain to the Polish data protection authority: Prezes Urzędu Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa.',
 				'One limit is worth stating plainly rather than leaving you to discover it: if you have acted as a moderator, the record of the decisions you made is kept even after your account is deleted, with your name removed from it. This is because those decisions can be contested and reviewed by others, and a decision nobody can examine cannot be challenged by the person it affected.'
 			]
@@ -365,14 +384,15 @@ const PL: PrivacyPolicy = {
 		{
 			heading: 'Kto odpowiada za Twoje dane',
 			body: [
-				'EdMat jest projektem studenckim Wydziału Fizyki Uniwersytetu Warszawskiego. Serwis prowadzi Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego, ul. Pasteura 5, 02-093 Warszawa, który administruje systemami, na których działa. Ośrodek jest jednostką Uniwersytetu Warszawskiego, a administratorem Twoich danych osobowych w rozumieniu RODO jest Uniwersytet jako osoba prawna: Uniwersytet Warszawski, ul. Krakowskie Przedmieście 26/28, 00-927 Warszawa.',
-				`Kontakt w sprawie tej polityki lub Twoich danych: ${CONTACT_PL}. Inspektor Ochrony Danych Uniwersytetu: ${IOD_PL}.`
+				'EdMat jest projektem studenckim, który prowadzi grupa studentów Uniwersytetu Warszawskiego. To oni decydują, co serwis robi z Twoimi danymi, i dlatego są ich administratorem w rozumieniu RODO.',
+				'Serwis działa na serwerach Ośrodka Komputerowego Wydziału Fizyki Uniwersytetu Warszawskiego, ul. Pasteura 5, 02-093 Warszawa, który je udostępnia i nadzoruje oraz przetwarza przechowywane na nich dane w naszym imieniu.',
+				`Kontakt w sprawie tej polityki lub Twoich danych: ${CONTACT_PL}. W sprawach dotyczących serwerów Uniwersytetu możesz też napisać do Inspektora Ochrony Danych Uniwersytetu Warszawskiego: ${IOD_PL}.`
 			]
 		},
 		{
 			heading: 'Co przetwarzamy, po co i na jakiej podstawie',
 			body: [
-				'„RODO" oznacza poniżej rozporządzenie (UE) 2016/679. EdMat jest projektem studenckim, a Uniwersytet prowadzi go w ramach zadań, które ustawa nakłada na uczelnię publiczną: kształcenia studentów i upowszechniania wiedzy (art. 11 ust. 1 pkt 1 i 9 ustawy — Prawo o szkolnictwie wyższym i nauce). Dlatego tam, gdzie przetwarzamy dane nie po to, by wykonać umowę z Tobą (np. prowadzić Twoje konto), lecz po to, by serwis działał bezpiecznie i był coraz lepszy, podstawą jest art. 6 ust. 1 lit. e RODO — wykonywanie zadania realizowanego w interesie publicznym.'
+				'„RODO" oznacza poniżej rozporządzenie (UE) 2016/679. Tam, gdzie przetwarzamy dane, by wykonać umowę z Tobą — np. prowadzić Twoje konto — podstawą jest art. 6 ust. 1 lit. b. Tam, gdzie robimy to po to, by serwis działał bezpiecznie i był coraz lepszy, podstawą jest nasz prawnie uzasadniony interes (art. 6 ust. 1 lit. f): jesteśmy małym projektem studenckim, który musi bronić się przed spamem i nadużyciami i chce wiedzieć, które jego części naprawdę pomagają się uczyć. Ważymy ten interes z Twoimi interesami, zachowujemy tylko to, czego ten cel wymaga, a Ty możesz wnieść sprzeciw (art. 21).'
 			],
 			table: {
 				columns: ['Cel — i dane, których dotyczy', 'Podstawa prawna'],
@@ -392,7 +412,7 @@ const PL: PrivacyPolicy = {
 					['Prywatne wiadomości między użytkownikami', 'Wykonanie umowy (art. 6 ust. 1 lit. b)'],
 					[
 						'E-mail: potwierdzenie adresu, reset hasła, włączone przez Ciebie zestawienie powiadomień, informacje o zmianach regulaminu; oraz kopia poczty przychodzącej na nasz adres',
-						'Wykonanie umowy (art. 6 ust. 1 lit. b); kopia poczty przychodzącej — nasze zadanie publiczne (art. 6 ust. 1 lit. e)'
+						'Wykonanie umowy (art. 6 ust. 1 lit. b); kopia poczty przychodzącej — nasz prawnie uzasadniony interes (art. 6 ust. 1 lit. f)'
 					],
 					[
 						'Konta dzieci poniżej 16 lat i ich opiekunów — informacja, że konto należy do osoby małoletniej, i kto jest jej opiekunem',
@@ -400,7 +420,7 @@ const PL: PrivacyPolicy = {
 					],
 					[
 						'Bezpieczeństwo i prawidłowe działanie serwisu — dziennik zapytań oraz zapis działań moderacyjnych i administracyjnych',
-						'Nasze zadanie publiczne (art. 6 ust. 1 lit. e) wraz z obowiązkiem zabezpieczenia przetwarzania (art. 32 RODO; art. 6 ust. 1 lit. c); zob. też motyw 49'
+						'Nasz prawnie uzasadniony interes w bezpieczeństwie serwisu (art. 6 ust. 1 lit. f; zob. motyw 49) wraz z obowiązkiem zabezpieczenia przetwarzania (art. 32 RODO)'
 					],
 					[
 						'Moderacja, zgłoszenia i powiadomienia o nielegalnych treściach, uzasadnienia decyzji i skargi',
@@ -408,22 +428,22 @@ const PL: PrivacyPolicy = {
 					],
 					[
 						'Statystyki korzystania z serwisu, służące jego ulepszaniu, liczone z dziennika zapytań',
-						'Nasze zadanie publiczne (art. 6 ust. 1 lit. e); wykorzystanie statystyczne zgodne z pierwotnym celem (art. 5 ust. 1 lit. b i art. 89 ust. 1)'
+						'Nasz prawnie uzasadniony interes (art. 6 ust. 1 lit. f); wykorzystanie statystyczne zgodne z pierwotnym celem (art. 5 ust. 1 lit. b i art. 89 ust. 1)'
 					],
 					[
 						'Które zadania i materiały otworzyłeś jako zalogowany — żeby nie polecać dwa razy tego samego i żeby odnosić zgłoszenia do liczby osób, które zadanie widziały',
-						'Wykonanie umowy (art. 6 ust. 1 lit. b) i nasze zadanie publiczne (art. 6 ust. 1 lit. e)'
+						'Wykonanie umowy (art. 6 ust. 1 lit. b) i nasz prawnie uzasadniony interes (art. 6 ust. 1 lit. f)'
 					],
 					[
 						'Podpowiedź języka interfejsu przy pierwszej wizycie, na podstawie kraju adresu IP',
-						'Nasze zadanie publiczne (art. 6 ust. 1 lit. e)'
+						'Nasz prawnie uzasadniony interes (art. 6 ust. 1 lit. f)'
 					],
 					[
 						'Komentarze pisane bez konta na stronie „O projekcie" i w podręczniku — treść, wpisana nazwa oraz jednokierunkowy, solony skrót adresu IP, służący wyłącznie do ograniczania, jak szybko z jednego adresu można publikować',
-						'Nasze zadanie publiczne (art. 6 ust. 1 lit. e); skrót służy też bezpieczeństwu serwisu (art. 32)'
+						'Nasz prawnie uzasadniony interes (art. 6 ust. 1 lit. f); skrót służy też bezpieczeństwu serwisu (art. 32)'
 					],
 					[
-						'Logowanie przez Google, Apple lub Microsoft, jeśli je wybierzesz',
+						'Logowanie przez Google, Apple, GitHub, Facebook lub Microsoft, jeśli je wybierzesz',
 						'Wykonanie umowy (art. 6 ust. 1 lit. b) — sam wybierasz ten sposób'
 					]
 				]
@@ -474,7 +494,7 @@ const PL: PrivacyPolicy = {
 					],
 					[
 						'edmat.sso.browserKey (pamięć sesji, tylko ta karta)',
-						'Jednorazowy losowy klucz, który wiąże logowanie przez Google, Apple lub Microsoft z kartą, w której się zaczęło. Usuwany po zakończeniu logowania albo po zamknięciu karty.'
+						'Jednorazowy losowy klucz, który wiąże logowanie przez Google, Apple, GitHub, Facebook lub Microsoft z kartą, w której się zaczęło. Usuwany po zakończeniu logowania albo po zamknięciu karty.'
 					],
 					[
 						'edmat-guest-set (pamięć lokalna)',
@@ -529,7 +549,7 @@ const PL: PrivacyPolicy = {
 			body: [
 				'Żeby wiedzieć, co ulepszać, nocne zadanie na naszym własnym serwerze zamienia dziennik zapytań w dzienne liczby: zapytania według rodzaju strony wraz z ich wynikiem (sukces, błąd, odmowa) i czasem obsługi, ile razy otwarto każde zadanie, materiał lub inną stronę z treścią, z jakich stron przychodzą odwiedzający (tylko nazwa strony, nigdy pełny adres), jakiej przeglądarki, systemu i rodzaju urządzenia używano (w zgrubnych klasach — „Firefox", „Android", „telefon"), ile było wyszukiwań (nigdy czego szukano), ile zalogowanych kont było aktywnych danego dnia i ile kont założonych w danym tygodniu jest aktywnych w kolejnych tygodniach. Konta osób poniżej 16 lat nigdy nie są wliczane do tych dwóch liczb, a ruch automatyczny jest liczony osobno. Obok tego panel zespołu pokazuje sumy odczytywane wprost z głównej bazy danych — rejestracje, odsetek potwierdzonych adresów e-mail, wkład użytkowników, tempo pracy kolejek moderacji i to, jaką część programu obejmują zadania.',
 				'Te liczby nie zawierają adresu IP, konta, opisu przeglądarki ani pełnych adresów. Klasa przeglądarki jest ustalana z każdego zapytania osobno i nigdy nie jest łączona z adresem IP. Niezalogowani goście nigdy nie są liczeni jako osoby, tylko jako zapytania. Każda liczba osób mniejsza niż 10 jest pokazywana jako „mniej niż 10". Nic nie jest w tym celu zapisywane na Twoim urządzeniu, żaden skrypt niczego nie wysyła z Twojej przeglądarki i nic nie jest nikomu udostępniane. Statystyki widzi wyłącznie zespół serwisu. Dzienne liczby przechowujemy do 25 miesięcy; dziennik zapytań, z którego powstają, przechowujemy tak, jak opisano w części „Jak długo to przechowujemy".',
-				'Podstawą jest nasze zadanie publiczne (art. 6 ust. 1 lit. e RODO), a gdyby ono tego nie obejmowało — nasz prawnie uzasadniony interes w ulepszaniu serwisu (art. 6 ust. 1 lit. f). W każdej chwili możesz wnieść sprzeciw (art. 21). Najprościej: włącz w przeglądarce „Global Privacy Control" lub „Do Not Track" — każde zapytanie z tym sygnałem jest całkowicie pomijane w statystykach (nadal trafia do dziennika na potrzeby bezpieczeństwa, bo ten cel pozostaje). Sprzeciw możesz też wnieść, pisząc do nas; w Ustawieniach nie ma jeszcze do tego przełącznika.'
+				'Podstawą jest nasz prawnie uzasadniony interes w ulepszaniu serwisu (art. 6 ust. 1 lit. f RODO) — wiedza o tym, które strony są używane, które się psują, a które działają wolno, liczona wyłącznie zbiorczo. W każdej chwili możesz wnieść sprzeciw (art. 21). Najprościej: włącz w przeglądarce „Global Privacy Control" lub „Do Not Track" — każde zapytanie z tym sygnałem jest całkowicie pomijane w statystykach (nadal trafia do dziennika na potrzeby bezpieczeństwa, bo ten cel pozostaje). Sprzeciw możesz też wnieść, pisząc do nas; w Ustawieniach nie ma jeszcze do tego przełącznika.'
 			]
 		},
 		{
@@ -541,27 +561,29 @@ const PL: PrivacyPolicy = {
 		{
 			heading: 'Prywatne wiadomości',
 			body: [
-				'Treść prywatnych wiadomości jest przechowywana na naszym serwerze w postaci zaszyfrowanej (AES-256-GCM). Nie jest to szyfrowanie end-to-end: klucz znajduje się na tym samym serwerze, więc osoby, które go administrują, mogłyby technicznie odczytać wiadomość. Nie czytamy wiadomości, a aplikacja nie ma widoku wiadomości dla moderatorów; odszyfrowalibyśmy wiadomość tylko wtedy, gdyby wymagało tego prawo. Temat wiadomości nie jest szyfrowany, a część wiadomości napisanych przed włączeniem szyfrowania może nadal być przechowywana bez szyfrowania. Wiadomości przechowujemy do czasu ich usunięcia albo usunięcia konta.'
+				'Treść prywatnych wiadomości jest przechowywana na naszym serwerze w postaci zaszyfrowanej (AES-256-GCM). Nie jest to szyfrowanie end-to-end: klucz znajduje się na tym samym serwerze, więc osoby, które go administrują, mogłyby technicznie odczytać wiadomość. Nie czytamy wiadomości, a aplikacja nie ma widoku wiadomości dla moderatorów; odszyfrowalibyśmy wiadomość tylko wtedy, gdyby wymagało tego prawo. Temat wiadomości nie jest szyfrowany, a część wiadomości napisanych przed włączeniem szyfrowania może nadal być przechowywana bez szyfrowania. Nie da się jeszcze usunąć pojedynczej wiadomości. Gdy usuniesz konto, Twoje rozmowy zostają u drugiej osoby — to także jej zapis — z napisem „Konto usunięte” zamiast Twojego imienia; Twoja kopia znika razem z kontem.'
 			]
 		},
 		{
-			heading: 'Logowanie przez Google, Apple lub Microsoft',
+			heading: 'Logowanie przez Google, Apple, GitHub, Facebook lub Microsoft',
 			body: [
-				'Jeśli zdecydujesz się logować przez jednego z tych dostawców (każdy pojawia się dopiero wtedy, gdy go skonfigurujemy), dostawca jednorazowo przesyła nam podpisany token logowania zawierający: identyfikator Twojego konta u niego, własny identyfikator dostawcy, w przypadku Microsoftu także identyfikatory Twojej organizacji i konta, Twój adres e-mail wraz z informacją, czy go zweryfikował (Apple może przekazać adres przekierowujący zamiast prawdziwego), oraz imię i nazwisko (Apple tylko za pierwszym razem). Dopóki powiązanie istnieje, przechowujemy dostawcę, te identyfikatory, adres e-mail z chwili powiązania i informację, czy był zweryfikowany, datę powiązania i datę ostatniego logowania. Nigdy nie przechowujemy tokenów dostępu ani odświeżania od dostawcy, Twojego zdjęcia ani roku urodzenia. Imię i nazwisko służy wyłącznie do zaproponowania nazwy wyświetlanej, którą możesz zmienić przed zapisaniem. Jeśli dostawca nie zweryfikował adresu, konto powstaje z niepotwierdzonym adresem i wysyłamy e-mail z prośbą o potwierdzenie. Trwające logowanie pozostawia krótkotrwałe zapisy — próbę (10 minut), jednorazowy kod logowania (2 minuty) i, przy nowym koncie, bilet rejestracji z adresem e-mail i imieniem (30 minut) — każdy usuwany około godziny po wygaśnięciu. Konta nigdy nie są łączone na podstawie zgodnego adresu e-mail: jeśli adres należy już do konta, prosimy o zalogowanie się hasłem i połączenie dostawcy w Ustawieniach. Odłączenie dostawcy usuwa powiązanie i zostawia wpis w naszym rejestrze działań administracyjnych. Konto logujące się wyłącznie przez dostawcę może ustawić hasło przez e-mail resetujący hasło',
-				'Dostawca (dla użytkowników w UE: Google Ireland Limited, Apple Distribution International Ltd. lub Microsoft Ireland Operations Limited) jest odrębnym administratorem w swoim zakresie: dowiaduje się, że korzystasz z EdMat, i przetwarza to według własnej polityki prywatności. Firmy te należą do grup z siedzibą w Stanach Zjednoczonych, więc dane mogą być tam przekazywane na podstawie ramowego porozumienia UE–USA w sprawie ochrony danych (Data Privacy Framework). Możesz odłączyć dostawcę od konta, o ile zachowa ono inny sposób logowania.'
+				'Jeśli zdecydujesz się logować przez jednego z tych dostawców (każdy pojawia się dopiero wtedy, gdy go skonfigurujemy), dostawca jednorazowo przesyła nam podpisany token logowania zawierający: identyfikator Twojego konta u niego, własny identyfikator dostawcy, w przypadku Microsoftu także identyfikatory Twojej organizacji i konta, Twój adres e-mail wraz z informacją, czy go zweryfikował (Apple może przekazać adres przekierowujący zamiast prawdziwego), oraz imię i nazwisko (Apple tylko za pierwszym razem). Dopóki powiązanie istnieje, przechowujemy dostawcę, te identyfikatory, adres e-mail z chwili powiązania i informację, czy był zweryfikowany, datę powiązania i datę ostatniego logowania. Nigdy nie przechowujemy tokenów dostępu ani odświeżania od dostawcy, Twojego zdjęcia ani roku urodzenia. Imię i nazwisko służy wyłącznie do zaproponowania nazwy wyświetlanej, którą możesz zmienić przed zapisaniem. Jeśli dostawca nie zweryfikował adresu, konto powstaje z niepotwierdzonym adresem i wysyłamy e-mail z prośbą o potwierdzenie. Trwające logowanie pozostawia krótkotrwałe zapisy — próbę (10 minut), jednorazowy kod logowania (2 minuty) i, przy nowym koncie, bilet rejestracji z adresem e-mail i imieniem (30 minut) — każdy usuwany około godziny po wygaśnięciu. Konta nigdy nie są łączone na podstawie zgodnego adresu e-mail: jeśli adres należy już do konta, prosimy o zalogowanie się hasłem i połączenie dostawcy w Ustawieniach. Odłączenie dostawcy usuwa powiązanie i zostawia wpis w naszym rejestrze działań administracyjnych. Konto logujące się wyłącznie przez dostawcę może ustawić hasło w Ustawieniach.',
+				'GitHub i Facebook nie przesyłają podpisanego tokenu; zamiast tego przy logowaniu jednorazowo pytamy je o dane Twojego konta. Od GitHuba: numeryczny identyfikator konta, login, imię i nazwisko oraz adresy e-mail wraz z informacją, który jest główny i zweryfikowany — zachowujemy tylko identyfikator i główny zweryfikowany adres, nigdy loginu ani pozostałych adresów. Od Facebooka: identyfikator, który Facebook nadaje Twojemu kontu wyłącznie na potrzeby EdMat, imię i nazwisko oraz adres e-mail, jeśli na to pozwolisz — zawsze traktowany jako niezweryfikowany, więc wysyłamy e-mail z prośbą o potwierdzenie. W obu przypadkach token dostępu jest użyty raz i odrzucony.',
+				'Dostawca (dla użytkowników w UE: Google Ireland Limited, Apple Distribution International Ltd., GitHub, Inc., Meta Platforms Ireland Limited lub Microsoft Ireland Operations Limited) jest odrębnym administratorem w swoim zakresie: dowiaduje się, że korzystasz z EdMat, i przetwarza to według własnej polityki prywatności. Firmy te mają siedzibę lub należą do grup z siedzibą w Stanach Zjednoczonych, więc dane mogą być tam przekazywane na podstawie ramowego porozumienia UE–USA w sprawie ochrony danych (Data Privacy Framework). Możesz odłączyć dostawcę od konta, o ile zachowa ono inny sposób logowania.',
+				'Aby usunąć dane, które EdMat o Tobie przechowuje — także po logowaniu przez Facebooka lub innego dostawcę — otwórz Ustawienia → Twoje dane i konto (/settings/account) i wybierz „Usuń moje konto” albo napisz do nas. Odłączenie tam dostawcy od razu usuwa jego powiązanie; usunięcie konta usuwa wszystko, co opisujemy niżej w części „Twoje prawa”. Usunięcie EdMat z aplikacji połączonych z Twoim kontem Facebook, Google, Apple lub GitHub sprawia, że dostawca przestaje Cię tu logować, ale samo w sobie nie usuwa Twojego konta w EdMat.'
 			]
 		},
 		{
 			heading: 'Poczta e-mail',
 			body: [
 				'Wysyłamy pocztę z adresu no-reply@edmat.net: potwierdzenie adresu, reset hasła na Twoją prośbę, zestawienie powiadomień, jeśli je włączysz (najwyżej raz na godzinę), oraz informacje o zmianach regulaminu. Żadnych reklam. Każda wysłana wiadomość jest zapisywana (odbiorca, temat, treść i czy została dostarczona), żebyśmy mogli ponowić nieudaną wysyłkę i odpowiedzieć na pytanie „czy to wy wysłaliście?". Link potwierdzający lub resetujący nigdy nie jest w tym zapisie przechowywany. Poczta przychodząca na nasz adres jest kopiowana do serwisu jako tekst, żeby można było na nią odpowiedzieć; załączniki nie są przechowywane, a jedynie ich nazwa, typ i rozmiar.',
-				'Naszą pocztę obsługuje OVH SAS (Roubaix, Francja), które zapewnia skrzynkę i serwer pocztowy i przetwarza ją w naszym imieniu, na terenie Unii Europejskiej. Nie ustaliliśmy jeszcze okresu, po którym zapis wysłanej poczty i kopia poczty przychodzącej są usuwane; do tego czasu są przechowywane tak długo, jak istnieje konto, którego dotyczą, a termin podamy tutaj.'
+				'Naszą pocztę obsługuje OVH SAS (Roubaix, Francja), które zapewnia skrzynkę i serwer pocztowy i przetwarza ją w naszym imieniu, na terenie Unii Europejskiej. Zapis wysłanej poczty usuwamy po 12 miesiącach od wysłania wiadomości, a kopię poczty przychodzącej po 12 miesiącach od jej otrzymania; gdy usuniesz konto, zapis poczty wysłanej do Ciebie znika razem z nim.'
 			]
 		},
 		{
 			heading: 'Dzieci i opiekunowie',
 			body: [
-				'Jeśli masz mniej niż 16 lat, Twoje konto zakłada rodzic lub opiekun, a my wiemy tylko, że konto należy do osoby małoletniej i kto jest jej opiekunem — nie znamy Twojego wieku ani daty urodzenia. Opiekun może czytać Twoje komentarze i wpisy, usuwać je, wstrzymać Twoje konto albo je usunąć. Konto dziecka nie może wysyłać ani odbierać prywatnych wiadomości, nie może mieć publicznego profilu ani zdjęcia, nie może udostępniać lokalizacji ani logować się przez Google, Apple czy Microsoft, a jego komentarze i wpisy najpierw sprawdza moderator. Nikomu nie wyświetlamy reklam.',
+				'Jeśli masz mniej niż 16 lat, Twoje konto zakłada rodzic lub opiekun, a my wiemy tylko, że konto należy do osoby małoletniej i kto jest jej opiekunem — nie znamy Twojego wieku ani daty urodzenia. Opiekun może czytać Twoje komentarze i wpisy, usuwać je, wstrzymać Twoje konto albo je usunąć (konto jest od razu wyłączane i usuwane po 14 dniach, a do tego czasu opiekun może to cofnąć). Sam nie możesz usunąć konta — poproś opiekuna — ale możesz pobrać swoje dane w Ustawieniach → Twoje dane i Twoje konto. Konto dziecka nie może wysyłać ani odbierać prywatnych wiadomości, nie może mieć publicznego profilu ani zdjęcia, nie może udostępniać lokalizacji ani logować się przez Google, Apple czy Microsoft, a jego komentarze i wpisy najpierw sprawdza moderator. Nikomu nie wyświetlamy reklam.',
 				'Jeśli jesteś opiekunem: działasz za dziecko na podstawie art. 8 RODO i możesz w jego imieniu wykonywać wszystkie opisane niżej prawa. Dane dziecka, które wpisujesz (nazwę użytkownika i nazwę wyświetlaną), pochodzą od Ciebie.'
 			]
 		},
@@ -577,7 +599,7 @@ const PL: PrivacyPolicy = {
 				'Inni użytkownicy widzą to, co publikujesz, a osoby, z którymi masz do czynienia, widzą to, czego to wymaga: organizator wydarzenia lub kursu widzi to, co podałeś przy zapisie, organizator konkursu widzi Twoje zgłoszenie (o tym, jakie dane zgłoszeń są zbierane, decyduje i odpowiada za nie organizator; my dostarczamy tylko narzędzie), korepetytor widzi Twoją rezerwację.',
 				'OVH SAS przetwarza naszą pocztę w naszym imieniu (powyżej).',
 				'OpenStreetMap: obrazy map na stronach korepetycji i wydarzeń Twoja przeglądarka pobiera bezpośrednio z serwerów OpenStreetMap Foundation (Wielka Brytania), które widzą więc Twój adres IP. Gdy ktoś wyszukuje adres przy tworzeniu ogłoszenia, nasz serwer wysyła do usługi Nominatim OpenStreetMap wyłącznie tekst wyszukiwania — nie informację, kto pyta. Wobec Wielkiej Brytanii obowiązuje decyzja UE stwierdzająca odpowiedni stopień ochrony.',
-				'Google, Apple lub Microsoft — tylko jeśli logujesz się przez nich (powyżej).',
+				'Google, Apple, GitHub, Facebook lub Microsoft — tylko jeśli logujesz się przez nich (powyżej).',
 				'Sądy i organy publiczne, gdy prawo zobowiązuje nas do przekazania danych.'
 			],
 			body: [
@@ -596,22 +618,30 @@ const PL: PrivacyPolicy = {
 					['Pozostała część dziennika zapytań', '90 dni, następnie usuwana'],
 					['Dzienne statystyki korzystania (bez danych osobowych)', 'Do 25 miesięcy'],
 					[
-						'Próby logowania, kody logowania i bilety rejestracji przez Google, Apple lub Microsoft',
+						'Próby logowania, kody logowania i bilety rejestracji przez dostawców logowania',
 						'Od 2 do 30 minut, usuwane około godziny po wygaśnięciu'
 					],
 					[
-						'Twoje konto, jego ustawienia, opublikowane treści, wiadomości oraz informacja, które zadania i materiały otworzyłeś',
-						'Do usunięcia konta'
+						'Twoje konto, jego ustawienia, Twoje prywatne dane i wiadomości',
+						'Do usunięcia konta; wtedy od razu wyłączane i kasowane 14 dni później'
 					],
 					[
+						'Opublikowane przez Ciebie treści (zadania, rozwiązania, tłumaczenia, materiały, komentarze, recenzje)',
+						'Pozostają opublikowane po usunięciu konta, z napisem „Konto usunięte” zamiast Twojego imienia'
+					],
+					['Informacja, które zadania i materiały otworzyłeś', '12 miesięcy, następnie usuwana'],
+					[
 						'Zapis wysłanej poczty i kopia poczty przychodzącej',
-						'Bez ustalonego limitu — dopóki istnieje konto, którego dotyczą (zob. „Poczta e-mail")'
+						'12 miesięcy, następnie usuwane; poczta wysłana do Ciebie znika razem z kontem'
 					],
 					[
 						'Zapis decyzji moderacyjnych i działań administracyjnych',
 						'Przechowywany po usunięciu konta, z usuniętym imieniem i nazwiskiem osoby'
 					],
-					['Komentarz napisany bez konta wraz ze skrótem IP', 'Do usunięcia komentarza'],
+					[
+						'Skrót IP komentarza napisanego bez konta',
+						'30 dni, następnie usuwany (komentarz zostaje do czasu jego usunięcia)'
+					],
 					[
 						'Zgłoszenia nielegalnych treści i decyzje w ich sprawie',
 						'Przechowywane, ponieważ decyzję można zakwestionować i poddać weryfikacji'
@@ -628,7 +658,9 @@ const PL: PrivacyPolicy = {
 		{
 			heading: 'Twoje prawa',
 			body: [
-				`Na podstawie RODO możesz żądać dostępu do swoich danych i ich kopii, ich sprostowania, usunięcia, ograniczenia przetwarzania, otrzymania danych, które nam przekazałeś, w formacie nadającym się do odczytu maszynowego i przesłania ich komuś innemu (przenoszenie — dla danych przetwarzanych na podstawie umowy lub zgody), a także wnieść sprzeciw wobec przetwarzania opartego na naszym zadaniu publicznym (art. 21), w tym wobec statystyk. Jeśli coś opiera się na Twojej zgodzie, możesz ją w każdej chwili wycofać, równie łatwo, jak ją wyraziłeś; nie wpływa to na to, co zrobiono wcześniej. Napisz na adres ${CONTACT_PL} albo do Inspektora Ochrony Danych. Odpowiadamy w ciągu miesiąca. Usuwanie konta i eksport danych nie są jeszcze przyciskami w Ustawieniach, więc takie żądania obsługuje człowiek.`,
+				`Na podstawie RODO możesz żądać dostępu do swoich danych i ich kopii, ich sprostowania, usunięcia, ograniczenia przetwarzania, otrzymania danych, które nam przekazałeś, w formacie nadającym się do odczytu maszynowego i przesłania ich komuś innemu (przenoszenie — dla danych przetwarzanych na podstawie umowy lub zgody), a także wnieść sprzeciw wobec przetwarzania opartego na naszym prawnie uzasadnionym interesie (art. 21), w tym wobec statystyk. Jeśli coś opiera się na Twojej zgodzie, możesz ją w każdej chwili wycofać, równie łatwo, jak ją wyraziłeś; nie wpływa to na to, co zrobiono wcześniej. Napisz do nas ${CONTACT_PL} albo do Inspektora Ochrony Danych. Odpowiadamy w ciągu miesiąca.`,
+				'Dwie z tych rzeczy możesz zrobić sam, w każdej chwili, w Ustawieniach → Twoje dane i Twoje konto. „Pobierz moje dane” daje jeden plik w formacie do odczytu maszynowego (JSON, z opisem każdego pola) ze wszystkim, co o Tobie przechowujemy: profilem i ustawieniami, Twoim wkładem, komentarzami i recenzjami, odszyfrowanymi prywatnymi wiadomościami, rezerwacjami, zapisami, zestawami i fiszkami, powiadomieniami, akceptacją regulaminu, połączonymi dostawcami logowania (nigdy ich tokenami) i ostatnimi 90 dniami naszego dziennika zapytań dotyczącego Ciebie. Inne osoby występują w nim tylko pod nazwą, którą pokazywał Ci serwis. „Usuń moje konto” prosi o hasło, pokazuje dokładnie, co zostanie usunięte, a co zostanie, po czym od razu wyłącza konto i kasuje je 14 dni później; do tego czasu zalogowanie się albo link z wysłanego przez nas e-maila anuluje usunięcie. Jeśli prowadzisz kurs, wydarzenie, konkurs lub organizację, w których wciąż są inni, najpierw poprosimy Cię o ich przekazanie lub zamknięcie.',
+				'Co robi usunięcie konta: Twój profil, ustawienia, sposoby logowania, prywatne zestawy, historia, powiadomienia i wszystko, co prywatne, zostaje usunięte. To, co opublikowałeś dla innych na licencji treści (regulamin § 9) — zadania, rozwiązania, tłumaczenia, materiały, komentarze, recenzje — zostaje, z napisem „Konto usunięte” zamiast Twojego imienia, bo inni mogli już z tego skorzystać; możesz poprosić nas o usunięcie konkretnej treści i zrobimy to, chyba że stała się częścią cudzej pracy. Zapisy, na których polegają inni — decyzja moderacyjna, głos policzony w wyniku, ocena jury, rezerwacja drugiej strony, rozmowa, która jest także drugiej osoby — również zostają z napisem „Konto usunięte”. Samo konto staje się pustym zapisem z numerem zamiast nazwy; ten numer wciąż pokazuje, że kilka treści pochodzi od tego samego, usuniętego konta.',
 				'Masz również prawo wniesienia skargi do Prezesa Urzędu Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa.',
 				'Jedno ograniczenie warto powiedzieć wprost, zamiast pozostawiać je do odkrycia: jeśli działałeś jako moderator, zapis podjętych przez Ciebie decyzji pozostaje także po usunięciu konta, z usuniętym Twoim imieniem i nazwiskiem. Decyzje te można bowiem kwestionować i poddawać weryfikacji, a decyzji, której nikt nie może zbadać, nie da się zakwestionować osobie, której dotyczyła.'
 			]

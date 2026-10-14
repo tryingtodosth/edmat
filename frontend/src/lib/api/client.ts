@@ -9,6 +9,18 @@ import { audienceFilterStore } from '$lib/state/audienceFilter.svelte';
 import { contentLocalesStore } from '$lib/state/contentLocales.svelte';
 import { hiddenCountsStore } from '$lib/state/hiddenCounts.svelte';
 import { tokenStore } from '$lib/state/token.svelte';
+import { m } from '$lib/paraglide/messages.js';
+
+/** What every byline of an erased account says in the database (`backend/accounts/erasure.py:
+ * DELETED_LABEL`). Swapped for the reader's own language here, at the one place every response
+ * passes, so none of the dozens of components that print an author name has to know about it. An
+ * exact match on a whole string value only — a living account may not take this display name
+ * (`ProfileUpdateSerializer.validate_display_name`), so nothing else can collide with it. */
+const DELETED_LABEL = '[deleted account]';
+
+function relabelDeleted(_key: string, value: unknown): unknown {
+	return value === DELETED_LABEL ? m.account_deletedLabel() : value; // "Deleted account"
+}
 
 /** A non-2xx response, carrying the parsed JSON error body (DRF's own {field: [messages]} shape,
  * or {detail: "..."} for auth/permission failures) so callers can inspect specific fields rather
@@ -142,7 +154,7 @@ async function request<T>(
 
 	const contentType = res.headers.get('content-type') ?? '';
 	const body = contentType.includes('application/json')
-		? await res.json()
+		? JSON.parse(await res.text(), relabelDeleted)
 		: contentType.startsWith('text/')
 			? await res.text()
 			: undefined;

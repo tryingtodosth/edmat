@@ -378,6 +378,10 @@ class MaterialProjectViewSet(viewsets.GenericViewSet):
             if field in data:
                 setattr(project, field, data[field])
                 project_fields.append(field)
+        if 'licence' in data and project.material_id is None:
+            # Draft-only (the serializer refuses it once a material exists).
+            project.licence = data['licence']
+            project_fields.append('licence')
         if 'locale' in data and project.material_id is None:
             # Frozen after publication: the published translation row is keyed by this, and moving
             # it would orphan the text somebody already published.

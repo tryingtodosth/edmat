@@ -59,9 +59,38 @@ clear the cache between tests. **E2e trap**: register ≈10/hour/IP — a long e
 it and later scripts fail looking like regressions; restart the backend (kill by the PID holding
 the port, NOT `pkill -f`, which kills its own shell match).
 
+## Deleting an account and downloading its data (`erasure.py`, `export.py`, `erasure_views.py`, 2026-10-14)
+
+- **`erasure.REGISTRY` is the rule**: one `Rule(model, field, action, group)` per foreign key to a
+  person (and per FK to `Profile`). Actions: `delete` (private), `anonymise` (a public contribution —
+  stays under the tombstone), `keep` (a record others rely on), `end` (live with somebody else —
+  cancelled/left, they are told). `split` partitions one model's rows by action; `handlers` override
+  what an action does; `scrub` blanks personal columns on rows that stay. **Adding a model with an FK
+  to the user fails `test_erasure.RegistryCompletenessTests` until you add a rule** — it caught
+  `licensing.LicenceChange` the day it was written. The export (`export.py`) reads the same registry.
+- **The `User` row is never deleted — it is scrubbed into a tombstone** (`deleted-<pk>`, blank email
+  and names, unusable password, inactive, profile fields reset, `display_name = DELETED_LABEL`).
+  A hard delete cascades through other people's conversations/threads/tasks and `Contest.organiser`
+  is PROTECT. `frontend/src/lib/api/client.ts` swaps `[deleted account]` for the reader's language
+  in every JSON response; a living account may not take that display name, nor a `deleted-` username.
+- **Lifecycle** `AccountErasure.status`: `pending` → `cancelled` | `erasing` → `done`; the row is
+  kept. Asking deactivates at once (tokens, sessions); `erase_due_accounts` erases after 14 days;
+  claim and cancel are each one WHERE-anchored update, so a cancel cannot land mid-erasure. `erase()`
+  is idempotent and NOT one atomic block (SQLite rule 2) — a run that died is finished by the next.
+- **Who may ask**: self with password + typed username (`self_refusal`: `guardian_managed` for a
+  minor, `password_required` for an SSO-only account); a guardian via `ChildDetailView.delete`
+  (same module, same grace; PATCH `is_active: true` cancels). `blockers()` refuses (409, listed)
+  while the person runs a live course / upcoming event / running contest / organisation or material
+  project with others and no other owner. Erasing a guardian erases sole-guardian children.
+- **During the grace period** login answers 403 `erasure_pending` (right password only) and
+  `/api/auth/erasure/cancel/` takes it back (password, or the mailed signed token); the public
+  profile is WITHHELD, not 404 — every byline resolves it.
+- `retention.py` + `enforce_data_retention`: view history and mail 12 months, anon IP hash 30 days.
+  Both commands run from `deploy/cron/edmat-retention`.
+
 ## Verify
 
-`manage.py test accounts` + `test_avatar.py`, `test_throttling.py`, `test_profile_extras.py`.
+`manage.py test accounts` (incl. `test_erasure.py`, 45 tests) + `test_avatar.py`, `test_throttling.py`, `test_profile_extras.py`.
 Password reset is real since 2026-10-14: `PasswordResetView` hands the address to
 `mail/services.py: request_password_reset` (always 202, enumeration-safe) and `RegisterView` queues the
 confirmation message. The rules and the link handling live in `mail/`, not here.

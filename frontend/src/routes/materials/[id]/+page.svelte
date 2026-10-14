@@ -44,6 +44,7 @@
 	import RequirementsEditor from '$lib/components/material/RequirementsEditor.svelte';
 	import CoverageVoteWidget from '$lib/components/material/CoverageVoteWidget.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
+	import LicenceNotice from '$lib/components/shared/LicenceNotice.svelte';
 	// The renderer behind it is loaded on demand (lib/utils/mathRender.ts), so a material with no
 	// body — every one of them until co-authoring landed — still downloads no KaTeX from here.
 	import MathContent from '$lib/components/shared/MathContent.svelte';
@@ -360,6 +361,18 @@
 		     It renders nothing at all when the co-authoring switch is off, or when this material
 		     has no project. Its kebab switches between three designs; `/materials/[id]/coop` is
 		     the same overview at full size. -->
+		<!-- The material's licence (backend licensing/), right under the bytes it covers. The credited
+		     name is the free-text author when one was given — the person who wrote the document —
+		     and otherwise the account that published it. -->
+		{#key material.id}
+			<LicenceNotice
+				kind="material"
+				id={material.id}
+				licence={material.licence}
+				author={material.author || material.submittedByDisplayName || ''}
+			/>
+		{/key}
+
 		<CoopPanel materialId={material.id} />
 
 		<!-- The management layer (MANAGEMENT-BRIEF.md §2): work hung on this material's project —

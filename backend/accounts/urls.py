@@ -1,6 +1,8 @@
 from django.urls import path
 from config.routers import NumericPkRouter
 
+from .erasure_views import AccountErasureView, CancelErasureView, ExportView
+from .password import PasswordView
 from .profile_extras import (
     CertificateViewSet,
     ExperienceViewSet,
@@ -36,6 +38,10 @@ urlpatterns = router.urls + [
     path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('auth/me/', MeView.as_view(), name='auth-me'),
     path('auth/me/avatar/', AvatarView.as_view(), name='auth-me-avatar'),
+    path('auth/me/export/', ExportView.as_view(), name='auth-me-export'),
+    path('auth/me/erasure/', AccountErasureView.as_view(), name='auth-me-erasure'),
+    path('auth/erasure/cancel/', CancelErasureView.as_view(), name='auth-erasure-cancel'),
+    path('auth/me/password/', PasswordView.as_view(), name='auth-me-password'),
     path('auth/children/', ChildrenView.as_view(), name='auth-children'),
     path('auth/children/<int:pk>/', ChildDetailView.as_view(), name='auth-child'),
     path('auth/children/<int:pk>/content/', ChildContentView.as_view(), name='auth-child-content'),

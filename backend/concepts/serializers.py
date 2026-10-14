@@ -113,11 +113,24 @@ class ConceptContentSerializer(serializers.Serializer):
             )
 
 
-class ConceptCreateSerializer(ConceptContentSerializer):
+class _LicenceChoice:
+    """The licence a new article's author picks (licensing/). Optional; absent = `edmat-only`."""
+
+    def validate_licence(self, value):
+        from licensing.licences import licence_validation_error
+
+        reason = licence_validation_error(value)
+        if reason:
+            raise serializers.ValidationError(reason)
+        return value
+
+
+class ConceptCreateSerializer(_LicenceChoice, ConceptContentSerializer):
     """`POST /api/concepts/` — the first article of a brand-new concept, in one request."""
 
     audience = serializers.ChoiceField(choices=AUDIENCE_VALUES)
     locale = serializers.CharField(max_length=8)
+    licence = serializers.CharField(max_length=20, required=False)
     branches = serializers.ListField(
         child=serializers.CharField(max_length=120), required=False, default=list
     )
@@ -152,11 +165,12 @@ class ConceptCreateSerializer(ConceptContentSerializer):
         return rows
 
 
-class ConceptArticleCreateSerializer(ConceptContentSerializer):
+class ConceptArticleCreateSerializer(_LicenceChoice, ConceptContentSerializer):
     """`POST /api/concepts/{slug}/articles/` — a new article of an existing concept."""
 
     audience = serializers.ChoiceField(choices=AUDIENCE_VALUES)
     locale = serializers.CharField(max_length=8)
+    licence = serializers.CharField(max_length=20, required=False)
     submit = serializers.BooleanField(required=False, default=False)
 
 
@@ -291,6 +305,7 @@ class ConceptArticleSummarySerializer(serializers.Serializer):
     id = serializers.IntegerField()
     audience = serializers.CharField()
     locale = serializers.CharField()
+    licence = serializers.CharField()
     pinned = serializers.BooleanField()
     title = serializers.SerializerMethodField()
     summary = serializers.SerializerMethodField()

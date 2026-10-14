@@ -127,7 +127,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         return [
             {'id': g.child_id, 'username': g.child.username,
              'display_name': getattr(getattr(g.child, 'profile', None), 'display_name', '') or g.child.username,
-             'is_active': g.child.is_active}
+             'is_active': g.child.is_active,
+             'erasure_due_at': _erasure_due(g.child)}
             for g in Guardianship.objects.filter(guardian=profile.user, revoked_at__isnull=True).select_related('child__profile')
         ]
 
@@ -140,6 +141,14 @@ class ProfileSerializer(serializers.ModelSerializer):
         ]
 
 
+def _erasure_due(user):
+    """When a pending deletion of this account takes effect, or None (`accounts/erasure.py`)."""
+    from .models import AccountErasure
+
+    row = AccountErasure.objects.filter(user=user, status='pending').only('due_at').first()
+    return row.due_at.isoformat() if row else None
+
+
 class ProfileUpdateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         # accounts/minors.py: a minor's profile stays private and never offers tutoring, whatever
@@ -148,6 +157,15 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             attrs['show_profile_publicly'] = False
             attrs['offers_tutoring'] = False
         return attrs
+
+    def validate_display_name(self, value):
+        # The words every erased account's bylines carry (`accounts/erasure.py`), which the
+        # frontend translates wherever it meets them — a living account may not wear them.
+        from .erasure import DELETED_LABEL
+
+        if (value or '').strip().lower() == DELETED_LABEL:
+            raise serializers.ValidationError('reserved', code='reserved')
+        return value
 
     def validate_content_locales(self, value):
         if not isinstance(value, list) or any(not isinstance(v, str) or not (2 <= len(v) <= 8) for v in value):
@@ -297,6 +315,9 @@ class RegisterSerializer(serializers.Serializer):
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError('That username is already taken.')
+        # `deleted-<id>` is what an erased account is renamed to (`accounts/erasure.py`).
+        if value.lower().startswith('deleted-'):
             raise serializers.ValidationError('That username is already taken.')
         return value
 

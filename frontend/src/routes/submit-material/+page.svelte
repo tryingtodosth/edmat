@@ -8,6 +8,8 @@
 	// verified contributor or a governor of the branch publish at once; anybody else's first
 	// publication waits in the moderation queue's Materials tab for a person to read it.
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import LicencePicker from '$lib/components/shared/LicencePicker.svelte';
+	import type { Licence } from '$lib/types/licence';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
@@ -87,6 +89,8 @@
 	// wrong guess costs one click.
 	let locale = $state(getLocale());
 	let audience = $state<Audience | ''>('');
+	// Who else may reuse it (backend licensing/). `edmat-only` until the author opens it.
+	let licence = $state<Licence>('edmat-only');
 	// **Several files at once (owner, 2026-10-01: "adding material form should allow multiple
 	// files").** They become several MATERIALS, one per file, not one material with several files
 	// — `coauthoring.MaterialVersion` holds exactly one payload, and that invariant is
@@ -434,6 +438,7 @@
 				locale,
 				type: filedType,
 				audience: audience as Audience,
+				licence,
 				author: author.trim() || undefined,
 				sourceUrl: normalizeUrl(sourceUrl),
 				requirements: requirements.length > 0 ? requirements : undefined,
@@ -899,6 +904,12 @@
 						{@render fieldNote(['estimated_minutes'])}
 					</label>
 				</div>
+
+				<!-- One licence for every material this submit makes (backend licensing/). A file
+				     somebody else wrote is not yours to license: name its author above, and keep
+				     "EdMat only" unless they granted more. -->
+				<LicencePicker bind:value={licence} />
+				{@render fieldNote(['licence'])}
 
 				<button type="submit" class="submit" disabled={!canSubmit || submitting}>
 					{m.common_submit()}

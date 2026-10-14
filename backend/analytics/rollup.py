@@ -14,7 +14,8 @@ older than the retention window is simply final.
 
 Days are UTC days, because `settings.TIME_ZONE` is UTC and every timestamp in the log is too.
 
-**Who is never counted as an active account**: minors (`adult_accounts`), and — like every other
+**Who is never counted as an active account**: minors (`adult_accounts`), staff
+(`without_staff`, owner's decision 2026-10-14 — their REQUESTS still count as traffic), and — like every other
 figure here — anybody whose request carried `Sec-GPC: 1` / `DNT: 1`.
 
 **Retention of the aggregates themselves**: 25 months (`purge_aggregates`, run by the command after
@@ -110,11 +111,25 @@ def adult_accounts(qs):
     return qs.exclude(profile__is_minor=True).exclude(guardians__isnull=False)
 
 
+def without_staff(qs):
+    """`qs` (a User queryset) without staff (`is_staff` or `is_superuser`, as of the moment this
+    runs). Owner's decision 2026-10-14: the people who run the site are not its audience, and on a
+    site this size they would be most of the active accounts. Applies to PEOPLE counts only —
+    their requests still count as requests (a request is a request)."""
+    return qs.exclude(is_staff=True).exclude(is_superuser=True)
+
+
+def counted_people(qs):
+    """The accounts a people-count may include: adults who are not staff."""
+    return without_staff(adult_accounts(qs))
+
+
 def _drop_minors(ids: set[int]) -> set[int]:
+    """The ids that may be counted as an active account: no minors, no staff."""
     if not ids:
         return ids
     User = get_user_model()
-    return set(adult_accounts(User.objects.filter(pk__in=ids)).values_list('pk', flat=True))
+    return set(counted_people(User.objects.filter(pk__in=ids)).values_list('pk', flat=True))
 
 
 def rollup_day(day: dt.date) -> dict:
@@ -252,7 +267,7 @@ def rollup_week(any_day: dt.date) -> int:
     cohorts: Counter = Counter()
     if ids:
         User = get_user_model()
-        joined = adult_accounts(User.objects.filter(pk__in=ids)).values_list(
+        joined = counted_people(User.objects.filter(pk__in=ids)).values_list(
             'date_joined', flat=True
         )
         for when in joined:

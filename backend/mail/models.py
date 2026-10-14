@@ -22,11 +22,14 @@ class OutboundEmail(models.Model):
     KIND_DIGEST = 'notification_digest'
     KIND_TEST = 'test'
     KIND_DIRECT = 'direct'
+    # "Your account will be deleted on …" with a link that cancels it (`accounts/erasure.py`).
+    KIND_ERASURE = 'account_erasure'
     KINDS = [
         (KIND_CONFIRM, 'Email confirmation'),
         (KIND_RESET, 'Password reset'),
         (KIND_DIGEST, 'Notification digest'),
         (KIND_TEST, 'Test message'),
+        (KIND_ERASURE, 'Account deletion notice'),
         # Anything sent through Django's mail API by a path that is not this app's queue — the
         # admin, django-postman. Logged by `transport.LoggedEmailBackend` after the fact.
         (KIND_DIRECT, 'Other (sent directly)'),

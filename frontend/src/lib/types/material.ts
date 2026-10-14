@@ -1,4 +1,5 @@
 import type { Audience } from './audience';
+import type { Licence } from './licence';
 // Phase 3 — widened from the Phase 1 guess ('script' | 'formulaSheet' | 'other') to match what the
 // real backend model actually settled on once grounded against the real corpus (CLAUDE.md's own
 // Phase 2 note: none of the real material.yaml `type:` values ever produce a formula sheet).
@@ -128,6 +129,8 @@ export interface Material {
 	slug: string;
 	type: MaterialType;
 	audience: Audience;
+	/** The licence its author chose (backend `licensing/`); `unknown` for the corpus PDFs. */
+	licence: Licence;
 	title: string;
 	description: string;
 	coverage: MaterialCoverage[];

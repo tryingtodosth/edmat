@@ -1,6 +1,7 @@
 export * from './taxonomy';
 export * from './exercise';
 export * from './audience';
+export * from './licence';
 export * from './material';
 export * from './donationLink';
 export * from './user';

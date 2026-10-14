@@ -26,6 +26,13 @@ duplicates itself the second time somebody runs it.
   file would quietly undo the community's work on every re-run. Topics ARE replaced: they are the
   structural claim the file is making. Dropping a tag from a file therefore does not drop it from
   the exercise; do that in the UI.
+- **The licence is declared, never assumed** (licensing/, 2026-10-14). `licence:` per file, in
+  `batch.yaml`, or `--licence`; absent everywhere means `unknown` — "rights not yet clarified",
+  shown with a "for study only" line — because an import is somebody else's material more often
+  than not (LEGAL.md §3) and the person running the command is not its author. A key the registry
+  does not know is refused. A re-run only ever WIDENS an existing row's licence
+  (`licensing.licences.at_least_as_open`), recording the change; a narrower file is warned about
+  and left, since a Creative Commons grant cannot be taken back.
 - Nothing here sanitizes anything, and nothing here needs to: `ExerciseTranslation.save()` and
   `SolutionEntry.save()` both run `config.sanitize.sanitize_content` themselves — the one choke
   point every write path shares (house rule 8). So the stored body is the file's Markdown + allowed
@@ -52,6 +59,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from config.audience import AUDIENCE_VALUES, DEFAULT_AUDIENCE
+from licensing.licences import LICENCE_VALUES, UNKNOWN, at_least_as_open
 from taxonomy.models import Branch, Topic, TopicTranslation
 
 from ...models import (
@@ -89,7 +97,7 @@ SECTION_NAMES = sorted({k for k in SECTION_ALIASES})
 #: silently ignored `tag:` or `dificulty:` is exactly the kind of loss a batch import must not have.
 KNOWN_KEYS = {
     'id', 'number', 'title', 'topics', 'difficulty', 'audience', 'source', 'tags',
-    'published', 'locale',
+    'published', 'locale', 'licence',
 }
 
 FRONT_MATTER = re.compile(r'\A---\s*\n(.*?)\n---\s*\n(.*)\Z', re.S)
@@ -106,6 +114,7 @@ class Parsed:
     topics: list[str] = dataclass_field(default_factory=list)
     difficulty: str = ''
     audience: str = DEFAULT_AUDIENCE
+    licence: str = UNKNOWN
     source: dict[str, Any] = dataclass_field(default_factory=dict)
     tags: list[str] = dataclass_field(default_factory=list)
     published: bool = True
@@ -200,6 +209,7 @@ class Command(BaseCommand):
         parser.add_argument('--branch', help='Target branch slug. Overrides batch.yaml.')
         parser.add_argument('--locale', help='Original locale of these bodies (default: pl).')
         parser.add_argument('--audience', help=f'Audience band for rows that do not name one. One of: {", ".join(AUDIENCE_VALUES)}.')
+        parser.add_argument('--licence', help=f'Licence for rows that do not name one (default: {UNKNOWN}). One of: {", ".join(LICENCE_VALUES)}.')
         parser.add_argument('--author', help='Username to credit as submitter/solution author (default: nobody, as for corpus rows).')
         parser.add_argument('--create-topics', action='store_true', help='Create topic rows the files reference but the branch lacks.')
         parser.add_argument('--no-write-back', action='store_true', help='Do not write allocated numbers back into the source files.')
@@ -217,7 +227,7 @@ class Command(BaseCommand):
         return files
 
     def load_batch_defaults(self, directory: Path) -> dict[str, Any]:
-        """`batch.yaml` beside the files: `branch`, `locale`, `audience`, `difficulty`,
+        """`batch.yaml` beside the files: `branch`, `locale`, `audience`, `licence`, `difficulty`,
         `topic_names: {slug: name}`. Optional — everything in it can be given as a flag instead,
         and a flag wins."""
         path = directory / 'batch.yaml'
@@ -280,6 +290,14 @@ class Command(BaseCommand):
         item.locale = str(
             meta.get('locale') or options.get('locale') or defaults.get('locale') or 'pl'
         ).strip()
+
+        licence = str(
+            meta.get('licence') or options.get('licence') or defaults.get('licence') or UNKNOWN
+        ).strip()
+        if licence not in LICENCE_VALUES:
+            errors.append(f'`licence: {licence}` is not one of {", ".join(LICENCE_VALUES)}')
+        else:
+            item.licence = licence
 
         topics = meta.get('topics') or []
         if isinstance(topics, str):
@@ -423,10 +441,15 @@ class Command(BaseCommand):
                 'moderation UI if that is what you mean.'
             ))
 
+        if existing is None:
+            defaults['licence'] = item.licence
+
         exercise, created = Exercise.objects.update_or_create(
             branch=branch, number=number, defaults=defaults
         )
         stats['created' if created else 'updated'] += 1
+        if not created and exercise.licence != item.licence:
+            self._relicense(exercise, item)
 
         exercise.topics.set([topics[s] for s in item.topics if s in topics])
         if item.tags:
@@ -463,6 +486,7 @@ class Command(BaseCommand):
                 'statement': bodies['statement'],
                 'answer': bodies['answer'],
                 'translated_by': None,
+                'licence': exercise.licence,
             },
         )
 
@@ -474,13 +498,50 @@ class Command(BaseCommand):
                     kind=kind,
                     locale=item.locale,
                     pinned=True,
-                    defaults={'body': body, 'author': author, 'status': 'published'},
+                    defaults={
+                        'body': body,
+                        'author': author,
+                        'status': 'published',
+                        'licence': exercise.licence,
+                    },
                 )
                 stats['entries'] += 1
         # The entry signals already recount, but an import that wrote no entry at all still needs
         # `verified` to be right for this row — and the recount is two cheap COUNTs (house rule 5).
         recount_verified(exercise.pk)
         return exercise
+
+    def _relicense(self, exercise: Exercise, item: Parsed) -> None:
+        """A re-run whose file declares a different licence: widen and record it, or warn and leave
+        a narrowing (see the module docstring). Written straight rather than through
+        `licensing.rules.change_licence`, which asks for an author or a staff account the command
+        does not have; the record it leaves is the same row."""
+        from licensing.models import LicenceChange
+        from licensing.targets import content_type_of
+
+        old = exercise.licence
+        if item.licence == UNKNOWN or not at_least_as_open(item.licence, old):
+            self.stdout.write(self.style.WARNING(
+                f'  {item.path.name}: #{exercise.number} is licensed {old}; the file says '
+                f'{item.licence}, which is narrower — left as {old} (a licence cannot be taken back).'
+            ))
+            return
+        Exercise.objects.filter(pk=exercise.pk, licence=old).update(licence=item.licence)
+        ExerciseTranslation.objects.filter(
+            exercise=exercise, locale=exercise.original_locale, licence=old
+        ).update(licence=item.licence)
+        SolutionEntry.objects.filter(exercise=exercise, pinned=True, licence=old).update(
+            licence=item.licence
+        )
+        LicenceChange.objects.create(
+            content_type=content_type_of(exercise),
+            object_id=exercise.pk,
+            from_licence=old,
+            to_licence=item.licence,
+            as_staff=True,
+            note=f'import_exercises: {item.path.name}'[:500],
+        )
+        exercise.licence = item.licence
 
     def write_back(self, path: Path, number: int) -> None:
         raw = path.read_text(encoding='utf-8')

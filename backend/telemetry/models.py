@@ -4,12 +4,11 @@
 oversight.** The cookie rule (ePrivacy Art. 5(3)) governs storing or reading information on the
 visitor's own device. Nothing in this module touches the visitor's device: the browser sends a
 request, the server writes down what arrived. That is ordinary processing of personal data, governed
-by the GDPR instead. Its lawful basis is the University's public task (Art. 6(1)(e), anchored in
-art. 11 ust. 1 of the Prawo o szkolnictwie wyższym i nauce), together with the Art. 32 duty to secure
-processing; legitimate interest (Art. 6(1)(f)) is only the fallback analysis, because Art. 6(1)'s
-last sentence bars (f) for a public authority performing its tasks — see ANALYTICS-LAW.md §4, and
-`/privacy`, which states the same. Recital 49, naming network and information security, still
-supports it. The aggregate statistics in `analytics/` reuse this log under Arts 5(1)(b) and 89(1),
+by the GDPR instead. Its lawful basis is legitimate interest (Art. 6(1)(f)), together with the
+Art. 32 duty to secure processing; Recital 49 names network and information security explicitly.
+(ANALYTICS-LAW.md §4 had recommended the University's public task, Art. 6(1)(e), because a public
+authority cannot use (f) — but the owner decided on 2026-10-14 that the controller is the student
+team that runs EdMat, not the University, so (f) is open and is what `/privacy` states; LEGAL.md §1.) The aggregate statistics in `analytics/` reuse this log under Arts 5(1)(b) and 89(1),
 and `analytics_opt_out` (Sec-GPC / DNT) is the Art. 21 objection. So the obligations that apply are transparency,
 minimisation and retention, all of which are met here and stated in the privacy policy, rather than
 consent.

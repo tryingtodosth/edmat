@@ -55,7 +55,12 @@ export async function confirmPasswordReset(
 /** Mirrors `OutboundEmail.STATUSES` / `KINDS` in backend `mail/models.py` — a hand-kept copy. */
 export type OutboundStatus = 'queued' | 'sending' | 'sent' | 'failed' | 'console';
 export type OutboundKind =
-	'confirm_email' | 'password_reset' | 'notification_digest' | 'test' | 'direct';
+	| 'confirm_email'
+	| 'password_reset'
+	| 'notification_digest'
+	| 'test'
+	| 'direct'
+	| 'account_erasure';
 
 export type MailStatus = {
 	transport: string;

@@ -68,14 +68,20 @@ const token = () => page.evaluate(() => localStorage.getItem('edmat-auth-token')
 console.log('buttons on /login and /register');
 await bootAt('/login');
 await page.getByRole('button', { name: 'Continue with Google', exact: true }).first().waitFor();
-for (const name of ['Continue with Google', 'Sign in with Apple', 'Sign in with Microsoft']) {
+for (const name of [
+	'Continue with Google',
+	'Sign in with Apple',
+	'Sign in with GitHub',
+	'Continue with Facebook',
+	'Sign in with Microsoft'
+]) {
 	const n = await page.getByRole('button', { name, exact: true }).count();
 	check(`/login has exactly one "${name}"`, n === 1, `${n}`);
 }
 await page.screenshot({ path: `${SHOTS}/sso-login.png`, fullPage: true });
 await bootAt('/register');
 await page.getByRole('button', { name: 'Sign in with Microsoft', exact: true }).waitFor();
-check('/register has the three buttons', (await page.locator('.sso .btn').count()) === 3);
+check('/register has the five buttons', (await page.locator('.sso .btn').count()) === 5);
 await page.screenshot({ path: `${SHOTS}/sso-register.png`, fullPage: true });
 
 // ---- 2. first sign-in → complete the account ----------------------------------------------------
@@ -155,6 +161,38 @@ check(
 );
 await page.screenshot({ path: `${SHOTS}/sso-settings.png`, fullPage: true });
 
+// ---- 4b. Settings → Password: set a first password, then the last provider may go ---------------
+console.log('set a first password');
+const pw = page.getByTestId('password-settings');
+check('password section says there is none', (await pw.innerText()).includes('has no password'));
+await pw.getByRole('button', { name: 'Set a password' }).click();
+check(
+	'no current-password field for an account without one',
+	(await pw.locator('input[name=current_password]').count()) === 0
+);
+await pw.locator('input[name=new_password]').fill('Sso-first-Passw0rd!');
+await pw.locator('input[name=repeat_password]').fill('Sso-first-Passw0rd!x');
+await pw.getByRole('button', { name: 'Set a password' }).click();
+check(
+	'a mismatch is said',
+	(await pw.getByText('The two new passwords are not the same.').count()) === 1
+);
+await pw.locator('input[name=repeat_password]').fill('Sso-first-Passw0rd!');
+await pw.getByRole('button', { name: 'Set a password' }).click();
+await page.getByTestId('password-done').waitFor();
+check('password set', (await page.getByTestId('password-done').innerText()).includes('set'));
+await page.waitForFunction(() => document.querySelector('[data-testid=sign-in-methods] .pill.ok'));
+check('Sign-in methods now says Set', (await section.locator('.pill.ok').count()) === 1);
+await page.screenshot({ path: `${SHOTS}/sso-password-set.png`, fullPage: true });
+await pw.getByRole('button', { name: 'Change password' }).click();
+await pw.locator('input[name=current_password]').fill('not-it');
+await pw.locator('input[name=new_password]').fill('Sso-second-Passw0rd!');
+await pw.locator('input[name=repeat_password]').fill('Sso-second-Passw0rd!');
+await pw.getByRole('button', { name: 'Change password' }).click();
+await pw.getByText('That is not your current password.').waitFor();
+check('a wrong current password is refused with its reason', true);
+await pw.getByRole('button', { name: 'Cancel' }).click();
+
 // ---- 5. sign out, sign in again with Microsoft = a login, same account -------------------------------
 console.log('second sign-in is a login');
 await page.evaluate(() => localStorage.removeItem('edmat-auth-token'));
@@ -195,6 +233,41 @@ check(
 	'cancel is said as cancel',
 	(await page.getByTestId('sso-error').getAttribute('data-code')) === 'cancelled'
 );
+
+// ---- 7b. GitHub and Facebook: a first sign-in reaches the complete page --------------------------
+console.log('GitHub and Facebook');
+await bootAt('/login');
+await viaStub('Sign in with GitHub', { email: `gh-${RUN}@example.com`, sub: `gh-${RUN}` });
+await page.waitForURL(/\/auth\/sso\/complete\?ticket=/);
+await page.getByTestId('sso-email').waitFor();
+check(
+	'GitHub: the primary verified address',
+	(await page.getByTestId('sso-email').innerText()) === `gh-${RUN}@example.com`
+);
+check(
+	'GitHub: it counts as confirmed',
+	(await page.getByText('Confirmed by GitHub.').count()) === 1
+);
+await bootAt('/login');
+await viaStub('Continue with Facebook', { email: `fb-${RUN}@example.com`, sub: `fb-${RUN}` });
+await page.waitForURL(/\/auth\/sso\/complete\?ticket=/);
+await page.getByTestId('sso-email').waitFor();
+check(
+	'Facebook: the address',
+	(await page.getByTestId('sso-email').innerText()) === `fb-${RUN}@example.com`
+);
+check(
+	'Facebook: treated as unconfirmed',
+	(await page.getByText('Facebook did not confirm this address', { exact: false }).count()) === 1
+);
+await page.screenshot({ path: `${SHOTS}/sso-complete-facebook.png`, fullPage: true });
+await page.fill('input[name=username]', `fb_${RUN}`);
+await page.fill('input[name=birth_year]', '1995');
+await page.check('input[name=accept_terms]');
+await page.getByRole('button', { name: 'Create account' }).click();
+await page.waitForURL((u) => !u.pathname.startsWith('/auth/sso'), { timeout: 20000 });
+check('Facebook: account created and signed in', !!(await token()));
+await page.evaluate(() => localStorage.removeItem('edmat-auth-token'));
 
 // ---- 8. a forwarded callback is dead in another tab -----------------------------------------------------
 console.log('a forwarded code does not work in another browser');

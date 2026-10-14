@@ -1,7 +1,9 @@
-# sso — Sign in with Google / Apple / Microsoft
+# sso — Sign in with Google / Apple / GitHub / Facebook (and Microsoft, built but not requested)
 
-Built 2026-10-14. OpenID Connect authorization-code flow, server side, with PKCE (S256), `state`
-and `nonce`; the id_token's signature is verified against the provider's JWKS and `iss`, `aud`,
+Built 2026-10-14. The owner asked for Google, Apple, GitHub and Facebook; Microsoft is in the code,
+unconfigured and therefore invisible. Two protocols behind one flow: **OIDC** (Google, Apple,
+Microsoft) — authorization-code flow, server side, PKCE (S256) where supported, `state` and `nonce`;
+the id_token's signature is verified against the provider's JWKS and `iss`, `aud`,
 `exp`, `iat` and `nonce` are checked before a single claim is read (`tokens.py`). **No provider
 credentials exist yet**: a provider is enabled iff `EDMAT_SSO_<PROVIDER>_*` is configured AND the
 `social_login` FeatureFlag is on, so until the owner fills the environment every visitor sees
@@ -9,11 +11,34 @@ exactly what they saw before — no button, no draft. Operator runbook: `deploy/
 
 ## Files
 
-`providers.py` (the registry — endpoints, scopes, PKCE, form_post, issuer check, "is this email
-verified", where a name comes from; one entry + env vars per provider) · `tokens.py` (id_token
+`providers.py` (the registry — protocol, endpoints, scopes, PKCE, form_post, issuer check, "is this
+email verified", where a name comes from, `request_token` / `fetch_identity` for OAuth 2.0; one
+entry + env vars per provider) · `tokens.py` (id_token
 verification, JWKS cache with one refetch on an unknown `kid`) · `http.py` (the only two outbound
 calls, stdlib `urllib`; the ONLY thing tests mock) · `services.py` (the whole flow; nothing else
 creates an identity, a code or a ticket) · `views.py` · `models.py` · `management/commands/sso_purge.py`.
+
+## OAuth 2.0 without an id_token: GitHub and Facebook
+
+Same flow, same `state`, same single-use codes and tickets, same browser key, same never-link-by-
+email; only the middle differs. `services._exchange_code` asks `provider.request_token()` for an
+access token and `provider.fetch_identity()` for claims in the id_token's shape — `iss` is the
+provider's own fixed issuer, so the identity key is `(github, https://github.com, <numeric id>)`
+and `(facebook, https://www.facebook.com, <app-scoped id>)`. The access token is used for those
+calls over TLS and dropped; nothing of it is stored.
+
+- **GitHub** (OAuth App): PKCE S256 (supported since 2025-07-14). `/user` gives the numeric id (a
+  login can be renamed, the id cannot) and the name; the address is the **primary address GitHub
+  marks verified** from `/user/emails` — `/user`'s own `email` field is never read. No such address
+  → `email_missing` for a new signup (an already-linked identity still signs in). A refused code
+  comes back HTTP 200 with `error`, which `GitHubProvider.request_token` turns into a refusal. The
+  API wants a `User-Agent` (`http.USER_AGENT`).
+- **Facebook** (Facebook Login for the web, Graph API pinned at `v25.0`, override with
+  `EDMAT_SSO_FACEBOOK_GRAPH_VERSION`): no PKCE relied on (confidential client, `state` binds the round
+  trip); the code exchange is Facebook's documented GET; `/me?fields=id,name,email` carries an
+  `appsecret_proof`. Facebook never says whether the address is verified, so it is **always
+  unverified** here: the account is made and the ordinary confirmation mail goes out. The id is
+  app-scoped (a different number in every app).
 
 ## The flow
 
@@ -104,6 +129,14 @@ GET  /api/auth/sso/identities/ · DELETE …/identities/<id>/ → Settings → S
 - **Throttles**: `sso_start` 30/h, `sso_callback` 60/h, `sso_exchange` 60/h (exchange + ticket),
   complete uses `register` (10/h) — it is the same act.
 
+## Settings → Password (`accounts/password.py`)
+
+`GET/POST /api/auth/me/password/`: an account with no usable password (signs in only through a
+provider) SETS one without a current password; an account with one must give it to change it
+(`current_password_required` / `current_password_wrong`; Django's validators under
+`new_password`). Throttle `password_change` 10/h; audited as `password_change`. The token is kept.
+This is what lets an SSO-only person unlink their last provider; the reset mail remains the other way.
+
 ## The development stub — guarded twice
 
 `EDMAT_SSO_DEV_STUB_URL` points every provider's endpoints and issuer at `frontend/e2e/sso-stub.mjs`
@@ -115,16 +148,17 @@ and `providers.dev_stub_url()` returns '' unless `settings.DEBUG` at every call.
 
 - Apple server-to-server notifications (`email-disabled`, `consent-revoked`, `account-delete`) and
   token revocation on account deletion — there is no self-service account deletion yet either.
-- No "set a password" form in Settings for an SSO-only account: the reset mail is the way.
+- Facebook's deauthorize / data-deletion **callbacks** are not built; the app uses the data-deletion
+  *instructions URL* (`/settings/account`, the GDPR work) instead.
 - No re-acceptance prompt when the terms change (`legal/terms.py` says so).
-- GitHub / Facebook: not OIDC (no id_token) — each needs a `fetch_identity` hook beside the
-  id_token path; the registry is ready for the entry, the flow is not.
 - Throttle counters are per-process without Redis (as everywhere).
 - No avatar is fetched from a provider (data minimisation; ask first if ever wanted).
 
 ## Verify
 
-`manage.py test sso` (94 tests: state/expiry/reuse, nonce, aud, iss, exp, iat age, alg none, HS256
+`manage.py test sso` (the count is in `test.md`: state/expiry/reuse, nonce, aud, iss, exp, iat age, alg none, HS256
 confusion, foreign key, key rotation, email collision, link/unlink rules, flag off, unconfigured,
-Microsoft tenants and verified-email rules, Apple form_post + ES256 secret, the stub guard, purge,
-SSO-only password reset) · `e2e/sso.mjs` against `e2e/sso-stub.mjs` (`test.md`).
+Microsoft tenants and verified-email rules, Apple form_post + ES256 secret, GitHub (primary-verified address
+only, HTTP-200 errors, numeric ids, PKCE) and Facebook (GET exchange, appsecret_proof, always
+unverified, version guard), the stub guard, purge, SSO-only password reset) ·
+`accounts/test_password.py` · `e2e/sso.mjs` against `e2e/sso-stub.mjs` (`test.md`).

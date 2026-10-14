@@ -41,6 +41,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
+from licensing.models import licence_field
 
 #: The six states a revision can be in. `draft` is the only mutable one and the only one that may
 #: be hard-deleted; the last three are terminal history and are kept, never deleted, because who
@@ -172,6 +173,11 @@ class ConceptArticle(models.Model):
         related_name='concept_articles',
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    #: The licence the article's author chose (licensing/licences.py, 2026-10-14). A revision by
+    #: anybody else is a contribution INTO the article under this licence — the Wikipedia shape —
+    #: so revisions carry none, and `licensing.rules` refuses a change once another person's
+    #: revision has been published into it.
+    licence = licence_field()
     #: Staff and governors only (`access.can_pin`) — the `SolutionEntry.pinned` lever, for the same
     #: job: saying which of several good answers a reader should see first.
     pinned = models.BooleanField(default=False)

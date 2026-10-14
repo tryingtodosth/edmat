@@ -87,17 +87,17 @@ taxonomy. An untracked `backend/classroom/` directory may still exist on disk �
 frontend/  SvelteKit 2 + Svelte 5 runes + TS, adapter-static (SPA fallback), Paraglide i18n
              routes/ + components  →  lib/services/*.ts  →  lib/api/client.ts  →  HTTP
                    (never fetch)         (the only seam)      (the only fetch())
-backend/   Django 5.2 + DRF, SQLite, 43 local apps + config/ + testing/ + imaging.py
+backend/   Django 5.2 + DRF, SQLite, 44 local apps + config/ + testing/ + imaging.py
              views  →  <app>/services.py or a rule module  →  models
 deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 43 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 44 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
 `courses` `booking` `activity` `events` `coauthoring` `materials_coop` `concepts` `sketches` `venues` `documents`
 `shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work` `goals` `flashcards`
-`provenance` `translations` `attachments` `contests` `mail` `analytics` `sso`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
+`provenance` `translations` `attachments` `contests` `mail` `analytics` `sso` `licensing`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
 (`CONFERENCE-BRIEF.md`, 2026-09-23), each hung off `events.Event` by a row of its own so that
 `events` kept its schema while seven branches were built at once. The last six — `organizations` `tasks` `needs` `plans` `decisions` `work` — are the
 management layer (`MANAGEMENT-BRIEF.md`, 2026-09-24), each hanging its rows off a course, an event, a
@@ -145,6 +145,16 @@ issuer + subject, **never linked by email**, the age gate shared with registrati
 `accounts/minors.py: self_registration_refusal`); a provider shows only when configured in the
 environment AND the `social_login` flag is on. Every door into an account records the terms through
 `legal/terms.py` (`legal.TermsAcceptance`, append-only).
+
+**Who runs it, legally** (owner, 2026-10-14; `LEGAL.md` §1): the service provider and GDPR controller is
+"grupa studentów Uniwersytetu Warszawskiego", anonymous for now; Ośrodek Komputerowy WF UW provides and
+oversees the servers. So the basis for security and statistics is art. 6(1)(f), not a university's
+public task. **Account deletion and data export are self-service** (`accounts/erasure.py`, a registry of
+what happens to every model that points at a user, with a completeness test that fails on a new FK; a
+deleted account becomes a scrubbed tombstone after a 14-day grace). **`licensing`** (same day) gives
+every exercise, solution, material and concept article its own licence (`edmat-only` default; the
+seeded corpus is `unknown` and that is never offered to a user), changeable only towards more open,
+every change a `LicenceChange` row.
 
 **Two boundaries are load-bearing and everything else follows from them:**
 
@@ -380,7 +390,8 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/auth/{confirm-email,confirm-email/resend,password-reset/confirm,me/mail}/   mail (backend/mail/)
 /api/mail/{status,outbound,outbound/{id}/retry,test,inbound,inbound/fetch}/  the Mail tab, SUPERUSER only
 /api/analytics/{overview,traffic,content,community,moderation,coverage,cohorts,health,…}/  usage statistics, STAFF only
-/api/auth/sso/{providers,<p>/start,<p>/callback,exchange,ticket,complete,identities}/  sign-in with Google / Apple / Microsoft
+/api/auth/sso/{providers,<p>/start,<p>/callback,exchange,ticket,complete,identities}/  sign-in with Google / Apple / GitHub / Facebook / Microsoft
+/api/auth/me/{export,erasure,password}/ /api/auth/erasure/cancel/   GDPR self-service and the password form
 ```
 
 - **Public GET, owner-scoped writes.** Reads are open where the content is public; writes are scoped
@@ -418,6 +429,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /privacy /terms /legal /levels                                standing pages
 /moderation/analytics                                         usage statistics (staff)
 /auth/sso/done /auth/sso/complete                              the provider sign-in's return and signup pages
+/settings/account /cancel-deletion                             download my data, delete my account, change my mind
 /about                                                        the project itself: the EdMat organisation's page (goals, needs, open board), the research thread, the showcase index
 /about/<feature> /about/guide /about/guide/[chapter]          the design showcase (sample data) and the manual
 ```

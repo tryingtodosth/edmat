@@ -15,8 +15,9 @@
 		<li>{m.analytics_privacy_anonymous()}</li><!-- "Anonymous visitors are not counted as people. No identifier exists to count them by, so they appear only as requests." -->
 		<li>{m.analytics_privacy_search()}</li><!-- "Search terms are never recorded; only that a search happened." -->
 		<li>{m.analytics_privacy_small({ k: PRIVACY_K })}</li><!-- "Groups of fewer than {k} people are shown as “<{k}”, never as a number." -->
-		<li>{m.analytics_privacy_objection()}</li><!-- "Browsers that send Global Privacy Control or Do Not Track are left out entirely." -->
+		<li>{m.analytics_privacy_objection()}</li><!-- "Requests from browsers that send Global Privacy Control or Do Not Track are left out of these statistics entirely. They are still written to the security log…" -->
 		<li>{m.analytics_privacy_minors()}</li><!-- "Accounts of minors (under 16, or created by a guardian) are not counted in active-account and retention figures." -->
+		<li>{m.analytics_privacy_staff()}</li><!-- "Staff accounts (moderators and administrators) are not counted as people — not in active accounts, retention, registrations or the funnel. Their requests still count as traffic." -->
 		<li>{m.analytics_privacy_retention()}</li><!-- "Aggregates are kept for at most 25 months and then deleted." -->
 	</ul>
 	<p>

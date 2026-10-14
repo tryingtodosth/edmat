@@ -20,6 +20,7 @@
 // `approved` anywhere: the positive terminal state is what the row IS, `published`.
 
 import type { Audience } from './audience';
+import type { Licence } from './licence';
 
 /** `draft` is private and mutable and is the one row that may be hard-deleted; everything after a
  *  submit is immutable and kept (house rule 12). */
@@ -191,6 +192,8 @@ export interface ConceptArticleSummary {
 	id: string;
 	audience: Audience;
 	locale: string;
+	/** The licence the article's author chose; a revision by anybody else contributes under it. */
+	licence: Licence;
 	/** Staff/governor: first in the page's pool (the `SolutionEntry` precedent). */
 	pinned: boolean;
 	title: string;
@@ -374,6 +377,8 @@ export interface ConceptRevisionDraft {
 export interface ConceptDraft extends ConceptRevisionDraft {
 	audience: Audience;
 	locale: string;
+	/** The article's licence (backend licensing/); absent = `edmat-only`. */
+	licence?: Licence;
 	branches?: string[];
 	tags?: string[];
 }
@@ -382,6 +387,7 @@ export interface ConceptDraft extends ConceptRevisionDraft {
 export interface ConceptArticleDraft extends ConceptRevisionDraft {
 	audience: Audience;
 	locale: string;
+	licence?: Licence;
 }
 
 /* --- paths: the prerequisite closure (backend `concepts/paths.py`) ----------------------------- */

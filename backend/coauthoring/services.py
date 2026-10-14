@@ -619,6 +619,7 @@ def materialise(project, version, actor):
         branch=project.branch,
         type=project.type,
         audience=project.audience,
+        licence=project.licence,
         submitted_by=owner,
         locale=project.locale,
         title=version.title,

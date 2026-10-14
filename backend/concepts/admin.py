@@ -21,6 +21,9 @@ class ConceptAdmin(admin.ModelAdmin):
 
 @admin.register(ConceptArticle)
 class ConceptArticleAdmin(admin.ModelAdmin):
+    # The licence changes only through licensing.rules.change_licence, which records the change and
+    # only widens it (a Creative Commons grant is irrevocable) — the admin must not be a way around it.
+    readonly_fields = ('licence',)
     list_display = ('id', 'concept', 'audience', 'locale', 'pinned', 'is_removed', 'created_by')
     list_filter = ('audience', 'locale', 'pinned', 'is_removed')
     search_fields = ('concept__slug',)

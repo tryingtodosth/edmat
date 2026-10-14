@@ -124,11 +124,12 @@ class UserAdmin(DjangoUserAdmin):
        inactive user, so the account is shut without touching a single row of anyone's content.
        It is also reversible, which a delete never is.
 
-    A genuine erasure request (GDPR Article 17, which this project's own launch checklist still has
-    open) is the one case that really does need deletion — and it needs a considered flow that
-    decides per model what to anonymise versus remove, not a cascade that takes other people's
-    threads with it. Until that exists, one-at-a-time deletion with the confirmation page read
-    properly is the honest interim.
+    A genuine erasure request (GDPR Article 17) is NOT this page's delete either: since 2026-10-14
+    it is `accounts/erasure.py`, which decides per model what to delete, anonymise or keep and
+    leaves a scrubbed tombstone instead of cascading through other people's threads. A person asks
+    from Settings → Account; an operator acting on a written request runs
+    `manage.py erase_due_accounts --now --user <id>` after creating the request. The delete button
+    here remains for the rare row that genuinely has to go (a test account), read with care.
     """
 
     actions = ['deactivate_users']
@@ -162,3 +163,28 @@ class GuardianshipAdmin(admin.ModelAdmin):
     list_filter = ('consent_method', 'revoked_at')
     search_fields = ('child__username', 'guardian__username')
     raw_id_fields = ('child', 'guardian')
+
+
+from .models import AccountErasure  # noqa: E402
+
+
+@admin.register(AccountErasure)
+class AccountErasureAdmin(admin.ModelAdmin):
+    """The record of every deletion request and what became of it (`accounts/erasure.py`). Evidence,
+    so read-only: a status changed by hand would be a deletion that never ran, or one that did and
+    says it did not (backend/CLAUDE.md, admin rule 2). Cancelling or carrying one out goes through
+    the module — the account page, the guardian's panel, or `erase_due_accounts`."""
+
+    list_display = ('user', 'status', 'by_guardian', 'requested_at', 'due_at', 'completed_at')
+    list_filter = ('status', 'by_guardian')
+    raw_id_fields = ('user', 'requested_by')
+    readonly_fields = [f.name for f in AccountErasure._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

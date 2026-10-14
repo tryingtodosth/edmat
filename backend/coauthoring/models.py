@@ -42,6 +42,7 @@ from django.db import models
 from django.utils import timezone
 
 from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
+from licensing.models import licence_field
 from materials.models import CURRENCY_CHOICES
 from materials.validators import validate_material_submission_file
 
@@ -153,6 +154,9 @@ class MaterialProject(models.Model):
     # `Material.author`: the human who wrote the document is almost never a platform account.
     author = models.CharField(max_length=200, blank=True)
     source_url = models.URLField(max_length=500, blank=True)
+    # The licence the material will be published under — drafting-only like its neighbours; the
+    # first publication copies it onto `Material.licence` (`materials.publish.create_material`).
+    licence = licence_field()
     price_amount = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     price_currency = models.CharField(
         max_length=3, choices=CURRENCY_CHOICES, default='PLN', blank=True

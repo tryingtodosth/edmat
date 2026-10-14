@@ -246,6 +246,7 @@ class MaterialVersionQueueRowSerializer(MaterialVersionSummarySerializer):
     price_currency = serializers.SerializerMethodField()
     estimated_minutes = serializers.SerializerMethodField()
     audience = serializers.SerializerMethodField()
+    licence = serializers.SerializerMethodField()
     is_first_publication = serializers.SerializerMethodField()
 
     class Meta(MaterialVersionSummarySerializer.Meta):
@@ -265,6 +266,7 @@ class MaterialVersionQueueRowSerializer(MaterialVersionSummarySerializer):
             'price_currency',
             'estimated_minutes',
             'audience',
+            'licence',
             'is_first_publication',
         ]
 
@@ -328,6 +330,9 @@ class MaterialVersionQueueRowSerializer(MaterialVersionSummarySerializer):
     def get_audience(self, obj):
         return self._catalogue_source(obj).audience
 
+    def get_licence(self, obj):
+        return self._catalogue_source(obj).licence
+
     def get_is_first_publication(self, obj):
         return obj.project.material_id is None
 
@@ -370,6 +375,7 @@ class MaterialProjectSerializer(serializers.ModelSerializer):
     # split `MaterialProject`'s own docstring describes, applied at the one place a reader sees it.
     type = serializers.SerializerMethodField()
     audience = serializers.SerializerMethodField()
+    licence = serializers.SerializerMethodField()
     author = serializers.SerializerMethodField()
     source_url = serializers.SerializerMethodField()
     price_amount = serializers.SerializerMethodField()
@@ -388,6 +394,7 @@ class MaterialProjectSerializer(serializers.ModelSerializer):
             'locale',
             'type',
             'audience',
+            'licence',
             'author',
             'source_url',
             'price_amount',
@@ -545,6 +552,9 @@ class MaterialProjectSerializer(serializers.ModelSerializer):
     def get_audience(self, obj):
         return self._catalogue_source(obj).audience
 
+    def get_licence(self, obj):
+        return self._catalogue_source(obj).licence
+
     def get_author(self, obj):
         return self._catalogue_source(obj).author
 
@@ -612,6 +622,15 @@ class _CatalogueValidationMixin:
     def validate_audience(self, value):
         if value not in AUDIENCE_VALUES:
             raise serializers.ValidationError('Not an audience this site knows.')
+        return value
+
+    def validate_licence(self, value):
+        # licensing/licences.py — a person picks a selectable licence; `unknown` never.
+        from licensing.licences import licence_validation_error
+
+        reason = licence_validation_error(value)
+        if reason:
+            raise serializers.ValidationError(reason)
         return value
 
     def validate_price_currency(self, value):
@@ -763,6 +782,8 @@ class MaterialProjectCreateSerializer(_CatalogueValidationMixin, serializers.Ser
     locale = serializers.CharField(max_length=8, required=False, default='pl')
     type = serializers.CharField(max_length=50)
     audience = serializers.CharField(max_length=12, required=False)
+    #: The licence the material will carry (licensing/). Absent = `edmat-only`, which opens nothing.
+    licence = serializers.CharField(max_length=20, required=False)
     author = serializers.CharField(max_length=200, required=False, allow_blank=True)
     source_url = serializers.URLField(max_length=500, required=False, allow_blank=True)
     price_amount = serializers.DecimalField(
@@ -809,6 +830,9 @@ class MaterialProjectUpdateSerializer(_CatalogueValidationMixin, serializers.Ser
     locale = serializers.CharField(max_length=8, required=False)
     type = serializers.CharField(max_length=50, required=False)
     audience = serializers.CharField(max_length=12, required=False)
+    #: Draft-only: once the material exists its licence changes through `/api/licences/material/<id>/`
+    #: (licensing/rules.py), which only widens it and records the change; a PATCH would do neither.
+    licence = serializers.CharField(max_length=20, required=False)
     author = serializers.CharField(max_length=200, required=False, allow_blank=True)
     source_url = serializers.URLField(max_length=500, required=False, allow_blank=True)
     price_amount = serializers.DecimalField(
@@ -824,6 +848,8 @@ class MaterialProjectUpdateSerializer(_CatalogueValidationMixin, serializers.Ser
     def validate(self, attrs):
         project = self.context.get('project')
         self._check_coverage_topics(attrs.get('coverage'), getattr(project, 'branch', None))
+        if 'licence' in attrs and getattr(project, 'material_id', None) is not None:
+            raise serializers.ValidationError({'licence': 'licence_use_licence_endpoint'})
         return attrs
 
 

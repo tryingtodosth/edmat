@@ -172,6 +172,7 @@ export async function getProject(id: string): Promise<MaterialProject | null> {
 function catalogueEntries(draft: ProjectCatalogueDraft): [string, string][] {
 	const out: [string, string][] = [['type', toBackendMaterialType(draft.type)]];
 	out.push(['audience', draft.audience]);
+	if (draft.licence) out.push(['licence', draft.licence]);
 	if (draft.author?.trim()) out.push(['author', draft.author.trim()]);
 	if (draft.sourceUrl?.trim()) out.push(['source_url', draft.sourceUrl.trim()]);
 	if (draft.priceAmount !== undefined) out.push(['price_amount', String(draft.priceAmount)]);
@@ -293,6 +294,8 @@ export async function updateProject(
 	const body: Record<string, unknown> = {};
 	if (patch.type !== undefined) body.type = toBackendMaterialType(patch.type);
 	if (patch.audience !== undefined) body.audience = patch.audience;
+	// Draft-only; the server refuses it once the material exists (`licence_use_licence_endpoint`).
+	if (patch.licence !== undefined) body.licence = patch.licence;
 	if (patch.author !== undefined) body.author = patch.author;
 	if (patch.sourceUrl !== undefined) body.source_url = patch.sourceUrl;
 	if (patch.priceAmount !== undefined) body.price_amount = patch.priceAmount;

@@ -44,7 +44,8 @@
 		password_reset: m.mail_kind_reset, // "Password reset"
 		notification_digest: m.mail_kind_digest, // "Notification digest"
 		test: m.mail_kind_test, // "Test message"
-		direct: m.mail_kind_direct // "Other"
+		direct: m.mail_kind_direct, // "Other"
+		account_erasure: m.account_mailKind // "Account deletion notice"
 	};
 	const UNAVAILABLE: Record<string, () => string> = {
 		not_configured: m.mail_fetch_notConfigured, // "No mailbox password on this server…"

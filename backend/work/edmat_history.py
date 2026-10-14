@@ -129,6 +129,15 @@ SUBPROJECT_BY_REF = {
     # `accounts`, where registration and the password already lived; the inbox half is operator
     # tooling and a section gets one key.
     '17CI': 'accounts',
+    # 17CJ is consent-free analytics, the terms of use and privacy policy, and sign-in with
+    # Google / Apple / Microsoft. `accounts`: the sign-in, the terms acceptance and the policy are
+    # all about a person's account and data; the analytics half is operator tooling, and a section
+    # gets one key.
+    '17CJ': 'accounts',
+    # 17CK is the owner's answers to 17CJ: students as provider, self-service export and deletion,
+    # a licence per item, GitHub and Facebook. `accounts` again — erasure and export are its own
+    # rule module; the licensing half is content, and a section gets one key.
+    '17CK': 'accounts',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

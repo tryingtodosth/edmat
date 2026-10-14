@@ -1,4 +1,5 @@
 import type { Audience } from './audience';
+import type { Licence } from './licence';
 import type { Difficulty, ExerciseSource } from './exercise';
 import type { ExerciseLinkRole } from './exerciseMaterialLink';
 
@@ -10,6 +11,9 @@ export interface ExerciseSubmissionDraft {
 	topicIds: string[];
 	difficulty: Difficulty;
 	audience: Audience;
+	/** The licence the author chose (backend licensing/) — carried onto the exercise and its
+	 *  founding hint/solution on approval. Absent means `edmat-only`; `unknown` is refused. */
+	licence?: Licence;
 	source: ExerciseSource;
 	tags: string[];
 	// Free-text prerequisite/"skill tag" labels — optional, applied into real ExerciseRequirement

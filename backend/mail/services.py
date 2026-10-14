@@ -96,6 +96,15 @@ def build_link(row: OutboundEmail) -> str:
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user)
         return f'{settings.EDMAT_SITE_URL}/reset-password?uid={uid}&token={token}'
+    if row.kind == OutboundEmail.KIND_ERASURE:
+        # Built at send time like the others; the log keeps `[[link]]`. Signed per request, so a
+        # link from a cancelled request does nothing to a later one.
+        from accounts.erasure import cancel_token
+
+        token = cancel_token(user)
+        if token is None:
+            raise ValueError('no deletion is pending for this account')
+        return f'{settings.EDMAT_SITE_URL}/cancel-deletion?token={token}'
     raise ValueError(f'no link for kind {row.kind}')
 
 
@@ -212,6 +221,26 @@ def confirm(token: str):
         return None, 'changed'
     ConfirmedEmail.objects.update_or_create(user=user, defaults={'email': user.email})
     return user, None
+
+
+def send_erasure_notice(user) -> OutboundEmail | None:
+    """"Your account will be deleted on <date>; not you? cancel here." Queued by
+    `accounts.erasure.request_erasure` to a confirmed address only — the safety net for a request
+    made from a session somebody else got hold of."""
+    from accounts.erasure import GRACE_PERIOD
+
+    if not user.email:
+        return None
+    locale = _locale(user)
+    due = timezone.localtime(timezone.now() + GRACE_PERIOD).strftime('%Y-%m-%d')
+    return queue(
+        OutboundEmail.KIND_ERASURE,
+        user.email,
+        text(locale, 'erasure_subject'),
+        text(locale, 'erasure_body', name=_name(user), username=user.username, date=due),
+        user=user,
+        locale=locale,
+    )
 
 
 # ---- password reset ----------------------------------------------------------------------------

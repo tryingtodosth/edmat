@@ -4,6 +4,7 @@
 	import GuardianPanel from '$lib/components/settings/GuardianPanel.svelte';
 	import EmailSettings from '$lib/components/settings/EmailSettings.svelte';
 	import SignInMethods from '$lib/components/settings/SignInMethods.svelte';
+	import PasswordSettings from '$lib/components/settings/PasswordSettings.svelte';
 	import { AUDIENCES, AUDIENCE_LABELS } from '$lib/utils/labels';
 	import type { Audience } from '$lib/types';
 	import { resolve } from '$app/paths';
@@ -250,6 +251,12 @@
 			<a class="view-public" href={resolve('/users/[id]', { id: user.id })}>
 				{m.profile_viewPublic()}
 			</a>
+			<!-- Download a copy / delete the account: its own route, `/settings/account`, whose address a
+			     sign-in provider's console is given as the data-deletion URL. -->
+			<a class="view-public" href={resolve('/settings/account')} data-testid="account-link">
+				{m.account_settingsLink()}
+				<!-- "Your data and deleting your account" -->
+			</a>
 		</section>
 
 		<!-- Its own section, deliberately outside the `edit-form` below: the avatar has its own
@@ -264,6 +271,11 @@
 		{/if}
 		{#if authStore.user && !authStore.user.isMinor && authStore.user.email}
 			<EmailSettings />
+		{/if}
+		{#if authStore.user && !authStore.user.isMinor}
+			<PasswordSettings />
+		{/if}
+		{#if authStore.user && !authStore.user.isMinor && authStore.user.email}
 			<SignInMethods />
 		{/if}
 		{#if authStore.user && !authStore.user.isMinor}

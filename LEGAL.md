@@ -31,15 +31,26 @@ reads (`/privacy`, `/legal`), in both locales:
 That identity is stated in exactly one place per locale and reused; `/legal` (the DSA point of
 contact page) deliberately reuses the same strings rather than inventing a second operator identity.
 
-**Corrected 2026-10-14 (`ANALYTICS-LAW.md` §4.2), not yet confirmed.** The Ośrodek is an
-organisational unit without legal personality, so it can be neither a party to the terms of use nor
-the GDPR controller. `/terms` (§ 2), `/privacy` and `/legal` now name **Uniwersytet Warszawski,
-ul. Krakowskie Przedmieście 26/28, 00-927 Warszawa** as service provider and controller, with the
-Ośrodek running the service on its behalf. The address is the research note's, marked unverified
-there. Three data the law requires are still **visible placeholders** on those pages: a contact
-e-mail address (u.ś.u.d.e. art. 5; `no-reply@edmat.net` is send-only), IOD UW's contact details
-(GDPR art. 13(1)(b)), and — implicitly — IOD UW's agreement that the University is the controller at
-all. The Dziekanat Studencki is no longer named as the contact point; it never agreed to be one.
+**Decided by the owner 2026-10-14, superseding the same morning's correction.** *"It is run on OKWF UW
+servers and overseen by them, but is run by students. so the service provider are students, and OKWF
+is servers provider."* So:
+
+- **Service provider (usługodawca) and GDPR controller: "grupa studentów Uniwersytetu
+  Warszawskiego"** — the owner's wording — who stay **anonymous "at least for now"**, reachable
+  through the "Zgłoś błąd" issues form (private unless the reporter publishes it) or by post through
+  the Ośrodek. This is a known gap, not an oversight: u.ś.u.d.e. art. 5 expects a natural-person
+  provider to give a name and address, and GDPR art. 13(1)(a) the controller's identity.
+- **Ośrodek Komputerowy WF UW provides and oversees the servers** — in GDPR terms a processor
+  (art. 28), which needs a written processing agreement (*umowa powierzenia*) nobody has signed yet.
+  Not a party to the terms. IOD UW (iod@adm.uw.edu.pl) is offered as a contact for the University's
+  servers, not as EdMat's own DPO (a student team need not appoint one).
+- **The legal basis is art. 6(1)(f), not 6(1)(e).** `ANALYTICS-LAW.md` §4 recommended (e) because it
+  assumed the University was the controller and art. 6(1)'s last sentence bars a public authority
+  from (f). Students are not a public authority, so (f) is open to them and is what `/privacy` now
+  says — with the balancing stated and the art. 21 objection (GPC/DNT for statistics) kept.
+- Still missing: the providers' identity (deliberately, for now), a contact mailbox (`no-reply@` is
+  send-only), the art. 28 agreement with the Ośrodek. The Dziekanat Studencki is no longer named
+  anywhere as a contact point; it never agreed to be one.
 
 ---
 
@@ -68,22 +79,51 @@ Other notable third-party terms the app is bound by:
 
 ### The content
 
-**Unresolved — but see §9a**: since 2026-10-14 `/terms` § 9 carries a draft licence clause
-(CC BY-SA 4.0 + an operating licence) awaiting the review below. Before that there was no outbound
-content licence on the site, no terms of service, and no
-contributor licence agreement — a person submitting an exercise, a solution or a translation grants
-nothing explicitly, and EdMat publishes it anyway. The research below recommends CC BY-SA 4.0 plus a
-CLA; neither is built.
+**Per item, since 2026-10-14** (owner: *"not settled yet. should be specific to each exercise,
+materials etc."*). There is no site-wide content licence. Every exercise, hint/solution, material
+and concept article carries the licence its author chose for it (`backend/licensing/`), shown on the
+item with the attribution line and the date it took effect:
 
-**Co-authoring (2026-09-20, `COAUTHORING-BRIEF.md`) makes this sharper, not different.** A material
-now has a team and a history of versions, so one person's improved version of another person's file
-or in-app text is a *derivative work* made routinely, on purpose, inside the product. The version
-editor shows a factual notice only — "what you publish here is public, attributed to you, and may be
-improved by others" (`coauth_publicNotice`) — and deliberately **no** licence grant, because the
-paragraph above says to check with Piotr before any new licensing text. The CC BY-SA 4.0 line on
-that form is the first thing to switch on once lawyer review has happened; until then every version
-sits in exactly the same unlicensed state as every exercise, solution and translation already does.
+| Key | Meaning | Who may set it |
+|---|---|---|
+| `cc0-1.0` `cc-by-4.0` `cc-by-sa-4.0` `cc-by-nc-4.0` `cc-by-nc-sa-4.0` | the Creative Commons grant, to everyone | the author |
+| `edmat-only` | nothing beyond the operating licence of `/terms` § 9 point 2 — **the default** | the author (or nothing chosen) |
+| `unknown` | rights not yet clarified; shown "for study only" | never a user — the corpus, an import without a declared licence, or staff marking a rights question |
 
+No `-nd` licence is offered: a translation is a derivative, and an ND licence would forbid the
+site's own translations. The rules (`licensing/rules.py`): only the author or staff changes a
+licence; **only towards more open** (CC grants are irrevocable, so a narrower label would
+misdescribe every copy already taken); nobody relicenses an item that contains another person's
+version or revision; each change is a `LicenceChange` row (house rule 12). A translation is stamped
+with its exercise's licence at the moment it is written and keeps it; a hint/solution has its own;
+a material version and a concept revision are contributions into the item under its licence.
+
+**How existing content was classified** (migrations `exercises 0015`, `materials 0019`,
+`coauthoring 0004`, `concepts 0002`): an exercise is `edmat-only` only when a kept
+`ExerciseSubmission` shows a person submitted it through the site — **not** when it merely has a
+`submitted_by`, because `seed_demo_content` credits a few corpus rows to demo accounts; everything
+else (the corpus, `import_exercises` batches) is `unknown` (§3). A hint/solution on an `unknown`
+exercise that is a corpus original (no author, or pinned) is `unknown`; any other entry was written
+in the composer → `edmat-only`. A material is `unknown` when nobody submitted it or its file sits
+under `materials/` (only the corpus importer and the admin write there); otherwise `edmat-only`.
+Translations take their exercise's licence. `edmat-only` is exactly what the old draft § 9 point 2
+had granted. On the dev database: 742 exercises, 745 translations, all 1483 entries and 7 materials
+`unknown`; 4 exercises, 15 materials and 15 concept articles `edmat-only`. `import_exercises` takes a
+`licence:` key and defaults to `unknown`.
+
+`/terms` § 9 (rewritten the same day) holds the legal half: the author keeps copyright; the
+operating licence (point 2) with its *pola eksploatacji* (art. 50 pr. aut.), limited to the time the
+content is on the service plus what legal obligations require; the per-item choice (point 3);
+derivatives and "more open only" (point 5); third-party material and the "rights not yet clarified"
+mark (point 8).
+
+**What this does NOT settle.** The research below (§3) recommended a single CC BY-SA 4.0 plus a
+CLA; the owner chose per-item choice instead, so there is no CLA and no single licence to rely on
+when remixing across items — a reuser must check each item. A lawyer has still not read any of it.
+
+**Co-authoring (2026-09-20, `COAUTHORING-BRIEF.md`)** — a material's versions are contributions
+into the material under the material's licence (the Wikipedia shape); the material's owner chooses
+it at creation, and once anybody else's version is published it cannot be widened without them.
 ---
 
 ## 3. ⚠️ The corpus copyright question — the oldest open item in the project
@@ -171,8 +211,38 @@ restriction, portability, objection (to public-task processing, statistics inclu
 consent, and the right to complain to the PUODO. **Legal basis per purpose** is now a table; it uses
 art. 6(1)(e) + PSWiN art. 11 ust. 1 where `ANALYTICS-LAW.md` §4 recommends it instead of the old
 art. 6(1)(f) for the request log — IOD UW has to confirm that choice. Requests go to Dziekanat
-Studencki or the Ośrodek Komputerowy. **There is no self-service account deletion**, and no export
-endpoint — a request is handled by a human with database access.
+Studencki or the Ośrodek Komputerowy.
+
+**Self-service export and deletion exist since 2026-10-14** (Settings → Your data and your account,
+`/settings/account` — the address a sign-in provider's console is given as the data-deletion URL).
+
+- **Export (Art. 15 + 20)**: `GET /api/auth/me/export/`, one JSON file built from the SAME registry
+  as the deletion (`backend/accounts/export.py`), so "what we hold" and "what deleting removes"
+  cannot drift. Messages decrypted; other people only as `{id, display_name}`; no secrets; the last
+  90 days of the person's own request-log rows. Throttled 3/day. Files they uploaded are linked by
+  URL, not packed in.
+- **Deletion (Art. 17)**: `backend/accounts/erasure.py` — a per-model registry (every foreign key to a
+  person; a test fails when a new one has no entry) saying delete / anonymise / keep / end. Password
+  + the username typed out; the account is switched off at once (tokens and sessions revoked, the public
+  profile withheld down to the name its bylines show) and erased by `erase_due_accounts` 14 days later; signing in or the mailed link cancels it.
+  Refused, with the list, while the person still runs a course / upcoming event / contest /
+  organisation / material project other people are in. A child cannot delete their own account (the
+  guardian does, through the same module and grace period); a child can download their data.
+- **The `User` row is not deleted — it becomes a scrubbed tombstone** (`deleted-<id>`, no email, no
+  names, unusable password, every profile field reset, display name `[deleted account]`, which the
+  frontend translates). A hard delete would cascade through other people's conversations, threads and
+  tasks, and `Contest.organiser` is `PROTECT`. Public contributions licensed to the community stay
+  under the tombstone; records others rely on (moderation decisions — `pseudonymise_actor` runs as
+  part of every erasure —, jury scores, counted votes, past bookings, the other party's copy of a
+  conversation, terms acceptances as evidence of the licence) stay too. **The honest limit:** the
+  tombstone keeps its numeric id, so anybody can still see that several anonymised contributions came
+  from the same erased account. Nothing links the id back to a person; the linkage itself remains.
+
+**Retention added the same day** (`backend/accounts/retention.py`, `manage.py
+enforce_data_retention`): `ContentView`/`MaterialView` 12 months; `OutboundEmail` (finished rows) and
+`InboundEmail` 12 months; an anonymous comment's `anon_ip_hash` blanked after 30 days.
+`deploy/cron/edmat-retention` runs that, `erase_due_accounts`, `purge_event_data --older-than-days 30`
+(§8) nightly and `sso_purge` hourly — true once the file is installed on webek4 (dry-run each first).
 
 ### Third parties
 
@@ -306,8 +376,9 @@ the command should do with each, and the integration step (`CONFERENCE-BRIEF.md`
 
 ### What is not solved by any of this
 
-- There is still no **self-service export or deletion** (§5), so an attendee who wants their
-  registration erased before the window is a manual database job like every other erasure request.
+- An attendee who wants their registration erased **without** deleting their account is still a
+  manual job; deleting the account (§5) withdraws upcoming registrations (the seat goes to the next in
+  line) and keeps past ones without the name, with the attendee's note blanked.
 - `EventAttendance.note` — free text the attendee writes for the organiser — is **not** blanked by
   the purge. It is prose about a person and a fair candidate; §3.G enumerated answers, and
   widening a purge quietly is how a purge starts deleting things somebody was relying on. Named
@@ -457,36 +528,52 @@ attributed to the child, accepted by the guardian who created the account (`Chil
 `ProfileSerializer.terms_accepted_version` exposes the newest accepted version. `TERMS_VERSION`
 (terms.ts) must equal `CURRENT_TERMS_VERSION` (terms.py); `legal/tests.py` fails if they drift.
 
-**§ 9 switches on CC BY-SA 4.0** for database content published after acceptance (exercises,
-solutions, hints, materials, translations, concept articles), with the pola eksploatacji, a
-moral-rights non-exercise undertaking and erasure-safe attribution. §2–3 above said that must not
-happen before a lawyer has read §3; the terms were written because the owner asked for the clause.
-**If that review has not happened, cut § 9 back to point 2 (the operating licence) before
-publishing.** Content published before acceptance stays under point 2 only.
+**§ 9 no longer switches any licence on site-wide** (rewritten 2026-10-14, the per-item decision
+in §2): the author keeps copyright, always grants the operating licence (point 2, *pola
+eksploatacji*, for as long as the content is on the service plus legal-obligation time), and picks a
+licence per item (point 3) — default "EdMat only", which is point 2 alone. Translations follow their
+exercise's licence; a licence may only be widened (point 5); third-party material keeps its own and
+the corpus is "rights not yet clarified" (point 8). Content published before acceptance is
+"EdMat only".
 
 ---
 
 ## 10. Still open
 
-- **The corpus question itself** (§3) — the report exists, no lawyer has reviewed it, nothing is
-  implemented.
+- **The corpus question itself** (§3) — the report exists, no lawyer has reviewed it. Since
+  2026-10-14 the corpus is at least LABELLED honestly (`licence = unknown`, "rights not yet clarified
+  — shown for study only", §2); nothing has been hidden, rewritten or cleared.
+- **Per-item licences, left open (§2):** flashcard decks, galleries, sketches and chemistry drawings
+  carry no licence (a deck's cards are copies of exercises whose licences differ — a deck licence
+  would misdescribe them); an exercise statement edited through an accepted edit suggestion is
+  contributed under the exercise's licence without the editor being told so on the form; the
+  "sole contributor" rule does not count edit-suggestion authors; no "which licences may be
+  remixed together" check exists; no machine-readable licence (RDFa / `rel=license` is there, no
+  JSON-LD); the GDPR export should include each item's `licence`.
 - **The conference research behind §8** — same shape, same problem: two deep-research reports
   whose citations were lost, whose role table and retention windows are already implemented as
   defaults. A lawyer has to read §8 before any of it is quoted to anybody.
 - **The terms of use exist (§9a) but are unreviewed**, and three of their data are placeholders:
   the contact e-mail address, IOD UW's contact, and the controller/provider identity itself (§1).
-  The CC BY-SA clause (§9a) waits on the §3 review. No archive page of earlier terms versions yet
+  The per-item licence clause (§9a, § 9 points 2, 3, 5, 8) is unreviewed too. No archive page of earlier terms versions yet
   (§ 20 promises them "on request"), and no "the terms changed — accept the new version" prompt:
   `terms_accepted_version` is on `/api/auth/me/` so one can be built. A guardian accepts for the
   child implicitly, by creating the account (the terms say so); there is no separate tick-box on
   the child form. Accounts created before 2026-10-14 have no acceptance row at all.
 - **Commitments in `/privacy` that depend on the server**: the 30/90-day log retention and the
-  25-month statistics limit run from `deploy/cron/edmat-analytics` (`rollup_analytics`, which also
-  prunes, then `enforce_log_retention`) — true once that file is installed on webek4; `sso_purge`
-  runs on each sign-in start but has no cron line of its own; `OutboundEmail`,
-  `InboundEmail`, messages, `ContentView` and `MaterialView` have no retention rule (the policy says
-  so for mail); `purge_event_data` (§8) is unscheduled. Schedule them before publishing, or change
-  the sentences (house rule 10).
+  25-month statistics limit run from `deploy/cron/edmat-analytics`; the deletion grace period, the
+  12-month view/mail retention, the 30-day anonymous IP hash, `purge_event_data` (§8) and the hourly
+  `sso_purge` run from `deploy/cron/edmat-retention` (2026-10-14). Both are true only once installed
+  on webek4 — `apply-on-server.sh` installs neither; dry-run each command by hand first. Private
+  messages still have no retention of their own: they live as long as both accounts (the erased
+  side's copy stays with the other party), and no single message can be deleted.
+- **Account deletion — what is not built**: no per-item "delete everything I wrote too" choice at
+  deletion time (terms § 9 point 6 offers it on request); the export links uploaded files rather than
+  packing them into a ZIP; an SSO-only account must set a password before deleting (a fresh provider
+  round-trip was the alternative); a reply sent to a conversation whose other side was erased is
+  accepted and goes nowhere; a course nobody is in yet but somebody joins during the 14 days is left
+  ownerless (blockers are checked at the request, not again at the erasure); anything a person asked
+  to delete only by e-mail before 2026-10-14 is still a manual job.
 - **The internal complaint path (DSA art. 20) is a promise, not a mechanism**: `/terms` § 13 routes
   it to the contact address or the notice's thread. There is no appeal model, no deadline tracking,
   and no in-app suspension with a reason — only the Django admin's deactivate action.
@@ -508,7 +595,6 @@ publishing.** Content published before acceptance stays under point 2 only.
 - **Email exists since 2026-10-14** (`backend/mail/`), but an anonymous DSA filer still cannot
   revisit a notice, and a guardian still cannot reset a child's password by mail (a child has no
   address).
-- **No self-service data export or account deletion.**
 - **Not everything public is reportable.** `REPORT_KIND_MODELS` (`backend/moderation/services.py`)
   is the whole list, and it grew per feature rather than by default — so an avatar, a private
   message, a booking, an event update (`EventPost`) and a user-run course currently have no report

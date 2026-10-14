@@ -80,6 +80,8 @@ urlpatterns = [
     # The "AI-assisted" mark on content (provenance/urls.py) — `ai-assistance/`, named for the
     # question it answers rather than for the app.
     path('api/', include('provenance.urls')),
+    # Each item's content licence and its history (licensing/urls.py, 2026-10-14).
+    path('api/', include('licensing.urls')),
     # Writing a management row's text in every language at once (translations/urls.py).
     path('api/', include('translations.urls')),
     # Attachments on anything (attachments/urls.py, 2026-10-08). ONE pattern covers all nine target

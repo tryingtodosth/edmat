@@ -13,15 +13,9 @@
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import { exchangeSsoCode, forgetSsoKey } from '$lib/services/sso';
-	import { ssoErrorLabel } from '$lib/utils/labels';
+	import { ssoErrorLabel, ssoProviderName } from '$lib/utils/labels';
 	import { takeReturnTo } from '$lib/utils/returnTo';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
-
-	const PROVIDER_NAMES: Record<string, () => string> = {
-		google: m.sso_provider_google, // "Google"
-		apple: m.sso_provider_apple, // "Apple"
-		microsoft: m.sso_provider_microsoft // "Microsoft"
-	};
 
 	let status = $state<'working' | 'linked' | 'failed'>('working');
 	let errorCode = $state('');
@@ -43,7 +37,7 @@
 		const params = page.url.searchParams;
 		const code = params.get('code');
 		const provider = params.get('provider') ?? '';
-		providerName = PROVIDER_NAMES[provider]?.() ?? '';
+		providerName = ssoProviderName(provider);
 		if (!code) {
 			errorCode = params.get('error') ?? '';
 			status = 'failed';
@@ -63,7 +57,7 @@
 				// eslint-disable-next-line svelte/no-navigation-without-resolve -- an in-app path validated same-origin by returnTo.ts (and by the backend's safe_next), not a literal route
 				goto(takeReturnTo(target), { replaceState: true });
 			} else {
-				providerName = PROVIDER_NAMES[result.identity.provider]?.() ?? '';
+				providerName = ssoProviderName(result.identity.provider);
 				status = 'linked';
 				forgetAddress();
 			}

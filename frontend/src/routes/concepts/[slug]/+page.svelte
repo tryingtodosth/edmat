@@ -23,6 +23,7 @@
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
+	import LicenceNotice from '$lib/components/shared/LicenceNotice.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
 	import ArticlePool from '$lib/components/concept/ArticlePool.svelte';
 	import BlockRenderer from '$lib/components/concept/BlockRenderer.svelte';
@@ -203,6 +204,16 @@
 					</header>
 
 					<BlockRenderer blocks={head.blocks} />
+
+					<!-- The article's licence (backend licensing/); every revision is contributed under it. -->
+					{#key article.id}
+						<LicenceNotice
+							kind="concept_article"
+							id={article.id}
+							licence={article.licence}
+							author={article.createdByDisplayName}
+						/>
+					{/key}
 
 					<div class="actions">
 						{#if authStore.isAuthenticated}

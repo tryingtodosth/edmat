@@ -69,6 +69,14 @@ class LoginView(APIView):
                 username = match.username
         user = authenticate(request, username=username, password=password)
         if user is None:
+            # An account waiting out its deletion grace period is inactive, so `authenticate()`
+            # refuses it like any other. With the right password, say why — the sign-in page then
+            # offers to cancel the deletion (`erasure_views.CancelErasureView`).
+            from .erasure_views import pending_login_refusal
+
+            pending = pending_login_refusal(identifier, password)
+            if pending is not None:
+                return Response(pending, status=status.HTTP_403_FORBIDDEN)
             return Response({'detail': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
         token, _created = Token.objects.get_or_create(user=user)
         return Response(
@@ -190,6 +198,20 @@ class UserPublicView(generics.RetrieveAPIView):
         from identity.models import EducationProfile
         from identity.standing import public_view
 
+        from .models import AccountErasure
+
+        # An account waiting out its deletion grace period has its profile withheld at once
+        # (`accounts/erasure.py`) — everything but the name its bylines already show, so the pages
+        # those bylines sit on keep working. Not a 404: every author chip resolves this endpoint, and
+        # a 404 there is a broken byline for 14 days. Once erased, the tombstone answers as itself.
+        if AccountErasure.objects.filter(user_id=self.kwargs['pk'], status__in=['pending', 'erasing']).exists():
+            data = response.data
+            for key in ('bio', 'avatar', 'joined_at', 'tutoring_note'):
+                if key in data:
+                    data[key] = None if key in ('avatar', 'joined_at') else ''
+            data.update({'donation_links': [], 'is_profile_public': False, 'offers_tutoring': False,
+                         'is_verified_contributor': False, 'is_moderator': False, 'education': None})
+            return response
         education = EducationProfile.objects.filter(user_id=self.kwargs['pk']).first()
         response.data['education'] = public_view(education)
         return response
@@ -343,8 +365,8 @@ class ChildDetailView(APIView):
     of deletion. Nothing the child wrote is touched; it only stops them signing in (Django's own
     `authenticate()` already refuses an inactive user, and DRF's TokenAuthentication refuses an
     already-issued token the same way, so a suspend takes effect on the child's very next request,
-    not merely their next login). DELETE: the guardian deletes the child's account outright —
-    everything the child made goes with it (comments and posts cascade on their author)."""
+    not merely their next login). DELETE: the guardian asks for the child's account to be deleted
+    — the same grace period and the same registry as anybody's (`accounts/erasure.py`)."""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -354,16 +376,35 @@ class ChildDetailView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if 'is_active' not in request.data:
             return Response({'is_active': ['Required.']}, status=status.HTTP_400_BAD_REQUEST)
-        child.is_active = bool(request.data.get('is_active'))
+        from . import erasure
+
+        active = bool(request.data.get('is_active'))
+        # Reactivating a child whose deletion is waiting IS cancelling that deletion — the one
+        # button a guardian needs, rather than a second one that means the same thing.
+        if active and erasure.live_request(child) is not None and not erasure.cancel_erasure(child, by=request.user):
+            return Response({'reason': 'already_erasing'}, status=status.HTTP_409_CONFLICT)
+        child.is_active = active
         child.save(update_fields=['is_active'])
         return Response({'id': child.pk, 'is_active': child.is_active})
 
     def delete(self, request, pk):
+        """Through the same rule module as a person deleting their own account
+        (`accounts/erasure.py`): switched off now, erased after the grace period, cancellable by
+        reactivating. A child's comments and posts go with the account; anything else they
+        contributed stays without their name, like anybody's."""
+        from . import erasure
+
         child = User.objects.filter(pk=pk).first()
         if child is None or not guardian_of(request.user, child):
             return Response(status=status.HTTP_404_NOT_FOUND)
-        child.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            row = erasure.request_erasure(child, requested_by=request.user)
+        except erasure.Refusal as refused:
+            return Response({'reason': refused.reason, **refused.detail}, status=refused.status)
+        return Response(
+            {'status': row.status, 'due_at': row.due_at.isoformat(), 'grace_days': erasure.grace_days()},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
 
 class ChildContentView(APIView):

@@ -2887,9 +2887,10 @@ On a machine without Chromium's system libraries (no `libatk`, `libgbm`, …) an
 download` the packages, `dpkg-deb -x` them into a directory and run with `LD_LIBRARY_PATH` pointing
 at its `usr/lib/x86_64-linux-gnu` — how this script was run on 2026-10-14.
 
-## Sign in with Google / Apple / Microsoft (`sso/`, 2026-10-14)
+## Sign in with Google / Apple / GitHub / Facebook (and Microsoft) (`sso/`, 2026-10-14)
 
-**`manage.py test sso` — 94 tests**, keys generated per run (RSA for id_tokens, EC P-256 for Apple's
+**`manage.py test sso` — 110 tests** (+ `accounts.test_password`, 8 — set a first password without a
+current one, change needs it, wrong/missing current, validators, audit row), keys generated per run (RSA for id_tokens, EC P-256 for Apple's
 client secret); only `sso/http.py` is mocked. State forged / expired / reused / for another provider,
 cancel, provider error, the token request's redirect_uri + PKCE verifier; id_token nonce, audience,
 issuer, expiry, issued-too-long-ago, foreign signing key, unknown `kid` (one refetch), `alg: none`,
@@ -2898,15 +2899,20 @@ expiry, terms, under-16, age question required while asked, username rules, emai
 `email_in_use` never adopts, login code (single use, wrong tab, expiry, hashed, inactive), link /
 unlink (wrong account, already linked elsewhere, last way in, audit row), the identity key
 (provider, issuer, subject — Google's two issuer spellings, Microsoft tenants, tid/oid), Microsoft
-verified-email rules and tenant modes, Apple form_post + ES256 secret, the flag off, unconfigured
+verified-email rules and tenant modes, Apple form_post + ES256 secret, GitHub (primary-verified
+address only, `/user`'s email never read, HTTP-200 errors, numeric ids, PKCE, link) and Facebook
+(GET exchange, appsecret_proof, always unverified, version pin guard), the flag off, unconfigured
 providers, the dev-stub guard (incl. settings refusing to load with DEBUG off, in a subprocess),
 purge, and the SSO-only password reset.
 
-**Browser, `e2e/sso.mjs` — 27 checks, zero page errors**, against `e2e/sso-stub.mjs` (a local OIDC
-stand-in on :8049 that signs RS256 tokens, echoes the nonce, checks PKCE, and form-POSTs for Apple).
+**Browser, `e2e/sso.mjs` — 40 checks, zero page errors**, against `e2e/sso-stub.mjs` (a local stand-in
+on :8049: signs RS256 id_tokens, echoes the nonce, checks PKCE, form-POSTs for Apple, and serves
+GitHub's `/user` + `/user/emails` and Facebook's GET token exchange + `/me`).
 The buttons on /login and /register (and the identity-app drafts for Google/Apple gone), a first
 Google sign-in → /auth/sso/complete (under-16 and missing-terms refusals, then success, landing on
-`?next=`), Settings → Sign-in methods (last-way-in refusal, link Microsoft, unlink Google), a second
+`?next=`), Settings → Sign-in methods (last-way-in refusal, link Microsoft, unlink Google), Settings →
+Password (set a first password, mismatch, wrong current password on change), GitHub and Facebook
+signups (verified vs unverified address; Facebook all the way to an account), a second
 sign-in as a plain login, Apple → `email_in_use`, cancel, and a forwarded done-link opened in another
 browser → `code_invalid`. Run it against THROWAWAY data — it creates accounts. How it was run:
 
@@ -2920,7 +2926,9 @@ EDMAT_LOG_DIR=$S/logdata EDMAT_CACHE_DIR=$S/cache DJANGO_SETTINGS_MODULE=<shim> 
   EDMAT_SSO_GOOGLE_CLIENT_ID=x EDMAT_SSO_GOOGLE_CLIENT_SECRET=x \
   EDMAT_SSO_MICROSOFT_CLIENT_ID=x EDMAT_SSO_MICROSOFT_CLIENT_SECRET=x \
   EDMAT_SSO_APPLE_CLIENT_ID=x EDMAT_SSO_APPLE_TEAM_ID=x EDMAT_SSO_APPLE_KEY_ID=x \
-  EDMAT_SSO_APPLE_PRIVATE_KEY_PATH=<any EC P-256 .p8> ../.venv/bin/python3 manage.py runserver 8042
+  EDMAT_SSO_APPLE_PRIVATE_KEY_PATH=<any EC P-256 .p8> \
+  EDMAT_SSO_GITHUB_CLIENT_ID=x EDMAT_SSO_GITHUB_CLIENT_SECRET=x \
+  EDMAT_SSO_FACEBOOK_CLIENT_ID=1 EDMAT_SSO_FACEBOOK_CLIENT_SECRET=x ../.venv/bin/python3 manage.py runserver 8042
 node e2e/sso-stub.mjs
 PUBLIC_API_BASE_URL=http://localhost:8042/api npx vite dev --port 5192   # env beats frontend/.env
 CHROME=… E2E_BASE=http://localhost:5192 node e2e/sso.mjs
@@ -2928,3 +2936,70 @@ CHROME=… E2E_BASE=http://localhost:5192 node e2e/sso.mjs
 
 A private `EDMAT_CACHE_DIR` matters: the signup is throttled as `register` (10/hour) in the shared
 file cache, and a third run in an hour otherwise fails at "Create account" with a 429 (trap 1).
+
+## Account deletion and data export (`accounts/erasure.py`, 2026-10-14)
+
+**`manage.py test accounts.test_erasure` — 45 tests**: registry completeness (every FK to a person or
+to `Profile` has a rule; every rule names a real field; no duplicates; the log-shard id columns are
+listed), asking (plan readable first, wrong password / username / password-less / minor refused with
+their reasons, switch-off revokes the token and withholds the profile, the cancel mail goes to a
+confirmed address only and its log row keeps `[[link]]`, 409 on a second request, a course with
+participants and a sole-owner organisation block), the grace period (login 403 `erasure_pending`, a
+wrong password learns nothing, cancel by password signs back in, the mailed token cancels once,
+nothing erased early, no cancel after the claim, `--now` needs `--user`), the erasure (tombstone,
+contributions stay, private rows deleted, the other party keeps the conversation, a future booking
+cancelled with a notification, a listing switched off, an enrolment ends as `left`, the audit log
+pseudonymised, mail to the address forgotten, idempotence, a half-finished run completed, a child's
+comments tombstoned), the guardian path (grace, the child cannot undo it, reactivating cancels,
+sole-guardian children erased with the guardian, a second guardian keeps the child), the export
+(messages decrypted, the other party by display name only, no secrets, own request-log rows, a minor
+may download, 3/day → 429) and retention (old rows go, recent stay, queued mail kept).
+
+**`frontend/e2e/account-erasure.mjs` — 21 checks, zero page errors. DESTRUCTIVE: run it against a
+copy of the database.** Copy `backend/db.sqlite3` and `backend/logdata/*.sqlite3` into a scratch
+directory (sqlite `.backup`), write a settings module there containing
+`from config.settings import *` and `DATABASES['default']['NAME'] = '<copy>'`, migrate it, and start
+the backend with `PYTHONPATH=<dir> DJANGO_SETTINGS_MODULE=<module> EDMAT_LOG_DIR=<copy>/logdata
+EDMAT_CACHE_DIR=<copy>/cache`. Pass the same prefix + `manage.py erase_due_accounts` as
+`E2E_ERASE_CMD`; the script appends `--now --user <id>`. It registers two throwaway accounts per run;
+screenshots `account-erasure-{desktop,390,scheduled,login-390,comment}.png`.
+`e2e/guardian-accounts.mjs` was updated the same day: the child's username is unique per run (a
+deleted child keeps its username for 14 days) and step 5 asserts the pending state.
+
+
+## Per-item content licences (`licensing/`, 2026-10-14)
+
+**`manage.py test licensing` — 31 tests.** The registry (what a person may pick, `unknown` never;
+the "at least as open" partial order — BY-NC and BY-SA incomparable; the derivative rule; the
+`?licence=` parser); the data migrations' classification run against rows made the way real rows
+were made (a corpus row a seed credited to a demo account stays `unknown` — only a kept
+`ExerciseSubmission` makes an exercise `edmat-only`; a material file under `materials/` is
+`unknown`); `/submit` carrying the licence onto the exercise, its translation and its founding
+solution, `unknown` and stray keys refused, a hand-edited payload unable to publish `unknown`; a
+translation keeping the licence it was written under when its exercise widens; the
+`/api/licences/<kind>/<id>/` endpoint (widen + history + since, narrowing refused with
+`licence_narrowing`, stranger 403, staff `unknown` marker needing a note, 404 for an unpublished
+item, a material with a co-author's version refused); the importer's `licence:` key, `--licence`,
+default `unknown`, a re-run that widens and records but never narrows; the solution, concept-article
+and material-project create paths; the exercise list filter.
+
+`coauthoring.test_submit_path.FoldMigrationTests` now reads its assertions through the HISTORICAL
+models of whatever is applied (`_applied_apps`): it stops the schema at the 0003 fold, and the
+licence column (`coauthoring 0004`) made its current-class queries select a column that was not
+there yet.
+
+**Browser, `e2e/licences.mjs` — 27 checks, zero page errors.** A corpus exercise and a corpus
+material say "rights not yet clarified" (EN and the Polish default); `/submit` offers six licences,
+never `unknown`, defaulting to "EdMat only"; a submission choosing CC BY-SA 4.0 carries it, the
+moderation queue shows it, the approved page shows "© author · Licensed under CC BY-SA 4.0 since …"
+linked to the deed; the author widens it to CC BY 4.0 from the page (only wider licences offered, no
+stale "this translation" note afterwards), the API refuses a narrowing, the history has the row, a
+signed-out reader sees no change control; the solution composer carries the folded picker; the
+exercise page and `/submit` do not scroll sideways at 390 px. Needs `u-ola` and `u-kasia`
+(password123). It leaves an approved `e2e-licence-…` exercise behind each run (house rule 12).
+
+```bash
+E2E_BASE=http://localhost:5195 E2E_API=http://127.0.0.1:8045/api \
+  CHROME=~/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell \
+  LD_LIBRARY_PATH=<extracted libs>/usr/lib/x86_64-linux-gnu node e2e/licences.mjs
+```

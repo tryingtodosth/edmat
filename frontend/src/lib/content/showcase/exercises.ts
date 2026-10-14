@@ -47,6 +47,8 @@ function base(): Omit<
 		branchId: 'uw-mat-analiza-i',
 		topicIds: ['limits'],
 		audience: 'university',
+		licence: 'cc-by-sa-4.0',
+		textLicence: 'cc-by-sa-4.0',
 		source: { type: 'midterm', name: '' },
 		tags: [],
 		published: true,

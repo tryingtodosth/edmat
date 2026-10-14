@@ -38,6 +38,8 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import LicencePicker from '$lib/components/shared/LicencePicker.svelte';
+	import type { Licence } from '$lib/types/licence';
 	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 	import { contentLocalesStore, SUPPORTED_CONTENT_LOCALES } from '$lib/state/contentLocales.svelte';
 	import {
@@ -110,6 +112,8 @@
 	let summary = $state(initial?.summary ?? '');
 	// svelte-ignore state_referenced_locally
 	let audience = $state<Audience | ''>(initialAudience || initial?.audience || '');
+	// A NEW article's licence (backend licensing/). An edit contributes under the article's own.
+	let licence = $state<Licence>('edmat-only');
 	// svelte-ignore state_referenced_locally
 	let locale = $state(initialLocale || initial?.locale || getLocale());
 	// A deep copy, so editing a draft never mutates the revision object the page is also rendering.
@@ -190,6 +194,7 @@
 					...payload,
 					audience: audience as Audience,
 					locale,
+					licence,
 					branches: branchIds,
 					tags: tagsInput
 						.split(',')
@@ -206,7 +211,8 @@
 				const article = await createArticle(slug, {
 					...payload,
 					audience: audience as Audience,
-					locale
+					locale,
+					licence
 				});
 				outcome = {
 					slug,
@@ -339,6 +345,11 @@
 		<!-- "The article" -->
 		<BlockEditor bind:blocks />
 	</div>
+
+	{#if mode !== 'edit'}
+		<!-- Only for a NEW article: a revision is contributed under the article's own licence. -->
+		<LicencePicker bind:value={licence} />
+	{/if}
 
 	{#if mode !== 'create'}
 		<label class="field">

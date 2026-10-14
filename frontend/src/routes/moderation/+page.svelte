@@ -31,7 +31,8 @@
 	} from '$lib/components/concept/labels';
 	import BlockRenderer from '$lib/components/concept/BlockRenderer.svelte';
 	import type { ConceptQueueRow } from '$lib/types/concept';
-	import { AUDIENCE_LABELS } from '$lib/utils/labels';
+	import { AUDIENCE_LABELS, LICENCE_NAMES, licenceShort } from '$lib/utils/labels';
+	import { mapLicence } from '$lib/api/mappers';
 	import { decideApplication, getApplicationQueue } from '$lib/services/governorApplications';
 	import type { GovernorApplication, GovernorNodeKind } from '$lib/types/governorApplication';
 	import {
@@ -877,6 +878,15 @@
 									{m.moderation_forBranch({ branch: coursesById[s.branchId]?.name ?? s.branchId })}
 								</p>
 								<p class="excerpt">{s.draft.statement.replace(/<[^>]+>/g, '').slice(0, 200)}</p>
+								<!-- The licence the author chose (backend licensing/) — the reviewer accepting it is
+								     publishing it under that licence. A draft from before 2026-10-14 has none: the
+								     backend applies `edmat-only`, so that is what this says. -->
+								<p class="meta" data-testid="queue-licence">
+									{m.licence_queueLabel({
+										licence: licenceShort(mapLicence(s.draft.licence, 'edmat-only'))
+									})}
+									<!-- "Licence: {licence}" -->
+								</p>
 								<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[s.id]}
 								></textarea>
 								<div class="actions">
@@ -943,6 +953,10 @@
 								     transcribed handout may be republished (LEGAL.md's corpus copyright question)
 								     is a judgment the person clicking Accept is making at that moment, and where
 								     the file came from belongs in front of them then, not just in the database. -->
+								<p class="meta" title={LICENCE_NAMES[v.licence]()}>
+									{m.licence_queueLabel({ licence: licenceShort(v.licence) })}
+									<!-- "Licence: {licence}" -->
+								</p>
 								{#if v.author || v.sourceUrl}
 									<p class="meta submission-provenance">
 										{#if v.author}

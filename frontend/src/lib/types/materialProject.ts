@@ -12,6 +12,7 @@
 // the row IS, `published`.
 
 import type { Audience } from './audience';
+import type { Licence } from './licence';
 import type { ClaimKind } from './material';
 import type { MaterialType } from './material';
 
@@ -163,6 +164,7 @@ export interface MaterialProject {
 	locale: string;
 	type: MaterialType;
 	audience: Audience;
+	licence: Licence;
 	author: string;
 	sourceUrl: string;
 	priceAmount?: number;
@@ -285,6 +287,7 @@ export interface MaterialVersionQueueRow {
 	priceCurrency: string;
 	estimatedMinutes?: number;
 	audience: Audience;
+	licence: Licence;
 	isFirstPublication: boolean;
 }
 
@@ -294,6 +297,9 @@ export interface MaterialVersionQueueRow {
 export interface ProjectCatalogueDraft {
 	type: MaterialType;
 	audience: Audience;
+	/** Draft-only on a PATCH: once the material exists its licence changes through
+	 *  `services/licences.ts`, which only ever widens it. */
+	licence?: Licence;
 	author?: string;
 	sourceUrl?: string;
 	priceAmount?: number;

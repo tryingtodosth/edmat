@@ -1506,6 +1506,31 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
         executor.loader.build_graph()
         executor.migrate(executor.loader.graph.leaf_nodes())
 
+    # --- the models the assertions read --------------------------------------------------------
+    #
+    # Historical, never the current classes: these tests stop the schema at the fold, and any later
+    # migration that adds a column (the licence, `coauthoring 0004`, 2026-10-14) would make a
+    # current-class query select a column the database does not have yet. The state is rebuilt from
+    # whatever is applied at the moment of asking, so a read before the fold and a read after it
+    # each get the shape the database really has.
+
+    def _applied_apps(self):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        return executor.loader.project_state(list(executor.loader.applied_migrations)).apps
+
+    @property
+    def MaterialProject(self):
+        return self._applied_apps().get_model('coauthoring', 'MaterialProject')
+
+    @property
+    def MaterialVersion(self):
+        return self._applied_apps().get_model('coauthoring', 'MaterialVersion')
+
+    @property
+    def ProjectMember(self):
+        return self._applied_apps().get_model('coauthoring', 'ProjectMember')
+
     # --- helpers ---------------------------------------------------------------------------------
 
     def _submission(self, **overrides):
@@ -1555,7 +1580,7 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
 
         self._run_fold()
 
-        waiting = MaterialVersion.objects.get(title='Still waiting')
+        waiting = self.MaterialVersion.objects.get(title='Still waiting')
         self.assertEqual(waiting.status, 'proposed')
         self.assertEqual(waiting.number, 1)
         self.assertEqual(waiting.kind, 'file')
@@ -1573,7 +1598,7 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
             [(self.sender.pk, 'owner')],
         )
 
-        refused = MaterialVersion.objects.get(title='Turned down')
+        refused = self.MaterialVersion.objects.get(title='Turned down')
         self.assertEqual(refused.status, 'rejected')
         self.assertEqual(refused.decided_by_id, self.reviewer.pk)
         self.assertEqual(refused.decision_note, 'Copyright unclear.')
@@ -1595,7 +1620,7 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
 
         self._run_fold()
 
-        version = MaterialVersion.objects.get(title='Reclaimed already')
+        version = self.MaterialVersion.objects.get(title='Reclaimed already')
         self.assertEqual(version.status, 'rejected')
         self.assertFalse(version.file)
         self.assertEqual(version.file_reclaimed_at, when)
@@ -1626,7 +1651,7 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
 
         self._run_fold()
 
-        projects = MaterialProject.objects.filter(material=material)
+        projects = self.MaterialProject.objects.filter(material_id=material.pk)
         self.assertEqual(projects.count(), 1)
         version = projects.get().versions.get(number=1)
         self.assertEqual(version.status, 'published')
@@ -1638,15 +1663,15 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
         self.assertEqual(version.created_at, submission.created_at)
         self.assertEqual(version.decided_at, material.created_at)
         # Nothing was created for it.
-        self.assertEqual(MaterialProject.objects.filter(material__isnull=True).count(), 0)
+        self.assertEqual(self.MaterialProject.objects.filter(material__isnull=True).count(), 0)
 
     def test_an_approved_submission_whose_material_is_gone_is_skipped(self):
         self._submission(title='Its material was deleted', status='approved', resulting_material_id=None)
 
         self._run_fold()
 
-        self.assertFalse(MaterialVersion.objects.filter(title='Its material was deleted').exists())
-        self.assertFalse(MaterialProject.objects.exists())
+        self.assertFalse(self.MaterialVersion.objects.filter(title='Its material was deleted').exists())
+        self.assertFalse(self.MaterialProject.objects.exists())
 
     def test_a_minor_gets_a_project_but_never_an_owner_row(self):
         """A minor may propose and may not own (COAUTHORING-BRIEF.md §0), and the retired form never
@@ -1659,11 +1684,11 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
 
         self._run_fold()
 
-        version = MaterialVersion.objects.get(title="A minor's upload")
+        version = self.MaterialVersion.objects.get(title="A minor's upload")
         self.assertEqual(version.created_by_id, child.pk)
         self.assertEqual(version.project.created_by_id, child.pk)
         self.assertEqual(version.project.members.count(), 0)
-        self.assertEqual(ProjectMember.objects.filter(user=child).count(), 0)
+        self.assertEqual(self.ProjectMember.objects.filter(user_id=child.pk).count(), 0)
 
     def test_running_it_twice_changes_nothing(self):
         self._submission(title='Still waiting', status='pending')
@@ -1672,11 +1697,11 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
         )
 
         self._run_fold()
-        before = (MaterialProject.objects.count(), MaterialVersion.objects.count(), ProjectMember.objects.count())
+        before = (self.MaterialProject.objects.count(), self.MaterialVersion.objects.count(), self.ProjectMember.objects.count())
         self._fold_again()
 
         self.assertEqual(
-            (MaterialProject.objects.count(), MaterialVersion.objects.count(), ProjectMember.objects.count()),
+            (self.MaterialProject.objects.count(), self.MaterialVersion.objects.count(), self.ProjectMember.objects.count()),
             before,
         )
 
@@ -1687,7 +1712,7 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
         from testing.factories import make_material
 
         orphan = make_material(self.branch, slug='fold-orphan', title='No project yet')
-        self.assertFalse(MaterialProject.objects.filter(material=orphan).exists())
+        self.assertFalse(self.MaterialProject.objects.filter(material_id=orphan.pk).exists())
         self._submission(
             title='No project yet',
             status='approved',
@@ -1698,7 +1723,7 @@ class FoldMigrationTests(_TempMediaRoot, TransactionTestCase):
 
         self._run_fold()
 
-        project = MaterialProject.objects.get(material=orphan)
+        project = self.MaterialProject.objects.get(material_id=orphan.pk)
         version = project.versions.get(number=1)
         self.assertEqual(version.status, 'published')
         self.assertEqual(version.decided_by_id, self.reviewer.pk)

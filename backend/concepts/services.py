@@ -190,6 +190,7 @@ def create_concept(
     tags=(),
     submit: bool = False,
     request=None,
+    licence: str | None = None,
 ):
     """A concept, its first article and revision 1 — in one call, because it is one act.
 
@@ -216,6 +217,7 @@ def create_concept(
         blocks=blocks,
         submit=submit,
         request=request,
+        licence=licence,
     )
     return concept, article, revision
 
@@ -232,6 +234,7 @@ def create_article(
     change_note: str = '',
     submit: bool = False,
     request=None,
+    licence: str | None = None,
 ):
     """A new article of this concept — somebody's own take on one `(audience, locale)`.
 
@@ -240,7 +243,12 @@ def create_article(
     want to write your own. Returns `(article, revision)`.
     """
     article = ConceptArticle.objects.create(
-        concept=concept, audience=audience, locale=locale, created_by=user
+        concept=concept,
+        audience=audience,
+        locale=locale,
+        created_by=user,
+        # The author's choice (licensing/); None = the model default `edmat-only`.
+        **({'licence': licence} if licence else {}),
     )
     revision = _create_revision(
         article,

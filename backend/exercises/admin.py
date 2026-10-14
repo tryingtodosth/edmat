@@ -32,6 +32,9 @@ class ExerciseSourceInline(admin.StackedInline):
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
+    # The licence changes only through licensing.rules.change_licence, which records the change and
+    # only widens it (a Creative Commons grant is irrevocable) — the admin must not be a way around it.
+    readonly_fields = ('licence',)
     list_display = ['__str__', 'branch', 'number', 'difficulty', 'published', 'verified', 'original_locale']
     list_filter = ['branch', 'difficulty', 'published', 'verified']
     search_fields = ['number']
@@ -63,6 +66,9 @@ class TagFollowAdmin(admin.ModelAdmin):
 
 @admin.register(SolutionEntry)
 class SolutionEntryAdmin(admin.ModelAdmin):
+    # The licence changes only through licensing.rules.change_licence, which records the change and
+    # only widens it (a Creative Commons grant is irrevocable) — the admin must not be a way around it.
+    readonly_fields = ('licence',)
     list_display = ['__str__', 'kind', 'locale', 'status', 'pinned', 'author', 'created_at']
     list_filter = ['kind', 'status', 'pinned', 'locale']
     raw_id_fields = ['exercise', 'author', 'reviewed_by']

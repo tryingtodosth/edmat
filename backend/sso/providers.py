@@ -68,6 +68,13 @@ class Provider:
     extra_authorize_params: dict = field(default_factory=dict)
     # Which configuration keys must be non-empty before the provider counts as configured.
     required_config: tuple[str, ...] = ('client_id', 'client_secret')
+    # 'oidc' → the token response carries a signed id_token (tokens.py verifies it).
+    # 'oauth2' → no id_token: the identity is read from the provider's API with the access token,
+    # over TLS, by `fetch_identity` (GitHub, Facebook). The access token is used for those calls
+    # and then dropped — never stored.
+    protocol: str = 'oidc'
+    userinfo_url: str = ''
+    emails_url: str = ''
 
     # ---- configuration -------------------------------------------------------------------------
 
@@ -105,12 +112,26 @@ class Provider:
     def endpoint(self, which: str) -> str:
         stub = dev_stub_url()
         if stub:
-            return {
-                'authorize': f'{stub}/{self.id}/authorize',
-                'token': f'{stub}/{self.id}/token',
-                'jwks': f'{stub}/jwks',
-            }[which]
-        return {'authorize': self.authorize_url, 'token': self.token_url, 'jwks': self.jwks_url}[which]
+            return f'{stub}/jwks' if which == 'jwks' else f'{stub}/{self.id}/{which}'
+        return {
+            'authorize': self.authorize_url,
+            'token': self.token_url,
+            'jwks': self.jwks_url,
+            'userinfo': self.userinfo_url,
+            'emails': self.emails_url,
+        }[which]
+
+    def request_token(self, data: dict) -> dict:
+        """The server-to-server code exchange. A POST of the form, which is what OAuth 2.0 says;
+        a provider that wants something else overrides this (Facebook)."""
+        from . import http
+
+        return http.post_form(self.endpoint('token'), data)
+
+    def fetch_identity(self, access_token: str) -> dict:
+        """For an 'oauth2' provider: claims in the same shape an id_token gives
+        ({iss, sub, email, email_verified, name}), read from the provider's API."""
+        raise NotImplementedError
 
     def authorize_params(self) -> dict:
         params = {'scope': ' '.join(self.scopes), **self.extra_authorize_params}
@@ -273,6 +294,115 @@ class MicrosoftProvider(Provider):
         return bool(email) and email in {str(v).lower() for v in verified}
 
 
+@dataclass(frozen=True)
+class OAuth2Provider(Provider):
+    """A provider with no id_token. `fetch_identity` fills `iss` with the provider's own fixed
+    issuer (the identity key's middle part), so `issuer_ok` only confirms that it did."""
+
+    def issuer_ok(self, claims: dict) -> bool:
+        return claims.get('iss') == self.issuer
+
+
+@dataclass(frozen=True)
+class GitHubProvider(OAuth2Provider):
+    """GitHub OAuth App. `/user` gives the numeric id (the subject — a login can be renamed) and a
+    name; the address comes from `/user/emails`, and only the PRIMARY address GitHub marks VERIFIED
+    is used. GitHub will happily report an address the account holder never proved (the reason the
+    identity app's draft card warned about it); with no primary verified address there is no
+    email (`email_missing` for a new signup — an already-linked identity still signs in)."""
+
+    def request_token(self, data: dict) -> dict:
+        response = super().request_token(data)
+        # GitHub answers a refused code with HTTP 200 and an `error` field, not a 4xx.
+        if response.get('error'):
+            from .http import ProviderHttpError
+
+            raise ProviderHttpError(f"github token error: {response.get('error')}")
+        return response
+
+    def fetch_identity(self, access_token: str) -> dict:
+        from . import http
+
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+        }
+        user = http.get_json(self.endpoint('userinfo'), headers=headers)
+        emails = http.get_json(self.endpoint('emails'), headers=headers, allow_list=True)
+        if not isinstance(emails, list):
+            emails = []
+        primary = next(
+            (e for e in emails if isinstance(e, dict) and e.get('primary') is True and e.get('verified') is True),
+            None,
+        )
+        uid = user.get('id')
+        if not isinstance(uid, int) or isinstance(uid, bool):
+            raise http.ProviderHttpError('github /user has no numeric id')
+        return {
+            'iss': self.issuer,
+            'sub': str(uid),
+            'email': (primary or {}).get('email') or '',
+            'email_verified': primary is not None,
+            'name': user.get('name') or user.get('login') or '',
+        }
+
+
+@dataclass(frozen=True)
+class FacebookProvider(OAuth2Provider):
+    """Facebook Login for the web (Graph API). The subject is the APP-SCOPED user id — a
+    different number for the same person in every app, so it cannot be correlated elsewhere.
+    Facebook says nothing about whether the address was verified, so it is treated as
+    unverified: the person gets the ordinary confirmation mail."""
+
+    def authorize_params(self) -> dict:
+        return {**super().authorize_params(), 'scope': ','.join(self.scopes)}
+
+    def graph_version(self) -> str:
+        # Pinned, because a Graph version is retired about two years after release: v25.0 is the
+        # one Facebook's manual-flow guide uses (Feb 2026, expires 2028-07-29). Override with
+        # EDMAT_SSO_FACEBOOK_GRAPH_VERSION before then.
+        version = (self.config().get('graph_version') or 'v25.0').strip()
+        return version if re.match(r'^v\d+\.\d+$', version) else 'v25.0'
+
+    def endpoint(self, which: str) -> str:
+        return super().endpoint(which).replace('{v}', self.graph_version())
+
+    def request_token(self, data: dict) -> dict:
+        # Facebook's documented code exchange is a GET with the parameters in the query.
+        import urllib.parse
+
+        from . import http
+
+        query = {k: data[k] for k in ('client_id', 'redirect_uri', 'client_secret', 'code')}
+        return http.get_json(f"{self.endpoint('token')}?{urllib.parse.urlencode(query)}")
+
+    def fetch_identity(self, access_token: str) -> dict:
+        import hashlib
+        import hmac
+        import urllib.parse
+
+        from . import http
+
+        # appsecret_proof: proves the call comes from the holder of the app secret, so a token
+        # that leaked from somewhere is useless to anybody else against this app.
+        proof = hmac.new(self.client_secret().encode(), access_token.encode(), hashlib.sha256).hexdigest()
+        query = urllib.parse.urlencode(
+            {'fields': 'id,name,email', 'access_token': access_token, 'appsecret_proof': proof}
+        )
+        me = http.get_json(f"{self.endpoint('userinfo')}?{query}")
+        uid = str(me.get('id') or '')
+        if not uid.isdigit():
+            raise http.ProviderHttpError('facebook /me has no id')
+        return {
+            'iss': self.issuer,
+            'sub': uid,
+            'email': me.get('email') or '',
+            'email_verified': False,
+            'name': me.get('name') or '',
+        }
+
+
 GOOGLE = GoogleProvider(
     id='google',
     label='Google',
@@ -309,8 +439,43 @@ MICROSOFT = MicrosoftProvider(
     extra_authorize_params={'prompt': 'select_account'},
 )
 
-# Order is the order of the buttons.
-PROVIDERS: tuple[Provider, ...] = (GOOGLE, APPLE, MICROSOFT)
+GITHUB = GitHubProvider(
+    id='github',
+    label='GitHub',
+    authorize_url='https://github.com/login/oauth/authorize',
+    token_url='https://github.com/login/oauth/access_token',
+    jwks_url='',
+    issuer='https://github.com',
+    # `read:user` is the narrowest scope that returns the profile; `user:email` is what lists the
+    # addresses with their `verified` flags. Neither grants any write.
+    scopes=('read:user', 'user:email'),
+    protocol='oauth2',
+    userinfo_url='https://api.github.com/user',
+    emails_url='https://api.github.com/user/emails',
+    # PKCE (S256) is supported on GitHub's OAuth web flow since 2025-07-14 (GitHub changelog).
+    extra_authorize_params={'allow_signup': 'true'},
+)
+
+FACEBOOK = FacebookProvider(
+    id='facebook',
+    label='Facebook',
+    authorize_url='https://www.facebook.com/{v}/dialog/oauth',
+    token_url='https://graph.facebook.com/{v}/oauth/access_token',
+    jwks_url='',
+    issuer='https://www.facebook.com',
+    # Facebook joins scopes with commas. `public_profile` and `email` are the two that need no App
+    # Review; nothing else is asked for.
+    scopes=('public_profile', 'email'),
+    # PKCE is not relied on: Facebook's web flow is a confidential client (the secret stays on the
+    # server) and `state` binds the round trip, exactly as for Apple.
+    pkce=False,
+    protocol='oauth2',
+    userinfo_url='https://graph.facebook.com/{v}/me',
+)
+
+# Order is the order of the buttons: the four the owner asked for, then Microsoft — built, not
+# requested, and invisible unless somebody configures it.
+PROVIDERS: tuple[Provider, ...] = (GOOGLE, APPLE, GITHUB, FACEBOOK, MICROSOFT)
 PROVIDERS_BY_ID = {p.id: p for p in PROVIDERS}
 
 

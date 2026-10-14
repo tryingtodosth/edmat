@@ -38,6 +38,7 @@
 	import SolutionEntrySection from '$lib/components/exercise/SolutionEntrySection.svelte';
 	import ContentActionsMenu from '$lib/components/shared/ContentActionsMenu.svelte';
 	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
+	import LicenceNotice from '$lib/components/shared/LicenceNotice.svelte';
 	import { provideAiAssistance } from '$lib/components/provenance/aiAssistance.svelte';
 	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
@@ -467,6 +468,17 @@
 					/>
 				</div>
 				<MathContent source={exercise.statement} />
+				<!-- The licence of the statement and answer (backend licensing/). Keyed on the id so a
+				     client-side move to another exercise re-asks for "since" and the change control. -->
+				{#key exercise.id}
+					<LicenceNotice
+						kind="exercise"
+						id={exercise.id}
+						licence={exercise.licence}
+						textLicence={exercise.textLicence}
+						author={exercise.contributors.find((c) => c.role === 'submitted')?.displayName ?? ''}
+					/>
+				{/key}
 			</section>
 
 			<SolutionEntrySection

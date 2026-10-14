@@ -501,3 +501,59 @@ class Guardianship(models.Model):
 
     def __str__(self) -> str:
         return f'{self.guardian} → {self.child}'
+
+
+ERASURE_STATUS_CHOICES = [
+    # Asked for; the account is switched off and can still be brought back until `due_at`.
+    ('pending', 'Waiting for the grace period to end'),
+    # The person (or the guardian who asked) changed their mind before `due_at`.
+    ('cancelled', 'Cancelled'),
+    # Claimed by `erase_due_accounts`; no cancel can land any more. A run that dies here is picked up
+    # again by the next one — every step of `accounts.erasure.erase` is idempotent.
+    ('erasing', 'Being erased'),
+    ('done', 'Erased'),
+]
+
+
+class AccountErasure(models.Model):
+    """One request to delete an account (GDPR Art. 17), and what became of it.
+
+    A lifecycle in one `status` field (root `CLAUDE.md`, "a lifecycle is one status field"), and the
+    row is KEPT after the erasure: who asked, when, and that it was carried out is the record that
+    answers "did you delete my account?" — and it names nobody, because by then `user` points at the
+    scrubbed tombstone row (`accounts/erasure.py` explains why the `User` row itself survives).
+
+    `summary` is the per-model count of what each action touched, written at the end — evidence of
+    what was done, not a copy of any of it.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='erasure_requests', on_delete=models.CASCADE
+    )
+    # Who asked: the person themselves, or a guardian for a child's account. SET_NULL — a guardian
+    # who is later erased themselves must not take the record of their child's erasure with them.
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='+', null=True, blank=True, on_delete=models.SET_NULL
+    )
+    by_guardian = models.BooleanField(default=False)
+    status = models.CharField(max_length=10, choices=ERASURE_STATUS_CHOICES, default='pending', db_index=True)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    due_at = models.DateTimeField(db_index=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    summary = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-requested_at']
+        constraints = [
+            # At most one live request per account: a second "delete me" while one is waiting is a
+            # 409, never a second clock.
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(status__in=['pending', 'erasing']),
+                name='one_live_erasure_per_user',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'erasure of user {self.user_id} ({self.status}, due {self.due_at:%Y-%m-%d})'
