@@ -16929,13 +16929,18 @@ catalogues merged as JSON three-way with no key changed on both sides (5280 = 52
 
 ### Left open
 
-- Found by WP10, not fixed: a school class reads "A general course" and offers "Add a university/
-  faculty version" (a §17CM side effect); the "under 16" badge stretches across a class's People row;
-  the manual prints Markdown asterisks literally; the tutoring showcase says times are in the server's
-  zone while the browser draws its own; the `/dziennik` demo's sample school name may match a real
-  school (owner's call).
-- `OrganizationPage` still asks for the organisation when `organizations` is off, and an anonymous
-  reader gets a 401 in the console on `/about`; the 13 cards leave one alone on the last row at 1280.
+- WP11 fixed what WP10 found: a school class no longer reads "A general course" or offers versions
+  (refusal word `parent_is_class`); the "under 16" badge keeps to its name; the manual's literal
+  asterisks are gone and `npm run check:plain` refuses Markdown marks in the guide and showcase
+  strings; `OrganizationPage` no longer asks with `organizations` off. Still open: the `/dziennik`
+  demo's sample school name may match a real school (owner's call); a university version a school
+  later runs is not refused; the 13 cards leave one alone on the last row at 1280.
+- **A live bug found by WP11, not fixed — the owner's decision:** `settings.TIME_ZONE` is `UTC`, a
+  tutor's weekly rule "14:00" becomes 14:00 UTC, and the browser draws it in its own zone — so every
+  reader in Poland is offered slots two hours (summer) or one hour (winter) later than the tutor set.
+  The sentences on `/about/tutoring` and in the manual that claimed otherwise now say what is true;
+  the fix (`TIME_ZONE = 'Europe/Warsaw'`, or rules carrying a zone) also moves the flashcards' day, the
+  shifts' night rule and the analytics days. Root `CLAUDE.md` known gaps and `booking/CLAUDE.md`.
 - The screenshots are English-only and in two fonts (DejaVu on this machine, Noto on the older ones):
   one consistent set needs one re-shoot on one machine.
 - No showcase pictures yet for contests, the learning record and schools; the course and exercise
