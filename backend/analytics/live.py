@@ -27,7 +27,7 @@ from django.db.models import Count, Exists, F, OuterRef, Q
 from django.db.models.functions import TruncWeek
 from django.utils import timezone
 
-from .rollup import monday, without_staff
+from .rollup import monday, without_demo, without_staff
 
 # MIRRORED BY HAND in frontend/src/lib/components/analytics/labels.ts (house rule 13): a new key
 # here needs a label there (en + pl), or the dashboard shows the raw key.
@@ -240,8 +240,10 @@ def accounts(start, end) -> dict:
     guardian created. RAW counts — every one of them is about people, and `views.py` suppresses."""
     User = get_user_model()
     weeks = week_starts(start, end)
-    # Staff are not counted as people anywhere in analytics (owner's decision 2026-10-14).
-    people = without_staff(User.objects.all())
+    # Staff are not counted as people anywhere in analytics (owner's decision 2026-10-14), and
+    # neither are the seeders' demonstration accounts (2026-10-15). Minors stay: this is where the
+    # guardian-made accounts are counted.
+    people = without_demo(without_staff(User.objects.all()))
     new_users = people.filter(date_joined__gte=start, date_joined__lt=end)
     by_week = _weekly(people, 'date_joined', start, end)
 
@@ -282,7 +284,9 @@ def contribution_funnel(start, end) -> dict:
     translation, a material version put up for decision, or a concept revision sent for review."""
     User = get_user_model()
     new_ids = set(
-        without_staff(User.objects.filter(date_joined__gte=start, date_joined__lt=end)).values_list(
+        without_demo(
+            without_staff(User.objects.filter(date_joined__gte=start, date_joined__lt=end))
+        ).values_list(
             'pk', flat=True
         )
     )

@@ -371,6 +371,34 @@ class RollupTests(TestCase):
         self.assertEqual(accounts(start, end)['registered'], 1)
         self.assertEqual(contribution_funnel(start, end)['registered'], 1)
 
+    def test_demo_accounts_are_not_people_but_their_requests_count(self):
+        """2026-10-15: the demo conference's ~165 seeded attendees read on the live dashboard as a
+        week of 176 registrations, a cohort of 165 at 0 % and a funnel nobody moved through. An
+        `@edmat.example` account — or a pupil whose guardian holds one — is in no people-count."""
+        from accounts.models import Guardianship
+
+        from .live import accounts, contribution_funnel
+
+        start, end = at(DAY, 0), at(DAY + dt.timedelta(days=1), 0)
+        real = User.objects.create(pk=41, username='dana', email='dana@example.org')
+        demo = User.objects.create(pk=42, username='conf.attendee.001', email='conf.attendee.001@edmat.example')
+        guardian = User.objects.create(pk=43, username='school.parent', email='school.parent@EDMAT.example')
+        pupil = User.objects.create(pk=44, username='school.pupil', email='')
+        Guardianship.objects.create(guardian=guardian, child=pupil)
+        User.objects.filter(pk__in=[41, 42, 43, 44]).update(date_joined=at(DAY))
+        for pk in (real.pk, demo.pk):
+            log(user_id=pk, path='/api/exercises/12/')
+        rollup_day(DAY)
+        rollup_week(DAY)
+        self.assertEqual(DailyActiveUsers.objects.get(date=DAY).users, 1)
+        self.assertEqual(sum(WeeklyCohort.objects.values_list('users', flat=True)), 1)
+        auth = DailyRouteStat.objects.get(date=DAY, route='/api/exercises/:pk/', audience='auth')
+        self.assertEqual(auth.requests, 2, 'a demo account\'s requests are still traffic')
+        counted = accounts(start, end)
+        self.assertEqual(counted['registered'], 1)
+        self.assertEqual(counted['guardian_created'], 0)
+        self.assertEqual(contribution_funnel(start, end)['registered'], 1)
+
     def test_aggregates_older_than_25_months_are_purged(self):
         from .rollup import months_before, purge_aggregates
 

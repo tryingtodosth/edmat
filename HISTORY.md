@@ -17177,6 +17177,22 @@ Five evenly spread positions rounded onto seven days labelled 9, 11, 12, 14 and 
 `TimeSeriesChart`'s labels now step back from the last day at a whole-number stride, in whole weeks
 past fourteen days (7 days: every other day; 30: weekly, every label the same weekday).
 
+### Demonstration accounts are not people
+
+"176 registrations, 34 accounts": the owner confirmed the ~165 accounts made in the week of 21 Sep
+are the demo conference's seeded attendees (`seed_conference_demo`, 2026-09-25). They had filled the
+registrations, a cohort of 165 at 0 % and a funnel of 176 with nobody contributing. Every demo seeder
+gives its accounts an `@edmat.example` address — a reserved domain, so nobody who registered can
+hold one (`testing/personas.py` already called it "the only thing that marks them").
+`analytics/rollup.py: without_demo` leaves out those accounts and a pupil whose guardian holds one
+(a seeded pupil has no address of its own); `counted_people` (active accounts, cohorts and their
+sizes) and `live.accounts` / `live.contribution_funnel` use it. Like staff, their requests still
+count as traffic. The cohort note and the "what this panel does not know" list say so in both
+languages. The stored aggregates (active accounts, cohorts) change only when re-rolled: after
+deploying, `rollup_analytics --days 90` once. Pinned by
+`RollupTests.test_demo_accounts_are_not_people_but_their_requests_count` (`manage.py test analytics`: 55
+OK). On the dev copy 45 of 91 accounts are demonstration accounts.
+
 ### Verified
 
 - `manage.py test analytics plans tasks translations goals exercises work accounts.test_erasure
@@ -17194,11 +17210,9 @@ past fourteen days (7 days: every other day; 30: weekly, every label the same we
 
 ### Left open
 
-- **176 registrations, 34 accounts.** The 30-day view counts every account made in the period
-  (`live.accounts: registered`) but only ACTIVE ones in "all accounts", and ~140 of the 167 made in the
-  week of 21 Sep are inactive; they also fill the retention table with 165 accounts at 0 %. Who they
-  are is a question for the production database (the command is in the conversation of the day);
-  if they are spam or bulk accounts that were deactivated, the people counts should leave them out.
+- **Demo content still counts as USE.** The demo conference's 149 registrations and its events sit
+  in the feature-usage table ("Zapisy na wydarzenia 149"); those are rows, not people, and leaving
+  them out needs a per-feature "whose row is this" rule. Not done; the owner's call.
 - `came_with_exercise` is a reading of the rows, not a recorded origin: an entry added later, published
   without review and then pinned by staff is read as part of its exercise. A `SolutionEntry.origin`
   column would make it a fact; nothing else needs one yet.

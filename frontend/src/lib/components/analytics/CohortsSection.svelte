@@ -10,10 +10,16 @@
 	let { days, reloadKey }: { days: AnalyticsDays; reloadKey: number } = $props();
 </script>
 
-<Section id="cohorts" title={m.analytics_cohorts_title()} deps={`${days}:${reloadKey}`} load={() => getCohorts(days)}>
+<Section
+	id="cohorts"
+	title={m.analytics_cohorts_title()}
+	deps={`${days}:${reloadKey}`}
+	load={() => getCohorts(days)}
+>
 	<!-- "Retention by signup week" -->
 	{#snippet children(c)}
-		<p class="note">{m.analytics_cohorts_explain({ k: c.k })}</p><!-- "Each cell is the share of that week's new accounts that were active N weeks later; darker is higher. Groups of fewer than {k} people are shown as “<{k}”. Accounts of minors, staff accounts and browsers that sent Global Privacy Control or Do Not Track are not counted." -->
+		<p class="note">{m.analytics_cohorts_explain({ k: c.k })}</p>
+		<!-- "Each cell is the share of that week's new accounts that were active N weeks later; darker is higher. Groups of fewer than {k} people are shown as “<{k}”. Accounts of minors, staff accounts, demonstration accounts and browsers that sent Global Privacy Control or Do Not Track are not counted." -->
 		<CohortHeatmap data={c} />
 	{/snippet}
 </Section>

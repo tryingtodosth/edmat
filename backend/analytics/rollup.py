@@ -19,7 +19,8 @@ timestamps are UTC instants; `day_bounds` is the one place a date becomes a pair
 that day the buckets were UTC days, one or two hours off at each end.
 
 **Who is never counted as an active account**: minors (`adult_accounts`), staff
-(`without_staff`, owner's decision 2026-10-14 — their REQUESTS still count as traffic), and — like every other
+(`without_staff`, owner's decision 2026-10-14 — their REQUESTS still count as traffic), the
+demonstration accounts the seeders make (`without_demo`, 2026-10-15), and — like every other
 figure here — anybody whose request carried `Sec-GPC: 1` / `DNT: 1`.
 
 **Retention of the aggregates themselves**: 25 months (`purge_aggregates`, run by the command after
@@ -128,13 +129,31 @@ def without_staff(qs):
     return qs.exclude(is_staff=True).exclude(is_superuser=True)
 
 
+#: The address every demonstration seeder gives its accounts (`testing/personas.py`,
+#: `testing/conference_demo.py`, `testing/school_demo.py`, `seed_demo_content`, `seed_demo_users`):
+#: `.example` is a reserved domain, so no person who registered can hold one.
+DEMO_EMAIL_DOMAIN = '@edmat.example'
+
+
+def without_demo(qs):
+    """`qs` (a User queryset) without the accounts the demonstration seeders made: an
+    `@edmat.example` address, or — a seeded pupil a guardian manages has no address of its own —
+    a guardian who has one. The 2026-09-25 demo conference put ~165 of them into one week on the
+    live site, which read as 176 registrations, a cohort of 165 at 0 % and a funnel of 176 with
+    nobody contributing (§17CQ). Like staff, their REQUESTS still count as traffic."""
+    return qs.exclude(email__iendswith=DEMO_EMAIL_DOMAIN).exclude(
+        guardians__guardian__email__iendswith=DEMO_EMAIL_DOMAIN
+    )
+
+
 def counted_people(qs):
-    """The accounts a people-count may include: adults who are not staff."""
-    return without_staff(adult_accounts(qs))
+    """The accounts a people-count may include: adults who are not staff and not demonstration
+    accounts."""
+    return without_demo(without_staff(adult_accounts(qs)))
 
 
 def _drop_minors(ids: set[int]) -> set[int]:
-    """The ids that may be counted as an active account: no minors, no staff."""
+    """The ids that may be counted as an active account: no minors, no staff, no demo accounts."""
     if not ids:
         return ids
     User = get_user_model()
