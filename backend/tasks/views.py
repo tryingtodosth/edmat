@@ -23,7 +23,7 @@ party asking for something that is not theirs), and `nested`, `has_subtasks`, `a
 and `illegal_transition` are 409s.
 """
 
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.http import Http404
 from django.utils import timezone
 from rest_framework import mixins, permissions, status, viewsets
@@ -66,11 +66,21 @@ def _tasks_for_reading(queryset):
     # `text_versions` is the bilingual text (translations/, 2026-10-08): prefetched here, with
     # everything else a row needs, so `translations.resolve` answers in memory and a board of fifty
     # tasks costs the same two extra queries as a board of one.
-    return queryset.select_related('created_by__profile', 'content_type').prefetch_related(
+    # The serializer reads every one of these through `.all()` only (§17CQ: a `.prefetch_related()`
+    # or `.filter()` on a related manager there skipped all of it, 92 queries for one board).
+    return queryset.select_related('created_by__profile', 'content_type', 'goal').prefetch_related(
+        Prefetch(
+            'subtasks',
+            queryset=Task.objects.select_related('created_by__profile', 'content_type', 'goal'),
+        ),
         'assignees__user__profile',
+        'assignees__assigned_by__profile',
         'subtasks__assignees__user__profile',
+        'subtasks__assignees__assigned_by__profile',
         'text_versions',
         'subtasks__text_versions',
+        'node',
+        'subtasks__node',
     )
 
 

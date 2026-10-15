@@ -78,6 +78,8 @@ export type RouteStat = {
 	searches: number;
 	/** Request-weighted mean of the daily medians. */
 	p50Ms: number;
+	/** Request-weighted mean of the daily 95th percentiles — a typical day's slow tail. */
+	p95Ms: number;
 	/** The worst single day's 95th percentile — percentiles of different days cannot be merged. */
 	p95MsWorstDay: number;
 };
@@ -89,7 +91,13 @@ export type AnalyticsTraffic = {
 	routeCount: number;
 };
 
-export type TopExercise = { id: string; title: string; branch: string; number: number; views: number };
+export type TopExercise = {
+	id: string;
+	title: string;
+	branch: string;
+	number: number;
+	views: number;
+};
 export type TopMaterial = { id: string; title: string; views: number };
 export type LeastCoveredBranch = {
 	slug: string;

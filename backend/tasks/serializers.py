@@ -113,7 +113,9 @@ class TaskSerializer(TranslatedTextMixin, serializers.ModelSerializer):
         cannot exist."""
         if obj.parent_id is not None:
             return []
-        children = obj.subtasks.all().prefetch_related('assignees__user__profile')
+        # `.all()` alone: the list view prefetched the subtasks with everything a row needs, and
+        # chaining anything here would throw that away and ask again per task.
+        children = obj.subtasks.all()
         return TaskSerializer(children, many=True, context=self.context).data
 
     def get_progress(self, obj):

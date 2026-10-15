@@ -535,3 +535,56 @@ class PayloadTests(ApiTestCase):
         body = self.client.get('/api/analytics/content/?days=7').json()
         self.assertEqual([e['id'] for e in body['top_exercises']], [str(shown.pk)])
         self.assertEqual(body['by_kind'], [{'kind': 'exercise', 'views': 2}])
+
+
+class ArrivedWithTheExerciseTests(ApiTestCase):
+    """A batch import is not community activity (2026-10-15: paczka2's 214 exercises showed on the
+    live dashboard as 214 submitted translations and 428 submitted hints and solutions). What came
+    with an exercise is the exercise; only what was ADDED to it counts as a submission."""
+
+    def setUp(self):
+        from exercises.models import ExerciseTranslation, SolutionEntry
+        from testing.factories import make_branch, make_exercise
+
+        self.client.force_authenticate(make_user('analyst', is_staff=True))
+        author, reader = make_user('importer'), make_user('reader')
+        branch = make_branch()
+        # Two hours old, so nothing written now is "with" it by the clock.
+        older = make_exercise(branch, 1)
+        type(older).objects.filter(pk=older.pk).update(
+            created_at=timezone.now() - dt.timedelta(hours=2)
+        )
+        fresh = make_exercise(branch, 2)
+        # `import_exercises`' shape: pinned, published, nobody reviewed it.
+        for kind in ('hint', 'solution'):
+            SolutionEntry.objects.create(
+                exercise=older, kind=kind, locale='pl', body='x', author=author,
+                status='published', pinned=True,
+            )
+        # An approved submission's fast path: unpinned, but written with the exercise.
+        SolutionEntry.objects.create(
+            exercise=fresh, kind='solution', locale='pl', body='x', author=author,
+            status='published',
+        )
+        # The two real contributions: a hint added to the older exercise, and a translation.
+        SolutionEntry.objects.create(
+            exercise=older, kind='hint', locale='pl', body='a later idea', author=reader,
+        )
+        ExerciseTranslation.objects.create(
+            exercise=older, locale='en', title='T', statement='S', translated_by=reader,
+        )
+
+    def test_queues_count_only_what_was_added(self):
+        queues = {
+            q['queue']: q
+            for q in self.client.get('/api/analytics/moderation/?days=7').json()['queues']
+        }
+        self.assertEqual(queues['solution_entries']['submitted'], 1)
+        self.assertEqual(queues['translations']['submitted'], 1)
+
+    def test_community_activity_and_the_kpi_agree(self):
+        activity = self.client.get('/api/analytics/community/?days=7').json()['activity']
+        self.assertEqual(activity['solution_entries']['period_total'], 1)
+        self.assertEqual(activity['translations']['period_total'], 1)
+        kpis = self.client.get('/api/analytics/overview/?days=7').json()['kpis']
+        self.assertEqual(kpis['submissions']['value'], 2)

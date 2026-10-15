@@ -152,6 +152,9 @@ SUBPROJECT_BY_REF = {
     # 17CP is Polish time: `TIME_ZONE = 'Europe/Warsaw'`, which fixed tutors' slots being offered two
     # hours late. It also touches shifts, flashcards and analytics, but the bug was tutoring's.
     '17CP': 'tutoring',
+    # 17CQ is what the first live analytics dashboard showed: an import counted as submissions, a
+    # slow plans list, the worst-day percentile. `platform`: operator tooling and query counts.
+    '17CQ': 'platform',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

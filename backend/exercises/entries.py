@@ -118,3 +118,33 @@ __all__ = [
     'sort_entries',
     'entry_queryset_for_queue',
 ]
+
+
+#: How close to its exercise's own creation an entry has to be to have arrived WITH it. An approved
+#: submission and `import_exercises` write the exercise and its hint/solution in one pass, a
+#: second or two apart; nobody adds a hint to an exercise that is under a minute old.
+FOUNDING_WINDOW_SECONDS = 60
+
+
+def came_with_exercise():
+    """A `Q` for the entries that are part of their exercise rather than added to its pool later:
+    written by the same pass that made the exercise (an approved submission's own hint and
+    solution, a batch import), the corpus's originals (no author), and the pinned rows nobody
+    reviewed — the shape both `import_exercises` and the 2026-08-27 migration out of the old
+    hint/solution columns leave, whenever the exercise itself was made.
+
+    Asked by the usage statistics (`analytics/live.py`), which counted 428 imported hints and
+    solutions as community submissions on 2026-10-15. The honest limit: an entry somebody added
+    later, that published without review and that staff then pinned, also matches the last clause
+    and is read as part of the exercise. No row records where an entry came from; this is the
+    reading of the rows that exist.
+    """
+    import datetime as dt
+
+    from django.db.models import F, Q
+
+    return (
+        Q(author__isnull=True)
+        | Q(pinned=True, reviewed_by__isnull=True)
+        | Q(created_at__lt=F('exercise__created_at') + dt.timedelta(seconds=FOUNDING_WINDOW_SECONDS))
+    )

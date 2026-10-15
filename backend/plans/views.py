@@ -82,14 +82,19 @@ class NodePlansView(APIView):
         node = self._node(request, kind, pk)
         qs = (
             rules.visible_plans(request.user, node)
-            .select_related('created_by')
+            .select_related('created_by__profile', 'goal')
             # `text_versions` (and each step's own) is the bilingual text — translations/, 2026-10-08.
+            # The serializer reads all of these through `.all()` only; a `.filter()`/`.order_by()`
+            # there skips the prefetch and costs a query per plan and per step (§17CQ).
             .prefetch_related(
-                'steps',
-                'steps__substeps',
+                models.Prefetch('steps', queryset=PlanStep.objects.select_related('done_by__profile')),
+                models.Prefetch(
+                    'steps__substeps', queryset=PlanStep.objects.select_related('done_by__profile')
+                ),
                 'text_versions',
                 'steps__text_versions',
                 'steps__substeps__text_versions',
+                'node',
             )
         )
         return Response(PlanSerializer(qs, many=True, context={'request': request}).data)

@@ -282,6 +282,7 @@ class TrafficView(AnalyticsView):
                     'throttled': 0,
                     'searches': 0,
                     '_weighted_p50': 0,
+                    '_weighted_p95': 0,
                     'p95_ms_worst_day': 0,
                 },
             )
@@ -290,11 +291,18 @@ class TrafficView(AnalyticsView):
             for key2 in ('status_4xx', 'status_5xx', 'throttled', 'searches'):
                 entry[key2] += row[key2]
             entry['_weighted_p50'] += row['p50_ms'] * row['requests']
+            entry['_weighted_p95'] += row['p95_ms'] * row['requests']
             entry['p95_ms_worst_day'] = max(entry['p95_ms_worst_day'], row['p95_ms'])
         top = sorted(routes.values(), key=lambda r: -r['requests'])[: self.ROUTE_LIMIT]
         for entry in top:
             weighted = entry.pop('_weighted_p50')
             entry['p50_ms'] = round(weighted / entry['requests']) if entry['requests'] else 0
+            # The 95th on a TYPICAL day, weighted the same way. The worst day alone read like a
+            # slow route on 2026-10-15: five routes that answer in 9–75 ms all showed ~1.1 s,
+            # every one of them from the same moment (an Apache restart). Both are sent; the
+            # table leads with this one and names the worst day only when it stands out.
+            weighted = entry.pop('_weighted_p95')
+            entry['p95_ms'] = round(weighted / entry['requests']) if entry['requests'] else 0
         return {
             'daily': [
                 {

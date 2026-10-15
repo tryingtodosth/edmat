@@ -1549,5 +1549,16 @@
   "summary": "Owner, 2026-10-15, on the WP11 bug above: \"stays poland\". The bug was live on edmat.net: with TIMEZONE = 'UTC', a tutor's weekly rule \"14:00\" became 14:00 UTC, and the browser drew the slot in Polish time — so every reader in Poland was offered 16:00 (summer) or 15:00 (winter) for hours the tutor's own list called 14:00. Goes into the 2026-10-15 deploy (deploy/UPDATE-2026-10-15.md, Polish time…",
   "subproject": "tutoring",
   "listed": true
+ },
+ {
+  "ref": "17CQ",
+  "title": "What the first live dashboard showed: an import read as community activity, a slow plans list, a \"worst day\" that read as a slow route",
+  "heading": "17CQ — What the first live dashboard showed: an import read as community activity, a slow plans list, a \"worst day\" that read as a slow route (2026-10-15, `fix/analytics-after-deploy`)",
+  "line": 17127,
+  "date": "2026-10-15",
+  "date_source": "heading",
+  "summary": "The 2026-10-15 deploy's step 3f ran the 90-day analytics backfill BEFORE step 4's permission fix, so it died on \"attempt to write a readonly database\" (paczka2's step 3d had died the same way the day before). The owner ran it by hand afterwards and sent two screenshots of /moderation/analytics. The script now runs it as step 4a, after the fix; pack.sh no longer packs an import kit that carries an…",
+  "subproject": "platform",
+  "listed": true
  }
 ]

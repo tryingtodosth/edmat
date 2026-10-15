@@ -27,6 +27,10 @@ def _display_name(user) -> str:
     return name or user.get_username()
 
 
+def _step_order(step) -> tuple:
+    return (step.order, step.id)
+
+
 class PlanStepSerializer(TranslatedTextMixin, serializers.ModelSerializer):
     # Bilingual management text (translations/, 2026-10-08): `title`/`description` answer in the
     # reader's `?lang=`, and `language`/`text_versions` say which language that actually is, what
@@ -57,7 +61,9 @@ class PlanStepSerializer(TranslatedTextMixin, serializers.ModelSerializer):
             # One level, by construction (rules.py's `NESTED` refusal) — a step that has a parent
             # can never itself be one, so this branch is what makes the recursion below terminate.
             return []
-        rows = step.substeps.all().order_by('order', 'id')
+        # Sorted in Python, not `.order_by()`: a queryset method bypasses the view's prefetch, and
+        # that turned 18 plans into 518 queries (/about, 2026-10-15 — 879 ms median on production).
+        rows = sorted(step.substeps.all(), key=_step_order)
         return PlanStepSerializer(rows, many=True, context=self.context).data
 
 
@@ -116,7 +122,8 @@ class PlanSerializer(TranslatedTextMixin, serializers.ModelSerializer):
         return _display_name(plan.created_by)
 
     def get_steps(self, plan) -> list:
-        rows = plan.steps.filter(parent__isnull=True).order_by('order', 'id')
+        # Filtered and sorted in Python for the reason `get_substeps` gives.
+        rows = sorted((s for s in plan.steps.all() if s.parent_id is None), key=_step_order)
         return PlanStepSerializer(rows, many=True, context=self.context).data
 
     def get_progress(self, plan) -> dict:

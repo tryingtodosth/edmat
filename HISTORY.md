@@ -17123,3 +17123,86 @@ tutor's own list called 14:00. Goes into the 2026-10-15 deploy (`deploy/UPDATE-2
   today were offered at the wrong hour. An owner decision whether to.
 - The manual's `04-requested.png` shows slots 18:00–20:00 from an unknown rule; it may have been shot
   under the old clock. Re-shoot with the next manual pass.
+
+## 17CQ — What the first live dashboard showed: an import read as community activity, a slow plans list, a "worst day" that read as a slow route (2026-10-15, `fix/analytics-after-deploy`)
+
+The 2026-10-15 deploy's step 3f ran the 90-day analytics backfill BEFORE step 4's permission fix, so
+it died on "attempt to write a readonly database" (paczka2's step 3d had died the same way the day
+before). The owner ran it by hand afterwards and sent two screenshots of `/moderation/analytics`. The
+script now runs it as step 4a, after the fix; `pack.sh` no longer packs an import kit that carries an
+`IMPORTED` marker, and step 7 skips one (`deploy/UPDATE-2026-10-15.md`). Then, from the screenshots:
+
+### An import is not a submission
+
+"Submissions 642, previous 7 days: 0" was exactly paczka2: 214 rows in the translations queue and 428
+in the hints-and-solutions queue, and the community table counted the 428 again. Neither queue had
+received anything. `import_exercises` writes each exercise's own-language text row and its pinned,
+unreviewed hint and solution; the queue counted every row created in the period.
+
+- **Translations queue**: what came in is a row in a language other than the exercise's own — the
+  rule the community counter already had (`_not_original`), now applied to the queue's `submitted`.
+- **Hints and solutions**: `exercises/entries.py: came_with_exercise()` names the entries that are part
+  of their exercise — no author (the corpus), pinned and never reviewed (an import, and the
+  2026-08-27 migration out of the old columns, whenever the exercise was made), or written within 60
+  seconds of the exercise (an approved submission's fast path). `analytics/live.py` excludes them from
+  the queue's `submitted`, the community activity count and the contribution funnel. It lives in the
+  entries module because it is a fact about entries; the dashboard asks.
+- Pinned by `analytics.tests.ArrivedWithTheExerciseTests` (an import-shaped pair, a fast-path founding
+  entry, one later hint and one translation → 1 and 1, and the KPI says 2).
+
+### The plans list: 518 queries for 18 plans
+
+`/api/nodes/:kind/:pk/plans/` had a median of 879 ms on production (71 requests in a week — it is the
+`/about` page's roadmaps). The view prefetched steps, sub-steps and their text, and the serializer
+threw all of it away: `plan.steps.filter(parent__isnull=True).order_by(…)` and
+`step.substeps.all().order_by(…)` are new querysets, and `rules.progress` ran `values_list` per plan.
+On the dev copy of EdMat's organisation (18 plans, ~165 steps): **518 queries → 9**, 479 ms → ~110–170
+ms. The serializer now filters and sorts the prefetched rows in Python; `progress` counts prefetched
+steps when it has them; the view also prefetches `node` and selects `created_by__profile`, `goal` and
+each step's `done_by__profile`. The tasks board had the same shape (`.prefetch_related()` chained on
+`obj.subtasks.all()`, two COUNTs per card for progress): **92 → 20** queries. Both responses were
+compared byte for byte against the old code, anonymous and as a superuser: identical.
+
+### "95th, worst day" → "95th, typical day"
+
+The busiest-routes table showed each route's worst single day's 95th percentile. On production five
+routes that answer in 9–75 ms all read about 1.1–1.2 s — one moment (most likely the Apache restart),
+not five slow routes. `TrafficView` now also sends `p95_ms`, the request-weighted mean of the daily
+95ths (the median column's own method); the table leads with it and names the worst day under it only
+when that day was more than twice as slow AND at least 500 ms.
+
+### Chart dates at an even stride
+
+Five evenly spread positions rounded onto seven days labelled 9, 11, 12, 14 and 15 Oct.
+`TimeSeriesChart`'s labels now step back from the last day at a whole-number stride, in whole weeks
+past fourteen days (7 days: every other day; 30: weekly, every label the same weekday).
+
+### Verified
+
+- `manage.py test analytics plans tasks translations goals exercises work accounts.test_erasure
+  --parallel 4`: 453 OK. `check`, `makemigrations --check`, `check_databases_declared`: clean.
+- Plans and tasks responses diffed against the old code (`/api/nodes/organization/3/{plans,tasks}/`,
+  an event's plans, anonymous and as superuser): byte-identical.
+- `npm run check` 0/0, keys 5386 = 5386. `e2e/analytics.mjs` 28/28 against the dev copy after a
+  30-day rollup; the screenshot shows weekly date labels (17 Sep … 15 Oct) and "95th, typical day"
+  with a worst day only under the routes where it stands out. `/about` in a browser: all 18 roadmaps
+  with their progress and next step, no page error.
+- **`e2e/plans.mjs` FAILS — with the old code too** (stashed and re-run): it waits for
+  `[data-plans-panel]` to be visible, and since the panel moved into a `FoldSection` (closed by
+  default) it never is. `e2e/tasks.mjs` stops the same way (a `waitFor` timeout, 4/5) and was NOT
+  re-run on the old code, so its cause is likely the same but unproven. Both on the board.
+
+### Left open
+
+- **176 registrations, 34 accounts.** The 30-day view counts every account made in the period
+  (`live.accounts: registered`) but only ACTIVE ones in "all accounts", and ~140 of the 167 made in the
+  week of 21 Sep are inactive; they also fill the retention table with 165 accounts at 0 %. Who they
+  are is a question for the production database (the command is in the conversation of the day);
+  if they are spam or bulk accounts that were deactivated, the people counts should leave them out.
+- `came_with_exercise` is a reading of the rows, not a recorded origin: an entry added later, published
+  without review and then pinned by staff is read as part of its exercise. A `SolutionEntry.origin`
+  column would make it a fact; nothing else needs one yet.
+- Re-importing into an EXISTING exercise (`update_or_create`) writes entries long after the exercise;
+  they are pinned and unreviewed, so the second clause still catches them.
+- The plans list still does a per-plan GenericRelation prefetch in Django (most of the remaining
+  time); `/api/nodes/:kind/:pk/needs/` (98 ms median) was not looked at.

@@ -63,7 +63,10 @@ FEATURE_REGISTRY: dict[str, tuple[str, str, str, dict | None]] = {
 COMMUNITY_REGISTRY: dict[str, tuple[str, str, str, dict | None]] = {
     'comments': ('community', 'Comment', 'created_at', None),
     'reviews': ('community', 'Review', 'created_at', None),
-    'solution_entries': ('exercises', 'SolutionEntry', 'created_at', {'author__isnull': False}),
+    # A hint or solution ADDED to an exercise's pool — not the ones that came with the exercise
+    # (an import, an approved submission, the corpus), which `exercises.entries.came_with_exercise`
+    # names and which are counted as the exercise they belong to.
+    'solution_entries': ('exercises', 'SolutionEntry', 'created_at', {'_added_to_pool': True}),
     # A translation is a row in a language other than the exercise's own — the original's row is
     # created with the exercise and is not somebody translating anything.
     'translations': ('exercises', 'ExerciseTranslation', 'created_at', {'_not_original': True}),
@@ -74,7 +77,8 @@ COMMUNITY_REGISTRY: dict[str, tuple[str, str, str, dict | None]] = {
 }
 
 # queue → model, the pending filter, the decided filter, and (submitted_field, decided_field) when
-# the decision time is recorded, else None.
+# the decision time is recorded, else None. `submitted` (optional) narrows what counts as having come
+# INTO the queue, with the same two markers `_contributions_only` reads for the registries above.
 QUEUE_REGISTRY: dict[str, dict] = {
     'exercise_submissions': {
         'model': ('moderation', 'ExerciseSubmission'),
@@ -96,6 +100,8 @@ QUEUE_REGISTRY: dict[str, dict] = {
         'decided': {'status__in': ['published', 'rejected'], 'reviewed_by__isnull': False},
         'accepted': {'status': 'published', 'reviewed_by__isnull': False},
         'timing': None,
+        # What came INTO this queue: the exercise's own-language row is created with the exercise.
+        'submitted': {'_not_original': True},
     },
     'solution_entries': {
         'model': ('exercises', 'SolutionEntry'),
@@ -103,6 +109,8 @@ QUEUE_REGISTRY: dict[str, dict] = {
         'decided': {'status__in': ['published', 'rejected'], 'reviewed_by__isnull': False},
         'accepted': {'status': 'published', 'reviewed_by__isnull': False},
         'timing': None,
+        # Added to a pool, not arrived with an exercise (an import, an approved submission).
+        'submitted': {'_added_to_pool': True},
     },
     'reports': {
         'model': ('moderation', 'Report'),
@@ -177,6 +185,20 @@ def week_starts(start: dt.datetime, end: dt.datetime) -> list[dt.date]:
     return weeks
 
 
+def _contributions_only(qs, extra: dict):
+    """Applies (and pops) the two markers that are not plain field lookups. `_not_original`: a
+    translation row in the exercise's own language is the exercise's text, not somebody
+    translating it. `_added_to_pool`: a hint or solution that came with its exercise is part of
+    that exercise (`exercises.entries.came_with_exercise`)."""
+    if extra.pop('_not_original', False):
+        qs = qs.exclude(locale=F('exercise__original_locale'))
+    if extra.pop('_added_to_pool', False):
+        from exercises.entries import came_with_exercise
+
+        qs = qs.exclude(came_with_exercise())
+    return qs
+
+
 def _registry_series(registry, start, end) -> dict[str, dict]:
     weeks = week_starts(start, end)
     out: dict[str, dict] = {}
@@ -186,8 +208,7 @@ def _registry_series(registry, start, end) -> dict[str, dict]:
             continue
         qs = model.objects.all()
         extra = dict(extra or {})
-        if extra.pop('_not_original', False):
-            qs = qs.exclude(locale=F('exercise__original_locale'))
+        qs = _contributions_only(qs, extra)
         if extra:
             qs = qs.filter(**extra)
         try:
@@ -249,6 +270,12 @@ def accounts(start, end) -> dict:
     }
 
 
+def _came_with_exercise():
+    from exercises.entries import came_with_exercise
+
+    return came_with_exercise()
+
+
 def contribution_funnel(start, end) -> dict:
     """Of the accounts registered in the period: how many submitted anything for review, and how
     many had something accepted. "Submitted" is an exercise submission, a hint or solution, a
@@ -263,7 +290,7 @@ def contribution_funnel(start, end) -> dict:
     accepted: set[int] = set()
     sources = [
         ('moderation', 'ExerciseSubmission', 'submitted_by_id', Q(), Q(status='approved')),
-        ('exercises', 'SolutionEntry', 'author_id', Q(), Q(status='published')),
+        ('exercises', 'SolutionEntry', 'author_id', ~_came_with_exercise(), Q(status='published')),
         (
             'exercises',
             'ExerciseTranslation',
@@ -320,9 +347,12 @@ def moderation_queues(start, end) -> list[dict]:
             pending = model.objects.filter(**spec['pending']).count()
             timing = spec['timing']
             submitted_field = timing[0] if timing else 'created_at'
-            submitted = model.objects.filter(
+            submitted_qs = model.objects.filter(
                 **{f'{submitted_field}__gte': start, f'{submitted_field}__lt': end}
-            ).count()
+            )
+            submitted_extra = dict(spec.get('submitted') or {})
+            submitted_qs = _contributions_only(submitted_qs, submitted_extra)
+            submitted = submitted_qs.filter(**submitted_extra).count()
             if timing:
                 decided_qs = model.objects.filter(**spec['decided']).filter(
                     **{f'{timing[1]}__gte': start, f'{timing[1]}__lt': end}

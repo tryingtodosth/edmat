@@ -230,6 +230,10 @@ def progress(task):
     is work that did not happen) and is stated here rather than discovered later.
     """
     subtasks = task.subtasks.all()
+    if 'subtasks' in getattr(task, '_prefetched_objects_cache', {}):
+        # A board prefetched them: count the rows in hand rather than two queries per card.
+        rows = list(subtasks)
+        return sum(1 for row in rows if row.status == 'done'), len(rows)
     total = subtasks.count()
     if total == 0:
         return 0, 0

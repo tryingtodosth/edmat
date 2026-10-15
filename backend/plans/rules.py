@@ -146,7 +146,11 @@ def progress(plan) -> dict:
     """Done over (total − skipped) — **recounted**, never stored (house rule 5): two `COUNT`s over
     an indexed FK is cheap, and a stored tally is one missed code path away from a bar that
     disagrees with the steps underneath it."""
-    statuses = list(plan.steps.values_list('status', flat=True))
+    if 'steps' in getattr(plan, '_prefetched_objects_cache', {}):
+        # The node's list prefetched them: count those rows rather than ask again per plan.
+        statuses = [step.status for step in plan.steps.all()]
+    else:
+        statuses = list(plan.steps.values_list('status', flat=True))
     total = len(statuses)
     skipped = statuses.count('skipped')
     done = statuses.count('done')

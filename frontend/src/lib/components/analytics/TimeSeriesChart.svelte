@@ -72,10 +72,17 @@
 					s.values.map((v, i) => `${xCenter(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
 				)
 	);
+	// Date labels at an EVEN stride, counted back from the last day (today is the one people look
+	// for). Rounding five evenly spread positions over seven days labelled 9, 11, 12, 14 and 15 Oct
+	// (the 2026-10-15 screenshot); a whole-number stride cannot skip unevenly. Past two weeks the
+	// stride is whole weeks, so every label falls on the same weekday.
 	const xTicks = $derived.by(() => {
-		const count = Math.min(5, n);
-		if (count <= 1) return n ? [0] : [];
-		return Array.from({ length: count }, (_, k) => Math.round((k * (n - 1)) / (count - 1)));
+		if (n <= 1) return n ? [0] : [];
+		const raw = Math.max(1, Math.ceil((n - 1) / 5));
+		const stride = n > 14 ? Math.ceil(raw / 7) * 7 : raw;
+		const ticks: number[] = [];
+		for (let i = n - 1; i >= 0; i -= stride) ticks.unshift(i);
+		return ticks;
 	});
 	// The midline only when it is a whole number: counts are integers, and a gridline at 2.5 labelled
 	// "3" (the first screenshot, a 5xx chart topping out at 5) is a label that lies about its line.
@@ -114,10 +121,13 @@
 			</defs>
 			{#each yTicks as t (t)}
 				<line class="grid" x1={L} x2={W - R} y1={y(t)} y2={y(t)} />
-				<text class="tick" x={L - 6} y={y(t) + 3} text-anchor="end">{formatCount(Math.round(t))}</text>
+				<text class="tick" x={L - 6} y={y(t) + 3} text-anchor="end"
+					>{formatCount(Math.round(t))}</text
+				>
 			{/each}
 			{#each xTicks as i (i)}
-				<text class="tick" x={xCenter(i)} y={H - 6} text-anchor="middle">{shortDate(dates[i])}</text>
+				<text class="tick" x={xCenter(i)} y={H - 6} text-anchor="middle">{shortDate(dates[i])}</text
+				>
 			{/each}
 			{#if hover !== null}
 				<rect class="cursor" x={L + hover * step} y={T} width={step} height={H - T - B} />
@@ -171,7 +181,10 @@
 		<ul class="legend">
 			{#each series as s (s.key)}
 				<li>
-					<span class="swatch" class:hatched={s.hatch} style:background={s.hatch ? undefined : s.color}
+					<span
+						class="swatch"
+						class:hatched={s.hatch}
+						style:background={s.hatch ? undefined : s.color}
 					></span>{s.label}
 				</li>
 			{/each}
