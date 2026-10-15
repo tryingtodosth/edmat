@@ -361,8 +361,17 @@ chapters.start = async () => {
 		await accountButton.click();
 		await settle(signedIn.page);
 	}
+	// The menu has been grouped (Learning / Taking part / Working together / Your account) since
+	// 2026-10-14 and is taller than the 620 px this picture used to be, so the clip follows the
+	// open menu down to its last item instead of a fixed height.
+	const menu = await rect(signedIn.page, 'header [role="menu"]:has-text("Log out")');
 	await shoot(signedIn.page, 'start', '05-account-menu', {
-		clip: { x: WIDTH - 560, y: 0, width: 560, height: 620 }
+		clip: {
+			x: WIDTH - 560,
+			y: 0,
+			width: 560,
+			height: menu ? Math.round(menu.y + menu.height + 16) : 620
+		}
 	});
 	await signedIn.ctx.close();
 };
@@ -510,6 +519,11 @@ chapters.submit = async () => {
 	await page
 		.selectOption('form select:has(option[value="university"])', 'university')
 		.catch(() => {});
+	// The language picker opens on the reader's interface language (English here); the exercise
+	// is written in Polish, so a person filling this in changes it, and so does this script.
+	await page
+		.selectOption('form select:has(option[value="pl"]):has(option[value="en"])', 'pl')
+		.catch(() => {});
 	const areas = page.locator('form textarea');
 	if (await areas.count()) {
 		await areas
@@ -606,6 +620,14 @@ chapters.courses = async () => {
 	// A public course somebody can actually join, from a reader's side.
 	const joiner = await open('michal@edmat.example');
 	await visit(joiner.page, '/courses/6', { wait: 'h1', extra: 2500 });
+	// "What it covers and expects" is a shut fold since 2026-10-14; the chapter asks a reader to
+	// open it before joining, so the picture shows it open.
+	await joiner.page
+		.locator('.fold__toggle', { hasText: 'What it covers' })
+		.first()
+		.click()
+		.catch(() => {});
+	await settle(joiner.page, 1500);
 	await shoot(joiner.page, 'courses', '05-join', {
 		clip: { x: 0, y: 56, width: WIDTH, height: 700 }
 	});
@@ -619,20 +641,26 @@ chapters.events = async () => {
 	await shoot(page, 'events', '01-hub', { clip: { x: 0, y: 56, width: WIDTH, height: 480 } });
 
 	await visit(page, '/events/68', { wait: 'h1', extra: 2500 });
-	await shoot(page, 'events', '02-event', { clip: { x: 0, y: 56, width: WIDTH, height: 560 } });
+	// Down to the first folded section line (the programme), whole: 600 px since the folds arrived.
+	await shoot(page, 'events', '02-event', { clip: { x: 0, y: 56, width: WIDTH, height: 600 } });
 
-	const box = await rect(page, 'h2:text-is("Programme")');
+	// Since 2026-10-14 every section under the summary box is a `FoldSection`, shut until the reader
+	// opens it. The lower half is photographed as it first appears — a column of shut sections, each
+	// with its count — and the programme is opened the way a reader opens it.
+	const proposals = page.locator('.fold__toggle', { hasText: 'Proposals' }).first();
+	if (await proposals.count()) {
+		const pbox = await rect(page, 'section.fold:has(.fold__toggle:has-text("Proposals"))');
+		await shoot(page, 'events', '04-conference', {
+			clip: { x: 0, y: Math.round(pbox?.y ?? 1200) - 20, width: WIDTH, height: 460 }
+		});
+	}
+
+	await page.locator('.fold__toggle', { hasText: 'Programme' }).first().click();
+	await settle(page, 1500);
+	const box = await rect(page, 'section.fold:has(.fold__toggle:has-text("Programme"))');
 	await shoot(page, 'events', '03-programme', {
 		clip: { x: 0, y: Math.round(box?.y ?? 600) - 20, width: WIDTH, height: 620 }
 	});
-
-	const proposals = page.locator('h2:text-is("Proposals")').first();
-	if (await proposals.count()) {
-		const pbox = await rect(page, 'h2:text-is("Proposals")');
-		await shoot(page, 'events', '04-conference', {
-			clip: { x: 0, y: Math.round(pbox?.y ?? 1200) - 20, width: WIDTH, height: 560 }
-		});
-	}
 	await ctx.close();
 };
 
@@ -705,8 +733,16 @@ chapters.concepts = async () => {
 	await hideScratch(writer.page);
 	// 340 px: below the tags the "Connections" block lists a linked exercise as a chip whose label
 	// is the RAW LaTeX source (todo.md, "Found by the manual"), and the manual must not print it.
+	// The licence line (2026-10-14) pushed the writer's links down, so the clip now ends under
+	// "Write your own article…" wherever it lands rather than at a fixed 340 px.
+	const own = await rect(writer.page, 'a:has-text("Write your own article")');
 	await shoot(writer.page, 'concepts', '03-signed-in', {
-		clip: { x: 0, y: 56, width: WIDTH, height: 340 }
+		clip: {
+			x: 0,
+			y: 56,
+			width: WIDTH,
+			height: own ? Math.round(own.y + own.height + 16 - 56) : 420
+		}
 	});
 	await writer.ctx.close();
 };
@@ -788,10 +824,22 @@ chapters.help = async () => {
 		// deliberately NOT the form itself: its text inputs and textarea render with no border or
 		// background at all (todo.md, "Found by the manual"), and a manual that photographs a
 		// broken control teaches the bug.
-		const panel = await rect(poster.page, '[data-needs-panel]');
+		// The panel is a shut `FoldSection` until it is opened (2026-10-14); open it as a reader does.
+		await poster.page
+			.locator('section[data-fold="needs"] .fold__toggle')
+			.first()
+			.click()
+			.catch(() => {});
+		await settle(poster.page, 1500);
+		const panel = await rect(poster.page, 'section[data-fold="needs"]');
 		check('help: the needs panel is on the course page', Boolean(panel));
 		await shoot(poster.page, 'help', '03-post-a-need', {
-			clip: { x: 0, y: Math.max(56, Math.round(panel?.y ?? 900) - 24), width: WIDTH, height: 170 }
+			clip: {
+				x: 0,
+				y: Math.max(56, Math.round(panel?.y ?? 900) - 24),
+				width: WIDTH,
+				height: Math.round((panel?.height ?? 146) + 48)
+			}
 		});
 	}
 	await poster.ctx.close();
@@ -936,7 +984,14 @@ chapters.moderation = async () => {
 	const tabs = await rect(page, '.tabs[role="tablist"]');
 	check('moderation: the queue tab row was found', Boolean(tabs));
 	await shoot(page, 'moderation', '01-queue', {
-		clip: { x: 0, y: Math.max(56, Math.round(tabs?.y ?? 200) - 24), width: WIDTH, height: 130 }
+		// The row wraps onto two lines since the tabs were un-squeezed (2026-10-14), so the clip
+		// follows the row's own height instead of a fixed 130 px.
+		clip: {
+			x: 0,
+			y: Math.max(56, Math.round(tabs?.y ?? 200) - 24),
+			width: WIDTH,
+			height: Math.round((tabs?.height ?? 82) + 48)
+		}
 	});
 
 	// Deliberately the submissions tab and not Reports: the development database's reported rows
@@ -946,9 +1001,11 @@ chapters.moderation = async () => {
 		await newExercises.click();
 		await settle(page, 2000);
 		await hideScratch(page);
-		const panel = await rect(page, '#mod-tabpanel');
+		// From the tab row down, so the picture shows which tab is open. Measured again after the
+		// click: the page above the row is redrawn when the tab changes.
+		const row = await rect(page, '.tabs[role="tablist"]');
 		await shoot(page, 'moderation', '02-new-exercises', {
-			clip: { x: 0, y: Math.max(56, Math.round(panel?.y ?? 300) - 80), width: WIDTH, height: 700 }
+			clip: { x: 0, y: Math.max(56, Math.round(row?.y ?? 300) - 16), width: WIDTH, height: 560 }
 		});
 	} else {
 		check('moderation/02-new-exercises: #mod-tab-submissions exists', false);
@@ -958,9 +1015,9 @@ chapters.moderation = async () => {
 	if (await flags.count()) {
 		await flags.click();
 		await settle(page, 2000);
-		const panel = await rect(page, '#mod-tabpanel');
+		const row = await rect(page, '.tabs[role="tablist"]');
 		await shoot(page, 'moderation', '03-flags', {
-			clip: { x: 0, y: Math.max(56, Math.round(panel?.y ?? 300) - 80), width: WIDTH, height: 820 }
+			clip: { x: 0, y: Math.max(56, Math.round(row?.y ?? 300) - 16), width: WIDTH, height: 860 }
 		});
 	} else {
 		check('moderation/03-flags: #mod-tab-flags exists', false);
@@ -1139,15 +1196,27 @@ chapters.flashcards = async () => {
 	const student = await open('piotr@edmat.example');
 	if (demoCourseId) {
 		await visit(student.page, `/courses/${demoCourseId}`, { wait: 'h1', extra: 3000 });
+		// A shut `FoldSection` since 2026-10-14: open it the way a participant does.
+		await student.page
+			.locator('section[data-fold="decks"] .fold__toggle')
+			.first()
+			.click()
+			.catch(() => {});
 		await student.page
 			.locator('.decks-panel')
 			.waitFor({ timeout: 20000 })
 			.catch(() => {});
+		await settle(student.page, 1200);
 		await hideScratch(student.page);
-		const panel = await rect(student.page, '.decks-panel');
+		const panel = await rect(student.page, 'section[data-fold="decks"]');
 		check('flashcards: the Flashcards panel is on the course page', Boolean(panel));
 		await shoot(student.page, 'flashcards', '07-on-a-course', {
-			clip: { x: 0, y: Math.max(56, Math.round(panel?.y ?? 900) + 3), width: WIDTH, height: 150 }
+			clip: {
+				x: 0,
+				y: Math.max(56, Math.round(panel?.y ?? 900) - 16),
+				width: WIDTH,
+				height: Math.round((panel?.height ?? 150) + 32)
+			}
 		});
 	}
 	await student.ctx.close();

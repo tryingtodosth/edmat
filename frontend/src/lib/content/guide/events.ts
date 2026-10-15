@@ -15,29 +15,30 @@ const EN: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/events/01-hub.png',
-				alt: 'The events page with the "Coming up" tab selected and one card: a conference on Monday 19 October at 11:00, hosted by Anna Organiser, in person, 38 of 40 places left.'
+				alt: 'The events page with the "Coming up" tab selected and two cards for test events, each with its day and time, its audience, a line of description, who is hosting, whether it is online or in person, and how many are going or how many places are left.'
 			}
 		},
 		{
 			heading: 'The event page, and saying you are coming',
 			body: [
 				'A box at the top answers four questions at once: when, who can see this, where, and who is coming. Underneath is either "Register" and "I cannot come", or — if you are not signed in — a line saying so and a link to the log-in page.',
+				'Everything below that is folded: the programme, proposals, documents, help wanted, updates and the list of who is coming. Each line says how many things are inside and opens with a click, so a long event page starts short.',
 				'Where an event asks for a registration rather than a yes/no, there is a form, and there may be a waiting list. If a seat frees up you are told, and you have a stated number of hours to confirm it.'
 			],
 			screenshot: {
 				src: '/guide/events/02-event.png',
-				alt: 'An event page: the title, who is hosting, and a box reading When, Who can see this, Where and Who is coming, with a note that a visitor must sign in to say whether they are coming.'
+				alt: 'An event page: the title, who is hosting, and a box reading When, Who can see this, Where and Who is coming, a note that a visitor must sign in to say whether they are coming, and the folded Programme line beneath.'
 			}
 		},
 		{
 			heading: 'The programme',
 			body: [
-				'Sessions, grouped by day, each with its time, its room and what kind of thing it is — a talk, a workshop, something else. "Add to my agenda" builds your own timetable through the event; "Add to calendar (.ics)" hands the whole thing to your calendar app.',
+				'Open "Programme": sessions, grouped by day, each with its time, its room and what kind of thing it is — a talk, a workshop, something else. "Add to my agenda" builds your own timetable through the event; "Add to calendar (.ics)" hands the whole thing to your calendar app.',
 				'A session with a seat limit says how many are left and lets you take one. "Questions" is that session\'s own thread.'
 			],
 			screenshot: {
 				src: '/guide/events/03-programme.png',
-				alt: 'The programme of an event: Monday 19 October with an opening lecture and an exercises workshop (Seats: 0/12), and Tuesday 20 October with a closing round table, all in Room A.'
+				alt: 'The opened Programme of an event: List and Week views and "Add to calendar (.ics)", then two days — an opening lecture and an exercises workshop (Seats: 0/12) on the first, a closing round table on the second — all in Room A, each with a Questions button.'
 			}
 		},
 		{
@@ -48,7 +49,7 @@ const EN: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/events/04-conference.png',
-				alt: 'The lower half of an event page: Proposals with a deadline, Documents, Help wanted, Updates and Who is coming.'
+				alt: 'The lower half of an event page, each section folded with its count: Proposals, Documents, Help wanted, Updates and Who is coming.'
 			}
 		}
 	],
@@ -69,29 +70,30 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/events/01-hub.png',
-				alt: 'Strona wydarzeń z zakładką „Coming up” i jednym kafelkiem: konferencja w poniedziałek 19 października o 11:00, prowadzi Anna Organiser, na żywo, 38 z 40 miejsc wolnych.'
+				alt: 'Strona wydarzeń z zakładką „Coming up” i dwoma kafelkami testowych wydarzeń: każdy z dniem i godziną, odbiorcami, zdaniem opisu, prowadzącym, informacją, czy to online, czy na żywo, i liczbą chętnych albo wolnych miejsc.'
 			}
 		},
 		{
 			heading: 'Strona wydarzenia i zgłoszenie obecności',
 			body: [
 				'Ramka u góry odpowiada naraz na cztery pytania: kiedy, kto to widzi, gdzie i kto przychodzi. Pod nią albo „Register” i „I cannot come”, albo — jeśli nie jesteś zalogowany — zdanie o tym i odnośnik do logowania.',
+				'Wszystko niżej jest zwinięte: program, zgłoszenia, dokumenty, szukanie pomocy, aktualności i lista przychodzących. Każdy wiersz mówi, ile jest w środku, i rozwija się po kliknięciu, więc nawet długa strona wydarzenia zaczyna się krótko.',
 				'Tam, gdzie wydarzenie prosi o rejestrację zamiast zwykłego „będę”, jest formularz, a bywa i lista rezerwowa. Kiedy zwolni się miejsce, dostaniesz powiadomienie i podaną liczbę godzin na potwierdzenie.'
 			],
 			screenshot: {
 				src: '/guide/events/02-event.png',
-				alt: 'Strona wydarzenia: tytuł, prowadząca i ramka z wierszami When, Who can see this, Where i Who is coming, z informacją, że gość musi się zalogować, by zadeklarować obecność.'
+				alt: 'Strona wydarzenia: tytuł, prowadząca i ramka z wierszami When, Who can see this, Where i Who is coming, informacja, że gość musi się zalogować, by zadeklarować obecność, a pod nią zwinięty wiersz Programme.'
 			}
 		},
 		{
 			heading: 'Program',
 			body: [
-				'Sesje pogrupowane dniami, każda z godziną, salą i rodzajem — wykład, warsztat, coś innego. „Add to my agenda” składa Twój własny plan na to wydarzenie; „Add to calendar (.ics)” oddaje całość Twojemu kalendarzowi.',
+				'Po rozwinięciu „Programme”: sesje pogrupowane dniami, każda z godziną, salą i rodzajem — wykład, warsztat, coś innego. „Add to my agenda” składa Twój własny plan na to wydarzenie; „Add to calendar (.ics)” oddaje całość Twojemu kalendarzowi.',
 				'Sesja z limitem miejsc mówi, ile zostało, i pozwala zająć jedno. „Questions” to jej własny wątek.'
 			],
 			screenshot: {
 				src: '/guide/events/03-programme.png',
-				alt: 'Program wydarzenia: poniedziałek 19 października z wykładem otwierającym i warsztatem zadaniowym (Seats: 0/12) oraz wtorek 20 października z panelem zamykającym, wszystko w Room A.'
+				alt: 'Rozwinięty program wydarzenia: widoki List i Week oraz „Add to calendar (.ics)”, a pod nimi dwa dni — wykład otwierający i warsztat zadaniowy (Seats: 0/12) pierwszego dnia, panel zamykający drugiego — wszystko w Room A, przy każdej sesji przycisk Questions.'
 			}
 		},
 		{
@@ -102,7 +104,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/events/04-conference.png',
-				alt: 'Dolna część strony wydarzenia: Proposals z terminem, Documents, Help wanted, Updates i Who is coming.'
+				alt: 'Dolna część strony wydarzenia, każda sekcja zwinięta, z liczbą w środku: Proposals, Documents, Help wanted, Updates i Who is coming.'
 			}
 		}
 	],

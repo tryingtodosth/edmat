@@ -282,7 +282,52 @@ const EN: ContestsShowcase = {
 	],
 	closing:
 		'The research this page stands on is in CONTESTS-LAW.md in the repository, with every source and every open question ranked. Nothing on this page has been read by a Polish lawyer, and the parts that most need one are marked.',
-	tryIt: [{ label: 'Browse the contests', route: '/contests' }]
+	tryIt: [{ label: 'Browse the contests', route: '/contests' }],
+	// The manual's own pictures (`e2e/guide-screenshots.mjs`, the contests chapter), looked at against
+	// today's screens before use (2026-10-15, WP10). They are of the seeded demo contests.
+	shots: [
+		{
+			src: '/guide/contests/01-hub.png',
+			focus: [136, 1144],
+			width: 1280,
+			height: 660,
+			route: '/contests',
+			alt: 'Screenshot of the Contests page: a search box, Status and Kind filters, the tabs All, I run these, I am judging and I am taking part, and three contest cards — two prize-free weekly challenges organised by Michał Zieliński and “Konkurs z analizy II — jesień 2026” organised by Kasia Wiśniewska, with a prize and its results published — each saying when it starts and how many have entered.',
+			caption:
+				'Every contest names its organiser on its card, says whether there is a prize, and says how far it has got.'
+		},
+		{
+			src: '/guide/contests/06-kind.png',
+			focus: [206, 1074],
+			width: 1280,
+			height: 706,
+			route: '/contests',
+			linkLabel: 'Start one from the contests page',
+			alt: 'Screenshot of the first step of founding a contest, “What kind of contest is this?”: Challenge (no prize) selected, then School contest (a teacher runs it), Multi-stage contest (not a kurator’s) and University or faculty contest, each with chips naming who organises it, whether there is a prize, the tax rule that applies and the smallest jury.',
+			caption:
+				'The first question the wizard asks is which kind of contest this is. The default promises no prize.'
+		},
+		{
+			src: '/guide/contests/10-compliance.png',
+			focus: [136, 1144],
+			width: 1280,
+			height: 760,
+			alt: 'Screenshot of “What the law asks of the organiser” on a contest with a prize: a note that this is not legal advice, a count of 14 done, 0 still missing and 2 that only a person can check, the tax on the prize with its citations marked restated or disputed, and obligations marked DONE, each with the articles it rests on.',
+			caption:
+				'Only the organiser sees this checklist: every obligation the prize brought with it, and how well each citation was checked.'
+		},
+		{
+			src: '/guide/contests/04-results.png',
+			focus: [225, 1054],
+			width: 1280,
+			height: 378,
+			route: '/contests',
+			linkLabel: 'Find a contest’s results',
+			alt: 'Screenshot of the published results of “Konkurs z analizy II — jesień 2026”: a ranking of four entrants shown by their initials, with points out of 15 and their titles — Laureate, Finalist, Distinction, Took part — and the reader’s own row marked “that is you”.',
+			caption:
+				'Published results show initials, unless an entrant has separately agreed to their full name.'
+		}
+	]
 };
 
 const PL: ContestsShowcase = {
@@ -502,7 +547,50 @@ const PL: ContestsShowcase = {
 	],
 	closing:
 		'Badania, na których stoi ta strona, są w pliku CONTESTS-LAW.md w repozytorium, z każdym źródłem i z pytaniami otwartymi ułożonymi według wagi. Nic na tej stronie nie było czytane przez polskiego prawnika, a te fragmenty, które najbardziej go potrzebują, są oznaczone.',
-	tryIt: [{ label: 'Przeglądaj konkursy', route: '/contests' }]
+	tryIt: [{ label: 'Przeglądaj konkursy', route: '/contests' }],
+	shots: [
+		{
+			src: '/guide/contests/01-hub.png',
+			focus: [136, 1144],
+			width: 1280,
+			height: 660,
+			route: '/contests',
+			alt: 'Zrzut ekranu strony konkursów: wyszukiwarka, filtry stanu i rodzaju, zakładki All, I run these, I am judging i I am taking part oraz trzy kafelki konkursów — dwa wyzwania tygodnia bez nagrody, które organizuje Michał Zieliński, i „Konkurs z analizy II — jesień 2026” Kasi Wiśniewskiej, z nagrodą i opublikowanymi wynikami — na każdym data startu i liczba zgłoszonych.',
+			caption:
+				'Każdy konkurs ma na kafelku swojego organizatora, informację, czy jest nagroda, i to, na jakim jest etapie.'
+		},
+		{
+			src: '/guide/contests/06-kind.png',
+			focus: [206, 1074],
+			width: 1280,
+			height: 706,
+			route: '/contests',
+			linkLabel: 'Załóż konkurs ze strony konkursów',
+			alt: 'Zrzut ekranu pierwszego kroku zakładania konkursu, „What kind of contest is this?”: zaznaczone Challenge (no prize), a pod nim School contest (a teacher runs it), Multi-stage contest (not a kurator’s) i University or faculty contest — przy każdym plakietki z tym, kto organizuje, czy jest nagroda, jaka reguła podatkowa obowiązuje i jakie jest najmniejsze jury.',
+			caption:
+				'Pierwsze pytanie kreatora brzmi: jaki to rodzaj konkursu. Domyślny nie obiecuje żadnej nagrody.'
+		},
+		{
+			src: '/guide/contests/10-compliance.png',
+			focus: [136, 1144],
+			width: 1280,
+			height: 760,
+			alt: 'Zrzut ekranu „What the law asks of the organiser” przy konkursie z nagrodą: zastrzeżenie, że to nie porada prawna, licznik 14 zrobionych, 0 brakujących i 2 do sprawdzenia przez człowieka, podatek od nagrody z przepisami oznaczonymi jako streszczone albo sporne oraz obowiązki oznaczone DONE, każdy z artykułami, na których się opiera.',
+			caption:
+				'Tę listę widzi tylko organizator: każdy obowiązek, który przyniosła ze sobą nagroda, i to, jak dokładnie sprawdzono każdy przepis.'
+		},
+		{
+			src: '/guide/contests/04-results.png',
+			focus: [225, 1054],
+			width: 1280,
+			height: 378,
+			route: '/contests',
+			linkLabel: 'Znajdź wyniki konkursu',
+			alt: 'Zrzut ekranu opublikowanych wyników „Konkurs z analizy II — jesień 2026”: ranking czworga uczestników podpisanych inicjałami, z punktami na 15 i tytułami — Laureate, Finalist, Distinction, Took part — oraz wiersz czytającej osoby oznaczony „that is you”.',
+			caption:
+				'Opublikowane wyniki pokazują inicjały, chyba że ktoś osobno zgodził się na pełne imię i nazwisko.'
+		}
+	]
 };
 
 export function contestsShowcaseFor(locale: string): ContestsShowcase {

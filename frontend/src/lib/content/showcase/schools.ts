@@ -122,6 +122,38 @@ const EN: SchoolsShowcase = {
 	tryIt: [
 		{ label: 'Browse the organisations', route: '/organizations' },
 		{ label: 'Browse the courses', route: '/courses' }
+	],
+	// `e2e/showcase-screens.mjs` (WP10, 2026-10-15). The first two are the seeded demo school
+	// (`manage.py seed_school_demo`, every name in it invented and its titles marked TEST=FAKE) as
+	// its teacher sees it; its classes are private, so neither picture links anywhere. The third is
+	// the static `/dziennik` build, which this app does not route, so it has no link either — the
+	// page's own demonstration link, below, is the way in.
+	shots: [
+		{
+			src: '/showcase/schools/01-class.png',
+			focus: [244, 1036],
+			width: 1280,
+			height: 290,
+			alt: 'Screenshot of the top of a class page in the seeded demo school: the title “TEST=FAKE Fizyka — klasa 2a”, who runs it, “Organised by” the demo school, and the sentence “This is a class run by … The people running it see every participant’s progress statements and the guardians on the roster.”',
+			caption:
+				'A class is an ordinary course with one line added: which school runs it, and what that changes. Seeded demo data; every pupil is invented.'
+		},
+		{
+			src: '/showcase/schools/02-register.png',
+			width: 740,
+			height: 263,
+			alt: 'Screenshot of one lesson’s progress in the demo class, opened by its teacher: “5 of 6 have finished this · 1 stuck”, the line “You are seeing every participant’s statements because a school runs this class. They were told.”, and six invented pupils’ names, five marked Done and one Stuck.',
+			caption:
+				'The teacher’s view of one lesson: every pupil by name, because a school runs the class — and the pupils were told.'
+		},
+		{
+			src: '/showcase/schools/03-logbook.png',
+			width: 1280,
+			height: 820,
+			alt: 'Screenshot of the school logbook demonstration, in Polish: a banner saying it is a demonstration with sample data where nothing saves, a “see as” picker set to a teacher, and the teacher’s “Dziennik lekcyjny” — the day’s lessons, an attendance list with one button per kind of presence or absence, and the lesson topic linked to the core curriculum.',
+			caption:
+				'The school logbook demonstration (Polish only): a recording, not a running system. Pick a role, click anywhere — nothing is saved.'
+		}
 	]
 };
 
@@ -209,6 +241,33 @@ const PL: SchoolsShowcase = {
 	tryIt: [
 		{ label: 'Przeglądaj organizacje', route: '/organizations' },
 		{ label: 'Przeglądaj kursy', route: '/courses' }
+	],
+	shots: [
+		{
+			src: '/showcase/schools/01-class.png',
+			focus: [244, 1036],
+			width: 1280,
+			height: 290,
+			alt: 'Zrzut ekranu górnej części strony klasy w demonstracyjnej szkole: tytuł „TEST=FAKE Fizyka — klasa 2a”, kto prowadzi, „Organised by” z nazwą demonstracyjnej szkoły i zdanie „This is a class run by … The people running it see every participant’s progress statements and the guardians on the roster.”',
+			caption:
+				'Klasa to zwykły kurs z jednym dodatkowym wierszem: która szkoła ją prowadzi i co to zmienia. Dane demonstracyjne, wszyscy uczniowie są wymyśleni.'
+		},
+		{
+			src: '/showcase/schools/02-register.png',
+			width: 740,
+			height: 263,
+			alt: 'Zrzut ekranu postępu w jednej lekcji demonstracyjnej klasy, rozwiniętego przez nauczycielkę: „5 of 6 have finished this · 1 stuck”, zdanie „You are seeing every participant’s statements because a school runs this class. They were told.” i imiona sześciorga wymyślonych uczniów — pięcioro z Done, jedno ze Stuck.',
+			caption:
+				'Widok nauczycielki na jedną lekcję: każdy uczeń z imienia i nazwiska, bo klasę prowadzi szkoła — a uczniowie zostali o tym uprzedzeni.'
+		},
+		{
+			src: '/showcase/schools/03-logbook.png',
+			width: 1280,
+			height: 820,
+			alt: 'Zrzut ekranu demonstracji dziennika szkolnego: pasek z informacją, że to wersja demonstracyjna z przykładowymi danymi i nic się nie zapisuje, wybór „Zobacz jako” ustawiony na nauczyciela i jego „Dziennik lekcyjny” — lekcje dnia, lista obecności z przyciskiem na każdy rodzaj obecności i nieobecności oraz temat lekcji powiązany z podstawą programową.',
+			caption:
+				'Demonstracja dziennika szkolnego: nagranie, a nie działający system. Wybierz rolę, klikaj gdzie chcesz — nic się nie zapisze.'
+		}
 	]
 };
 

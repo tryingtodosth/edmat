@@ -66,7 +66,7 @@ const EN: ShowcaseModuleDoc = {
 			src: '/showcase/goals-and-work/02-tasks.png',
 			focus: [230, 1050],
 			width: 1280,
-			height: 670,
+			height: 695,
 			route: '/tasks',
 			alt: 'Screenshot of “My tasks”, section “Waiting on you”: three task cards from the TEST=FAKE P5 colour-pass sandbox event. The first, marked Urgent, is overdue and To do; the second, marked High, is overdue and In progress; the third is due later and To do. Each shows who is on it, with Start or Send to review, Cancel it, Edit, Add a step, Delete and Open the task.',
 			caption:
@@ -88,7 +88,7 @@ const EN: ShowcaseModuleDoc = {
 			width: 1280,
 			height: 1000,
 			route: '/work',
-			alt: 'Screenshot of “My work — Everything waiting on you in one place”: a section “Events I’m hosting” with one event, “Material proposals” with one pending proposal, and “Assigned tasks” with overdue tasks marked by a red dot and their due dates.',
+			alt: 'Screenshot of “My work — Everything waiting on you in one place”: a section “Events I’m hosting” with one event, “Material proposals” with one version to review, and “Assigned tasks” with overdue tasks marked by a red dot, their due dates and their state in words (“To do”).',
 			caption:
 				'My work: one page per person, grouped by kind, with a coloured dot for how urgent each item is. Sections with nothing in them are left out.'
 		}
@@ -204,7 +204,7 @@ const PL: ShowcaseModuleDoc = {
 			src: '/showcase/goals-and-work/02-tasks.png',
 			focus: [230, 1050],
 			width: 1280,
-			height: 670,
+			height: 695,
 			route: '/tasks',
 			alt: 'Zrzut ekranu „My tasks”, sekcja „Waiting on you”: trzy karty zadań z wydarzenia TEST=FAKE P5 colour-pass sandbox. Pierwsza, oznaczona Urgent, jest po terminie i ma stan To do; druga, oznaczona High, jest po terminie i w toku; trzecia ma późniejszy termin. Na każdej widać, kto się nią zajmuje, i przyciski Start albo Send to review, Cancel it, Edit, Add a step, Delete i Open the task.',
 			caption:
@@ -226,7 +226,7 @@ const PL: ShowcaseModuleDoc = {
 			width: 1280,
 			height: 1000,
 			route: '/work',
-			alt: 'Zrzut ekranu „My work — Everything waiting on you in one place”: sekcja „Events I’m hosting” z jednym wydarzeniem, „Material proposals” z jedną propozycją do przejrzenia i „Assigned tasks” z zadaniami po terminie oznaczonymi czerwoną kropką i datami.',
+			alt: 'Zrzut ekranu „My work — Everything waiting on you in one place”: sekcja „Events I’m hosting” z jednym wydarzeniem, „Material proposals” z jedną wersją do przejrzenia i „Assigned tasks” z zadaniami po terminie oznaczonymi czerwoną kropką, z datami i stanem opisanym słowami („To do”).',
 			caption:
 				'Moja praca: jedna strona dla każdej osoby, pogrupowana według rodzaju, z kolorową kropką mówiącą, jak pilna jest każda pozycja. Puste sekcje się nie pokazują.'
 		}

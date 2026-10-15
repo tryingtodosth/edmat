@@ -50,7 +50,7 @@ const EN: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/messages/04-notifications.png',
-				alt: 'The Notifications page with one unread entry: "Michał Zieliński asked to book a session — Analiza — dyżur konsultacyjny", with the hour quoted underneath and "37 seconds ago".'
+				alt: 'The Notifications page, newest first, with "Mark all as read" at the top: the newest unread entry reads "Michał Zieliński asked to book a session — Analiza — dyżur konsultacyjny", with the hour asked for quoted underneath and how long ago it arrived.'
 			}
 		}
 	],
@@ -106,7 +106,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/messages/04-notifications.png',
-				alt: 'Strona powiadomień z jednym nieprzeczytanym wpisem: „Michał Zieliński asked to book a session — Analiza — dyżur konsultacyjny”, pod nim godzina i „37 seconds ago”.'
+				alt: 'Strona powiadomień, od najnowszych, z „Mark all as read” u góry: najnowszy nieprzeczytany wpis to „Michał Zieliński asked to book a session — Analiza — dyżur konsultacyjny”, pod nim żądana godzina i to, jak dawno przyszedł.'
 			}
 		}
 	],

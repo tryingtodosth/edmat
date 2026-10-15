@@ -12,12 +12,12 @@ const EN: GuideChapterDoc = {
 			tryHref: '/moderation',
 			tryFor: 'moderators',
 			body: [
-				'Reports, new exercises, materials, edit suggestions, translations, concepts, solutions and hints, governors, applications — and Flags, which is not a queue at all. Each tab carries the number waiting, so the page says at a glance where the work is.',
+				'Reports, new exercises, materials, edit suggestions, translations, concepts, solutions and hints, governors, applications — and Flags, Page discussions and Analytics, which are not queues at all. Each tab carries the number waiting, so the page says at a glance where the work is.',
 				'Above the tabs sit the proposed taxonomy entries: a discipline, a subject or a material type somebody needed and typed in. Each can be accepted, merged into an existing one, moved under a different parent, or rejected.'
 			],
 			screenshot: {
 				src: '/guide/moderation/01-queue.png',
-				alt: 'The moderation queue tab row: Reports (3), New exercises (2), Materials (1), Edit suggestions (1), Translations (1), Concepts (1), Solutions & hints (0), Governors (0), Applications (0), Flags.'
+				alt: 'The moderation queue tab row, on three lines: Reports, New exercises, Materials, Edit suggestions, Translations, Concepts, Solutions & hints, Governors and Applications, each with the number waiting and a dot where something is; then Flags, Page discussions and Analytics.'
 			}
 		},
 		{
@@ -30,7 +30,7 @@ const EN: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/moderation/02-new-exercises.png',
-				alt: 'The New exercises tab with one pending submission: the title "Granica ciągu zadanego rekurencyjnie" submitted by Ania Kowalczyk for Analiza matematyczna, its statement, an optional note box, and Approve and Reject buttons.'
+				alt: 'The New exercises tab with one pending submission: the title "Granica ciągu zadanego rekurencyjnie" submitted by Ania Kowalczyk for Analiza matematyczna, its statement, the licence it was offered under (CC BY 4.0), an optional note box, and Approve and Reject buttons.'
 			}
 		},
 		{
@@ -52,7 +52,7 @@ const EN: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/moderation/03-flags.png',
-				alt: 'The Flags tab: a line explaining that kill switches hide a feature from everyone except staff, then rows for the age gate, chemistry drawings, the cloakroom desk, co-authoring, concepts and user-run courses, each On with a "Turn off" button.'
+				alt: 'The Flags tab: a line explaining that kill switches hide a feature from everyone except staff, then rows for the discussions under the standing pages, the age gate, the "AI-assisted" mark, attachments, chemistry drawings and browser error reports, each On with a "Turn off" button.'
 			}
 		},
 		{
@@ -75,12 +75,12 @@ const PL: GuideChapterDoc = {
 			tryHref: '/moderation',
 			tryFor: 'moderators',
 			body: [
-				'Zgłoszenia naruszeń, nowe zadania, materiały, propozycje poprawek, tłumaczenia, pojęcia, rozwiązania i wskazówki, zarządcy, podania — oraz Flags, które kolejką wcale nie jest. Każda zakładka niesie liczbę oczekujących, więc strona od razu mówi, gdzie jest robota.',
+				'Zgłoszenia naruszeń, nowe zadania, materiały, propozycje poprawek, tłumaczenia, pojęcia, rozwiązania i wskazówki, zarządcy, podania — oraz Flags, Page discussions i Analytics, które kolejkami wcale nie są. Każda zakładka niesie liczbę oczekujących, więc strona od razu mówi, gdzie jest robota.',
 				'Nad zakładkami stoją propozycje taksonomii: kierunek, przedmiot albo typ materiału, którego ktoś potrzebował i wpisał. Każdą można przyjąć, scalić z istniejącą, przenieść pod inny element albo odrzucić.'
 			],
 			screenshot: {
 				src: '/guide/moderation/01-queue.png',
-				alt: 'Pasek zakładek kolejki moderacyjnej: Reports (3), New exercises (2), Materials (1), Edit suggestions (1), Translations (1), Concepts (1), Solutions & hints (0), Governors (0), Applications (0), Flags.'
+				alt: 'Pasek zakładek kolejki moderacyjnej w trzech wierszach: Reports, New exercises, Materials, Edit suggestions, Translations, Concepts, Solutions & hints, Governors i Applications, każda z liczbą oczekujących i kropką tam, gdzie coś czeka; dalej Flags, Page discussions i Analytics.'
 			}
 		},
 		{
@@ -93,7 +93,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/moderation/02-new-exercises.png',
-				alt: 'Zakładka New exercises z jednym oczekującym zgłoszeniem: tytuł „Granica ciągu zadanego rekurencyjnie” od Ani Kowalczyk do przedmiotu Analiza matematyczna, treść zadania, pole notatki oraz przyciski Approve i Reject.'
+				alt: 'Zakładka New exercises z jednym oczekującym zgłoszeniem: tytuł „Granica ciągu zadanego rekurencyjnie” od Ani Kowalczyk do przedmiotu Analiza matematyczna, treść zadania, licencja, na jakiej je zgłoszono (CC BY 4.0), pole notatki oraz przyciski Approve i Reject.'
 			}
 		},
 		{
@@ -115,7 +115,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/moderation/03-flags.png',
-				alt: 'Zakładka Flags: zdanie wyjaśniające, że wyłączniki ukrywają funkcję przed wszystkimi poza personelem, a niżej wiersze bramki wieku, rysunków chemicznych, szatni, współtworzenia, pojęć i kursów — każdy „On” z przyciskiem „Turn off”.'
+				alt: 'Zakładka Flags: zdanie wyjaśniające, że wyłączniki ukrywają funkcję przed wszystkimi poza personelem, a niżej wiersze dyskusji pod stałymi stronami, bramki wieku, oznaczenia „AI-assisted”, załączników, rysunków chemicznych i zgłoszeń błędów z przeglądarki — każdy „On” z przyciskiem „Turn off”.'
 			}
 		},
 		{

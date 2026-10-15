@@ -13,11 +13,12 @@ const EN: GuideChapterDoc = {
 			tryHref: '/',
 			body: [
 				'A search box, a row of age bands, and tabs across the newest exercises, materials, concepts, courses, tutoring and events. The search box looks inside statements and titles, so "całka" or "Cauchy" is a reasonable thing to type into it.',
+				'On a first visit three doors sit above the tabs: this chapter, the pages showing what each part of EdMat does, and a straight way into the exercises. The × puts them away for good in this browser.',
 				'Everything below the tabs is a card. A card is a link; the small + on an exercise card puts it straight into your set without opening it.'
 			],
 			screenshot: {
 				src: '/guide/start/01-home.png',
-				alt: 'The EdMat front page: the search box, the row of age bands, the content tabs, and the first exercise cards under "Top rated".'
+				alt: 'The EdMat front page: the search box, the row of age bands, the three first-visit doors "New here?", "Curious first?" and "Rather dive in?", the content tabs, and the first exercise cards under "Top rated".'
 			}
 		},
 		{
@@ -47,24 +48,24 @@ const EN: GuideChapterDoc = {
 			tryHref: '/register',
 			tryFor: 'guests',
 			body: [
-				'A display name, an email, a year of birth, a password and the language you would rather read. The year of birth is asked for one reason — to find out whether you are old enough to open an account by yourself — and is not stored; only the answer is.',
+				'A display name, an email, a year of birth, a password and the language you would rather read, and a tick to say you accept the terms of use and have read the privacy policy — both are links, so you can read them first. The year of birth is asked for one reason — to find out whether you are old enough to open an account by yourself — and is not stored; only the answer is.',
 				'If you are under 16, a parent or guardian creates the account from their own settings page. There is no email on a child account and nothing is ever sent to one.',
 				'A forgotten password is "Forgotten your password?" on the sign-in page: give the address you registered with and a link to set a new one arrives by email.'
 			],
 			screenshot: {
 				src: '/guide/start/04-register.png',
-				alt: 'The sign-up form: display name, email, year of birth, password and preferred interface language, with a Sign up button.'
+				alt: 'The sign-up form: display name, email, year of birth, password and preferred interface language, a tick box reading "I accept the terms of use and have read the privacy policy", and a Sign up button.'
 			}
 		},
 		{
 			heading: 'Your own menu',
 			body: [
-				'Once signed in, your name opens the menu that holds everything that belongs to you: your profile, your schedule and agenda, the materials you co-author, volunteering, your contests and flashcard decks, your tasks, organisations and work, and your settings.',
-				'The "+ Add…" button beside it is the short way to announce an event or put up a tutoring listing. Courses and organisations are started from their own pages instead.'
+				'Once signed in, your name opens the menu that holds everything that belongs to you, in four groups: Learning (your flashcard decks and contests), Taking part (your schedule, agenda and volunteering), Working together (the materials you co-author, your tasks, organisations and work) and Your account (profile, settings, this manual, reporting a problem and logging out).',
+				'The "+ Add…" button beside it is the short way to add something: an exercise, a material, a course or community, an event, a tutoring listing, a post or a contest. Organisations are started from their own page instead.'
 			],
 			screenshot: {
 				src: '/guide/start/05-account-menu.png',
-				alt: 'The account menu open: Profile, My schedule, My agenda, Co-authoring, Volunteering, My volunteering offers, My contests, My decks, My tasks, My organisations, My work, Settings, Report issue, Log out.'
+				alt: 'The account menu open, in four groups: Learning — My decks, My contests; Taking part — My schedule, My agenda, Volunteering, My volunteering offers; Working together — Co-authoring, My tasks, My organisations, My work; Your account — Profile, Settings, Help & manual, Report issue, Log out.'
 			}
 		}
 	],
@@ -82,11 +83,12 @@ const PL: GuideChapterDoc = {
 			tryHref: '/',
 			body: [
 				'Pole wyszukiwania, rząd przedziałów wiekowych i zakładki z najnowszymi zadaniami, materiałami, pojęciami, kursami, korepetycjami i wydarzeniami. Wyszukiwarka zagląda do treści i tytułów, więc „całka” albo „Cauchy” to sensowne hasła.',
+				'Przy pierwszej wizycie nad zakładkami są trzy drzwi: ten rozdział, strony pokazujące, co robi każda część EdMatu, i prosta droga do zadań. Krzyżyk × chowa je w tej przeglądarce na dobre.',
 				'Wszystko pod zakładkami to kafelki. Kafelek jest odnośnikiem; mały znak + na kafelku zadania wrzuca je do Twojego zestawu bez otwierania.'
 			],
 			screenshot: {
 				src: '/guide/start/01-home.png',
-				alt: 'Strona główna EdMatu: pole wyszukiwania, rząd przedziałów wiekowych, zakładki z treściami i pierwsze kafelki zadań pod nagłówkiem „Top rated”.'
+				alt: 'Strona główna EdMatu: pole wyszukiwania, rząd przedziałów wiekowych, trzy drzwi dla pierwszej wizyty — „New here?”, „Curious first?” i „Rather dive in?” — zakładki z treściami i pierwsze kafelki zadań pod nagłówkiem „Top rated”.'
 			}
 		},
 		{
@@ -116,24 +118,24 @@ const PL: GuideChapterDoc = {
 			tryHref: '/register',
 			tryFor: 'guests',
 			body: [
-				'Nazwa wyświetlana, e-mail, rok urodzenia, hasło i język, w którym wolisz czytać. Rok urodzenia służy jednemu: sprawdzeniu, czy możesz samodzielnie założyć konto — i nie jest zapisywany, zapisywana jest tylko odpowiedź.',
+				'Nazwa wyświetlana, e-mail, rok urodzenia, hasło, język, w którym wolisz czytać, i pole do zaznaczenia, że akceptujesz regulamin i znasz politykę prywatności — oba są odnośnikami, więc można je najpierw przeczytać. Rok urodzenia służy jednemu: sprawdzeniu, czy możesz samodzielnie założyć konto — i nie jest zapisywany, zapisywana jest tylko odpowiedź.',
 				'Jeśli masz mniej niż 16 lat, konto zakłada rodzic lub opiekun ze swoich ustawień. Konto dziecka nie ma adresu e-mail i nic nigdy na nie nie jest wysyłane.',
 				'Zapomniane hasło to odnośnik „Nie pamiętasz hasła?” na stronie logowania: wystarczy podać adres, na który założono konto, a przyjdzie na niego link do ustawienia nowego hasła.'
 			],
 			screenshot: {
 				src: '/guide/start/04-register.png',
-				alt: 'Formularz rejestracji: nazwa wyświetlana, e-mail, rok urodzenia, hasło i preferowany język interfejsu, z przyciskiem „Sign up”.'
+				alt: 'Formularz rejestracji: nazwa wyświetlana, e-mail, rok urodzenia, hasło i preferowany język interfejsu, pole „I accept the terms of use and have read the privacy policy” i przycisk „Sign up”.'
 			}
 		},
 		{
 			heading: 'Twoje własne menu',
 			body: [
-				'Po zalogowaniu Twoje nazwisko otwiera menu ze wszystkim, co należy do Ciebie: profil, grafik i plan dnia, współtworzone materiały, wolontariat, Twoje konkursy i talie fiszek, zadania do zrobienia, organizacje, panel pracy i ustawienia.',
-				'Przycisk „+ Add…” obok to krótka droga do ogłoszenia wydarzenia albo wystawienia ogłoszenia korepetycyjnego. Kursy i organizacje zakłada się z ich własnych stron.'
+				'Po zalogowaniu Twoje nazwisko otwiera menu ze wszystkim, co należy do Ciebie, w czterech grupach: Learning (talie fiszek i konkursy), Taking part (grafik, plan dnia i wolontariat), Working together (współtworzone materiały, zadania do zrobienia, organizacje i panel pracy) oraz Your account (profil, ustawienia, ten podręcznik, zgłaszanie problemu i wylogowanie).',
+				'Przycisk „+ Add…” obok to krótka droga do dodania czegoś: zadania, materiału, kursu albo społeczności, wydarzenia, ogłoszenia korepetycyjnego, wpisu albo konkursu. Organizacje zakłada się z ich własnej strony.'
 			],
 			screenshot: {
 				src: '/guide/start/05-account-menu.png',
-				alt: 'Otwarte menu konta: Profile, My schedule, My agenda, Co-authoring, Volunteering, My volunteering offers, My contests, My decks, My tasks, My organisations, My work, Settings, Report issue, Log out.'
+				alt: 'Otwarte menu konta w czterech grupach: Learning — My decks, My contests; Taking part — My schedule, My agenda, Volunteering, My volunteering offers; Working together — Co-authoring, My tasks, My organisations, My work; Your account — Profile, Settings, Help & manual, Report issue, Log out.'
 			}
 		}
 	],

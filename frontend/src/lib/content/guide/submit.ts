@@ -11,12 +11,12 @@ const EN: GuideChapterDoc = {
 			heading: 'The form',
 			tryHref: '/submit',
 			body: [
-				'Discipline, then subject, then a title. Difficulty, who it is for, and what kind of source it came from — an exercise sheet, a midterm, an exam. The language is the language the exercise is *written* in, not your interface language.',
+				'Discipline, then subject, then a title. Difficulty, who it is for, and what kind of source it came from — an exercise sheet, a midterm, an exam. The language is the language the exercise is *written* in, not your interface language: it starts on the language you are reading the site in, so change it if you are writing in another one.',
 				'The line under the heading tells you what will happen when you press Submit. For most accounts it says the exercise will be reviewed first; for a verified contributor it says it publishes straight away.'
 			],
 			screenshot: {
 				src: '/guide/submit/01-form-top.png',
-				alt: 'The top of the submit form: a note that new exercises are reviewed by a moderator, then discipline, branch, title, difficulty, audience, source type and language.'
+				alt: 'The top of the submit form: a note that new exercises are reviewed by a moderator, then discipline, branch, title, difficulty, audience, source type, and language — still on EN, the interface language.'
 			}
 		},
 		{
@@ -38,7 +38,7 @@ const EN: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/submit/03-preview.png',
-				alt: 'The submit form with the statement and hint boxes filled in, the LaTeX source visible, and the attachment row beneath each box.'
+				alt: 'The preview under the submit form: the statement and the hint typeset as a reader will see them, the recursive sequence and the square root of two as real mathematics, and the Submit button beneath.'
 			}
 		},
 		{
@@ -85,12 +85,12 @@ const PL: GuideChapterDoc = {
 			heading: 'Formularz',
 			tryHref: '/submit',
 			body: [
-				'Kierunek, potem przedmiot, potem tytuł. Trudność, dla kogo jest zadanie i z jakiego źródła pochodzi — ćwiczenia, kolokwium, egzamin. Język to język, w którym zadanie jest *napisane*, a nie język Twojego interfejsu.',
+				'Kierunek, potem przedmiot, potem tytuł. Trudność, dla kogo jest zadanie i z jakiego źródła pochodzi — ćwiczenia, kolokwium, egzamin. Język to język, w którym zadanie jest *napisane*, a nie język Twojego interfejsu: na start ustawia się na język, w którym czytasz serwis, więc zmień go, jeśli piszesz w innym.',
 				'Zdanie pod nagłówkiem mówi, co się stanie po wysłaniu. Dla większości kont: zadanie najpierw trafi do sprawdzenia; dla zweryfikowanego autora: publikuje się od razu.'
 			],
 			screenshot: {
 				src: '/guide/submit/01-form-top.png',
-				alt: 'Góra formularza zgłoszenia: informacja, że nowe zadania sprawdza moderator, a niżej kierunek, przedmiot, tytuł, trudność, odbiorca, typ źródła i język.'
+				alt: 'Góra formularza zgłoszenia: informacja, że nowe zadania sprawdza moderator, a niżej kierunek, przedmiot, tytuł, trudność, odbiorca, typ źródła i język — jeszcze ustawiony na EN, język interfejsu.'
 			}
 		},
 		{
@@ -112,7 +112,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/submit/03-preview.png',
-				alt: 'Formularz z wypełnioną treścią i wskazówką, widocznym źródłem LaTeX i wierszem załączników pod każdym polem.'
+				alt: 'Podgląd pod formularzem zgłoszenia: treść i wskazówka złożone tak, jak zobaczy je czytelnik — ciąg rekurencyjny i pierwiastek z dwóch jako prawdziwe wzory — a pod nimi przycisk Submit.'
 			}
 		},
 		{

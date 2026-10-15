@@ -23,11 +23,12 @@ const EN: GuideChapterDoc = {
 			heading: 'One idea, several articles',
 			body: [
 				'The chips above the title are the versions of this concept: one per kind of reader and language — "University EN", "University PL", and so on. The same idea explained for a fourteen-year-old and for a third-year student are two different pieces of writing, not one piece with a difficulty slider.',
-				'Under the title: who wrote this version, which revision it is, and when. "History" shows every revision and what changed.'
+				'Under the title: who wrote this version, which revision it is, and when. "History" shows every revision and what changed.',
+				'Under the text, a line names the licence — who holds the rights, and what you may do with the article outside EdMat. A licence here only ever changes towards more open.'
 			],
 			screenshot: {
 				src: '/guide/concepts/02-concept.png',
-				alt: 'The concept page for Integral: the University EN and University PL chips, the author and revision line, the text with a link to another concept, the tag, and the Connections block.'
+				alt: 'The concept page for Integral: the University EN and University PL chips, the author and revision line, the text with a link to another concept, the licence line "All rights reserved by the author", the tag, and the Connections block.'
 			}
 		},
 		{
@@ -41,11 +42,12 @@ const EN: GuideChapterDoc = {
 			heading: 'Writing one',
 			body: [
 				'Signed in, the page offers three things: "Improve this article" edits the version you are reading, "Write your own article for these readers" starts a new one where none exists for your audience, and "Link something" attaches an exercise, a material or another concept.',
-				'Every edit is a revision, kept. Nothing is overwritten, and the history shows who changed what.'
+				'Every edit is a revision, kept. Nothing is overwritten, and the history shows who changed what.',
+				'"Make a deck from this concept" turns the article into a flashcard deck of your own, to review on the flashcards page.'
 			],
 			screenshot: {
 				src: '/guide/concepts/03-signed-in.png',
-				alt: 'The same concept page signed in, with "Improve this article", "History", "Report" and "Write your own article for these readers" links under the text.'
+				alt: 'The same concept page signed in: under the text the licence line with a "Change licence" link, then "Improve this article", "History", "Report", a "Make a deck from this concept" button, and "Write your own article for these readers".'
 			}
 		}
 	]
@@ -73,11 +75,12 @@ const PL: GuideChapterDoc = {
 			heading: 'Jedna idea, kilka artykułów',
 			body: [
 				'Plakietki nad tytułem to wersje tego pojęcia: po jednej na rodzaj czytelnika i język — „University EN”, „University PL” i tak dalej. Ta sama idea wyłożona czternastolatkowi i studentowi trzeciego roku to dwa różne teksty, a nie jeden z suwakiem trudności.',
-				'Pod tytułem: kto napisał tę wersję, która to rewizja i kiedy powstała. „History” pokazuje każdą rewizję i to, co się zmieniło.'
+				'Pod tytułem: kto napisał tę wersję, która to rewizja i kiedy powstała. „History” pokazuje każdą rewizję i to, co się zmieniło.',
+				'Pod tekstem jest wiersz z licencją — kto ma prawa i co wolno zrobić z artykułem poza EdMatem. Licencję można tu zmienić tylko na bardziej otwartą.'
 			],
 			screenshot: {
 				src: '/guide/concepts/02-concept.png',
-				alt: 'Strona pojęcia Integral: plakietki University EN i University PL, wiersz z autorką i rewizją, tekst z odnośnikiem do innego pojęcia, tag i blok Connections.'
+				alt: 'Strona pojęcia Integral: plakietki University EN i University PL, wiersz z autorką i rewizją, tekst z odnośnikiem do innego pojęcia, wiersz licencji „All rights reserved by the author”, tag i blok Connections.'
 			}
 		},
 		{
@@ -91,11 +94,12 @@ const PL: GuideChapterDoc = {
 			heading: 'Pisanie artykułu',
 			body: [
 				'Po zalogowaniu strona proponuje trzy rzeczy: „Improve this article” poprawia czytaną wersję, „Write your own article for these readers” zaczyna nową tam, gdzie dla Twoich odbiorców jeszcze jej nie ma, a „Link something” podpina zadanie, materiał albo inne pojęcie.',
-				'Każda poprawka to rewizja, która zostaje. Nic nie jest nadpisywane, a historia pokazuje, kto co zmienił.'
+				'Każda poprawka to rewizja, która zostaje. Nic nie jest nadpisywane, a historia pokazuje, kto co zmienił.',
+				'„Make a deck from this concept” robi z artykułu Twoją własną talię fiszek do powtarzania na stronie fiszek.'
 			],
 			screenshot: {
 				src: '/guide/concepts/03-signed-in.png',
-				alt: 'Ta sama strona pojęcia po zalogowaniu, z odnośnikami „Improve this article”, „History”, „Report” i „Write your own article for these readers” pod tekstem.'
+				alt: 'Ta sama strona pojęcia po zalogowaniu: pod tekstem wiersz licencji z odnośnikiem „Change licence”, a dalej „Improve this article”, „History”, „Report”, przycisk „Make a deck from this concept” i „Write your own article for these readers”.'
 			}
 		}
 	]

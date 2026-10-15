@@ -35,33 +35,34 @@ const EN: GuideChapterDoc = {
 			heading: 'The exercise itself',
 			body: [
 				'The statement is always there, typeset as mathematics. Above it: the difficulty, where it came from, whether the solution has been reviewed ("Verified solution"), the rating other readers gave it, and the language picker for this exercise alone.',
-				'"+ Save" puts the exercise into a set. The topics and tags beneath are links — they are how you find the other exercises about the same thing.'
+				'"+ Save" puts the exercise into a set. The topics and tags beneath are links — they are how you find the other exercises about the same thing.',
+				'The line under the statement says on what terms you may use it. On most of the seeded corpus it reads "Rights not yet clarified — shown here for study only", because who may republish those exercises has not been settled yet; something written here carries the licence its author chose instead.'
 			],
 			screenshot: {
 				src: '/guide/exercises/03-exercise.png',
-				alt: 'An exercise page: the title with mathematics in it, the Medium / Exercise sheet / Verified solution badges, a language picker and a Save button, the topics, the tags, and the statement in a card.'
+				alt: 'An exercise page: the title with mathematics in it, the Medium / Exercise sheet / Verified solution badges, a language picker and a Save button, the topics, the tags, the statement in a card ending in the line "Rights not yet clarified — shown here for study only. Do not copy it elsewhere.", and the top of the Hints section.'
 			}
 		},
 		{
 			heading: 'Hint, answer, solution — one at a time',
 			body: [
-				'Nothing is revealed until you ask for it, which is the whole point of a practice database: "Show hints" first, then the answer, then the full working. Each is a separate button and each can be closed again.',
+				'Nothing is revealed until you ask for it, which is the whole point of a practice database: "Show hints" first, then the answer, then the full working. Each sits under its own heading — Hints, Answer, Solutions — behind a separate button, and each can be closed again.',
 				'There can be more than one hint or solution, because readers may add their own; the one the site trusts most is marked as pinned. Each carries its own small discussion.'
 			],
 			screenshot: {
 				src: '/guide/exercises/04-reveals.png',
-				alt: 'The same exercise with the hint and the answer revealed: a pinned hint from the EdMat corpus, then three partial derivatives typeset as display mathematics.'
+				alt: 'The same exercise with the hint and the answer revealed: under the Hints heading a pinned hint from the EdMat corpus, marked "Rights unclear", then under Answer the partial derivatives typeset as display mathematics.'
 			}
 		},
 		{
 			heading: 'Putting it in a set',
 			body: [
-				'The + on any exercise card opens the same small menu: your working set, each of your saved sets, and any course you run that can take content.',
+				'The + on any exercise card opens the same small menu: your working set, each of your saved sets, any course you run that can take content, and your flashcard decks.',
 				'The working set needs no account — it lives in this browser. Saved sets need one.'
 			],
 			screenshot: {
 				src: '/guide/exercises/05-add-to-set.png',
-				alt: 'The save menu open over an exercise card, offering the working set, a saved set called "Before the midterm", a Courses column and "New set…".'
+				alt: 'The save menu open over an exercise card, offering the working set, a saved set called "Before the midterm", "New set…", and a Courses and a Decks column.'
 			}
 		},
 		{
@@ -124,33 +125,34 @@ const PL: GuideChapterDoc = {
 			heading: 'Samo zadanie',
 			body: [
 				'Treść jest zawsze, złożona jak matematyka. Nad nią: trudność, skąd zadanie pochodzi, czy rozwiązanie zostało sprawdzone („Verified solution”), ocena innych czytelników i wybór języka dla tego jednego zadania.',
-				'„+ Save” wrzuca zadanie do zestawu. Działy i tagi poniżej są odnośnikami — to po nich znajdziesz pozostałe zadania o tym samym.'
+				'„+ Save” wrzuca zadanie do zestawu. Działy i tagi poniżej są odnośnikami — to po nich znajdziesz pozostałe zadania o tym samym.',
+				'Wiersz pod treścią mówi, na jakich zasadach wolno z niej korzystać. Przy większości zadań z bazy startowej brzmi „Rights not yet clarified — shown here for study only”, bo nie ustalono jeszcze, kto może je publikować dalej; to, co ktoś napisał tutaj, ma za to licencję wybraną przez autora.'
 			],
 			screenshot: {
 				src: '/guide/exercises/03-exercise.png',
-				alt: 'Strona zadania: tytuł ze wzorem, plakietki Medium / Exercise sheet / Verified solution, wybór języka i przycisk Save, działy, tagi i treść w karcie.'
+				alt: 'Strona zadania: tytuł ze wzorem, plakietki Medium / Exercise sheet / Verified solution, wybór języka i przycisk Save, działy, tagi, treść w karcie zakończona wierszem „Rights not yet clarified — shown here for study only. Do not copy it elsewhere.” i początek sekcji Hints.'
 			}
 		},
 		{
 			heading: 'Wskazówka, odpowiedź, rozwiązanie — po kolei',
 			body: [
-				'Nic nie odsłania się samo, i o to właśnie chodzi w bazie zadań: najpierw „Show hints”, potem odpowiedź, na końcu pełne rozwiązanie. Każde to osobny przycisk i każde można z powrotem zamknąć.',
+				'Nic nie odsłania się samo, i o to właśnie chodzi w bazie zadań: najpierw „Show hints”, potem odpowiedź, na końcu pełne rozwiązanie. Każde ma własny nagłówek — Hints, Answer, Solutions — i osobny przycisk, i każde można z powrotem zamknąć.',
 				'Wskazówek i rozwiązań może być kilka, bo czytelnicy dopisują własne; to, któremu serwis ufa najbardziej, jest oznaczone jako przypięte. Przy każdym jest własna krótka dyskusja.'
 			],
 			screenshot: {
 				src: '/guide/exercises/04-reveals.png',
-				alt: 'To samo zadanie z odsłoniętą wskazówką i odpowiedzią: przypięta wskazówka z korpusu EdMatu, a pod nią trzy pochodne cząstkowe złożone jako wzory.'
+				alt: 'To samo zadanie z odsłoniętą wskazówką i odpowiedzią: pod nagłówkiem Hints przypięta wskazówka z korpusu EdMatu oznaczona „Rights unclear”, a pod nagłówkiem Answer pochodne cząstkowe złożone jako wzory.'
 			}
 		},
 		{
 			heading: 'Wrzucanie do zestawu',
 			body: [
-				'Znak + na dowolnym kafelku zadania otwiera to samo małe menu: zestaw roboczy, każdy z Twoich zapisanych zestawów i każdy prowadzony przez Ciebie kurs, który przyjmuje treści.',
+				'Znak + na dowolnym kafelku zadania otwiera to samo małe menu: zestaw roboczy, każdy z Twoich zapisanych zestawów, każdy prowadzony przez Ciebie kurs, który przyjmuje treści, i Twoje talie fiszek.',
 				'Zestaw roboczy nie wymaga konta — mieszka w tej przeglądarce. Zapisane zestawy wymagają.'
 			],
 			screenshot: {
 				src: '/guide/exercises/05-add-to-set.png',
-				alt: 'Menu zapisu otwarte nad kafelkiem zadania: zestaw roboczy, zapisany zestaw „Before the midterm”, kolumna Courses i „New set…”.'
+				alt: 'Menu zapisu otwarte nad kafelkiem zadania: zestaw roboczy, zapisany zestaw „Before the midterm”, „New set…” oraz kolumny Courses i Decks.'
 			}
 		},
 		{

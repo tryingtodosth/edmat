@@ -16,7 +16,7 @@ const EN: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/help/01-needs.png',
-				alt: 'The Help wanted board: filters by kind and skill level with a "Remote only" tick and a search box, and one posting — "Somebody to read through the week 3 notes", on Analiza od zera, Expertise, 1 wanted, Remote, about 3 hours.'
+				alt: 'The Help wanted board: filters by kind and skill level with a "Remote only" tick and a search box, then a grid of open postings, each with what it is on, its kind, how many people are wanted and whether it can be done remotely — among them "Somebody to read through the week 3 notes" on Analiza od zera.'
 			}
 		},
 		{
@@ -68,7 +68,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/help/01-needs.png',
-				alt: 'Tablica „Help wanted”: filtry rodzaju i poziomu z polem „Remote only” oraz wyszukiwarką, a pod nimi jedno ogłoszenie — „Somebody to read through the week 3 notes” przy kursie Analiza od zera, Expertise, 1 osoba, zdalnie, około 3 godzin.'
+				alt: 'Tablica „Help wanted”: filtry rodzaju i poziomu z polem „Remote only” oraz wyszukiwarką, a pod nimi siatka otwartych ogłoszeń — przy każdym to, czego dotyczy, rodzaj pomocy, liczba potrzebnych osób i czy można pomóc zdalnie; wśród nich „Somebody to read through the week 3 notes” przy kursie Analiza od zera.'
 			}
 		},
 		{

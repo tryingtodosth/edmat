@@ -197,7 +197,29 @@ const EN: LearningRecordShowcase = {
 		'The fourth switch is the new one. It starts off, and the sentence under it is the whole of what it does.',
 	closing:
 		'A record for one term rather than all of them, a record a course’s staff can see for their own participants, and a record anybody can print are all left for later. What exists is one honest summary on one page, under four switches its owner controls.',
-	tryIt: [{ label: 'Choose what your profile shows', route: '/settings' }]
+	tryIt: [{ label: 'Choose what your profile shows', route: '/settings' }],
+	// `e2e/showcase-screens.mjs` (WP10, 2026-10-15): a seeded demo account's real profile and its
+	// real switches. Her activity consent is left off, so the first picture shows "Not shared".
+	shots: [
+		{
+			src: '/showcase/learning-record/01-record.png',
+			width: 560,
+			height: 459,
+			alt: 'Screenshot of the “Learning record” window on a demo account’s public profile, as a stranger sees it: “Results from an institution”, with a note that EdMat did not award these marks, two subjects with an average and a number of results each; and under a rule “Done on EdMat”, which reads “Not shared”.',
+			caption:
+				'A real profile’s record, read by a stranger. The grades half is shared; the activity half is not — and it says “Not shared” rather than looking empty.'
+		},
+		{
+			src: '/showcase/learning-record/02-consent.png',
+			width: 464,
+			height: 305,
+			route: '/settings',
+			linkLabel: 'Open your settings',
+			alt: 'Screenshot of “What other people can see” in Settings: a line saying everything is off until you say otherwise, three ticked switches — Show my institution on my profile, Show my diploma, Show my course results — and an unticked fourth, Show what I have done on EdMat, as counts per subject, with a note that it shares numbers only, per subject, never a single item.',
+			caption:
+				'The same account’s switches. The fourth is the activity half of the record, and it is off.'
+		}
+	]
 };
 
 const PL: LearningRecordShowcase = {
@@ -347,7 +369,27 @@ const PL: LearningRecordShowcase = {
 		'Czwarty przełącznik jest nowy. Startuje wyłączony, a zdanie pod nim jest całością tego, co robi.',
 	closing:
 		'Rejestr za jeden semestr zamiast za wszystkie, rejestr widoczny dla prowadzących własnego kursu i rejestr do wydruku zostały na później. To, co jest, to jedno uczciwe podsumowanie na jednej stronie, pod czterema przełącznikami jego właściciela.',
-	tryIt: [{ label: 'Wybierz, co pokazuje Twój profil', route: '/settings' }]
+	tryIt: [{ label: 'Wybierz, co pokazuje Twój profil', route: '/settings' }],
+	shots: [
+		{
+			src: '/showcase/learning-record/01-record.png',
+			width: 560,
+			height: 459,
+			alt: 'Zrzut ekranu okna „Learning record” na publicznym profilu konta demonstracyjnego, tak jak widzi je ktoś obcy: „Results from an institution” z zastrzeżeniem, że to nie EdMat wystawił te oceny, dwa przedmioty, każdy ze średnią i liczbą wyników, a pod kreską „Done on EdMat” z napisem „Not shared”.',
+			caption:
+				'Prawdziwy rejestr na profilu, oczami kogoś obcego. Połowa z ocenami jest udostępniona, połowa z aktywnością — nie, i mówi „Not shared”, zamiast wyglądać na pustą.'
+		},
+		{
+			src: '/showcase/learning-record/02-consent.png',
+			width: 464,
+			height: 305,
+			route: '/settings',
+			linkLabel: 'Otwórz swoje ustawienia',
+			alt: 'Zrzut ekranu sekcji „What other people can see” w ustawieniach: zdanie, że wszystko jest wyłączone, dopóki nie postanowisz inaczej, trzy zaznaczone przełączniki — Show my institution on my profile, Show my diploma, Show my course results — i niezaznaczony czwarty, Show what I have done on EdMat, as counts per subject, z dopiskiem, że udostępnia tylko liczby, w podziale na przedmioty, nigdy pojedyncze rzeczy.',
+			caption:
+				'Przełączniki tego samego konta. Czwarty to połowa rejestru z aktywnością — i jest wyłączony.'
+		}
+	]
 };
 
 export function learningRecordShowcaseFor(locale: string): LearningRecordShowcase {

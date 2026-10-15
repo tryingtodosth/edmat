@@ -103,7 +103,8 @@ const PAGES = [
 		en: 'The learning record',
 		frames: 4,
 		tries: 1,
-		shots: 0,
+		shots: 2,
+		links: 1,
 		guide: null
 	},
 	{
@@ -121,7 +122,8 @@ const PAGES = [
 		en: 'A school on EdMat',
 		frames: 3,
 		tries: 2,
-		shots: 0,
+		shots: 3,
+		links: 0,
 		guide: null
 	},
 	{
@@ -148,7 +150,8 @@ const PAGES = [
 		en: 'Contests, and what a prize brings with it',
 		frames: 4,
 		tries: 1,
-		shots: 0,
+		shots: 4,
+		links: 3,
 		guide: 'contests'
 	},
 	// The module pages (2026-10-14). `tries` is what a SIGNED-OUT reader gets: goals-and-work has a

@@ -23,6 +23,12 @@
 //     demo event, as its own organiser, idempotently (found by title): a goal with three criteria,
 //     two of them ticked. That is the only row this script creates.
 //   - Every shot is clipped, never `fullPage` (a full page PNG blows the 400 KB budget).
+//   - Since WP10 (2026-10-15): the learning record (u-kasia's profile, read by a stranger, and her
+//     consent switches) and a school (the `seed_school_demo` class as its teacher sees it, and the
+//     `/dziennik` static build when DZIENNIK_DIR points at one). Neither writes a row. The school
+//     pages need `manage.py seed_school_demo` and a `school.teacher` token in E2E_TOKENS.
+//   - Run it with TZ=Europe/Warsaw: the browser draws times in its own zone, and this machine's is
+//     UTC, which put the rota and the ticket two hours early in the first set.
 
 import { mkdirSync, readFileSync, statSync } from 'node:fs';
 import { englishContext } from './english.mjs';
@@ -253,12 +259,21 @@ pages.tutoring = async () => {
 	// has no picture of is the tutor's side: the request waiting to be confirmed or declined.
 	const { ctx, page } = await open('ania');
 	await visit(page, '/bookings', { wait: 'h1', extra: 2500 });
-	const box = await rect(page, 'main');
+	// Down to the end of the SECOND request: the manual's own run (`guide-screenshots.mjs`, the
+	// tutoring chapter) asks for one more hour every time it runs, so the list grows, and two
+	// requests side by side are all the picture is for.
+	await page.evaluate(() => window.scrollTo(0, 0));
+	await page.waitForTimeout(250);
+	const second = await page
+		.locator('button:has-text("Decline")')
+		.nth(1)
+		.boundingBox()
+		.catch(() => null);
 	await shoot(page, 'tutoring', '03-schedule', {
 		x: 0,
 		y: 56,
 		width: WIDTH,
-		height: Math.min(520, (box?.height ?? 480) + 24)
+		height: second ? Math.round(second.y + second.height + 20 - 56) : 483
 	});
 	await ctx.close();
 };
@@ -463,6 +478,156 @@ pages['licences-and-data'] = async () => {
 		});
 		await ctx.close();
 	}
+};
+
+// ---- learning record ---------------------------------------------------------------------------
+pages['learning-record'] = async () => {
+	const slug = 'learning-record';
+	// u-kasia's public profile (`seed_profile_showcase` gives her transferred grades), read by a
+	// stranger: the record lives in a modal behind the profile's "Learning record" row. Her activity
+	// consent is left exactly as it is (off), so the picture also shows what "Not shared" looks like
+	// rather than a consent this script flipped for the photograph.
+	{
+		const { ctx, page } = await open(null);
+		// Her id from her own session (there is no people search to look it up by name).
+		const me = await api('/auth/me/', { who: 'kasia' });
+		const kasiaId = me.body?.id;
+		check('learning-record: u-kasia resolved', Boolean(kasiaId), String(me.status));
+		mkdirSync(`${OUT}${slug}/`, { recursive: true });
+		mkdirSync(`${OUT}${slug}/`, { recursive: true });
+		await visit(page, `/users/${kasiaId}`, { wait: 'h1, h2', extra: 3000 });
+		await page
+			.getByRole('button', { name: /Learning record/ })
+			.first()
+			.click();
+		await page.waitForTimeout(1500);
+		const dialog = await page.locator('[role="dialog"]').first().boundingBox();
+		check('learning-record: the record modal opened', Boolean(dialog));
+		if (dialog) {
+			await page.screenshot({
+				path: `${OUT}${slug}/01-record.png`,
+				clip: {
+					// The dialog alone: any margin would show the dimmed profile behind it.
+					x: Math.round(dialog.x),
+					y: Math.round(dialog.y),
+					width: Math.round(dialog.width),
+					height: Math.round(dialog.height)
+				}
+			});
+			const bytes = statSync(`${OUT}${slug}/01-record.png`).size;
+			check(`${slug}/01-record.png ${(bytes / 1024).toFixed(0)} KB`, bytes <= MAX_BYTES);
+		}
+		await ctx.close();
+	}
+	// The other end: the four switches in Settings, as their owner sees them.
+	{
+		const { ctx, page } = await open('kasia');
+		await visit(page, '/settings', { wait: 'h1', extra: 3000 });
+		const box = await rect(page, '.education .consent');
+		check('learning-record: the consent block is in Settings', Boolean(box));
+		if (box) {
+			await shoot(page, slug, '02-consent', {
+				x: Math.round(box.x - 16),
+				y: Math.round(box.y - 16),
+				width: Math.round(box.width + 32),
+				height: Math.round(box.height + 32)
+			});
+		}
+		await ctx.close();
+	}
+};
+
+// ---- schools -----------------------------------------------------------------------------------
+pages.schools = async () => {
+	const slug = 'schools';
+	// The seeded demo school (`manage.py seed_school_demo`, everything in it `TEST=FAKE` and
+	// invented). Its classes are private, so these are pictures of pages a visitor cannot open, and
+	// the captions say so. `school.teacher` runs both classes; the token is read as trap 30 shows.
+	const classes = await api('/courses/?mine=1', { who: 'school.teacher' });
+	const list = Array.isArray(classes.body) ? classes.body : (classes.body?.results ?? []);
+	const classId = list.find((c) => c.title === 'TEST=FAKE Fizyka — klasa 2a')?.id ?? null;
+	check(
+		'schools: the demo class exists (run manage.py seed_school_demo first)',
+		Boolean(classId) && Boolean(TOKENS['school.teacher'])
+	);
+	if (classId) {
+		const { ctx, page } = await open('school.teacher');
+		await visit(page, `/courses/${classId}`, { wait: 'h1', extra: 3000 });
+		// The top of a class: which school runs it, and the sentence that says what that changes.
+		const fold = await rect(page, 'section.fold:has(.fold__toggle:has-text("What it covers"))');
+		await shoot(page, slug, '01-class', {
+			x: 0,
+			y: 56,
+			width: WIDTH,
+			height: Math.round((fold?.y ?? 340) - 56 - 12)
+		});
+		// One lesson's register, opened: every pupil by name, because a school runs this class.
+		await page.getByText('Show who is where').first().click();
+		await page.waitForTimeout(1500);
+		const bar = await rect(page, 'text=/have finished this/');
+		const hide = await rect(page, 'text=/Hide who is where/');
+		const people = await page.evaluate(() => {
+			const link = [...document.querySelectorAll('button, a')].find((e) =>
+				/Hide who is where/.test(e.textContent ?? '')
+			);
+			const list = link?.parentElement?.querySelector('ul');
+			if (!list) return null;
+			const r = list.getBoundingClientRect();
+			return { bottom: r.bottom + window.scrollY };
+		});
+		if (bar && hide) {
+			const top = Math.round(bar.y - 28);
+			await shoot(page, slug, '02-register', {
+				x: 280,
+				y: top,
+				width: 740,
+				height: Math.round((people?.bottom ?? hide.y + 160) - top + 20)
+			});
+		}
+		await ctx.close();
+	}
+	// The school logbook demonstration (`/dziennik`, HISTORY.md §17BO) is a separate static build
+	// the dev server does not serve. Build it with
+	//   node school-management-demo/scripts/build-static.js --out=<dir> --base=/dziennik
+	// and pass the directory as DZIENNIK_DIR: the browser is handed those files for /dziennik/ —
+	// exactly what Apache serves on edmat.net — and nothing else changes. Without it, skipped.
+	const dir = process.env.DZIENNIK_DIR;
+	if (!dir) {
+		console.log('  (skipped: the logbook demo — set DZIENNIK_DIR to a build-static.js output)');
+		return;
+	}
+	const types = {
+		html: 'text/html',
+		js: 'text/javascript',
+		css: 'text/css',
+		svg: 'image/svg+xml',
+		json: 'application/json',
+		webmanifest: 'application/manifest+json',
+		png: 'image/png',
+		woff2: 'font/woff2'
+	};
+	const ctx = await browser.newContext({ viewport: { width: WIDTH, height: 900 } });
+	await ctx.route(`${BASE}/dziennik/**`, async (route) => {
+		let file = new URL(route.request().url()).pathname.replace(/^\/dziennik/, '');
+		if (file === '' || file.endsWith('/')) file += 'index.html';
+		try {
+			const body = readFileSync(dir + file);
+			await route.fulfill({ status: 200, body, contentType: types[file.split('.').pop()] });
+		} catch {
+			await route.fulfill({ status: 404, body: '' });
+		}
+	});
+	const page = await ctx.newPage();
+	page.on('pageerror', (e) => errors.push('pageerror: ' + String(e).slice(0, 160)));
+	await page.goto(`${BASE}/dziennik/`, { waitUntil: 'load' });
+	await page.waitForTimeout(2500);
+	// A teacher's lesson log: chosen from the demo's own "see as" list, as a visitor does.
+	await page.selectOption('select', 'a.wojcik');
+	await page.waitForTimeout(2500);
+	await page.goto(`${BASE}/dziennik/#/lekcja`, { waitUntil: 'load' });
+	await page.waitForTimeout(3000);
+	await shoot(page, slug, '03-logbook', { x: 0, y: 0, width: WIDTH, height: 820 });
+	await ctx.close();
 };
 
 try {

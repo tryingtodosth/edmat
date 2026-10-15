@@ -38,7 +38,7 @@ const EN: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/tutoring/03-booking.png',
-				alt: 'The "Book a session" panel: a note that these are the hours the tutor advertises, List / Week / Month views, a week of 5–11 October, and free hours on Tuesday 6 October.'
+				alt: 'The "Book a session" panel: a note that these are the hours the tutor advertises, List / Week / Month views, the week shown with arrows and a Today button, and three free hours on one day; below it "Add to watchlist" and the Ratings & reviews box with a "Write a review" button.'
 			}
 		},
 		{
@@ -99,7 +99,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/tutoring/03-booking.png',
-				alt: 'Panel „Book a session”: informacja, że to godziny ogłaszane przez korepetytora, widoki List / Week / Month, tydzień 5–11 października i wolne godziny we wtorek 6 października.'
+				alt: 'Panel „Book a session”: informacja, że to godziny ogłaszane przez korepetytora, widoki List / Week / Month, pokazany tydzień ze strzałkami i przyciskiem Today oraz trzy wolne godziny jednego dnia; pod spodem „Add to watchlist” i ramka Ratings & reviews z przyciskiem „Write a review”.'
 			}
 		},
 		{

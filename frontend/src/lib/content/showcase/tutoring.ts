@@ -75,9 +75,9 @@ const EN: ShowcaseModuleDoc = {
 			src: '/showcase/tutoring/03-schedule.png',
 			focus: [260, 1020],
 			width: 1280,
-			height: 483,
+			height: 466,
 			route: '/bookings',
-			alt: 'Screenshot of the tutor’s “My schedule”, tab “Requests for me (2)”: two requests from Michał Zieliński for “Analiza — dyżur konsultacyjny” on Thursday at 16:00, each marked Requested, each with a note that another live booking clashes with this time, and Confirm and Decline buttons.',
+			alt: 'Screenshot of the tutor’s “My schedule”, tab “Requests for me (3)”: the first two of three requests from Michał Zieliński for “Analiza — dyżur konsultacyjny” on Thursday at 18:00, each marked Requested, each with a note that another live booking clashes with this time, and Confirm and Decline buttons.',
 			caption:
 				'The tutor’s side: each request waits for Confirm or Decline, and a clash with another booking is pointed out rather than hidden.'
 		}
@@ -184,9 +184,9 @@ const PL: ShowcaseModuleDoc = {
 			src: '/showcase/tutoring/03-schedule.png',
 			focus: [260, 1020],
 			width: 1280,
-			height: 483,
+			height: 466,
 			route: '/bookings',
-			alt: 'Zrzut ekranu „My schedule” korepetytorki, zakładka „Requests for me (2)”: dwie prośby od Michała Zielińskiego o „Analiza — dyżur konsultacyjny” w czwartek o 16:00, obie oznaczone Requested, obie z uwagą, że koliduje z nimi inna aktywna rezerwacja, i z przyciskami Confirm i Decline.',
+			alt: 'Zrzut ekranu „My schedule” korepetytorki, zakładka „Requests for me (3)”: pierwsze dwie z trzech próśb od Michała Zielińskiego o „Analiza — dyżur konsultacyjny” w czwartek o 18:00, obie oznaczone Requested, obie z uwagą, że koliduje z nimi inna aktywna rezerwacja, i z przyciskami Confirm i Decline.',
 			caption:
 				'Strona korepetytora: każda prośba czeka na „Potwierdź” albo „Odrzuć”, a kolizja z inną rezerwacją jest wskazana, a nie ukryta.'
 		}
