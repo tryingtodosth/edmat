@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Kadra, sale, przedmioty i oddziały SP nr 12 — wspólne dla obu eksportów planu.
+"""Kadra, sale, przedmioty i oddziały SP nr 42 — wspólne dla obu eksportów planu.
 
 Nazwiska i loginy pokrywają się z server/seed/00-base.js tam, gdzie to możliwe,
 żeby importer dało się od razu przetestować na zasianej bazie.
 """
 
 SCHOOL = {
-    'name': 'Szkoła Podstawowa nr 12 im. Marii Skłodowskiej-Curie w Krakowie',
-    'short': 'SP nr 12 w Krakowie',
+    'name': 'Szkoła przykładowa 42 imienia Ludwika Pasteura',
+    'short': 'SP nr 42',
     'year': '2026/2027',
 }
 

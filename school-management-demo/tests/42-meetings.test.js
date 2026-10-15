@@ -26,7 +26,7 @@ const jitsiConfigured = () => need('jitsi', async () => {
   const admin = await S.as('admin');
   expectOk(await admin.patch('/api/admin/video', {
     provider: 'jitsi',
-    jitsi: { domain: 'meet.sp12.krakow.pl', appId: 'edmat_sp12', appSecret: 'tajny-sekret-jitsi-2026' }
+    jitsi: { domain: 'meet.sp42.example.pl', appId: 'edmat_sp42', appSecret: 'tajny-sekret-jitsi-2026' }
   }));
   return admin;
 });
@@ -37,17 +37,17 @@ test('[meetings.1] token JWT dla Jitsi ma poprawne claims i podpis HS256 weryfik
   const c = await S.as('a.wojcik');
   const j = expectOk(await c.get(`/api/meetings/${FIZ}/join`));
   assert.equal(j.provider, 'jitsi');
-  assert.equal(j.domain, 'meet.sp12.krakow.pl');
+  assert.equal(j.domain, 'meet.sp42.example.pl');
   assert.equal(j.moderator, true, 'prowadzący dostaje uprawnienia moderatora');
-  assert.ok(j.url.startsWith('https://meet.sp12.krakow.pl/'), 'adres pokoju na domenie szkoły: ' + j.url);
+  assert.ok(j.url.startsWith('https://meet.sp42.example.pl/'), 'adres pokoju na domenie szkoły: ' + j.url);
   assert.ok(j.jwt, 'token JWT jest zbudowany, gdy ustawiono appId i sekret');
 
   const [h64, p64, sig] = j.jwt.split('.');
   const header = b64urlJson(h64); const payload = b64urlJson(p64);
   assert.equal(header.alg, 'HS256'); assert.equal(header.typ, 'JWT');
-  assert.equal(payload.iss, 'edmat_sp12');
+  assert.equal(payload.iss, 'edmat_sp42');
   assert.equal(payload.aud, 'jitsi');
-  assert.equal(payload.sub, 'meet.sp12.krakow.pl');
+  assert.equal(payload.sub, 'meet.sp42.example.pl');
   assert.equal(payload.room, j.roomName);
   assert.ok(payload.exp > Math.floor(Date.now() / 1000), 'exp w przyszłości');
   assert.equal(payload.context.user.id, 'u_wojcik');
@@ -63,13 +63,13 @@ test('[meetings.1] token JWT dla Jitsi ma poprawne claims i podpis HS256 weryfik
 });
 
 test('[meetings.2] suma kontrolna BigBlueButton to sha1(callName + query + secret) — policzona ręcznie', () => {
-  const cfg = { provider: 'bbb', jitsi: {}, bbb: { url: 'https://bbb.sp12.krakow.pl/bigbluebutton', secret: 'bbb-shared-secret-2026' } };
+  const cfg = { provider: 'bbb', jitsi: {}, bbb: { url: 'https://bbb.sp42.example.pl/bigbluebutton', secret: 'bbb-shared-secret-2026' } };
   const query = 'name=Fizyka&meetingID=edmat-me_test&moderatorPW=mp&attendeePW=ap';
   const hand = crypto.createHash('sha1').update('create' + query + 'bbb-shared-secret-2026').digest('hex');
   assert.equal(V.bbbChecksum('create', query, 'bbb-shared-secret-2026'), hand);
 
   const url = V.bbbUrl(cfg, 'create', { name: 'Fizyka', meetingID: 'edmat-me_test', moderatorPW: 'mp', attendeePW: 'ap' });
-  const m = /^https:\/\/bbb\.sp12\.krakow\.pl\/bigbluebutton\/api\/create\?(.*)&checksum=([0-9a-f]{40})$/.exec(url);
+  const m = /^https:\/\/bbb\.sp42\.example\.pl\/bigbluebutton\/api\/create\?(.*)&checksum=([0-9a-f]{40})$/.exec(url);
   assert.ok(m, 'adres create ma postać z dokumentacji BBB: ' + url);
   assert.equal(m[2], crypto.createHash('sha1').update('create' + m[1] + 'bbb-shared-secret-2026').digest('hex'));
 
@@ -302,18 +302,18 @@ test('[meetings.10] konfiguracja administratora: waliduje format, nigdy nie zwra
   assert.equal(cfg.jitsi.appSecretSet, true);
   assert.equal(cfg.jitsi.appSecret, undefined);
 
-  const bad = await admin.patch('/api/admin/video', { provider: 'jitsi', jitsi: { domain: 'https://meet.sp12.krakow.pl/pokoj' } });
+  const bad = await admin.patch('/api/admin/video', { provider: 'jitsi', jitsi: { domain: 'https://meet.sp42.example.pl/pokoj' } });
   assert.equal(bad.status, 400); assert.equal(bad.body.code, 'invalid_config');
   assert.ok(bad.body.errors.length);
-  assert.equal(S.db.data.config.video.jitsi.domain, 'meet.sp12.krakow.pl', 'błędna wartość nie nadpisała konfiguracji');
+  assert.equal(S.db.data.config.video.jitsi.domain, 'meet.sp42.example.pl', 'błędna wartość nie nadpisała konfiguracji');
 
   // puste pole sekretu = bez zmian
-  expectOk(await admin.patch('/api/admin/video', { provider: 'jitsi', jitsi: { domain: 'meet.sp12.krakow.pl', appId: 'edmat_sp12', appSecret: '' } }));
+  expectOk(await admin.patch('/api/admin/video', { provider: 'jitsi', jitsi: { domain: 'meet.sp42.example.pl', appId: 'edmat_sp42', appSecret: '' } }));
   assert.equal(S.db.data.config.video.jitsi.appSecret, 'tajny-sekret-jitsi-2026');
 
-  const t1 = expectOk(await admin.post('/api/admin/video/test', { provider: 'jitsi', jitsi: { domain: 'meet.sp12.krakow.pl' } }));
+  const t1 = expectOk(await admin.post('/api/admin/video/test', { provider: 'jitsi', jitsi: { domain: 'meet.sp42.example.pl' } }));
   assert.equal(t1.ok, true); assert.equal(t1.networkCall, false);
-  assert.match(t1.preview, /^https:\/\/meet\.sp12\.krakow\.pl\//);
+  assert.match(t1.preview, /^https:\/\/meet\.sp42\.example\.pl\//);
   const t2 = expectOk(await admin.post('/api/admin/video/test', { provider: 'bbb', bbb: { url: 'nie-adres' } }));
   assert.equal(t2.ok, false); assert.ok(t2.errors.length);
 

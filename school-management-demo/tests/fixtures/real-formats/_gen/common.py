@@ -2,7 +2,7 @@
 """Wspólny model szkoły + mały zachłanny układacz planu.
 
 Używany przez gen_asc.py i gen_optivum.py, żeby oba eksporty opisywały tę samą
-szkołę (SP nr 12 w Krakowie) spójnymi danymi. Deterministyczny: brak losowości
+szkołę (SP nr 42) spójnymi danymi. Deterministyczny: brak losowości
 poza ustalonym ziarnem, więc regeneracja daje bajt w bajt ten sam wynik.
 """
 

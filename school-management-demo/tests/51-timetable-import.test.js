@@ -54,7 +54,7 @@ test.before(async () => { S = await startServer(); });
 test.after(async () => { for (const x of extra) await x.close(); if (S) await S.close(); });
 const spawn = async () => { const T = await startServer(); extra.push(T); return T; };
 
-/* Szkoła, która naprawdę ma to, co jest w `asc/plan-sp12.xml`: 8 oddziałów, 20 nauczycieli i te
+/* Szkoła, która naprawdę ma to, co jest w `asc/plan-sp42.xml`: 8 oddziałów, 20 nauczycieli i te
    przedmioty. Zasiew demo ma 5 oddziałów i 13 przedmiotów — plik i baza celowo się nie pokrywają
    (README fixture'ów, §1 „Zasięg”), więc pełne wczytanie planu wymaga albo mapowania, albo szkoły
    o tej kadrze. Tu budujemy tę drugą, żeby zobaczyć plan w całości. */
@@ -97,7 +97,7 @@ test('[R1.1] dekodery bez npm-a: windows-1250 bajt po bajcie, BOM, <meta charset
   const edge = TD.decode(bytes('asc/plan-edge.xml'), { default: 'utf-8' });
   assert.equal(edge.source, 'bom', 'BOM ma pierwszeństwo przed deklaracją w treści');
   assert.ok(edge.text.startsWith('<?xml'), 'BOM usunięty: ' + JSON.stringify(edge.text.slice(0, 10)));
-  assert.equal(TD.decode(bytes('asc/plan-sp12.xml'), { default: 'windows-1250' }).source, 'xml');
+  assert.equal(TD.decode(bytes('asc/plan-sp42.xml'), { default: 'windows-1250' }).source, 'xml');
 
   /* CSV bez żadnej deklaracji: nabór jest w cp1250, Librus w UTF-8 — rozpoznajemy po bajtach. */
   assert.equal(TD.decode(bytes('register/nabor-vulcan.csv'), { default: 'utf-8' }).encoding, 'windows-1250');
@@ -131,8 +131,8 @@ test('[R1.2] parser CSV z cudzysłowami: adnotacja sądowa ze średnikiem i eksp
 });
 
 /* --------------------------------------------------------------------------- 3. aSc XML */
-test('[R1.3] aSc: plan-sp12.xml → pary A/B, lekcje podwójne, dwóch nauczycieli, lekcje bez sali i podziały na grupy', async () => {
-  const p = ASC.parseAsc(bytes('asc/plan-sp12.xml'), { ref: 'plan-sp12.xml' });
+test('[R1.3] aSc: plan-sp42.xml → pary A/B, lekcje podwójne, dwóch nauczycieli, lekcje bez sali i podziały na grupy', async () => {
+  const p = ASC.parseAsc(bytes('asc/plan-sp42.xml'), { ref: 'plan-sp42.xml' });
   assert.equal(p.tool, 'asc');
   assert.equal(p.version, '2012.3.2');
   assert.equal(p.encoding, 'utf-8');
@@ -179,7 +179,7 @@ test('[R1.3] aSc: plan-sp12.xml → pary A/B, lekcje podwójne, dwóch nauczycie
 
   /* `displaycountry` vs `displaycountries` — README §1 nie rozstrzyga, więc przyjmujemy obie. */
   assert.equal(p.country, 'pl');
-  const alt = ASC.parseAsc(Buffer.from(bytes('asc/plan-sp12.xml').toString('utf8').replace('displaycountry=', 'displaycountries=')));
+  const alt = ASC.parseAsc(Buffer.from(bytes('asc/plan-sp42.xml').toString('utf8').replace('displaycountry=', 'displaycountries=')));
   assert.equal(alt.country, 'pl');
   assert.equal(alt.stats.rows, 272);
 });
@@ -190,7 +190,7 @@ test('[R1.4] aSc: plan-edge.xml — BOM, CRLF, brakująca sala i zdublowana kart
   assert.ok(raw.includes(Buffer.from('\r\n')), 'fixture naprawdę ma CRLF');
 
   const p = ASC.parseAsc(raw, { ref: 'plan-edge.xml' });
-  assert.equal(p.stats.rows, 272, 'ten sam plan co plan-sp12.xml mimo BOM-u, CRLF-ów i pułapek');
+  assert.equal(p.stats.rows, 272, 'ten sam plan co plan-sp42.xml mimo BOM-u, CRLF-ów i pułapek');
   assert.equal(p.stats.cards, 266);
   assert.equal(p.stats.duplicates, 2, 'zdublowana karta scalona, nie policzona dwa razy');
   assert.ok(p.warnings.some((w) => /\*9999/.test(w)), 'nieistniejąca sala zgłoszona: ' + JSON.stringify(p.warnings));
@@ -200,7 +200,7 @@ test('[R1.4] aSc: plan-edge.xml — BOM, CRLF, brakująca sala i zdublowana kart
   assert.equal(cwikla.short, '');
   assert.equal(cwikla.key, 'Halina Ćwikła', 'bez skrótu kluczem jest imię i nazwisko');
 
-  const base = ASC.parseAsc(bytes('asc/plan-sp12.xml'));
+  const base = ASC.parseAsc(bytes('asc/plan-sp42.xml'));
   const k = (r) => [r.classKey, r.weekday, r.lessonNo, r.week, r.groupLabel, r.subjectKey, r.roomKey].join('|');
   assert.deepEqual(p.rows.map(k).sort(), base.rows.map(k).sort(), 'oba pliki opisują ten sam plan');
 });
@@ -473,7 +473,7 @@ test('[R1.10] konflikty planu liczą tydzień i grupę: rozłączne grupy i prze
   /* I dowód wprost: cały prawdziwy plan z aSc, w szkole, która go ma, nie zgłasza ani jednego
      fałszywego konfliktu — przed tą zmianą były ich setki (README fixture'ów, „Trzy rzeczy…” pkt 2). */
   const { c } = await richSchool();
-  const dry = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp12.xml'), dryRun: true }));
+  const dry = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp42.xml'), dryRun: true }));
   assert.equal(dry.rows, 272);
   assert.deepEqual(dry.conflicts, []);
   assert.deepEqual(dry.errors, []);
@@ -489,7 +489,7 @@ test('[3.5.5] import dwufazowy: próbny przebieg zwraca propozycję dopasowania,
   assert.match(fmt.weekCycle.anchor, /^\d{4}-\d{2}-\d{2}$/);
 
   const before = T.db.col('timetable').length;
-  const dry = expectOk(await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp12.xml'), dryRun: true }));
+  const dry = expectOk(await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp42.xml'), dryRun: true }));
   assert.equal(dry.format, 'asc-xml', 'format rozpoznany bez podpowiedzi');
   assert.equal(dry.applied, false);
   assert.equal(dry.ok, false, 'są encje bez odpowiednika');
@@ -509,7 +509,7 @@ test('[3.5.5] import dwufazowy: próbny przebieg zwraca propozycję dopasowania,
   assert.equal(opts.includes('u_biblioteka'), false, 'bibliotekarka nie może prowadzić lekcji');
   assert.equal(opts.includes('u_iod'), false, 'inspektor ochrony danych też nie');
   assert.ok(opts.includes('u_nowak') && opts.includes('u_wspomagajacy'), 'nauczyciel i nauczyciel wspomagający — tak');
-  const badTarget = await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp12.xml'), dryRun: true, mapping: { teachers: { NJ: 'u_iod' } } });
+  const badTarget = await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp42.xml'), dryRun: true, mapping: { teachers: { NJ: 'u_iod' } } });
   assert.equal(expectOk(badTarget).proposal.teachers.find((x) => x.key === 'NJ').how, 'unknown_target', 'mapowanie na konto spoza kadry uczącej jest odrzucone');
   assert.equal(teacher('ŻM').matched, null);
   assert.equal(teacher('ŻM').how, 'unmatched');
@@ -542,7 +542,7 @@ test('[3.5.5] import dwufazowy: próbny przebieg zwraca propozycję dopasowania,
   assert.ok(dry.weeks.A > 0 && dry.weeks.B > 0);
 
   /* Zapis bez uzupełnionego mapowania: 400 z listą, żadnego zapisu częściowego. */
-  const refused = await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp12.xml'), dryRun: false, force: true });
+  const refused = await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp42.xml'), dryRun: false, force: true });
   assert.equal(refused.status, 400);
   assert.equal(refused.body.code, 'unmatched_entities');
   assert.ok(refused.body.blocking.length > 0);
@@ -551,7 +551,7 @@ test('[3.5.5] import dwufazowy: próbny przebieg zwraca propozycję dopasowania,
 
   /* OPS3-12/D3-51 na żywo: odesłanie `report.mapping` bez zmian — to, co robi ekran administracji
      i co pokazuje docs/IMPORT.md § 5 — nie może zgubić ani jednej sali. */
-  const echo = expectOk(await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp12.xml'), dryRun: true, mapping: dry.mapping }));
+  const echo = expectOk(await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp42.xml'), dryRun: true, mapping: dry.mapping }));
   assert.deepEqual(echo.proposal.blocking, dry.proposal.blocking, 'odesłane mapowanie nie zmienia zdania o encjach bez dopasowania');
   assert.equal(echo.rooms, dry.rooms, 'liczba sal po odesłaniu mapowania bez zmian: ' + echo.rooms + ' vs ' + dry.rooms);
   assert.equal(echo.roomless, dry.roomless);
@@ -567,19 +567,19 @@ test('[3.5.5] import z mapowaniem zapisuje plan ze źródłem, tygodniem i drugi
 
   /* Człowiek przejrzał propozycję i zdecydował: czego szkoła nie ma, tego nie wgrywamy (null),
      a informatyka z pliku ma u nas swojego nauczyciela. */
-  const dry0 = expectOk(await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp12.xml'), dryRun: true }));
+  const dry0 = expectOk(await c.post('/api/admin/timetable/import', { dataBase64: b64('asc/plan-sp42.xml'), dryRun: true }));
   const mapping = JSON.parse(JSON.stringify(dry0.mapping));
   /* D3-51 — encji bez dopasowania nie ma w `mapping`; decyzję „pomiń” trzeba teraz wpisać wprost,
      i to jest cała różnica między „klient odesłał, co dostał” a „człowiek zdecydował”. */
   for (const kind of ['teachers', 'classes', 'subjects']) for (const k of dry0.unmatched[kind]) mapping[kind][k] = null;
 
-  const dry = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp12.xml'), dryRun: true, mapping }));
+  const dry = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp42.xml'), dryRun: true, mapping }));
   assert.deepEqual(dry.proposal.blocking, [], 'wszystko rozstrzygnięte: dopasowane albo świadomie pominięte');
   assert.equal(dry.ok, true, JSON.stringify(dry.conflicts).slice(0, 300));
   assert.ok(dry.rows > 0 && dry.rows < 272, 'część wierszy odpadła razem z pominiętymi encjami: ' + dry.rows);
   assert.ok(dry.skipped.rows > 0);
 
-  const done = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp12.xml'), dryRun: false, force: true, mapping, reason: 'Plan z aSc na rok 2026/2027.' }));
+  const done = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp42.xml'), dryRun: false, force: true, mapping, reason: 'Plan z aSc na rok 2026/2027.' }));
   assert.equal(done.applied, true);
   assert.equal(done.rows, dry.rows);
 
@@ -601,7 +601,7 @@ test('[3.5.5] import z mapowaniem zapisuje plan ze źródłem, tygodniem i drugi
   /* Kontrola z repro/operations/04-rooms-mapping.js: ten sam plik i to samo mapowanie, tylko bez
      klucza `rooms`. Przed poprawką dawało 254 sale kontra 0; teraz musi wyjść co do wiersza to samo. */
   const noRooms = JSON.parse(JSON.stringify(mapping)); delete noRooms.rooms;
-  const control = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp12.xml'), dryRun: true, mapping: noRooms }));
+  const control = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp42.xml'), dryRun: true, mapping: noRooms }));
   assert.equal(control.rooms, done.rooms, 'pominięcie klucza „rooms” i odesłanie go bez zmian znaczą to samo');
   assert.equal(control.roomless, done.roomless);
   /* Stare wiersze zapisuje się dokładnie jak przedtem — bez pól, których nie potrzebują. */

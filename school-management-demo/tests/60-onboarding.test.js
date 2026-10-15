@@ -26,8 +26,8 @@ const fixtureText = (rel) => TD.decode(bytes(rel), { default: 'windows-1250' }).
 
 const ADMIN_PW = 'Wrzesien-2026!ok';
 const SCHOOL = {
-  school: { name: 'Szkoła Podstawowa nr 12 im. Janusza Korczaka w Krakowie', short: 'SP 12', address: 'ul. Szkolna 1, 31-000 Kraków', regon: '000123456', rspo: '12345', email: 'sekretariat@sp12.krakow.pl', phone: '12 000 00 00', director: 'mgr Barbara Zawadzka' },
-  admin: { login: 'admin', password: ADMIN_PW, firstName: 'Iwona', lastName: 'Adminowa', email: 'admin@sp12.krakow.pl' },
+  school: { name: 'Szkoła przykładowa 42 imienia Ludwika Pasteura', short: 'SP 42', address: 'ul. Szkolna 1, 31-000 Kraków', regon: '000123456', rspo: '12345', email: 'sekretariat@sp42.example.pl', phone: '12 000 00 00', director: 'mgr Barbara Zawadzka' },
+  admin: { login: 'admin', password: ADMIN_PW, firstName: 'Iwona', lastName: 'Adminowa', email: 'admin@sp42.example.pl' },
   principal: { login: 'dyrektor', firstName: 'Barbara', lastName: 'Zawadzka' },
   year: '2026/2027'
 };
@@ -133,15 +133,15 @@ const september = () => need('september', async () => {
      o encjach, których szkoła nie ma, i o podziałach na grupy. */
   const year = expectOk(await c.get('/api/admin/year'));
   expectOk(await c.patch('/api/admin/year', { lessonTimes: [{ no: 0, start: '07:10', end: '07:55' }].concat(year.lessonTimes) }));
-  out.dry = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp12.xml'), dryRun: true, ref: 'plan-sp12.xml' }));
+  out.dry = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp42.xml'), dryRun: true, ref: 'plan-sp42.xml' }));
   const mapping = JSON.parse(JSON.stringify(out.dry.mapping));
   for (const k of out.dry.unmatched.subjects) mapping.subjects[k] = '@new';
   for (const k of out.dry.unmatched.classes) mapping.classes[k] = '@new';
   for (const k of out.dry.unmatched.teachers) mapping.teachers[k] = null;
   for (const g of out.dry.proposal.groups) if (!g.matched) mapping.groups[g.key] = '@new';
   out.mapping = mapping;
-  out.dry2 = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp12.xml'), dryRun: true, mapping }));
-  out.applied = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp12.xml'), dryRun: false, force: true, mapping, reason: 'Plan z aSc na rok 2026/2027.' }));
+  out.dry2 = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp42.xml'), dryRun: true, mapping }));
+  out.applied = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: b64('asc/plan-sp42.xml'), dryRun: false, force: true, mapping, reason: 'Plan z aSc na rok 2026/2027.' }));
   out.lessons = expectOk(await c.post('/api/setup/lessons/generate', {}));
   return out;
 });
@@ -246,7 +246,7 @@ test('[onb.6] godzina zerowa, sale i numery lekcji przeżywają import planu', a
   assert.equal(S.applied.rows, S.dry.rows, 'zapis wgrał tyle wierszy, ile obiecała próba');
   /* OPS3-12/D3-51 — odesłanie mapowania z próby nie może skasować ani jednej sali. */
   assert.equal(S.applied.rooms, S.dry.rooms, `sale: próba ${S.dry.rooms}, zapis ${S.applied.rooms}`);
-  assert.ok(S.applied.rooms >= 14, 'plan-sp12.xml ma 14 sal: ' + S.applied.rooms);
+  assert.ok(S.applied.rooms >= 14, 'plan-sp42.xml ma 14 sal: ' + S.applied.rooms);
   const tt = S.B.db.col('timetable');
   assert.ok(tt.filter((t) => t.room).length > tt.length / 2, 'większość lekcji ma numer sali');
   /* OPS3-08 — lekcji sprzed dnia przejścia nie generujemy i mówimy o tym. */
@@ -363,7 +363,7 @@ test('[onb.10] „załóż u nas” w tabeli dopasowania zakłada przedmiot i od
   expectOk(await c.post('/api/setup/teachers/import', { csv: 'login;firstName;lastName;subjects\nj.nowak;Joanna;Nowak;mat' }));
   const csv = 'class;weekday;lessonNo;subject;teacherLogin;room;group\n9z;1;1;mat;j.nowak;12;';
   /* Oddziału 9z nie ma — CSV odrzuca wiersz wprost, a plik z aSc wchodzi przez tabelę dopasowania. */
-  const asc = fs.readFileSync(path.join(FIX, 'asc/plan-sp12.xml'));
+  const asc = fs.readFileSync(path.join(FIX, 'asc/plan-sp42.xml'));
   const dry = expectOk(await c.post('/api/admin/timetable/import', { format: 'asc-xml', dataBase64: asc.toString('base64'), dryRun: true }));
   assert.ok(dry.unmatched.classes.length > 0, 'pusta szkoła nie ma żadnego oddziału z pliku');
   const mapping = JSON.parse(JSON.stringify(dry.mapping));
@@ -404,7 +404,7 @@ test('[onb.11] pojedynczą pozycję planu da się poprawić bez wgrywania całeg
 
 /* ----------------------------------------------------------- 4. skala, cofanie, awaria (H-2, H-3, R3-08) */
 function ascFile(classes, teachers) {
-  /* Plik aSc o kształcie takim, jak `asc/plan-sp12.xml`, ale w pamięci i w skali 24 oddziałów.
+  /* Plik aSc o kształcie takim, jak `asc/plan-sp42.xml`, ale w pamięci i w skali 24 oddziałów.
      H-2 — największym wejściem, jakie widział importer, było 272 wiersze na 8 oddziałów. */
   const subj = ['Matematyka', 'Język polski', 'Język angielski', 'Fizyka', 'Historia', 'Biologia'];
   const esc = (x) => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');

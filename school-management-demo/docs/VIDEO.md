@@ -436,7 +436,7 @@ services:
     restart: unless-stopped
     ports: ["127.0.0.1:8000:80"]          # reverse proxy terminates TLS and proxies to this
     environment:
-      PUBLIC_URL: "https://meet.sp12.krakow.pl"
+      PUBLIC_URL: "https://meet.sp42.example.pl"
       XMPP_DOMAIN: meet.jitsi
       XMPP_MUC_DOMAIN: muc.meet.jitsi
       XMPP_BOSH_URL_BASE: http://prosody:5280
@@ -453,7 +453,7 @@ services:
       ENABLE_STATS_ID: 0
       DISABLE_DEEP_LINKING: 1
       # Point STUN at our own coturn. The upstream default includes stun.l.google.com — remove it.
-      JVB_STUN_SERVERS: "turn.sp12.krakow.pl:3478"
+      JVB_STUN_SERVERS: "turn.sp42.example.pl:3478"
     volumes: ["./data/web:/config:Z"]
     networks: { meet.jitsi: {} }
 
@@ -508,7 +508,7 @@ services:
       JVB_AUTH_USER: jvb
       JVB_AUTH_PASSWORD: ${JVB_AUTH_PASSWORD}
       JVB_ADVERTISE_IPS: ${PUBLIC_IP}
-      JVB_STUN_SERVERS: "turn.sp12.krakow.pl:3478"
+      JVB_STUN_SERVERS: "turn.sp42.example.pl:3478"
     volumes: ["./data/jvb:/config:Z"]
     networks: { meet.jitsi: {} }
 
@@ -518,17 +518,17 @@ services:
     restart: unless-stopped
     network_mode: host
     command: >
-      -n --realm=turn.sp12.krakow.pl --use-auth-secret
+      -n --realm=turn.sp42.example.pl --use-auth-secret
       --static-auth-secret=${TURN_SECRET} --no-cli --no-multicast-peers
       --min-port=49152 --max-port=65535
       --cert=/certs/fullchain.pem --pkey=/certs/privkey.pem
-    volumes: ["/etc/letsencrypt/live/turn.sp12.krakow.pl:/certs:ro"]
+    volumes: ["/etc/letsencrypt/live/turn.sp42.example.pl:/certs:ro"]
 
 networks:
   meet.jitsi: {}
 ```
 
-**Reverse proxy.** `meet.sp12.krakow.pl` → `127.0.0.1:8000`, with WebSocket upgrade enabled
+**Reverse proxy.** `meet.sp42.example.pl` → `127.0.0.1:8000`, with WebSocket upgrade enabled
 (`/xmpp-websocket` and `/colibri-ws/` must pass through). EdMat itself stays on its own hostname.
 
 **Firewall.** Open `443/tcp` (proxy), `10000/udp` (JVB media), and `3478/udp` + `443/tcp` if coturn is
@@ -549,7 +549,7 @@ on its own host. Nothing else.
 
 | Variable | Where | Meaning |
 |---|---|---|
-| `EDMAT_JITSI_DOMAIN` | EdMat container | The school's Jitsi hostname, e.g. `meet.sp12.krakow.pl`. Overrides `config.video.jitsi.domain`. Leave empty to configure from the admin screen instead. |
+| `EDMAT_JITSI_DOMAIN` | EdMat container | The school's Jitsi hostname, e.g. `meet.sp42.example.pl`. Overrides `config.video.jitsi.domain`. Leave empty to configure from the admin screen instead. |
 | `EDMAT_JITSI_APP_ID` | EdMat container | Must equal Jitsi's `JWT_APP_ID`. Empty ⇒ EdMat builds plain room URLs with no token (lobby + passcode become the only protection). |
 | `EDMAT_JITSI_APP_SECRET` | EdMat container | Must equal Jitsi's `JWT_APP_SECRET`. Never returned by any API. |
 | `EDMAT_VIDEO_EVENT_SECRET` | EdMat container | Shared secret for `POST /api/meetings/:id/events` (`X-EdMat-Video-Secret`, or an HMAC-SHA256 body signature in `X-EdMat-Video-Signature`). |
@@ -679,7 +679,7 @@ jednocześnie jest kosztowne. W BBB nagranie to nie film, lecz odtwarzalna kompo
 dźwięku i czatu — znacznie mniejsza i dydaktycznie użyteczniejsza.
 
 **Czego nie robić.** Nie wolno „na próbę" wpuszczać uczniów na publiczne `meet.jit.si` ani `8x8.vc`.
-Domena w danych demonstracyjnych EdMat jest celowo nieprawidłowa (`meet.sp12.krakow.pl (przykład)`), żeby
+Domena w danych demonstracyjnych EdMat jest celowo nieprawidłowa (`meet.sp42.example.pl (przykład)`), żeby
 nikt nie zrobił tego przypadkiem — dopóki administrator nie wpisze prawdziwego adresu, dziennik nie
 ładuje żadnego skryptu z zewnątrz, a ekran spotkania pokazuje ostrzeżenie zamiast okna wideo.
 

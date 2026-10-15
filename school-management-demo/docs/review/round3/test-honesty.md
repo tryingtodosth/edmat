@@ -49,7 +49,7 @@ reached. **weak** — the test passes without demonstrating the thing it names.
 | ---: | --- | --- | --- | --- |
 | 1 | dekodery bez npm-a: windows-1250, BOM, `<meta charset>`, deklaracja XML | `[3.5.5]` | solid | Real `textdecode` over real fixture bytes; `0xB3 → ł`, `0x8C → Ś` are facts about cp1250, not about our code. BOM/`<meta>`/XML-declaration precedence each asserted separately. **Tag wrong** (§2). |
 | 2 | parser CSV z cudzysłowami: średnik w polu, eksport UONET+ | `[3.5.5]` | solid | RFC 4180 cases written out by hand (CRLF, doubled quote, separator inside a field, embedded newline) plus the real nabór/UONET fixtures. 22 header columns and 60 rows are verifiable with `wc -l` and a count of the header's separators. **Tag wrong.** |
-| 3 | aSc `plan-sp12.xml` → pary A/B, podwójne, dwóch nauczycieli, brak sali, grupy | `[3.5.5]` | solid | Every pinned number is independently derivable from the file: `grep -c '<card '` = 264, `<lesson ` = 108, `<classroom ` = 14, `<teacher ` = 20, `<class ` = 8, `periodspercard="2"` = 8, and `rows = 264 + 8 = 272`. Not copied from the parser. |
+| 3 | aSc `plan-sp42.xml` → pary A/B, podwójne, dwóch nauczycieli, brak sali, grupy | `[3.5.5]` | solid | Every pinned number is independently derivable from the file: `grep -c '<card '` = 264, `<lesson ` = 108, `<classroom ` = 14, `<teacher ` = 20, `<class ` = 8, `periodspercard="2"` = 8, and `rows = 264 + 8 = 272`. Not copied from the parser. |
 | 4 | aSc `plan-edge.xml` — BOM, CRLF, brakująca sala, zdublowana karta | `[3.5.5]` | solid | Asserts the fixture really has the BOM bytes and CRLF before using it, then proves the edge file and the clean file describe the **same plan** by comparing sorted row keys — a much stronger oracle than a row count. |
 | 5 | aSc eksport „2008” (bez `daysdefs`/`weeksdefs`, `day=`, `durationperiods`) | `[3.5.5]` | solid | The 2008 dialect's four differences are each asserted; `week === null` everywhere is the right answer for a file with no `<weeksdefs>`. |
 | 6 | aSc `plan-extra.xml` — międzyoddziałowe, godzina 0 a plan dzwonków | `[3.5.5]` | solid | Parser **and** `POST /api/admin/timetable/import`; the "hour 0" rule is proven in both directions (rejected without the bell, accepted after `withConfig` adds it, rejected again) and the message is asserted to name the remedy. |
@@ -544,7 +544,7 @@ archival classes it had to touch and why.* This is the one hole on this list tha
 a gap.
 
 **H-2 · R1 timetable import — nobody has run the importer on a school-sized file.** The largest input any
-test gives it is 272 rows over 8 classes (`asc/plan-sp12.xml`) or 112 rows over 8 (Optivum). `44-setup`
+test gives it is 272 rows over 8 classes (`asc/plan-sp42.xml`) or 112 rows over 8 (Optivum). `44-setup`
 already has `CLASSES_24` (24 classes) but uses it only for pupils; `timetableCsv(CLASSES_24)` would be 720
 rows and is never built. Missing: *an aSc or CSV plan for 24 classes imports inside a stated time, produces
 the conflicts it should and no conflicts it should not, and generates a year of lessons.* This is where

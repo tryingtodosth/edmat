@@ -41,7 +41,7 @@ test('TOTP setup, enable and second-factor gate', async () => {
   expectOk(await c2.post('/api/auth/totp', { code: totpCode(setup.secret) })); assert.equal((await c2.get('/api/auth/session')).body.totpRequired, false);
 });
 test('seed integrity: one school, classes with students, lessons for the seeded week, categories, curriculum', async () => {
-  const db = S.db; assert.equal(db.data.config.school.short, 'SP nr 12'); assert.ok(db.data.classes.find((c) => c.id === '7b').studentIds.length >= 12);
+  const db = S.db; assert.equal(db.data.config.school.short, 'SP nr 42'); assert.ok(db.data.classes.find((c) => c.id === '7b').studentIds.length >= 12);
   assert.ok(db.data.lessons.some((l) => l.classId === '7b' && l.date === '2026-10-23' && l.subjectId === 'mat'));
   for (const s of db.data.students) assert.equal(require('../server/lib/util').validatePesel(s.pesel).ok, true, 'PESEL ' + s.pesel);
 });

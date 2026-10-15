@@ -290,7 +290,7 @@ code, error, kind, crisis}`, gdzie `status` ∈ `pending | sent | retry | failed
 # administrator albo dyrekcja, po zalogowaniu
 curl -X POST http://localhost:3000/api/push/config \
      -H 'Content-Type: application/json' \
-     -d '{"enabled":true,"subject":"mailto:sekretariat@sp12.krakow.pl"}'
+     -d '{"enabled":true,"subject":"mailto:sekretariat@sp42.example.pl"}'
 ```
 
 Klucze VAPID wygenerują się przy pierwszym włączeniu i zapiszą w `data/school/pushKeys.json`.

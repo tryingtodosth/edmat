@@ -15,7 +15,7 @@ function seed(db, ctx) {
   /* --- konfiguracja dostawcy wideo ------------------------------------------------------- */
   cfg.video = Object.assign({
     provider: 'jitsi',
-    jitsi: { domain: 'meet.sp12.krakow.pl (przykład)', appId: '', appSecret: '' },
+    jitsi: { domain: 'meet.sp42.example.pl (przykład)', appId: '', appSecret: '' },
     bbb: { url: '', secret: '' },
     eventSecret: 'edmat-video-events-secret-2026',   // nagłówek X-EdMat-Video-Secret dla zdarzeń dostawcy
     recordingConsentRequired: true,

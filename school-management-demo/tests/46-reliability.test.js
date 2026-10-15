@@ -815,7 +815,7 @@ test('backup: a copy taken while the server is writing restores every row', () =
   const outDir = tmp('backup-live-out');
   const file = path.join(dataDir, 'school.json');
   const db = new Store(file, { quiet: true });
-  db.data = { config: { school: { name: 'SP 12' } }, users: [{ id: 'u1', login: 'a' }], attendance: [] };
+  db.data = { config: { school: { name: 'SP 42' } }, users: [{ id: 'u1', login: 'a' }], attendance: [] };
   db.compact();
   for (let i = 0; i < 30; i++) { db.col('attendance').push({ id: 'att' + i, status: 'ob' }); db.flush(); }
 
@@ -830,7 +830,7 @@ test('backup: a copy taken while the server is writing restores every row', () =
   assert.equal(backupCli(['restore', archive, '--data', target, '--yes']).status, 0);
   const restored = onDisk(path.join(target, 'school.json'));
   assert.equal(restored.attendance.length, 30, 'the rows that were still only in the append log are in the copy');
-  assert.equal(restored.config.school.name, 'SP 12');
+  assert.equal(restored.config.school.name, 'SP 42');
 });
 
 test('bench: npm run bench finishes on a small fixture, well inside a minute', { timeout: 120000 }, () => {

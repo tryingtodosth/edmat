@@ -50,7 +50,7 @@ const ATT_LESSONS = [
   { date: '2026-09-25', nb: [16], u: [], sp: { 15: 8 } }
 ];
 const REMARKS = [
-  { id: 'g_rem_1', no: 7, teacherId: 'u_sikora', kind: 'positive', text: 'Samodzielnie przygotowała gazetkę klasową o Marii Skłodowskiej-Curie.', points: 10, date: '2026-10-02', subjectId: 'pol' },
+  { id: 'g_rem_1', no: 7, teacherId: 'u_sikora', kind: 'positive', text: 'Samodzielnie przygotowała gazetkę klasową o Ludwiku Pasteurze.', points: 10, date: '2026-10-02', subjectId: 'pol' },
   { id: 'g_rem_2', no: 18, teacherId: 'u_nowak', kind: 'negative', text: 'Przeszkadzał w prowadzeniu lekcji mimo dwukrotnego upomnienia.', points: -10, date: '2026-10-09', subjectId: 'mat' },
   { id: 'g_rem_3', no: 12, teacherId: 'u_wojcik', kind: 'neutral', text: 'Zgłosił brak podręcznika — rodzic poinformowany przez dziennik.', points: 0, date: '2026-10-13', subjectId: 'fiz' }
 ];

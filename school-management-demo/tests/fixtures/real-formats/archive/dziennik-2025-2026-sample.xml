@@ -8,7 +8,7 @@
 -->
 <eksportDziennika wersja="1.0" system="Dziennik elektroniczny (przykład)" dataEksportu="2026-07-03T09:12:44+02:00" podstawaPrawna="§ 22 rozporządzenia MEN z dnia 25 sierpnia 2017 r." charakter="ilustracyjny">
   <szkola rspo="12345" regon="357123456">
-    <nazwa>Szkoła Podstawowa nr 12 im. Marii Skłodowskiej-Curie w Krakowie</nazwa>
+    <nazwa>Szkoła przykładowa 42 imienia Ludwika Pasteura</nazwa>
     <adres>ul. Szkolna 4, 31-000 Kraków</adres>
     <dyrektor>Piotr Wiśniewski</dyrektor>
   </szkola>

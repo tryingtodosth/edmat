@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Generuje eksport XML w kształcie 'aSc Timetables 2012 XML'.
 
-Wyjście: ../asc/plan-sp12.xml, ../asc/plan-old-2008.xml, ../asc/plan-edge.xml
+Wyjście: ../asc/plan-sp42.xml, ../asc/plan-old-2008.xml, ../asc/plan-edge.xml
 """
 import os
 import sys
@@ -122,7 +122,7 @@ def render(cards, lessons, version='2012.3.2'):
     w('<?xml version="1.0" encoding="UTF-8"?>')
     w('<timetable ascttversion=%s importtype="database" options=%s displayname=%s displaycountry="pl">' % (
         quoteattr(version),
-        quoteattr('idprefix:ID,exportlicensename:SP nr 12 w Krakowie,exportlicensenumber:987654321,numberofweeks:2'),
+        quoteattr('idprefix:ID,exportlicensename:SP nr 42,exportlicensenumber:987654321,numberofweeks:2'),
         quoteattr('Plan lekcji %s — %s' % (S.SCHOOL['year'], S.SCHOOL['short']))))
 
     w('<periods options="canadd,canremove,canupdate,silent" columns="period,name,short,starttime,endtime">')
@@ -160,7 +160,7 @@ def render(cards, lessons, version='2012.3.2'):
     for sh, fn, ln, g, _sub in S.TEACHERS:
         w('<teacher %s/>' % A(id=ids.new('n_' + sh), firstname=fn, lastname=ln, short=sh, gender=g,
                               color='#%02X96C8' % (40 + 7 * len(ln)),
-                              email='%s.%s@sp12.krakow.pl' % (fn[0].lower(), ln.lower()), partner_id=''))
+                              email='%s.%s@sp42.example.pl' % (fn[0].lower(), ln.lower()), partner_id=''))
     w('</teachers>')
 
     w('<classrooms options="canadd,canremove,canupdate,silent" columns="id,name,short,capacity,buildingid,partner_id">')
@@ -311,7 +311,7 @@ def main():
     lessons, pairs = build()
     cards = schedule(lessons, pairs)
     xml, _ids, _lid = render(cards, lessons)
-    open(os.path.join(OUT, 'plan-sp12.xml'), 'w', encoding='utf-8', newline='\n').write(xml)
+    open(os.path.join(OUT, 'plan-sp42.xml'), 'w', encoding='utf-8', newline='\n').write(xml)
     open(os.path.join(OUT, 'plan-old-2008.xml'), 'w', encoding='utf-8', newline='\n').write(render_2008(cards, lessons))
     with open(os.path.join(OUT, 'plan-edge.xml'), 'wb') as f:
         f.write(render_edge(xml).encode('utf-8'))

@@ -27,7 +27,7 @@ test.after(() => { webpush.transport = null; return S.close(); });
 const need = fixtures();
 const pushOn = () => need('pushOn', async () => {
   const admin = await S.as('admin');
-  return expectOk(await admin.post('/api/push/config', { enabled: true, subject: 'mailto:sekretariat@sp12.krakow.pl' }), 'włączenie push');
+  return expectOk(await admin.post('/api/push/config', { enabled: true, subject: 'mailto:sekretariat@sp42.example.pl' }), 'włączenie push');
 });
 
 /* ---------------------------------------------------------------- atrapa usługi push */
@@ -120,7 +120,7 @@ test('push: a random salt and server key still round-trip, and an oversized payl
 
 /* ================================================================ VAPID (RFC 8292) */
 test('push: the VAPID token is an ES256 JWT for the push service origin, verifiable with node:crypto', () => {
-  const keys = webpush.generateVapidKeys('mailto:sekretariat@sp12.krakow.pl');
+  const keys = webpush.generateVapidKeys('mailto:sekretariat@sp42.example.pl');
   assert.equal(webpush.unb64url(keys.publicKey).length, 65, 'klucz publiczny to surowy punkt 65 B');
   assert.equal(webpush.unb64url(keys.publicKey)[0], 4, 'punkt nieskompresowany');
   assert.match(keys.privateKey, /BEGIN PRIVATE KEY/, 'klucz prywatny jako PEM');
@@ -132,7 +132,7 @@ test('push: the VAPID token is an ES256 JWT for the push service origin, verifia
   const claims = JSON.parse(webpush.unb64url(p64).toString('utf8'));
   assert.deepEqual(header, { typ: 'JWT', alg: 'ES256' });
   assert.equal(claims.aud, 'https://updates.push.services.mozilla.com', 'aud to ORIGIN usługi push, nie cały endpoint');
-  assert.equal(claims.sub, 'mailto:sekretariat@sp12.krakow.pl');
+  assert.equal(claims.sub, 'mailto:sekretariat@sp42.example.pl');
   const now = Math.floor(Date.now() / 1000);
   assert.ok(claims.exp > now && claims.exp <= now + 24 * 3600, 'exp nie przekracza 24 godzin');
 
@@ -628,9 +628,9 @@ function loadWorker(clients, opts) {
     console, URL, setTimeout, clearTimeout, Promise, Response: function Response() {},
     fetch: async (url, init) => { fetched.push({ url: String(url), init: init || {} }); return o.fetch ? o.fetch(String(url), init || {}) : {}; },
     caches: { open: async () => noCache, keys: async () => [], match: async () => undefined, delete: async () => {} },
-    location: { origin: 'https://sp12.krakow.pl' },
+    location: { origin: 'https://sp42.example.pl' },
     addEventListener: (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); },
-    registration: { scope: 'https://sp12.krakow.pl/', showNotification: async (title, options) => { shown.push({ title, options }); } },
+    registration: { scope: 'https://sp42.example.pl/', showNotification: async (title, options) => { shown.push({ title, options }); } },
     clients: {
       claim: async () => {},
       matchAll: async () => (clients || []).map((c) => Object.assign({ focus: async () => { focused.push(c.url); return c; }, navigate: async (u) => { navigated.push(u); return c; } }, c)),
@@ -667,7 +667,7 @@ test('push: on receipt the service worker fetches the text from the school and s
 
   await fire(w, 'push', { data: { json: () => MINIMAL } });
   assert.equal(w.fetched.length, 1, 'ładunek nie ma treści, więc worker pyta o nią szkołę');
-  assert.equal(w.fetched[0].url, 'https://sp12.krakow.pl/api/notifications/not_abc/render', 'adres w zakresie workera; bez języka — wtedy decyduje język konta');
+  assert.equal(w.fetched[0].url, 'https://sp42.example.pl/api/notifications/not_abc/render', 'adres w zakresie workera; bez języka — wtedy decyduje język konta');
   assert.equal(w.fetched[0].init.credentials, 'include', 'ciasteczko sesji musi pojechać z żądaniem');
   assert.equal(w.fetched[0].init.cache, 'no-store');
 
@@ -678,7 +678,7 @@ test('push: on receipt the service worker fetches the text from the school and s
   assert.equal(n.options.tag, 'not_abc');
   assert.equal(n.options.data.link, '/rodzic?studentId=st_kowalczyk_anna');
   assert.equal(n.options.data.login, false);
-  assert.equal(n.options.icon, 'https://sp12.krakow.pl/icon.svg', 'ikona z zakresu workera, nie z zewnętrznego serwisu');
+  assert.equal(n.options.icon, 'https://sp42.example.pl/icon.svg', 'ikona z zakresu workera, nie z zewnętrznego serwisu');
   assert.equal(n.options.requireInteraction, true, 'pilne zostaje na ekranie do dotknięcia');
   assert.equal(n.options.timestamp, Date.parse('2026-10-23T06:05:00.000Z'));
   assert.ok(!n.options.actions, 'przy udanym pobraniu żadna dodatkowa akcja nie jest potrzebna');
@@ -687,7 +687,7 @@ test('push: on receipt the service worker fetches the text from the school and s
   let closed = 0;
   await fire(w, 'notificationclick', { notification: { data: n.options.data, close: () => { closed++; } } });
   assert.equal(closed, 1, 'powiadomienie znika po kliknięciu');
-  assert.deepEqual(w.opened, ['https://sp12.krakow.pl/#/rodzic?studentId=st_kowalczyk_anna']);
+  assert.deepEqual(w.opened, ['https://sp42.example.pl/#/rodzic?studentId=st_kowalczyk_anna']);
 });
 
 test('push: when the school cannot be reached the worker still shows the neutral title for the kind', async () => {
@@ -720,7 +720,7 @@ test('push: when the school cannot be reached the worker still shows the neutral
   assert.equal(out.shown[0].options.tag, 'not_xyz');
   assert.equal(out.shown[0].options.data.login, true);
   await fire(out, 'notificationclick', { notification: { data: out.shown[0].options.data, close: () => {} } });
-  assert.deepEqual(out.opened, ['https://sp12.krakow.pl/#/?login=1'], 'logowanie, a po nim trasa z powiadomienia');
+  assert.deepEqual(out.opened, ['https://sp42.example.pl/#/?login=1'], 'logowanie, a po nim trasa z powiadomienia');
 
   /* 403 też jest brakiem dostępu, nie awarią */
   const forbidden = loadWorker([], { fetch: async () => ({ ok: false, status: 403 }) });
@@ -732,7 +732,7 @@ test('push: the worker asks for and falls back to the language the app last ran 
   const w = loadWorker([], { fetch: async () => ({ ok: false, status: 0 }) });
   await fire(w, 'message', { data: { type: 'locale', locale: 'en' } });
   await fire(w, 'push', { data: { json: () => ({ v: 2, kind: 'timetable', id: 'not_en', ts: Date.now() }) } });
-  assert.equal(w.fetched[0].url, 'https://sp12.krakow.pl/api/notifications/not_en/render?locale=en', 'worker prosi o swój język');
+  assert.equal(w.fetched[0].url, 'https://sp42.example.pl/api/notifications/not_en/render?locale=en', 'worker prosi o swój język');
   assert.equal(w.shown[0].title, 'Timetable change', 'a bez odpowiedzi bierze angielski tytuł z tabelki');
   assert.match(w.shown[0].options.body, /logbook/);
   assert.deepEqual(w.shown[0].options.actions, [{ action: 'open', title: 'Open EdMat' }]);
@@ -756,7 +756,7 @@ test('push: the worker ships a neutral fallback title for every kind on the posi
 });
 
 test('push: a neutral-mode payload is shown as it comes, and a broken one still shows something', async () => {
-  const w = loadWorker([{ url: 'https://sp12.krakow.pl/#/uczen' }]);
+  const w = loadWorker([{ url: 'https://sp42.example.pl/#/uczen' }]);
   /* config.push.payload = 'neutral': tytuł i treść są w ładunku, więc worker nikogo nie pyta */
   await fire(w, 'push', { data: { json: () => ({ title: 'Nowa wiadomość', body: 'Masz nową wiadomość w dzienniku.', link: '/wiadomosci?id=abc', tag: 'not_m', kind: 'message', crisis: false, at: '2026-10-23T09:00:00.000Z' }) } });
   assert.equal(w.fetched.length, 0, 'ładunek z treścią nie wymaga pytania szkoły');
@@ -776,8 +776,8 @@ test('push: a neutral-mode payload is shown as it comes, and a broken one still 
 
   /* z otwartą kartą dziennika klik przenosi tę kartę i ustawia na niej fokus */
   await fire(w, 'notificationclick', { notification: { data: { link: '/wiadomosci' }, close: () => {} } });
-  assert.deepEqual(w.navigated, ['https://sp12.krakow.pl/#/wiadomosci']);
-  assert.deepEqual(w.focused, ['https://sp12.krakow.pl/#/uczen']);
+  assert.deepEqual(w.navigated, ['https://sp42.example.pl/#/wiadomosci']);
+  assert.deepEqual(w.focused, ['https://sp42.example.pl/#/uczen']);
   assert.equal(w.opened.length, 0, 'nie otwieramy drugiej karty dziennika');
 });
 
@@ -966,7 +966,7 @@ test('push: the jitter queue survives a restart, and what can never be sent stop
   let notificationId;
   try {
     const admin = await first.as('admin');
-    expectOk(await admin.post('/api/push/config', { enabled: true, subject: 'mailto:sekretariat@sp12.krakow.pl', jitterSeconds: 3600 }), 'włączenie push z rozrzutem');
+    expectOk(await admin.post('/api/push/config', { enabled: true, subject: 'mailto:sekretariat@sp42.example.pl', jitterSeconds: 3600 }), 'włączenie push z rozrzutem');
     const parent = await first.as('rodzic.kowalczyk');
     expectOk(await parent.post('/api/push/subscribe', { endpoint: sub.endpoint, keys: sub.keys, userAgent: 'Pixel' }));
     const calls = fakeService({ status: 201, headers: {} });

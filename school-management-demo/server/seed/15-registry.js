@@ -50,7 +50,7 @@ function seed(db, ctx) {
     reportedByUserId: reported ? 'u_sekretariat' : null, summonedAt: null, note: '', createdAt: '2026-09-01T06:00:00Z'
   }, extra || {}));
   db.data.districtChildren = [];
-  child('dc_adamczyk_maja', 'Maja', 'Adamczyk', 2019, 'ul. Lea 114/3, 30-133 Kraków', 'SP nr 12, oddział przedszkolny', true);
+  child('dc_adamczyk_maja', 'Maja', 'Adamczyk', 2019, 'ul. Lea 114/3, 30-133 Kraków', 'SP nr 42, oddział przedszkolny', true);
   child('dc_baran_filip', 'Filip', 'Baran', 2019, 'ul. Szkolna 8/2, 31-000 Kraków', 'Przedszkole nr 44', true);
   child('dc_cichon_ewa', 'Ewa', 'Cichoń', 2020, 'ul. Lipowa 3, 31-000 Kraków', null, false, { summonedAt: '2026-10-20' });
   child('dc_dudek_szymon', 'Szymon', 'Dudek', 2019, 'ul. Wrzosowa 11, 31-000 Kraków', 'Przedszkole nr 7', true);

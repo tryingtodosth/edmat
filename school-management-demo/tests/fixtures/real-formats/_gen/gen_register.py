@@ -224,7 +224,7 @@ def staff():
         lines.append(csv_line([
             ln, fn, sh, STOPIEN[i % 3], ['18/18', '18/18', '12/18', '9/18'][i % 4],
             ', '.join(SUBJ_NAME[s] for s in subs), '/'.join(QUAL[s] for s in subs),
-            wych.get(sh, ''), '%s.%s@sp12.krakow.pl' % (fold(fn[0]).lower(), fold(ln).lower())]))
+            wych.get(sh, ''), '%s.%s@sp42.example.pl' % (fold(fn[0]).lower(), fold(ln).lower())]))
     return lines
 
 

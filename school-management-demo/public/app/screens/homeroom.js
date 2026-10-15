@@ -878,7 +878,7 @@
           } }, A.t('hr.dlg.rem.ok'))]
       },
         h('p', null, A.t('hr.dlg.rem.body')),
-        h(E.TextField, { label: A.t('hr.dlg.rem.decisionNo'), mono: true, required: true, 'data-autofocus': true, value: rem.decisionNo, placeholder: 'SP12/1024/2027', onChange: function (ev) { setRem(Object.assign({}, rem, { decisionNo: ev.target.value })); } }),
+        h(E.TextField, { label: A.t('hr.dlg.rem.decisionNo'), mono: true, required: true, 'data-autofocus': true, value: rem.decisionNo, placeholder: 'SP42/1024/2027', onChange: function (ev) { setRem(Object.assign({}, rem, { decisionNo: ev.target.value })); } }),
         h(E.TextField, Object.assign({ label: A.t('hr.dlg.rem.date'), type: 'date', width: 200, value: rem.date, onChange: function (ev) { setRem(Object.assign({}, rem, { date: ev.target.value })); }, hint: A.dateHint(rem.date) }, A.dateInputProps())),
         h(E.TextField, { label: A.t('hr.dlg.rem.reason'), multiline: 2, value: rem.reason, onChange: function (ev) { setRem(Object.assign({}, rem, { reason: ev.target.value })); } })));
   }

@@ -53,7 +53,7 @@ nazwać — `docs/PUSH.md`, `docs/compliance/README.md`). Pełna lista decyzji:
 
 ## 1. Jak wyglądał tydzień
 
-Szkoła: **SP nr 12 w Krakowie**, rok 2026/2027, 6 nauczycieli, 3 oddziały (6a, 7a, 8a) po 20 uczniów,
+Szkoła: **SP nr 42**, rok 2026/2027, 6 nauczycieli, 3 oddziały (6a, 7a, 8a) po 20 uczniów,
 każdy z opiekunem. Plan: 6 lekcji dziennie × 5 dni × 3 oddziały = 90 pozycji, zero konfliktów.
 Dzień szkolny przesuwa się przez `config.today` (wbudowany zegar demo — w produkcji robi to zegar ścienny).
 

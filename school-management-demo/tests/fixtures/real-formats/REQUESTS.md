@@ -21,11 +21,11 @@ agenta i datą. Fixture'y generuje `_gen/generate-all.sh` (Python 3, stdlib), wi
       nie ma na czym pokazać, że działa. Do testu: w `optivum/edge/` jedna godzina, która na stronie
       oddziału ma inną salę (albo innego nauczyciela) niż na stronie nauczyciela.
 - [x] (R1 import planu, 2026-09-23) **aSc: lekcja z dwoma `classids` (zajęcia międzyoddziałowe).**
-      README §1 wymienia je wśród pułapek, ale w `plan-sp12.xml` żadna lekcja nie ma dwóch oddziałów.
+      README §1 wymienia je wśród pułapek, ale w `plan-sp42.xml` żadna lekcja nie ma dwóch oddziałów.
       Importer rozpisuje taką lekcję na osobny wiersz per oddział — nie mamy na to dowodu w teście.
 - [x] (R1 import planu, 2026-09-23) **aSc: lekcja „0” (godzina o numerze 0 albo 7:10).** README §1
       pkt 5 ostrzega, że pierwsza godzina nie musi mieć numeru 1, i importer czyta numer z atrybutu
-      `period`, a nie z pozycji na liście — ale `plan-sp12.xml` ma numery 1–8, więc ostrzeżenie nie
+      `period`, a nie z pozycji na liście — ale `plan-sp42.xml` ma numery 1–8, więc ostrzeżenie nie
       jest pokryte testem. Uwaga: nasz `config.lessonTimes` też zaczyna się od 1, więc taki wiersz
       i tak zostanie odrzucony jako „poza planem dzwonków”; potrzebny jest wtedy również wpis
       o tym, jak szkoła ma dodać godzinę 0.
@@ -66,7 +66,7 @@ na których opiera się `tests/51-timetable-import.test.js`, nie ruszone.
    potwierdzić: żadnego prawdziwego eksportu, żadnej dokumentacji ASC. Moja pamięć skłania się do
    liczby pojedynczej, ale brief, z którego powstał ten katalog, prosił o mnogą — dwie sprzeczne
    pamięci i zero źródeł to `unknown`, nie „pewnie singular”. Zamiast zgadywać: w korpusie są
-   **obie pisownie** (`plan-sp12.xml` → `displaycountry`, `plan-extra.xml` → `displaycountries`),
+   **obie pisownie** (`plan-sp42.xml` → `displaycountry`, `plan-extra.xml` → `displaycountries`),
    więc „przyjmij obie, obie zignoruj” jest pokryte testem i nic się nie zmieni, gdy prawda wyjdzie
    na jaw. Atrybut jest kosmetyczny — nie rozgałęziajcie po nim logiki. Rozstrzygnie to wyłącznie
    jeden prawdziwy eksport ze szkoły (to już pozycja 5 w `docs/research/2026-09-23-gemini-triage.md` §4).

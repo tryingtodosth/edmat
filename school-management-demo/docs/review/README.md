@@ -129,7 +129,7 @@ const proposedGrades = () => need('proposedGrades', async () => {
   grade({ studentId: 'st_kowalczyk_anna', subjectId: 'mat', kind: 'proposedMid', value: '5' });
 });
 const closedSemester = () => need('closedSemester', async () => expectOk(await C.post('/api/homeroom/semester/close', { semester: 1, resolutionNo: '3/2026/2027' })));
-const removedStudent = () => need('removedStudent', async () => expectOk(await C.post('/api/homeroom/students/st_szymaski_tomasz/remove', { date: '2027-01-26', decisionNo: 'SP12/1024/2027', reason: 'Przeniesienie do szkoły w miejscu zamieszkania.' })));
+const removedStudent = () => need('removedStudent', async () => expectOk(await C.post('/api/homeroom/students/st_szymaski_tomasz/remove', { date: '2027-01-26', decisionNo: 'SP42/1024/2027', reason: 'Przeniesienie do szkoły w miejscu zamieszkania.' })));
 ```
 
 then: in `[3.2.1]` replace the three `grade({…proposedMid…})` lines with `await proposedGrades();` · in

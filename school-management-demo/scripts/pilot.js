@@ -235,7 +235,7 @@ async function runPilot(opts) {
       const bad = await admin.post('/api/setup/school', { school: { name: 'SP' }, admin: { login: 'admin', password: 'x', firstName: 'A', lastName: 'B' } }, 400);
       R.check('SETUP-4', 'nazwa szkoły krótsza niż 5 znaków odrzucona', bad.body.field === 'school.name', bad.body.field);
       const made = (await admin.post('/api/setup/school', {
-        school: { name: 'Szkoła Podstawowa nr 12 w Krakowie', short: 'SP 12', address: 'ul. Pilotażowa 1, Kraków', rspo: '120012', email: 'sekretariat@sp-pilot.pl', phone: '123456789', director: 'Ewa Bober' },
+        school: { name: 'Szkoła przykładowa 42 imienia Ludwika Pasteura', short: 'SP 42', address: 'ul. Pilotażowa 1, Kraków', rspo: '120012', email: 'sekretariat@sp-pilot.pl', phone: '123456789', director: 'Ewa Bober' },
         year: '2026/2027',
         admin: { login: 'sekretariat', password: PW, firstName: 'Marta', lastName: 'Zając', email: 'sekretariat@sp-pilot.pl' },
         principal: { login: 'dyrektor', firstName: 'Ewa', lastName: 'Bober', title: 'dyr.' }

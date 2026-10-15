@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Mały eksport aSc pokrywający dwa przypadki, których nie ma w plan-sp12.xml:
+"""Mały eksport aSc pokrywający dwa przypadki, których nie ma w plan-sp42.xml:
 
   * lekcje międzyoddziałowe (`classids` z dwoma oddziałami),
   * godzina lekcyjna o numerze 0 (7:10),
@@ -57,10 +57,10 @@ def main():
     out = []
     w = out.append
     w('<?xml version="1.0" encoding="UTF-8"?>')
-    # UWAGA: tu celowo użyta jest pisownia `displaycountries` — w plan-sp12.xml jest
+    # UWAGA: tu celowo użyta jest pisownia `displaycountries` — w plan-sp42.xml jest
     # `displaycountry`. Żadnej z nich nie umiem potwierdzić; importer ma przyjąć obie.
     w('<timetable %s>' % A(ascttversion='2012.3.2', importtype='database',
-                           options='idprefix:ID,exportlicensename:SP nr 12 w Krakowie,'
+                           options='idprefix:ID,exportlicensename:SP nr 42,'
                                    'exportlicensenumber:987654321',
                            displayname='Plan lekcji 2026/2027 — zajęcia międzyoddziałowe i godzina 0',
                            displaycountries='pl'))

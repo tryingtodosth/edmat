@@ -9,7 +9,7 @@ function seed(db, ctx) {
   const pw = PW_CACHE || (PW_CACHE = C.hashPassword(DEMO_PASSWORD));
   const schoolKeys = C.generateKeyPair();
   db.data.config = {
-    school: { name: 'Szkoła Podstawowa nr 12 im. Marii Skłodowskiej-Curie w Krakowie', short: 'SP nr 12', address: 'ul. Szkolna 4, 31-000 Kraków', regon: '357123456', rspo: '12345', email: 'sekretariat@sp12.krakow.pl', phone: '12 555 01 02', director: 'dyr. Piotr Wiśniewski' },
+    school: { name: 'Szkoła przykładowa 42 imienia Ludwika Pasteura', short: 'SP nr 42', address: 'ul. Szkolna 4, 31-000 Kraków', regon: '357123456', rspo: '12345', email: 'sekretariat@sp42.example.pl', phone: '12 555 01 02', director: 'dyr. Piotr Wiśniewski' },
     year: '2026/2027', today: TODAY, timezone: 'Europe/Warsaw',
     semesters: [
       { id: 1, name: 'Semestr 1', from: '2026-09-01', to: '2027-01-29', proposedDeadline: '2026-12-12', classificationMeeting: '2027-01-26', classificationDeadline: '2027-01-26', locked: false },
@@ -35,7 +35,7 @@ function seed(db, ctx) {
   const keys = (k) => (KEY_CACHE[k] = KEY_CACHE[k] || C.generateKeyPair());
   const user = (o) => { const u = Object.assign({ passwordHash: pw, mustChangePassword: false, totpEnabled: false, blocked: false, title: '', quietHours: null, createdAt: '2026-08-20T08:00:00Z' }, o); u.name = `${u.firstName} ${u.lastName}`; if (u.withKeys) { const k = keys(u.id); u.publicKey = k.publicKey; u.privateKey = k.privateKey; delete u.withKeys; } db.col('users').push(u); return u; };
   // staff
-  user({ id: 'u_nowak', login: 'j.nowak', role: 'teacher', title: 'mgr', firstName: 'Joanna', lastName: 'Nowak', subjects: ['mat'], homeroomOf: '7b', email: 'j.nowak@sp12.krakow.pl', totpEnabled: false });
+  user({ id: 'u_nowak', login: 'j.nowak', role: 'teacher', title: 'mgr', firstName: 'Joanna', lastName: 'Nowak', subjects: ['mat'], homeroomOf: '7b', email: 'j.nowak@sp42.example.pl', totpEnabled: false });
   user({ id: 'u_wojcik', login: 'a.wojcik', role: 'teacher', title: 'mgr', firstName: 'Adam', lastName: 'Wójcik', subjects: ['fiz', 'inf'] });
   user({ id: 'u_krol', login: 'e.krol', role: 'teacher', title: 'mgr', firstName: 'Ewa', lastName: 'Król', subjects: ['ang'] });
   user({ id: 'u_sikora', login: 'b.sikora', role: 'teacher', title: 'mgr', firstName: 'Beata', lastName: 'Sikora', subjects: ['pol'], homeroomOf: '7a' });

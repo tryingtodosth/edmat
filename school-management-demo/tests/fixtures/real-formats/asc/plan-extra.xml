@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<timetable ascttversion="2012.3.2" importtype="database" options="idprefix:ID,exportlicensename:SP nr 12 w Krakowie,exportlicensenumber:987654321" displayname="Plan lekcji 2026/2027 — zajęcia międzyoddziałowe i godzina 0" displaycountries="pl">
+<timetable ascttversion="2012.3.2" importtype="database" options="idprefix:ID,exportlicensename:SP nr 42,exportlicensenumber:987654321" displayname="Plan lekcji 2026/2027 — zajęcia międzyoddziałowe i godzina 0" displaycountries="pl">
 <periods options="canadd,canremove,canupdate,silent" columns="period,name,short,starttime,endtime">
 <period name="0" short="0" period="0" starttime="7:10" endtime="7:55"/>
 <period name="1" short="1" period="1" starttime="8:00" endtime="8:45"/>

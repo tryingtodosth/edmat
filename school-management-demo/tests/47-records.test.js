@@ -239,7 +239,7 @@ test('[S-10] uczeń skreślony z listy zostaje w kartotece wychowawcy', async ()
   const TOM = 'st_szymaski_tomasz';
   const hr = await S.as('j.nowak');                        // wychowawczyni 7b
   expectOk(await hr.get('/api/grades/student/' + TOM), 'przed skreśleniem');
-  expectOk(await hr.post('/api/homeroom/students/' + TOM + '/remove', { date: '2027-01-26', decisionNo: 'SP12/1024/2027', reason: 'Przeniesienie do szkoły w miejscu zamieszkania.' }));
+  expectOk(await hr.post('/api/homeroom/students/' + TOM + '/remove', { date: '2027-01-26', decisionNo: 'SP42/1024/2027', reason: 'Przeniesienie do szkoły w miejscu zamieszkania.' }));
   const row = S.db.get('students', TOM);
   assert.equal(row.status, 'removed');
   assert.equal(row.classId, '7b', 'przydział do oddziału zostaje — inaczej nikt nie wydrukuje arkusza');

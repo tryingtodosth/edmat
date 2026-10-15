@@ -13,7 +13,7 @@ test.after(() => S.close());
 const ANNA = 'st_kowalczyk_anna';
 const noContacts = (payload) => {
   const blob = JSON.stringify(payload);
-  assert.ok(!/@sp12\.krakow\.pl/.test(blob), 'payload nie może zawierać adresów e-mail');
+  assert.ok(!/@sp42\.example\.pl/.test(blob), 'payload nie może zawierać adresów e-mail');
   assert.ok(!/"email"\s*:\s*"[^"]/.test(blob), 'payload nie może zawierać pola email');
   assert.ok(!/"phone"\s*:\s*"[^"]/.test(blob), 'payload nie może zawierać numeru telefonu');
 };
@@ -438,7 +438,7 @@ test('[3.6.15] lista skrótów klawiszowych i obsługa klawiatury w powłoce apl
      (i18n.js + edmat/bundle.js + core.js + shell.js) w piaskownicy node:vm i naciskamy klawisze. */
   let saved = 0; let ui;
   ui = loadClient({
-    session: { user: { id: 'u_st_kowalczyk_anna', login: 'anna.kowalczyk', role: 'student', name: 'Anna Kowalczyk' }, config: { school: { short: 'SP12' } }, remainingSeconds: 900 },
+    session: { user: { id: 'u_st_kowalczyk_anna', login: 'anna.kowalczyk', role: 'student', name: 'Anna Kowalczyk' }, config: { school: { short: 'SP42' } }, remainingSeconds: 900 },
     screens: [
       { id: 'uczen', path: '/uczen', roles: ['student'], nav: { label: 'Pulpit', order: 1 }, component: function Pulpit() { ui.A.onSave(function () { saved++; }); return null; } },
       { id: 'oceny', path: '/oceny-ucznia', roles: ['student'], nav: { label: 'Oceny', order: 2 }, component: function Oceny() { return null; } },

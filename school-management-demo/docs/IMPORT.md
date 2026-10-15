@@ -99,7 +99,7 @@ zachowują swoje identyfikatory.
 * **sala** — kolizja, chyba że to ten sam nauczyciel i ten sam przedmiot;
 * **oddział** — kolizja, gdy tygodnie i grupy nachodzą na siebie.
 
-Efekt na `asc/plan-sp12.xml` (272 pozycje, 8 oddziałów): **zero konfliktów**. Przed tą zmianą byłyby
+Efekt na `asc/plan-sp42.xml` (272 pozycje, 8 oddziałów): **zero konfliktów**. Przed tą zmianą byłyby
 ich setki — wyłącznie fałszywych.
 
 **Znane uproszczenie.** aSc oznacza podziały atrybutem `divisiontag`: grupy o tym samym `divisiontag`
@@ -394,7 +394,7 @@ Pełna lista: [`tests/fixtures/real-formats/README.md`](../tests/fixtures/real-f
 Rzeczy, które wprost wpływają na ten importer:
 
 * `displaycountry` vs `displaycountries` — **nieznane**: nie ma źródła, które by to rozstrzygało.
-  W korpusie są obie pisownie (`plan-sp12.xml` / `plan-extra.xml`); importer przyjmuje obie i obie
+  W korpusie są obie pisownie (`plan-sp42.xml` / `plan-extra.xml`); importer przyjmuje obie i obie
   ignoruje, i nie wolno rozgałęziać po tym atrybucie logiki. Zawartość `options` w korzeniu aSc —
   **rekonstrukcja**;
 * `optivum/ab/` (markery tygodnia w publikacji HTML) — **rekonstrukcja słabsza niż reszta**: to

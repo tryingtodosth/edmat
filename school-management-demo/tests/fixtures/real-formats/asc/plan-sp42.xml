@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<timetable ascttversion="2012.3.2" importtype="database" options="idprefix:ID,exportlicensename:SP nr 12 w Krakowie,exportlicensenumber:987654321,numberofweeks:2" displayname="Plan lekcji 2026/2027 — SP nr 12 w Krakowie" displaycountry="pl">
+<timetable ascttversion="2012.3.2" importtype="database" options="idprefix:ID,exportlicensename:SP nr 42,exportlicensenumber:987654321,numberofweeks:2" displayname="Plan lekcji 2026/2027 — SP nr 42" displaycountry="pl">
 <periods options="canadd,canremove,canupdate,silent" columns="period,name,short,starttime,endtime">
 <period name="1" short="1" period="1" starttime="8:00" endtime="8:45"/>
 <period name="2" short="2" period="2" starttime="8:55" endtime="9:40"/>
@@ -51,26 +51,26 @@
 <subject id="*31" name="Godzina z wychowawcą" short="Wych" partner_id=""/>
 </subjects>
 <teachers options="canadd,canremove,canupdate,silent" columns="id,firstname,lastname,short,gender,color,email,partner_id">
-<teacher id="*32" firstname="Joanna" lastname="Nowak" short="NJ" gender="F" color="#4B96C8" email="j.nowak@sp12.krakow.pl" partner_id=""/>
-<teacher id="*33" firstname="Adam" lastname="Wójcik" short="WA" gender="M" color="#5296C8" email="a.wójcik@sp12.krakow.pl" partner_id=""/>
-<teacher id="*34" firstname="Ewa" lastname="Król" short="KE" gender="F" color="#4496C8" email="e.król@sp12.krakow.pl" partner_id=""/>
-<teacher id="*35" firstname="Beata" lastname="Sikora" short="SB" gender="F" color="#5296C8" email="b.sikora@sp12.krakow.pl" partner_id=""/>
-<teacher id="*36" firstname="Tomasz" lastname="Górski" short="GT" gender="M" color="#5296C8" email="t.górski@sp12.krakow.pl" partner_id=""/>
-<teacher id="*37" firstname="Krzysztof" lastname="Lis" short="LK" gender="M" color="#3D96C8" email="k.lis@sp12.krakow.pl" partner_id=""/>
-<teacher id="*38" firstname="Anna" lastname="Mazur" short="MA" gender="F" color="#4B96C8" email="a.mazur@sp12.krakow.pl" partner_id=""/>
-<teacher id="*39" firstname="Iwona" lastname="Kaczmarek" short="KI" gender="F" color="#6796C8" email="i.kaczmarek@sp12.krakow.pl" partner_id=""/>
-<teacher id="*40" firstname="Piotr" lastname="Wiśniewski" short="WP" gender="M" color="#6E96C8" email="p.wiśniewski@sp12.krakow.pl" partner_id=""/>
-<teacher id="*41" firstname="Małgorzata" lastname="Żak" short="ŻM" gender="F" color="#3D96C8" email="m.żak@sp12.krakow.pl" partner_id=""/>
-<teacher id="*42" firstname="Halina" lastname="Ćwikła" short="ĆH" gender="F" color="#5296C8" email="h.ćwikła@sp12.krakow.pl" partner_id=""/>
-<teacher id="*43" firstname="Jacek" lastname="Stec" short="SJ" gender="M" color="#4496C8" email="j.stec@sp12.krakow.pl" partner_id=""/>
-<teacher id="*44" firstname="Rafał" lastname="Sobczak" short="SR" gender="M" color="#5996C8" email="r.sobczak@sp12.krakow.pl" partner_id=""/>
-<teacher id="*45" firstname="Łukasz" lastname="Dąbrowski" short="DŁ" gender="M" color="#6796C8" email="ł.dąbrowski@sp12.krakow.pl" partner_id=""/>
-<teacher id="*46" firstname="Zofia" lastname="Świderska" short="ŚZ" gender="F" color="#6796C8" email="z.świderska@sp12.krakow.pl" partner_id=""/>
-<teacher id="*47" firstname="Grażyna" lastname="Pająk" short="PG" gender="F" color="#4B96C8" email="g.pająk@sp12.krakow.pl" partner_id=""/>
-<teacher id="*48" firstname="Urszula" lastname="Łęcka" short="ŁU" gender="F" color="#4B96C8" email="u.łęcka@sp12.krakow.pl" partner_id=""/>
-<teacher id="*49" firstname="Wanda" lastname="Nowicka" short="NW" gender="F" color="#5996C8" email="w.nowicka@sp12.krakow.pl" partner_id=""/>
-<teacher id="*50" firstname="Jan" lastname="Borowiec" short="BJ" gender="M" color="#6096C8" email="j.borowiec@sp12.krakow.pl" partner_id=""/>
-<teacher id="*51" firstname="Agnieszka" lastname="Kowalczyk" short="AK" gender="F" color="#6796C8" email="a.kowalczyk@sp12.krakow.pl" partner_id=""/>
+<teacher id="*32" firstname="Joanna" lastname="Nowak" short="NJ" gender="F" color="#4B96C8" email="j.nowak@sp42.example.pl" partner_id=""/>
+<teacher id="*33" firstname="Adam" lastname="Wójcik" short="WA" gender="M" color="#5296C8" email="a.wójcik@sp42.example.pl" partner_id=""/>
+<teacher id="*34" firstname="Ewa" lastname="Król" short="KE" gender="F" color="#4496C8" email="e.król@sp42.example.pl" partner_id=""/>
+<teacher id="*35" firstname="Beata" lastname="Sikora" short="SB" gender="F" color="#5296C8" email="b.sikora@sp42.example.pl" partner_id=""/>
+<teacher id="*36" firstname="Tomasz" lastname="Górski" short="GT" gender="M" color="#5296C8" email="t.górski@sp42.example.pl" partner_id=""/>
+<teacher id="*37" firstname="Krzysztof" lastname="Lis" short="LK" gender="M" color="#3D96C8" email="k.lis@sp42.example.pl" partner_id=""/>
+<teacher id="*38" firstname="Anna" lastname="Mazur" short="MA" gender="F" color="#4B96C8" email="a.mazur@sp42.example.pl" partner_id=""/>
+<teacher id="*39" firstname="Iwona" lastname="Kaczmarek" short="KI" gender="F" color="#6796C8" email="i.kaczmarek@sp42.example.pl" partner_id=""/>
+<teacher id="*40" firstname="Piotr" lastname="Wiśniewski" short="WP" gender="M" color="#6E96C8" email="p.wiśniewski@sp42.example.pl" partner_id=""/>
+<teacher id="*41" firstname="Małgorzata" lastname="Żak" short="ŻM" gender="F" color="#3D96C8" email="m.żak@sp42.example.pl" partner_id=""/>
+<teacher id="*42" firstname="Halina" lastname="Ćwikła" short="ĆH" gender="F" color="#5296C8" email="h.ćwikła@sp42.example.pl" partner_id=""/>
+<teacher id="*43" firstname="Jacek" lastname="Stec" short="SJ" gender="M" color="#4496C8" email="j.stec@sp42.example.pl" partner_id=""/>
+<teacher id="*44" firstname="Rafał" lastname="Sobczak" short="SR" gender="M" color="#5996C8" email="r.sobczak@sp42.example.pl" partner_id=""/>
+<teacher id="*45" firstname="Łukasz" lastname="Dąbrowski" short="DŁ" gender="M" color="#6796C8" email="ł.dąbrowski@sp42.example.pl" partner_id=""/>
+<teacher id="*46" firstname="Zofia" lastname="Świderska" short="ŚZ" gender="F" color="#6796C8" email="z.świderska@sp42.example.pl" partner_id=""/>
+<teacher id="*47" firstname="Grażyna" lastname="Pająk" short="PG" gender="F" color="#4B96C8" email="g.pająk@sp42.example.pl" partner_id=""/>
+<teacher id="*48" firstname="Urszula" lastname="Łęcka" short="ŁU" gender="F" color="#4B96C8" email="u.łęcka@sp42.example.pl" partner_id=""/>
+<teacher id="*49" firstname="Wanda" lastname="Nowicka" short="NW" gender="F" color="#5996C8" email="w.nowicka@sp42.example.pl" partner_id=""/>
+<teacher id="*50" firstname="Jan" lastname="Borowiec" short="BJ" gender="M" color="#6096C8" email="j.borowiec@sp42.example.pl" partner_id=""/>
+<teacher id="*51" firstname="Agnieszka" lastname="Kowalczyk" short="AK" gender="F" color="#6796C8" email="a.kowalczyk@sp42.example.pl" partner_id=""/>
 </teachers>
 <classrooms options="canadd,canremove,canupdate,silent" columns="id,name,short,capacity,buildingid,partner_id">
 <classroom id="*52" name="Sala 2" short="2" capacity="*" buildingid="" partner_id=""/>

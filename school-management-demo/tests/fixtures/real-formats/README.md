@@ -31,7 +31,7 @@ tam, gdzie to możliwe.
 
 ---
 
-## 1. `asc/plan-sp12.xml` — aSc Timetables, eksport XML (60 KB)
+## 1. `asc/plan-sp42.xml` — aSc Timetables, eksport XML (60 KB)
 
 **Czym jest.** To, co wychodzi z aSc Timetables (ASC Applied Software Consultants, w Polsce sprzedawane
 też jako „Plan lekcji”) przez *Eksport → XML*. Dwa warianty krążą po szkołach: „aSc Timetables 2008 XML”
@@ -125,7 +125,7 @@ niech wypisze czytelny błąd zamiast zgadywać.
 
 ## 3. `asc/plan-edge.xml` — wariant z pułapkami (61 KB)
 
-Ten sam plan co `plan-sp12.xml`, plus:
+Ten sam plan co `plan-sp42.xml`, plus:
 
 * **BOM UTF-8** (`EF BB BF`) przed deklaracją XML — `JSON.parse`-owa naiwność tu nie wystarczy,
   a niektóre parsery XML wykrzaczą się na `Content at start of document`;
@@ -141,7 +141,7 @@ i policzyć je w raporcie z `dryRun`.
 ## 3a. `asc/plan-extra.xml` — zajęcia międzyoddziałowe i godzina 0 (7,5 KB)
 
 Mały, ręcznie zbudowany eksport aSc (3 oddziały, 4 nauczycieli, 5 sal, 7 lekcji, 10 kart) dla
-dwóch przypadków, których świadomie **nie ma** w `plan-sp12.xml` — tamten plik ma zamrożone liczby,
+dwóch przypadków, których świadomie **nie ma** w `plan-sp42.xml` — tamten plik ma zamrożone liczby,
 na których opiera się `tests/51-timetable-import.test.js`.
 
 **Zajęcia międzyoddziałowe** — `<lesson>` z dwoma oddziałami w `classids`:
@@ -174,7 +174,7 @@ czyta się z atrybutu `period`, nie z pozycji w liście.
 > tutaj jest tylko dowód, że takie pliki istnieją.
 
 **Druga pisownia atrybutu w korzeniu.** Ten plik ma `displaycountries="pl"`, podczas gdy
-`plan-sp12.xml` ma `displaycountry="pl"` — patrz §7. Dzięki temu obie pisownie są w korpusie i
+`plan-sp42.xml` ma `displaycountry="pl"` — patrz §7. Dzięki temu obie pisownie są w korpusie i
 zachowanie „przyjmij obie, zignoruj obie” da się pokryć testem.
 
 ## 4. `optivum/` — VULCAN „Plan lekcji Optivum”, publikacja HTML (316 KB)
@@ -208,7 +208,7 @@ alfabetycznie).
 
 **Celowo zmniejszone:** 8 oddziałów, 6 nauczycieli, 4 sale, po ~12 godzin tygodniowo na oddział i
 tylko 6 przedmiotów — dzięki temu **każdy odnośnik w fixturze prowadzi do istniejącego pliku**.
-Prawdziwa publikacja obejmuje całą szkołę i ma kilkadziesiąt stron. To **inny plan niż `asc/plan-sp12.xml`**,
+Prawdziwa publikacja obejmuje całą szkołę i ma kilkadziesiąt stron. To **inny plan niż `asc/plan-sp42.xml`**,
 choć ta sama szkoła i ta sama kadra: nie porównuj jednego z drugim.
 
 **Pułapki:**
@@ -383,12 +383,12 @@ i dla EduPage. Żaden importer planu lekcji nie potrzebuje go do niczego: ani do
 ani do kodowania (to jest zawsze UTF-8 zadeklarowane w prologu XML).
 
 **Czego nie wiem:** która pisownia jest prawdziwa. Moja pamięć skłania się do liczby pojedynczej
-(`displaycountry`) i taką ma `plan-sp12.xml` — ale to jest słaba pamięć, nie dowód. Brief, na
+(`displaycountry`) i taką ma `plan-sp42.xml` — ale to jest słaba pamięć, nie dowód. Brief, na
 podstawie którego powstał ten katalog, prosił o `displaycountries`, czyli **ktoś inny pamięta
 liczbę mnogą**. Dwie sprzeczne pamięci i zero źródeł to jest `unknown`, a nie „pewnie singular”.
 Nie mam tu dostępu do żadnego prawdziwego eksportu ani do dokumentacji ASC.
 
-**Co z tym zrobiłem zamiast zgadywać:** w korpusie są teraz **obie pisownie** — `plan-sp12.xml`
+**Co z tym zrobiłem zamiast zgadywać:** w korpusie są teraz **obie pisownie** — `plan-sp42.xml`
 ma `displaycountry="pl"`, `plan-extra.xml` ma `displaycountries="pl"`. Zachowanie importera
 „przyjmij obie, obie zignoruj” jest więc pokryte testem niezależnie od tego, która jest prawdziwa,
 i **nic się nie zmieni, gdy prawda wyjdzie na jaw**. To nie jest obejście braku wiedzy — dla

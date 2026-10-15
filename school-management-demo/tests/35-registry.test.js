@@ -518,7 +518,7 @@ test('[3.5.13] anonimizowana kopia bazy dla środowiska testowego: brak prawdziw
   const text = JSON.stringify(snap);
   for (const name of ['Kowalczyk', 'Wiśniewska', 'Lewandowski', 'Nowak', 'Bąk', 'Zielińska', 'Sobczak']) assert.equal(text.includes(name), false, 'w kopii pozostało nazwisko ' + name);
   for (const s of S.db.col('students')) if (s.pesel) assert.equal(text.includes(s.pesel), false, 'w kopii pozostał PESEL ' + s.pesel);
-  assert.equal(text.includes('j.nowak@sp12.krakow.pl'), false);
+  assert.equal(text.includes('j.nowak@sp42.example.pl'), false);
   assert.equal(text.includes('ul. Długa 17/4'), false);
 
   // sekrety nie wychodzą z systemu
@@ -776,7 +776,7 @@ test('[3.3.1] odejście nauczyciela w trakcie roku: następca przejmuje plan, le
   const T = await startServer();
   try {
     const adm = await T.as('admin'), dyr = await T.as('dyrektor');
-    expectOk(await adm.post('/api/setup/teachers/import', { csv: 'login;firstName;lastName;title;subjects;homeroomOf;email\nn.anglista;Nina;Anglista;mgr;ang;;n.anglista@sp12.krakow.pl' }));
+    expectOk(await adm.post('/api/setup/teachers/import', { csv: 'login;firstName;lastName;title;subjects;homeroomOf;email\nn.anglista;Nina;Anglista;mgr;ang;;n.anglista@sp42.example.pl' }));
     const successor = T.db.one('users', (u) => u.login === 'n.anglista');
     const date = '2026-11-02';
     const pastBefore = T.db.col('lessons').filter((l) => l.date < date && l.teacherId === 'u_krol').length;
@@ -868,7 +868,7 @@ test('[3.5.6] GAP-1: administrator zakłada konto dowolnego pracownika z hasłem
   assert.ok(before.staff.some((u) => u.login === 'j.nowak'), 'kadra z zasiewu jest widoczna');
 
   // 1. pedagog specjalny — rola spoza kreatora, konto z parą kluczy do notatek poufnych
-  const made = expectOk(await c.post('/api/admin/staff', { role: 'psychologist', title: 'mgr', firstName: 'Hanna', lastName: 'Bednarek', email: 'h.bednarek@sp12.krakow.pl', phone: '600 900 100' }));
+  const made = expectOk(await c.post('/api/admin/staff', { role: 'psychologist', title: 'mgr', firstName: 'Hanna', lastName: 'Bednarek', email: 'h.bednarek@sp42.example.pl', phone: '600 900 100' }));
   assert.equal(made.user.role, 'psychologist');
   assert.equal(made.user.login, 'h.bednarek');
   assert.ok(typeof made.temporaryPassword === 'string' && made.temporaryPassword.length >= 12, 'hasło jednorazowe wraca raz, w odpowiedzi');
@@ -925,8 +925,8 @@ test('[3.5.6] GAP-1: PATCH zmienia rolę, przedmioty i kontakt, blokada odcina s
   const id = made.user.id;
 
   // kontakt i przedmioty
-  const patched = expectOk(await c.patch('/api/admin/staff/' + id, { email: 'w.korzeniowska@sp12.krakow.pl', phone: '511 222 333', title: 'mgr', subjects: ['pol'] }));
-  assert.equal(patched.user.email, 'w.korzeniowska@sp12.krakow.pl');
+  const patched = expectOk(await c.patch('/api/admin/staff/' + id, { email: 'w.korzeniowska@sp42.example.pl', phone: '511 222 333', title: 'mgr', subjects: ['pol'] }));
+  assert.equal(patched.user.email, 'w.korzeniowska@sp42.example.pl');
   assert.deepEqual(patched.user.subjects, ['pol']);
   assert.equal((await c.patch('/api/admin/staff/' + id, { email: 'to-nie-adres' })).status, 400);
   const changed = S.db.col('audit').filter((a) => a.action === 'staff_updated' && a.entityId === id);

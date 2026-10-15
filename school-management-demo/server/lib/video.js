@@ -45,7 +45,7 @@ function validateConfig(next) {
   if (!PROVIDERS.includes(provider)) errors.push(`Nieznany dostawca „${provider}”. Dozwolone: ${PROVIDERS.join(', ')}.`);
   if (provider === 'jitsi') {
     const d = String((next.jitsi && next.jitsi.domain) || '').trim();
-    if (!d) errors.push('Podaj domenę serwera Jitsi szkoły, np. meet.sp12.krakow.pl.');
+    if (!d) errors.push('Podaj domenę serwera Jitsi szkoły, np. meet.sp42.example.pl.');
     else if (/^https?:/i.test(d)) errors.push('Wpisz samą domenę, bez „https://”.');
     else if (/[/?#]/.test(d)) errors.push('Domena nie może zawierać ścieżki ani parametrów.');
     else if (!DOMAIN_RE.test(d)) errors.push(`„${d}” nie wygląda jak nazwa domeny.`);
@@ -58,7 +58,7 @@ function validateConfig(next) {
   }
   if (provider === 'bbb') {
     const u = String((next.bbb && next.bbb.url) || '').trim();
-    if (!u) errors.push('Podaj adres API BigBlueButton, np. https://bbb.sp12.krakow.pl/bigbluebutton.');
+    if (!u) errors.push('Podaj adres API BigBlueButton, np. https://bbb.sp42.example.pl/bigbluebutton.');
     else if (!/^https:\/\/[^\s/]+(\/[^\s?#]*)?$/.test(u)) errors.push('Adres API musi zaczynać się od https:// i nie może zawierać parametrów.');
     const s = next.bbb && next.bbb.secret;
     if (s !== undefined && s !== null && String(s).length && String(s).length < 16) errors.push('Sekret API BigBlueButton powinien mieć co najmniej 16 znaków.');

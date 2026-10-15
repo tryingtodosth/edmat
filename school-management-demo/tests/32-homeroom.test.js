@@ -27,7 +27,7 @@ const proposedGrades = () => need('proposedGrades', async () => {
   grade({ studentId: 'st_kowalczyk_anna', subjectId: 'mat', kind: 'proposedMid', value: '5' });
 });
 const closedSemester = () => need('closedSemester', async () => expectOk(await C.post('/api/homeroom/semester/close', { semester: 1, resolutionNo: '3/2026/2027', force: true, reason: 'Uchwała Rady Pedagogicznej nr 3/2026/2027 — klasyfikacja śródroczna zatwierdzona przed terminem.' })));
-const removedStudent = () => need('removedStudent', async () => expectOk(await C.post('/api/homeroom/students/st_szymaski_tomasz/remove', { date: '2027-01-26', decisionNo: 'SP12/1024/2027', reason: 'Przeniesienie do szkoły w miejscu zamieszkania.' })));
+const removedStudent = () => need('removedStudent', async () => expectOk(await C.post('/api/homeroom/students/st_szymaski_tomasz/remove', { date: '2027-01-26', decisionNo: 'SP42/1024/2027', reason: 'Przeniesienie do szkoły w miejscu zamieszkania.' })));
 
 test('[3.2.1] wychowawca widzi zbiorczą tablicę klasyfikacji: wszystkie przedmioty, oceny proponowane i klasyfikacyjne oraz ostrzeżenia o zagrożeniu', async () => {
   await proposedGrades();
@@ -411,7 +411,7 @@ test('[3.2.16] wypisanie ucznia decyzją administracyjną: status removed, osią
   const gradesBefore = S.db.col('grades').filter((g) => g.studentId === 'st_szymaski_tomasz').length;
   const b = await removedStudent();
   assert.equal(b.student.status, 'removed');
-  assert.equal(b.student.removal.decisionNo, 'SP12/1024/2027');
+  assert.equal(b.student.removal.decisionNo, 'SP42/1024/2027');
   assert.equal(b.student.removal.date, '2027-01-26');
   const s = student('st_szymaski_tomasz');
   assert.ok(s, 'uczeń pozostaje w bazie');
@@ -423,7 +423,7 @@ test('[3.2.16] wypisanie ucznia decyzją administracyjną: status removed, osią
   assert.deepEqual(S.db.col('groups').filter((g) => (g.studentIds || []).includes('st_szymaski_tomasz')), [], 'i ze wszystkich grup');
   assert.deepEqual(b.access.groups, ['g_7b_ang2']);
   const su = S.db.one('users', (u) => u.role === 'student' && u.studentId === 'st_szymaski_tomasz');
-  assert.equal(su.blocked, true); assert.match(su.blockedReason, /decyzja SP12\/1024\/2027/);
+  assert.equal(su.blocked, true); assert.match(su.blockedReason, /decyzja SP42\/1024\/2027/);
   assert.equal(S.db.col('sessions').some((x) => x.userId === su.id && !x.revoked), false, 'sesje ucznia unieważnione');
   assert.deepEqual(s.parentIds, [], 'opiekunowie odpięci');
   assert.equal(S.db.col('registrationCodes').some((rc) => rc.studentId === s.id && !rc.usedAt && !rc.voidedAt), false, 'niewykorzystane kody unieważnione');

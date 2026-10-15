@@ -335,7 +335,7 @@ function complianceScreen(session, extra) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'app', 'screens', 'compliance.js'), 'utf8'), ui.sandbox, { filename: 'compliance.js' });
   return ui;
 }
-const SESSION = (role, login) => ({ user: { id: 'u_' + login, login, role, name: login }, config: { school: { short: 'SP12' } }, remainingSeconds: 900 });
+const SESSION = (role, login) => ({ user: { id: 'u_' + login, login, role, name: login }, config: { school: { short: 'SP42' } }, remainingSeconds: 900 });
 
 test('[r4.12] ekran „Zgodność i dostępność” naprawdę renderuje się dla IOD i nie istnieje dla ucznia', async () => {
   const ui = complianceScreen(SESSION('dpo', 'iod'));
