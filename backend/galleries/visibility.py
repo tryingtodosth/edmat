@@ -27,8 +27,10 @@ def target_is_readable(target, user) -> bool:
         return bool(user and user.is_authenticated) and can_curate(target, user)
 
     if (app_label, model) == ('activity', 'post'):
-        # `is_visible` is the model's own word for "not tombstoned, not auto-hidden".
-        if target.is_visible:
+        # `is_visible_to_readers()` is the model's own word for "not tombstoned, not auto-hidden".
+        # It read `target.is_visible` — an attribute `Post` never had — so every gallery request
+        # for a post answered 500 (found 2026-10-09, again by the 2026-10-15 layout pass).
+        if target.is_visible_to_readers():
             return True
         return bool(user and user.is_authenticated) and (
             user.is_staff or target.author_id == user.pk

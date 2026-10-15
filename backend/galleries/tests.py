@@ -127,6 +127,24 @@ class ReadingTests(GalleryBase):
         self.client.force_authenticate(self.staff)
         self.assertEqual(self.read(target=exercise, target_type='exercise').status_code, status.HTTP_200_OK)
 
+    def test_a_posts_gallery_reads_and_follows_the_post(self):
+        # Every post gallery request answered 500 until 2026-10-15: `visibility.can_view` asked the
+        # post for `is_visible`, which `Post` never had (its word is `is_visible_to_readers()`).
+        from activity.models import Post
+
+        post = Post.objects.create(author=self.uploader, body='na zdjęciu', branch=self.branch)
+        self.client.force_authenticate(None)
+        self.assertEqual(self.read(target=post, target_type='post').status_code, status.HTTP_200_OK)
+
+        post.is_removed = True
+        post.save(update_fields=['is_removed'])
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(
+            self.read(target=post, target_type='post').status_code, status.HTTP_404_NOT_FOUND
+        )
+        self.client.force_authenticate(self.uploader)
+        self.assertEqual(self.read(target=post, target_type='post').status_code, status.HTTP_200_OK)
+
     def test_an_unknown_target_type_is_not_found(self):
         self.client.force_authenticate(None)
         response = self.client.get(
