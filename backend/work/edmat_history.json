@@ -1543,7 +1543,7 @@
   "ref": "17CP",
   "title": "Polish time: TIME_ZONE = 'Europe/Warsaw', and the code that had assumed UTC",
   "heading": "17CP — Polish time: `TIME_ZONE = 'Europe/Warsaw'`, and the code that had assumed UTC (2026-10-15, `ux/tz-warsaw`)",
-  "line": 17052,
+  "line": 17063,
   "date": "2026-10-15",
   "date_source": "heading",
   "summary": "Owner, 2026-10-15, on the WP11 bug above: \"stays poland\". The bug was live on edmat.net: with TIMEZONE = 'UTC', a tutor's weekly rule \"14:00\" became 14:00 UTC, and the browser drew the slot in Polish time — so every reader in Poland was offered 16:00 (summer) or 15:00 (winter) for hours the tutor's own list called 14:00. Goes into the 2026-10-15 deploy (deploy/UPDATE-2026-10-15.md, Polish time…",

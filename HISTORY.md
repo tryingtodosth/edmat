@@ -17049,6 +17049,17 @@ languages, 390 and 1280, dark theme, a reply, the minor's hold, the switch). Scr
 - A minor's held question is not visible to its author on the tag page (the list leaves held rows
   out for everybody); the `/ask` page says it was held, and that is the only place.
 
+**Creating a tag while asking** (WP16, the same day; owner: *"tag creation is a must"*): the picker
+offers "Utwórz tag „…”" when nothing matches, and the tag is made with the question in one place,
+`exercises/tags.py: create_tag_from`. A name that folds (case, Polish letters) to an existing tag reuses
+it; signed-in adults only (a minor reuses but does not create), 5 new tags an hour; a tag made by a
+question is listed only while something visible uses it, so a withdrawn or hidden question leaves no
+public orphan; staff rename, remove or merge in the Django admin. `exercises` 0016 adds `created_by`,
+`created_at`, `from_question` to `Tag`, and the erasure registry's completeness test caught the new FK
+the same hour (anonymise). `e2e/ask.mjs` 92/92; full suite 3488, the one failure that rule.
+**Left open:** posting itself is not rate-limited — the `post_create` scope is set on a viewset with no
+`throttle_scope`, so DRF never counts it (`community/views.py: _DiscussionThrottle` has the same shape).
+
 ## 17CP — Polish time: `TIME_ZONE = 'Europe/Warsaw'`, and the code that had assumed UTC (2026-10-15, `ux/tz-warsaw`)
 
 Owner, 2026-10-15, on the WP11 bug above: *"stays poland"*. The bug was live on edmat.net: with
