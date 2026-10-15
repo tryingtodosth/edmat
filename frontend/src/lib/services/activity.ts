@@ -181,6 +181,21 @@ export async function createPost(draft: PostDraft): Promise<Post> {
 	return mapPost(raw);
 }
 
+/** The questions and posts asked in ONE tag, newest first — the tag page (`/tags/[slug]`). Reads
+ * the Post table itself (`GET /api/posts/?tag=`), not the feed: the feed trims itself after 90
+ * days and a question must not fall off its own tag. Tombstoned, hidden and held posts are not
+ * listed; the id cursor is the feed's. */
+export async function getPostsForTag(
+	tagSlug: string,
+	options: { beforeId?: string; limit?: number } = {}
+): Promise<Post[]> {
+	const search = new URLSearchParams({ tag: tagSlug });
+	if (options.beforeId) search.set('before', options.beforeId);
+	if (options.limit) search.set('limit', String(options.limit));
+	const raw = await apiClient.get<RawPost[]>(`/posts/?${search.toString()}`);
+	return raw.map(mapPost);
+}
+
 export async function getPostById(id: string): Promise<Post | undefined> {
 	try {
 		const raw = await apiClient.get<RawPost>(`/posts/${encodeURIComponent(id)}/`);

@@ -12,6 +12,7 @@
 	import type { TaggableKind } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { tagFollowStore } from '$lib/state/tagFollows.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { getExerciseIdsForTag } from '$lib/services/exercises';
@@ -164,12 +165,16 @@
 				</a>
 			{/if}
 
-			<!-- The tag's own thread: the activity feed filtered to this tag — posts, replies, and a
-			     composer pre-anchored to it (root CLAUDE.md §17AK). -->
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built on resolve('/activity'), query params only -->
-			<a class="tag-chip__item" href={`${resolve('/activity')}?tag=${encodeURIComponent(tag)}`}>
-				{m.tag_viewPosts()}
-			</a>
+			<!-- The tag's own page (WP15, 2026-10-15): the questions and posts asked in it, with their
+			     answers and an "ask here" button. It replaced the link to the activity feed filtered to
+			     the tag (§17AK), which that page still links. Behind `posts`, the switch the page and
+			     everything it lists live behind (house rule 3). -->
+			{#if featureFlagsStore.isEnabled('posts') || authStore.isModerator}
+				<a class="tag-chip__item" href={resolve('/tags/[slug]', { slug: encodeURIComponent(tag) })}>
+					{m.ask_tagChipLink()}
+					<!-- "Questions in this tag" -->
+				</a>
+			{/if}
 
 			<button
 				type="button"

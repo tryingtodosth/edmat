@@ -259,7 +259,17 @@
 				onsubmit={goToSearch}
 			/>
 		</div>
-		<a class="hero__browse" href={resolve('/disciplines')}>{m.home_hero_cta()}</a>
+		<!-- The heading says "pytaj", and until WP15 (2026-10-15) nothing on the site answered it —
+		     the first-visitor audit's finding 16. Asking is posting a question into a tag (the owner's
+		     decision), so the second door goes to /ask, behind the same `posts` switch as every other
+		     way in (house rule 3; the store fails open before the flags load, like every link). -->
+		<p class="hero__links">
+			<a class="hero__browse" href={resolve('/disciplines')}>{m.home_hero_cta()}</a>
+			{#if featureFlagsStore.isEnabled('posts') || authStore.isModerator}
+				<a class="hero__browse" href={resolve('/ask')}>{m.ask_heroCta()}</a>
+				<!-- "Ask a question" -->
+			{/if}
+		</p>
 		<div class="hero__audience"><AudienceChips /></div>
 		<HiddenLanguagesNotice path="/exercises/" />
 	</section>
@@ -462,6 +472,12 @@
 		font-size: var(--font-size-sm);
 		color: var(--accent);
 		font-weight: 600;
+	}
+	.hero__links {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: var(--space-2) var(--space-4);
 	}
 
 	.hero {

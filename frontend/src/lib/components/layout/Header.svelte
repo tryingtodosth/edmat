@@ -588,6 +588,14 @@
 			     uploading a material. -->
 		{/if}
 		{#if canPosts}
+			<!-- WP15 (2026-10-15): "ask" is a post into a tag (owner's decision), so it rides the same
+			     switch as "Write a post" below it. First, because a question is the commoner act. -->
+			<a role={itemRole} class={itemClass} href={resolve('/ask')} {onclick}>
+				{m.ask_navAdd()}
+				<!-- "Ask a question" -->
+			</a>
+		{/if}
+		{#if canPosts}
 			<!-- The composer lives at the top of /activity — this entry is what makes it findable
 			     from anywhere, the same job every other create action in this menu does. A post is
 			     something written for others to read, so it sits with the content, not the running. -->

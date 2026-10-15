@@ -60,6 +60,9 @@ const AUDIENCE_LIST_PATHS = [
 	/^\/services\/(\?|$)/,
 	/^\/courses\/(\?|$)/,
 	/^\/activity\/(\?|$)/,
+	// A tag's questions (WP15, `GET /api/posts/?tag=`): narrowed by language like the feed beside it.
+	// The server deliberately ignores the `?audience=` this also adds — see `PostViewSet.list`.
+	/^\/posts\/(\?|$)/,
 	// The concept hub's own list (CONCEPTS-BRIEF.md §5). A concept's AUDIENCE lives on its
 	// articles, so `?audience=` narrows the hub to concepts that actually have a page written for
 	// one of the reader's bands (or an `all` one) — and `/concepts/<slug>/` is deliberately not in

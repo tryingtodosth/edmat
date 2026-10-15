@@ -147,6 +147,8 @@ SUBPROJECT_BY_REF = {
     # 17CN is the "make it intuitive" loop: empty states, the start band, real screens in the
     # showcase and the manual, the grouped account menu. `interface`.
     '17CN': 'interface',
+    # 17CO is "pytaj" given a destination: a question posted into a tag, and the tag's own page.
+    '17CO': 'community',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

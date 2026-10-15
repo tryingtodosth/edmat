@@ -120,6 +120,71 @@ class PostViewSet(viewsets.GenericViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    def list(self, request):
+        """`GET /api/posts/?tag=<slug>&before=<id>&limit=` — the questions and posts asked in ONE
+        tag, newest first: what the tag page (`/tags/[slug]`) lists. WP15, 2026-10-15, the owner's
+        "ask as ppl should be allowed to post in tags".
+
+        Why not the feed's `?tag=&kind=post`: the feed is an EVENT log that trims itself past
+        `FEED_RETENTION_DAYS`, so a question asked four months ago would silently fall off its own
+        tag's page while its permalink still worked. This reads the `Post` table itself.
+
+        Bounded by construction (house convention — no global pagination): `tag` is required, the
+        page is at most 50, and `before` is the same id cursor the feed uses. Only rows a reader
+        may see are listed — a tombstoned, auto-hidden or held post is left out rather than drawn
+        as a blank shell: a LIST is not a permalink (the detail endpoint keeps the tombstone so a
+        shared link and its thread survive). The content-language rule applies, with the hidden
+        count in the usual header; the audience band deliberately does NOT, the same as the feed
+        this page sits beside — a tag is shared across bands, and a sticky audience chip emptying a
+        page with no notice is the first-visitor audit's finding 2."""
+        from config.content_locale import apply_content_locale_filter
+
+        slug = (request.query_params.get('tag') or '').strip()
+        if not slug:
+            return Response(
+                {'tag': ['Name the tag whose posts to list.']}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            before_id = int(request.query_params.get('before', '') or 0) or None
+        except ValueError:
+            before_id = None
+        try:
+            limit = int(request.query_params.get('limit', '') or 20)
+        except ValueError:
+            limit = 20
+        qs = self.get_queryset().filter(
+            tag__slug=slug, tag__is_removed=False, is_removed=False, auto_hidden_at__isnull=True
+        )
+        qs, hidden = apply_content_locale_filter(qs, request.query_params, 'language')
+        if before_id:
+            qs = qs.filter(id__lt=before_id)
+        posts = list(qs.order_by('-id')[: max(1, min(limit, 50))])
+        # One grouped COUNT per page instead of one per row: the serializer reads this map when it
+        # is in the context and falls back to its own query for a single post.
+        from community.models import Comment
+        from django.contrib.contenttypes.models import ContentType
+        from django.db.models import Count
+
+        comment_counts = dict(
+            Comment.objects.filter(
+                content_type=ContentType.objects.get_for_model(Post),
+                object_id__in=[post.pk for post in posts],
+                is_removed=False,
+            )
+            .values('object_id')
+            .annotate(n=Count('id'))
+            .values_list('object_id', 'n')
+        )
+        response = Response(
+            PostSerializer(
+                posts,
+                many=True,
+                context={'request': request, 'comment_counts': comment_counts},
+            ).data
+        )
+        response[HIDDEN_HEADER] = str(hidden)
+        return response
+
     def retrieve(self, request, pk=None):
         return self._serialized(self.get_object(), request)
 

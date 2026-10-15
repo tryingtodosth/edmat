@@ -16961,3 +16961,75 @@ catalogues merged as JSON three-way with no key changed on both sides (5280 = 52
   pictures in the manual are stale against today's pages.
 - The Add… menu is not grouped; the dismissed homepage band costs a 0.016 layout shift (an `app.html`
   class set before paint would remove it).
+
+## 17CO — "Pytaj" gets a destination: ask a question in a tag (2026-10-15, WP15, `ux/wp15-ask`)
+
+The hero has said "Ucz się, ćwicz i **pytaj**" for weeks and nothing on the site answered the third
+verb — the first-visitor audit's finding 16 and its owner question 1. The owner's answer, verbatim:
+**"ask as ppl should be allowed to post in tags"**. So asking is posting into a tag, and this is the
+smallest honest version of that.
+
+### What changed
+
+- **A question is a post anchored to a tag** — the same `POST /api/posts/`, throttle, `posts` kill
+  switch, minors hold, report button, tombstone and `community.Comment` reply thread every post
+  already had. **No `kind`/"is a question" field**: the owner's words are satisfied by "a post in a
+  tag", a second kind would be a filter nobody asked for and one more thing to keep consistent, and
+  the framing (the composer asks for a question; the tag page says "Pytania w tym tagu") does the
+  rest. If questions ever need to be told apart from statements (an "answered" mark, say), that is
+  the day for a field.
+- **`GET /api/posts/?tag=<slug>`** (`PostViewSet.list`) — one tag's visible posts, newest first,
+  id-cursor, ≤ 50. It reads the Post table rather than the feed, because the feed trims itself at 90
+  days and a question must not fall off its own tag (a test pins exactly that). Tombstoned,
+  auto-hidden and held posts are left out; the content-language rule applies with the usual header;
+  the audience band deliberately does not, as on the feed. Reply counts are one grouped COUNT.
+- **`/ask`** — the composer framed as a question (`AskComposer`): the question, a **searchable tag
+  picker** (`TagPicker`, existing tags only; both the query and the tags are folded — lower case,
+  diacritics off, spaces to hyphens — because most tags are ASCII slugs and some are not, "całka z
+  1-formy"), the audience band (required, as on every submit form), the language. No anchor choice,
+  no reference, no picture: a general post still lives on `/activity`. `?tag=` preselects. A signed-out
+  reader gets "Zaloguj się, żeby zadać pytanie"; a minor's question comes back held and the page says
+  a moderator will look first, instead of "published".
+- **`/tags/[slug]`** — a tag finally has a page: `#tag`, "Zadaj pytanie w tym tagu" (the same composer,
+  inline), Obserwuj/Przestań obserwować, a link to the tag-filtered feed for everything else, and the
+  questions with their threads ("Dyskusja (n)"), load-more, an empty state with the ask action, and
+  the hidden-languages notice. No request leaves the page until the flags are loaded and `posts` is on.
+- **Every way in** (house rule 3, all behind `posts` with the moderator bypass): the hero's "Zadaj
+  pytanie" beside "Przeglądaj dziedziny"; "Zadaj pytanie" first in the Add… menu's Content group;
+  the tag chip's menu item, which now opens the tag page ("Pytania w tym tagu", previously "Wpisy z
+  tym tagiem" → the filtered feed); a post's `#tag` anchor chip. With `posts` off a non-staff account
+  sees none of them and both pages say the feature is unavailable (asserted, `e2e/ask.mjs`).
+- 32 `ask_*` keys in both catalogues.
+
+### Owner decision, answered by default — please confirm
+
+**May people create a NEW tag when asking? Not in this version: existing tags only.** A tag is global,
+free-form and already the one ungated label on the site (`exercises.Tag`'s own comment names the slur
+risk); a question box that minted tags would be a second, busier way to put one on every chip. New
+tags keep arriving the way they always have — with a submitted exercise (moderated) or a concept
+article — and the picker's "no match" line says exactly that. There is no "suggest a tag" queue to
+point at; if the owner wants one, it is a small moderation item (a pending `Tag` row the queue can
+approve), not a change to asking.
+
+### Verified
+
+`manage.py test activity` (35, eight new), `check`, `makemigrations --check`,
+`check_databases_declared` (0); `npm run check` 0/0, eslint and prettier on every touched file,
+`check:plain`, `PUBLIC_API_BASE_URL=/api npm run build`; `e2e/ask.mjs` **59/59** on a DB copy (both
+languages, 390 and 1280, dark theme, a reply, the minor's hold, the switch). Screens looked at: the hero
+(pl/en, 390/1280), the composer (pl/en, 390/1280, the picker mid-search in dark at 390), the tag page
+(pl/en, 390/1280, dark at 1280), the held message.
+
+### Left open
+
+- **Followers are not notified of a new question** — they see it in the feed's Followed view, but
+  `notify_tag_followers` fires for tagged exercises and materials, not posts. One call in
+  `PostViewSet.create` (after the hold check) would do it; left out because a notification per post
+  on a busy tag is a volume decision for the owner.
+- No "answered" state, no accepting an answer, no sorting by unanswered — see "no field" above.
+- No tag index (`/tags`), and the tag page does not list the tag's exercises (there is no
+  exercise-by-tag browse page to link; the chip's "save for later" is the nearest thing).
+- The audit's other half of finding 16 — renaming "Szukamy pomocy" in the bar — is not this
+  package's (Header structure was out of scope).
+- A minor's held question is not visible to its author on the tag page (the list leaves held rows
+  out for everybody); the `/ask` page says it was held, and that is the only place.

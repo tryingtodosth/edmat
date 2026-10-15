@@ -385,6 +385,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/contests/ /api/contest-presets/ /api/contests/{id}/{announce,stages,registrations,results,complaints,rules,compliance}/  contests (CONTESTS-BRIEF.md)
 /api/contest-stages/{id}/{problems,submission,submit,submissions,ranking,open,close,advance}/  a stage, from both sides of the desk
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
+/api/posts/?tag=<slug>                                                one tag's questions and posts (the tag page; WP15)
 /api/discussions/ /api/discussions/thread/ /api/discussion-locations/  talk under a standing page — or under a task, a plan, a need or a poll (`tasks/17` as the page; `?keys=` for a whole board)
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)
 /api/auth/{register,login,logout,me,password-reset}/                 DRF TokenAuthentication
@@ -425,6 +426,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /material-projects … /project-invites/[token]                 co-authoring a material
 /concepts /concepts/[slug] … /articles/[id]/{edit,history}     concept wiki, articles per audience
 /messages … /notifications /activity /posts/[id]              inbox + feed
+/ask /tags/[slug]                                             ask a question in a tag, and the tag's own page (WP15)
 /my-set /sets/[id] /submit /submit-material /search           study + contribute
 /settings /settings/profile /users/[id] /login /register      account
 /forgot-password /reset-password /confirm-email                 the links in the mail (query-string tokens)

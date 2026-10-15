@@ -465,6 +465,7 @@ node e2e/exercise-card-click.mjs      # E2E_BASE=http://localhost:5173, E2E_BRAN
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
 node e2e/solution-entries.mjs         # E2E_EXERCISE=<published exercise with pinned corpus entries>, default 1; ola + michal + kasia, resets its own scratch first
 node e2e/activity-feed.mjs            # the activity feed + micro-posts; ola + michal (UI) + kasia (API); toggles the `posts` flag and restores it; cleans its posts
+E2E_ASKER_TOKEN=<ola> E2E_ANSWER_TOKEN=<michal> E2E_STAFF_TOKEN=<kasia> E2E_MINOR_TOKEN=<persona.child> node e2e/ask.mjs   # WP15 (59 checks): ask a question in a tag from the hero, en+pl, 390+1280, a reply, the minor's hold, the `posts` switch off for a non-staff account (restored); tombstones its own questions (marker WP15-e2e) at both ends; E2E_TAG defaults to indukcja
 node e2e/pdf-preview.mjs              # E2E_MATERIAL=<hosted-PDF material id>, default 1; signs nobody in
 node e2e/topic-threads.mjs            # E2E_MATERIAL=<material with covers claims>, default 1; ola (UI) + kasia (API); cleans its marker posts
 node e2e/audience-bands.mjs           # audience chips/badges/forms (§17AL); kasia (API) + ola (UI); creates and deletes one listing, resets ola's filter
@@ -908,6 +909,17 @@ kind filter; the post's own page with its thread and the author's `comment_reply
 carrying `post_id`; Followed's honest empty state; the home-tab slice; delete-as-tombstone with
 the feed forgetting the row; and the `posts` kill switch removing the composer, the filter option
 and every post row from the feed API. Resets by tombstoning any earlier run's posts as staff.
+
+**`e2e/ask.mjs` (59 checks)** — "ask a question in a tag" (root `HISTORY.md` §17CO, WP15): in both
+interface languages, the hero's "Ask a question" (signed out → a sign-in prompt; signed in → the
+composer), asking through the real form (question, the folded tag search, the audience band), the
+landing on `/tags/<tag>` with the question first, the same question in the activity feed, the Add…
+menu's entry, the exercise tag chip's "Questions in this tag" link, a reply from a second account
+with the list's reply count and the asker's `comment_reply` notification, and no sideways scroll at
+390. Then: the picker mid-search and the tag page in the dark theme; a minor's question HELD (the page
+says so, neither the tag page nor the feed lists it); and the `posts` switch off for a NON-staff
+account — no hero link, no Add… entry, both pages "unavailable", no chip link, the API 403 — restored
+in a `finally`. Tokens, not the login form (trap 30). Screenshots to `E2E_SHOTS`.
 
 **`e2e/pdf-preview.mjs` (7 checks)** — the in-browser PDF preview (root `HISTORY.md` §17AJ): the
 collapsed Preview section, nothing mounted before asking, a real page count, the canvas holding

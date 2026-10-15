@@ -1527,5 +1527,16 @@
   "summary": "Owner: \"proceed with the next round/stage after this one's done → keep the loop going. when no tasks on the horizon improve the prototype: make it more intuitive, and add more placeholders: show-off and discuss modules - use our screens, and link them for users to be able to check them out by themselves.\" A read-only planning pass surveyed the showcase, the manual, the homepage, the navbar and…",
   "subproject": "interface",
   "listed": true
+ },
+ {
+  "ref": "17CO",
+  "title": "\"Pytaj\" gets a destination: ask a question in a tag",
+  "heading": "17CO — \"Pytaj\" gets a destination: ask a question in a tag (2026-10-15, WP15, `ux/wp15-ask`)",
+  "line": 16965,
+  "date": "2026-10-15",
+  "date_source": "heading",
+  "summary": "The hero has said \"Ucz się, ćwicz i pytaj\" for weeks and nothing on the site answered the third verb — the first-visitor audit's finding 16 and its owner question 1. The owner's answer, verbatim: \"ask as ppl should be allowed to post in tags\". So asking is posting into a tag, and this is the smallest honest version of that.",
+  "subproject": "community",
+  "listed": true
  }
 ]

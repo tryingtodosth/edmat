@@ -112,6 +112,9 @@ class PostSerializer(serializers.ModelSerializer):
         return obj.ref_course.title if obj.ref_course_id else ''
 
     def get_comment_count(self, obj):
+        counts = self.context.get('comment_counts')
+        if counts is not None:
+            return counts.get(obj.pk, 0)
         return Comment.objects.filter(
             content_type=ContentType.objects.get_for_model(Post),
             object_id=obj.pk,

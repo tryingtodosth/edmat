@@ -5268,8 +5268,13 @@
 	"workStatus_event_going": "Bierzesz udział",
 	"workStatus_courseRequest_pending": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} prośba czeka",
 				"countPlural=few": "{count} prośby czekają",
@@ -5280,8 +5285,13 @@
 	],
 	"workStatus_proposal_pending": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} wersja do przejrzenia",
 				"countPlural=few": "{count} wersje do przejrzenia",
@@ -5294,8 +5304,13 @@
 	"workStatus_needApplication_pending": "Czeka na odpowiedź",
 	"workStatus_needDecision_pending": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} zgłoszenie czeka na decyzję",
 				"countPlural=few": "{count} zgłoszenia czekają na decyzję",
@@ -5309,8 +5324,13 @@
 	"workStatus_poll_open": "Czeka na Twój głos",
 	"workStatus_cardsDue_due": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} karta do powtórki",
 				"countPlural=few": "{count} karty do powtórki",
@@ -5325,8 +5345,13 @@
 	"workStatus_contestStage_open": "Otwarty — praca jeszcze nieoddana",
 	"workStatus_contestJudging_waiting": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} praca do oceny",
 				"countPlural=few": "{count} prace do oceny",
@@ -5355,5 +5380,37 @@
 	"wp14b_welcome_dismiss": "Zamknij powitanie",
 	"wp14b_activity_emptyOwn": "Tu pojawi się to, co robisz w EdMacie: dodane zadania i materiały, komentarze, recenzje, ukończone lekcje i zapisane zestawy. Na razie jest pusto.",
 	"wp14b_activity_emptyOther": "Ta osoba nie ma tu jeszcze nic publicznego.",
-	"wp14b_activity_emptyOwnAction": "Znajdź zadania"
+	"wp14b_activity_emptyOwnAction": "Znajdź zadania",
+	"ask_tagLabel": "Tag",
+	"ask_tagChange": "Zmień",
+	"ask_tagPlaceholder": "Zacznij pisać, np. całka",
+	"ask_tagMatches": "Pasujące tagi",
+	"ask_tagNoMatch": "Nie ma jeszcze takiego tagu. Wybierz najbliższy z istniejących — nowe tagi pojawiają się razem z nadsyłanymi zadaniami, które sprawdzają moderatorzy.",
+	"ask_errorThrottled": "To już sporo pytań jak na jedną godzinę. Spróbuj ponownie trochę później.",
+	"ask_errorGeneric": "Nie udało się opublikować pytania. Sprawdź tag i spróbuj jeszcze raz.",
+	"ask_formLabel": "Twoje pytanie",
+	"ask_bodyLabel": "Twoje pytanie",
+	"ask_bodyPlaceholder": "Z czym masz problem? Napisz tak, jak w rozmowie ze znajomymi — wzory wpisuj między \\( a \\).",
+	"ask_publicNote": "Pytanie od razu będzie publiczne — pod tagiem i z Twoją nazwą. Odpowiedzieć pod nim może każda zalogowana osoba.",
+	"ask_publish": "Zadaj pytanie",
+	"ask_missingBody": "Najpierw napisz pytanie.",
+	"ask_missingTag": "Wybierz tag, żeby pytanie trafiło do właściwych osób.",
+	"ask_missingAudience": "Wybierz, dla kogo jest pytanie.",
+	"ask_pageTitle": "Zadaj pytanie",
+	"ask_pageDescription": "Zadaj pytanie w tagu — zobaczą je osoby, które go obserwują, a odpowiedzi pojawią się pod spodem.",
+	"ask_pageIntro": "Każde pytanie trafia do tagu — tematu takiego jak #granice czy #indukcja. Osoby, które obserwują tag, zobaczą je w swojej aktywności, a odpowiedzi pojawią się tuż pod pytaniem.",
+	"ask_loginToAsk": "Zaloguj się, żeby zadać pytanie",
+	"ask_held": "Dziękujemy! Zanim pytanie pojawi się pod tagiem, zajrzy do niego ktoś z moderacji.",
+	"ask_goToTag": "Przejdź do #{tag}",
+	"ask_tagPageDescription": "Pytania i wpisy w tagu #{tag} na EdMat — razem z odpowiedziami.",
+	"ask_tagPageIntro": "Pytania i wpisy w tym tagu. Zadaj swoje — zobaczy je każdy, kto obserwuje ten tag.",
+	"ask_inThisTag": "Zadaj pytanie w tym tagu",
+	"ask_allActivity": "Cała aktywność z tym tagiem",
+	"ask_asked": "Pytanie jest już widoczne. Gdy ktoś odpowie, dostaniesz powiadomienie.",
+	"ask_tagNotFound": "Nie ma takiego tagu — mógł zostać usunięty.",
+	"ask_questionsHeading": "Pytania w tym tagu",
+	"ask_tagEmpty": "Nikt jeszcze nie zadał tu pytania. Pytanie zadane w tym tagu zobaczy każdy, kto go obserwuje.",
+	"ask_heroCta": "Zadaj pytanie",
+	"ask_navAdd": "Zadaj pytanie",
+	"ask_tagChipLink": "Pytania w tym tagu"
 }

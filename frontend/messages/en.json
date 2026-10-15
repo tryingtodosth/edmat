@@ -5268,8 +5268,13 @@
 	"workStatus_event_going": "You're going",
 	"workStatus_courseRequest_pending": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} request waiting",
 				"countPlural=*": "{count} requests waiting"
@@ -5278,8 +5283,13 @@
 	],
 	"workStatus_proposal_pending": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} version to review",
 				"countPlural=*": "{count} versions to review"
@@ -5290,8 +5300,13 @@
 	"workStatus_needApplication_pending": "Waiting for an answer",
 	"workStatus_needDecision_pending": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} application to decide",
 				"countPlural=*": "{count} applications to decide"
@@ -5303,8 +5318,13 @@
 	"workStatus_poll_open": "Waiting for your vote",
 	"workStatus_cardsDue_due": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} card to review",
 				"countPlural=*": "{count} cards to review"
@@ -5317,8 +5337,13 @@
 	"workStatus_contestStage_open": "Open — not handed in yet",
 	"workStatus_contestJudging_waiting": [
 		{
-			"declarations": ["input count", "local countPlural = count: plural"],
-			"selectors": ["countPlural"],
+			"declarations": [
+				"input count",
+				"local countPlural = count: plural"
+			],
+			"selectors": [
+				"countPlural"
+			],
 			"match": {
 				"countPlural=one": "{count} submission to score",
 				"countPlural=*": "{count} submissions to score"
@@ -5345,5 +5370,37 @@
 	"wp14b_welcome_dismiss": "Close the welcome",
 	"wp14b_activity_emptyOwn": "What you do here shows up in this list: exercises and materials you add, comments, reviews, finished lessons and saved sets. It is empty for now.",
 	"wp14b_activity_emptyOther": "Nothing public from this person here yet.",
-	"wp14b_activity_emptyOwnAction": "Find exercises"
+	"wp14b_activity_emptyOwnAction": "Find exercises",
+	"ask_tagLabel": "Tag",
+	"ask_tagChange": "Change",
+	"ask_tagPlaceholder": "Start typing, e.g. integral",
+	"ask_tagMatches": "Matching tags",
+	"ask_tagNoMatch": "No tag like that yet. Pick the closest one that exists — new tags arrive with submitted exercises, which moderators check.",
+	"ask_errorThrottled": "That is a lot of questions for one hour. Try again a little later.",
+	"ask_errorGeneric": "Could not publish the question. Check the tag and try again.",
+	"ask_formLabel": "Your question",
+	"ask_bodyLabel": "Your question",
+	"ask_bodyPlaceholder": "What are you stuck on? Write it the way you would ask a friend — maths goes between \\( and \\).",
+	"ask_publicNote": "Your question is public straight away, under the tag and with your name. Anyone signed in can answer underneath.",
+	"ask_publish": "Ask",
+	"ask_missingBody": "Write the question first.",
+	"ask_missingTag": "Pick a tag, so the right people see it.",
+	"ask_missingAudience": "Say who the question is for.",
+	"ask_pageTitle": "Ask a question",
+	"ask_pageDescription": "Ask a question in a tag — the people who follow it see it, and answers appear underneath.",
+	"ask_pageIntro": "Every question goes into a tag — a topic such as #granice or #indukcja. People who follow the tag see it in their feed, and answers appear right under the question.",
+	"ask_loginToAsk": "Sign in to ask a question",
+	"ask_held": "Thank you! Before your question appears under the tag, someone from moderation will look at it.",
+	"ask_goToTag": "Go to #{tag}",
+	"ask_tagPageDescription": "Questions and posts in #{tag} on EdMat, with their answers.",
+	"ask_tagPageIntro": "Questions and posts in this tag. Ask yours — everyone who follows the tag will see it.",
+	"ask_inThisTag": "Ask a question in this tag",
+	"ask_allActivity": "All activity with this tag",
+	"ask_asked": "Your question is up. You will get a notification when somebody answers.",
+	"ask_tagNotFound": "There is no such tag — it may have been removed.",
+	"ask_questionsHeading": "Questions in this tag",
+	"ask_tagEmpty": "Nobody has asked anything in this tag yet. A question asked here reaches everyone who follows it.",
+	"ask_heroCta": "Ask a question",
+	"ask_navAdd": "Ask a question",
+	"ask_tagChipLink": "Questions in this tag"
 }

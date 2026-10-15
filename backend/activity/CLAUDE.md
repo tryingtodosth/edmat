@@ -37,7 +37,20 @@ new nullable `Notification.post` FK.
 `GET /api/activity/?kind=&discipline=&branch=&tag=&followed=1&before=<id>&limit=` — bare array,
 id-cursor. Followed = the caller's `TagFollow`s + active `Enrollment`s, nothing else yet.
 
+`GET /api/posts/?tag=<slug>&before=<id>&limit=` (WP15, 2026-10-15) — one tag's posts, newest first:
+what the tag page `/tags/[slug]` lists, and the reading half of "ask a question" (a question IS a
+post anchored to a tag — no `kind` field, by design). Reads the **Post table, not the feed**: the
+feed trims itself at 90 days and a question must not fall off its own tag. `tag` required (400
+otherwise), page ≤ 50, the feed's id cursor. Lists only rows a reader may see — tombstoned,
+auto-hidden and minors' HELD posts are left out (a list is not a permalink; the detail endpoint
+keeps the tombstone). The content-language rule applies with the usual hidden-count header; the
+audience band deliberately does not (as on the feed — audit finding 2). Reply counts come from one
+grouped COUNT per page (`comment_counts` in the serializer context). Behind `posts` like the rest
+of the viewset. Asking uses an EXISTING tag only — the write path's `SlugRelatedField` refuses an
+unknown slug, and nothing in this app mints a tag from a post.
+
 ## Verify
 
-`manage.py test activity` (21). E2E: `e2e/activity-feed.mjs` (20 checks — resets by tombstoning
-prior runs' posts as staff first).
+`manage.py test activity` (35 — eight of them `PostTagListTests`). E2E: `e2e/activity-feed.mjs`
+(20 checks — resets by tombstoning prior runs' posts as staff first) and `e2e/ask.mjs` (59 checks,
+the ask flow in both languages).

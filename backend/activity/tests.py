@@ -390,3 +390,102 @@ class FeedContentLocaleTests(ActivityTestCase):
         response = self.client.get('/api/activity/?content_locales=pl')
         self.assertEqual(response[HIDDEN_HEADER], '1')
         self.assertEqual(self.client.get('/api/activity/')[HIDDEN_HEADER], '0')
+
+
+class PostTagListTests(ActivityTestCase):
+    """`GET /api/posts/?tag=` — the tag page's list (WP15, "ask a question in a tag"). Read from
+    the Post table, not the self-trimming feed, so an old question never falls off its tag."""
+
+    def setUp(self):
+        self.tag = Tag.objects.create(slug='ask-list')
+        self.other = Tag.objects.create(slug='ask-other')
+        self.user = make_user('ask-user')
+        self.client.force_authenticate(self.user)
+
+    def _ask(self, body='Why does this converge?', tag=None, **extra):
+        return self.client.post(
+            '/api/posts/',
+            {'body': body, 'tag': (tag or self.tag).slug, 'language': 'pl', **extra},
+            format='json',
+        )
+
+    def test_lists_only_that_tags_visible_posts_newest_first_with_reply_counts(self):
+        first = self._ask('First question').data['id']
+        second = self._ask('Second question').data['id']
+        self._ask('Elsewhere', tag=self.other)
+        removed = self._ask('Withdrawn').data['id']
+        self.client.delete(f'/api/posts/{removed}/')
+        hidden = self._ask('Hidden by reports').data['id']
+        Post.objects.filter(pk=hidden).update(auto_hidden_at='2026-10-15T10:00:00Z')
+        self.client.post(f'/api/posts/{first}/comments/', {'body': 'An answer.'}, format='json')
+
+        self.client.force_authenticate(None)
+        response = self.client.get(f'/api/posts/?tag={self.tag.slug}')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row['id'] for row in response.data], [second, first])
+        self.assertEqual(response.data[1]['comment_count'], 1)
+        self.assertEqual(response.data[0]['comment_count'], 0)
+
+    def test_it_outlives_the_feed_trim(self):
+        # The reason this endpoint exists rather than `/api/activity/?tag=&kind=post`.
+        post_id = self._ask().data['id']
+        ActivityEvent.objects.all().delete()
+        listed = self.client.get(f'/api/posts/?tag={self.tag.slug}').data
+        self.assertEqual([row['id'] for row in listed], [post_id])
+
+    def test_the_tag_is_required_and_the_page_is_bounded(self):
+        self.assertEqual(self.client.get('/api/posts/').status_code, status.HTTP_400_BAD_REQUEST)
+        ids = [self._ask(f'Question {n}').data['id'] for n in range(3)]
+        page = self.client.get(f'/api/posts/?tag={self.tag.slug}&limit=2').data
+        self.assertEqual([row['id'] for row in page], [ids[2], ids[1]])
+        rest = self.client.get(f'/api/posts/?tag={self.tag.slug}&before={ids[1]}').data
+        self.assertEqual([row['id'] for row in rest], [ids[0]])
+
+    def test_a_removed_tag_lists_nothing_and_cannot_be_asked_in(self):
+        self._ask()
+        Tag.objects.filter(pk=self.tag.pk).update(is_removed=True)
+        self.assertEqual(self.client.get(f'/api/posts/?tag={self.tag.slug}').data, [])
+        self.assertEqual(self._ask().status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_asking_only_uses_an_existing_tag(self):
+        # The owner's open question, answered "existing tags only" for now: an unknown slug is a
+        # 400, never a new Tag row.
+        response = self.client.post(
+            '/api/posts/', {'body': 'New tag?', 'tag': 'no-such-tag-yet'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Tag.objects.filter(slug='no-such-tag-yet').exists())
+
+    def test_a_minors_question_is_held_and_not_listed(self):
+        self.user.profile.is_minor = True
+        self.user.profile.save(update_fields=['is_minor'])
+        response = self._ask('Held until a moderator looks')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNotNone(response.data['auto_hidden_at'])
+        self.assertEqual(self.client.get(f'/api/posts/?tag={self.tag.slug}').data, [])
+        self.assertFalse(ActivityEvent.objects.filter(kind='post').exists())
+
+    def test_the_content_language_rule_narrows_and_says_how_many(self):
+        self._ask('Po polsku')
+        english = self._ask('In English', language='en').data['id']
+        response = self.client.get(f'/api/posts/?tag={self.tag.slug}&content_locales=en')
+        self.assertEqual([row['id'] for row in response.data], [english])
+        self.assertEqual(response[HIDDEN_HEADER], '1')
+
+    def test_the_kill_switch_closes_the_list_for_a_non_staff_reader(self):
+        self._ask()
+        FeatureFlag.objects.filter(key='posts').update(is_enabled=False)
+        try:
+            self.assertEqual(
+                self.client.get(f'/api/posts/?tag={self.tag.slug}').status_code,
+                status.HTTP_403_FORBIDDEN,
+            )
+            # A guest is refused too — as 401, DRF's answer to an unauthenticated caller a
+            # permission turns away when a token scheme is configured. Refused is the point.
+            self.client.force_authenticate(None)
+            self.assertEqual(
+                self.client.get(f'/api/posts/?tag={self.tag.slug}').status_code,
+                status.HTTP_401_UNAUTHORIZED,
+            )
+        finally:
+            FeatureFlag.objects.filter(key='posts').update(is_enabled=True)

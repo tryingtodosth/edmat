@@ -39,9 +39,11 @@
 	let error = $state<string | null>(null);
 
 	function anchorHref(): string {
+		// A tag has a page of its own since WP15 — the questions asked in it. Every other anchor
+		// still opens the feed filtered to it.
+		if (post.tagSlug) return resolve('/tags/[slug]', { slug: encodeURIComponent(post.tagSlug) });
 		const url = new URL(resolve('/activity'), 'http://x');
-		if (post.tagSlug) url.searchParams.set('tag', post.tagSlug);
-		else if (post.topicId) url.searchParams.set('topic', post.topicId);
+		if (post.topicId) url.searchParams.set('topic', post.topicId);
 		else if (post.branchId) url.searchParams.set('branch', post.branchId);
 		else if (post.disciplineId) url.searchParams.set('discipline', post.disciplineId);
 		// The landing page shows the filter as a human name without a lookup of its own.
