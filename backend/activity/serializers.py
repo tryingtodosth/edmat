@@ -27,7 +27,7 @@ class PostSerializer(serializers.ModelSerializer):
     author = serializers.SerializerMethodField()
     discipline = serializers.SlugRelatedField(slug_field='slug', read_only=True)
     branch = serializers.SlugRelatedField(slug_field='slug', read_only=True)
-    tag = serializers.SlugRelatedField(slug_field='slug', read_only=True)
+    tag = serializers.SerializerMethodField()
     # A bare pk (topic slugs are only unique per branch, so the pk is the id convention here,
     # matching the frontend's own Topic ids).
     topic = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -83,6 +83,21 @@ class PostSerializer(serializers.ModelSerializer):
         url = obj.image.url
         return request.build_absolute_uri(url) if request is not None else url
 
+    def _tag_withheld(self, obj) -> bool:
+        """A hidden post anchored on a tag its own question minted does not say the tag's name to
+        an ordinary reader: while that post is the tag's only use, the tag is not listed anywhere
+        (`exercises/tags.py: listed_tags`), and the tombstone's permalink must not be the one place
+        the name still shows. Staff still see it — a moderator judging the post needs it."""
+        if not obj.tag_id or not self._hidden(obj) or not obj.tag.from_question:
+            return False
+        request = self.context.get('request')
+        return not (request is not None and getattr(request.user, 'is_staff', False))
+
+    def get_tag(self, obj):
+        if not obj.tag_id or self._tag_withheld(obj):
+            return None
+        return obj.tag.slug
+
     def get_anchor_label(self, obj):
         """The anchor's human name, resolved per request locale — a chip reading "Analiza
         Matematyczna II", not a bare slug."""
@@ -93,7 +108,7 @@ class PostSerializer(serializers.ModelSerializer):
         if node is not None:
             translation = resolve_translation(node.translations.all(), locale)
             return translation.name if translation else node.slug
-        return f'#{obj.tag.slug}' if obj.tag_id else ''
+        return f'#{obj.tag.slug}' if obj.tag_id and not self._tag_withheld(obj) else ''
 
     def _exercise_title(self, exercise):
         from notifications.services import label_for_exercise
@@ -149,10 +164,16 @@ class PostCreateSerializer(serializers.ModelSerializer):
         queryset=Material.objects.filter(published=True), required=False, allow_null=True
     )
     image = serializers.ImageField(required=False, allow_null=True)
+    # A tag by the NAME somebody typed, instead of an existing slug (WP16, 2026-10-15 — the owner's
+    # "tag creation is a must"). It counts as the tag anchor here; the view turns it into a tag —
+    # an existing one when the name folds to it, a new one otherwise — through
+    # `exercises/tags.py: create_tag_from`, in the same transaction as the post. On create only:
+    # an edit moves a post between tags that exist, it does not mint one.
+    tag_name = serializers.CharField(required=False, allow_blank=True, max_length=1000, write_only=True)
 
     class Meta:
         model = Post
-        fields = ['body', 'audience', 'language', 'discipline', 'branch', 'tag', 'topic', 'ref_exercise', 'ref_material', 'ref_course', 'image']
+        fields = ['body', 'audience', 'language', 'discipline', 'branch', 'tag', 'tag_name', 'topic', 'ref_exercise', 'ref_material', 'ref_course', 'image']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -172,10 +193,18 @@ class PostCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         instance = self.instance
+        tag_name = (attrs.get('tag_name') or '').strip()
+        if not tag_name:
+            attrs.pop('tag_name', None)
+        elif instance is not None:
+            raise serializers.ValidationError(
+                {'tag_name': ['A new tag can be named only when the question is asked.']}
+            )
         anchors = [
             attrs.get('discipline', getattr(instance, 'discipline', None)),
             attrs.get('branch', getattr(instance, 'branch', None)),
             attrs.get('tag', getattr(instance, 'tag', None)),
+            tag_name or None,
             attrs.get('topic', getattr(instance, 'topic', None)),
         ]
         if sum(1 for a in anchors if a is not None) != 1:
@@ -197,6 +226,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
         # The uploaded bytes are never what gets stored — postimage.py explains why. An explicit
         # None (a PATCH clearing the picture) passes through as the removal it is.
         upload = self.validated_data.pop('image', serializers.empty)
+        self.validated_data.pop('tag_name', None)  # resolved by the view into `tag=` (kwargs)
         instance = super().save(**kwargs)
         if upload is not serializers.empty:
             instance.image = process_activity_post_image(upload) if upload is not None else None

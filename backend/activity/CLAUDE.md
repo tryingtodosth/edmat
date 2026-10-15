@@ -46,11 +46,25 @@ auto-hidden and minors' HELD posts are left out (a list is not a permalink; the 
 keeps the tombstone). The content-language rule applies with the usual hidden-count header; the
 audience band deliberately does not (as on the feed — audit finding 2). Reply counts come from one
 grouped COUNT per page (`comment_counts` in the serializer context). Behind `posts` like the rest
-of the viewset. Asking uses an EXISTING tag only — the write path's `SlugRelatedField` refuses an
-unknown slug, and nothing in this app mints a tag from a post.
+of the viewset. `tag` is still an EXISTING slug (an unknown one is a 400), but since WP16 (2026-10-15, the owner's
+"tag creation is a must") a question may instead send `tag_name` — create only, never on an edit.
+`PostViewSet.create` hands it to `exercises/tags.py: create_tag_from`, which reuses the tag the name
+FOLDS to (case, Polish letters, spaces) or mints a new one (`from_question=True`, `created_by`);
+refusals come back as `{tag_name: ['<word>']}` — 400 for the name, 403 for a minor, 429 for
+`tag_create` (5/hour, spent only when a tag is actually made). The answer carries `tag_created`
+only when a name was sent. A tag a question minted is LISTED only while something visible uses it
+(`tags.listed_tags`), and `PostSerializer` withholds such a tag's name on a hidden post from
+non-staff readers, so a withdrawn or held question never leaves its tag's name standing.
+
+**Known gap (found in WP16, not fixed):** `PostCreateThrottle` is a `ScopedRateThrottle` on a
+viewset with no `throttle_scope`, and DRF's scoped throttle reads the scope from the VIEW — so
+`post_create` (12/hour) is never counted. `TagCreateThrottle` is a `UserRateThrottle` for that
+reason. Fixing `post_create` changes live posting behaviour (and needs `cache.clear()` in suites that
+post a lot), so it was left for an explicit decision. `community/views.py: _DiscussionThrottle` has
+the same shape.
 
 ## Verify
 
-`manage.py test activity` (35 — eight of them `PostTagListTests`). E2E: `e2e/activity-feed.mjs`
+`manage.py test activity` (49 — eight of them `PostTagListTests`, fourteen `TagCreationTests`). E2E: `e2e/activity-feed.mjs`
 (20 checks — resets by tombstoning prior runs' posts as staff first) and `e2e/ask.mjs` (59 checks,
 the ask flow in both languages).

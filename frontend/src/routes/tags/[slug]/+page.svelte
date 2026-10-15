@@ -10,6 +10,7 @@
 	// everything else that happened under the tag.
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import type { Post } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
@@ -36,10 +37,12 @@
 	let notFound = $state(false);
 	let hasMore = $state(false);
 	let asking = $state(false);
-	let notice = $state<'asked' | 'held' | null>(null);
+	let notice = $state<'asked' | 'held' | 'created' | 'reused' | null>(null);
 
 	// `?asked=<id>` is set by /ask after a question lands here — say so once.
 	let askedParam = $derived(browser ? page.url.searchParams.get('asked') : null);
+	// `&tagged=new|existing` rides along when the question named its tag by typing it (WP16).
+	let taggedParam = $derived(browser ? page.url.searchParams.get('tagged') : null);
 
 	async function load(tag: string, append = false) {
 		if (append) loadingMore = true;
@@ -80,7 +83,13 @@
 		loadedFor = tag;
 		notFound = false;
 		asking = false;
-		notice = askedParam ? 'asked' : null;
+		notice = !askedParam
+			? null
+			: taggedParam === 'new'
+				? 'created'
+				: taggedParam === 'existing'
+					? 'reused'
+					: 'asked';
 		load(tag);
 	});
 
@@ -92,6 +101,17 @@
 		asking = false;
 		if (post.isAutoHidden) {
 			notice = 'held';
+			return;
+		}
+		if (post.tagSlug && post.tagSlug !== slug) {
+			// The reader changed the tag in the composer (or named a new one): the question lives
+			// on THAT tag's page, so go there rather than draw it in this tag's list.
+			const tagged =
+				post.tagCreated === undefined ? '' : `&tagged=${post.tagCreated ? 'new' : 'existing'}`;
+			goto(
+				// eslint-disable-next-line svelte/no-navigation-without-resolve -- built on resolve('/tags/[slug]'), query parameters added
+				`${resolve('/tags/[slug]', { slug: encodeURIComponent(post.tagSlug) })}?asked=${encodeURIComponent(post.id)}${tagged}`
+			);
 			return;
 		}
 		notice = 'asked';
@@ -147,6 +167,12 @@
 		{#if notice === 'asked'}
 			<p class="notice" role="status">{m.ask_asked()}</p>
 			<!-- "Your question is up. You will get a notification when somebody answers." -->
+		{:else if notice === 'created'}
+			<p class="notice" role="status">{m.tagnew_createdNotice({ tag: slug })}</p>
+			<!-- "Tag #{tag} is created and your question is up in it." -->
+		{:else if notice === 'reused'}
+			<p class="notice" role="status">{m.tagnew_reusedNotice({ tag: slug })}</p>
+			<!-- "A tag like that already existed, so your question went into #{tag}." -->
 		{:else if notice === 'held'}
 			<p class="notice notice--held" role="status">{m.ask_held()}</p>
 		{/if}

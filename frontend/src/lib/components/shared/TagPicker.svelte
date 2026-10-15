@@ -1,15 +1,16 @@
-<!-- Pick ONE existing tag by typing part of it (WP15, "ask a question in a tag").
+<!-- Pick ONE tag by typing part of it — or name a NEW one (WP15, then WP16, 2026-10-15: the owner's
+     "tag creation is a must").
 
-     Existing tags only, by the owner-question default of 2026-10-15: a tag is global, free-form and
-     already the one ungated label on the site (`exercises/models.py: Tag`), so a question box that
-     could mint new ones would be a second, busier way to put a slur on every chip. New tags still
-     arrive the way they always have — with an exercise or a concept article somebody submits — and
-     the "no match" line says so instead of leaving the reader at a dead end.
+     Existing tags first: prefix matches, then anywhere-in-the-word, at most eight shown. When nothing
+     already MEANS what was typed, the picker offers "Utwórz tag „…”" and shows the slug it will
+     become; the tag itself is made by the server together with the question
+     (`backend/exercises/tags.py: create_tag_from`), never here, so a tag never exists without a post.
 
-     Most of the corpus's tags are ASCII slugs ("calka-gaussa"), some are not ("całka z 1-formy",
-     "forma dokładna"), and people type Polish either way — so BOTH sides are folded before
-     matching: lower case, diacritics off, spaces to hyphens. Prefix matches first, then
-     anywhere-in-the-word, at most eight shown. -->
+     Most of the corpus's tags are ASCII slugs ("calka-gaussa"), some are not ("całka z 1-formy"),
+     and people type Polish either way — so BOTH sides are folded before matching. `fold` below is
+     the backend's `exercises/tags.py: fold`, mirrored (house rule 13): when a typed name folds to an
+     existing tag, the picker names that tag and does not offer to create a near-duplicate — and
+     the server would reuse it anyway. -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
@@ -17,10 +18,13 @@
 
 	let {
 		value = $bindable(''),
+		newName = $bindable(''),
 		id = 'tag-picker'
 	}: {
-		/** The chosen tag's slug, or '' while nothing is chosen. */
+		/** The chosen EXISTING tag's slug, or '' while nothing is chosen. */
 		value: string;
+		/** The name of a NEW tag to create with the post, or ''. At most one of the two is set. */
+		newName?: string;
 		id?: string;
 	} = $props();
 
@@ -36,49 +40,77 @@
 		}
 	});
 
-	/** "Całka  Gaussa" → "calka-gaussa": the shape every tag slug in the corpus has. */
+	/** "Całka  Gaussa" → "calka-gaussa": the shape most corpus slugs have, and the slug a new tag
+	 * gets. Mirrors `backend/exercises/tags.py: fold` — keep the two the same. */
 	function fold(text: string): string {
 		return text
 			.toLowerCase()
 			.replace(/ł/g, 'l')
-			.normalize('NFD')
-			.replace(/[̀-ͯ]/g, '')
-			.replace(/^#/, '')
-			.trim()
-			.replace(/[\s_]+/g, '-');
+			.normalize('NFKD')
+			.replace(/[\u0300-\u036f]/g, '')
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-+|-+$/g, '');
+	}
+
+	/** Trimmed, inner whitespace collapsed, a leading `#` dropped — what is sent as the new name. */
+	function cleanName(text: string): string {
+		return text.split(/\s+/).filter(Boolean).join(' ').replace(/^#+/, '').trim();
 	}
 
 	// Folded once per load, not once per keystroke per tag (about a thousand of them).
 	let folded = $derived(tags.map((tag) => [tag, fold(tag)] as const));
 
+	let wanted = $derived(fold(query));
+	// The tag that already MEANS what was typed, if any — offered first, and instead of "create".
+	let exact = $derived(wanted ? (folded.find(([, key]) => key === wanted)?.[0] ?? null) : null);
+
 	let matches = $derived.by((): string[] => {
-		const wanted = fold(query);
 		if (!wanted) return [];
 		const starts: string[] = [];
 		const contains: string[] = [];
 		for (const [tag, key] of folded) {
+			if (tag === exact) continue;
 			if (key.startsWith(wanted)) starts.push(tag);
 			else if (key.includes(wanted)) contains.push(tag);
 			if (starts.length >= 8) break;
 		}
-		return [...starts, ...contains].slice(0, 8);
+		return [...(exact ? [exact] : []), ...starts, ...contains].slice(0, 8);
 	});
+
+	// Two letters or digits is the server's floor too (`MIN_SLUG_LENGTH`); everything else about a
+	// name (length, links, a removed tag, who may) is the server's to refuse, with its reason.
+	let canCreate = $derived(!loadFailed && !exact && wanted.length >= 2);
+	let newSlug = $derived(wanted.slice(0, 50).replace(/-+$/, ''));
 
 	function choose(tag: string) {
 		value = tag;
+		newName = '';
 		query = '';
+	}
+
+	function create() {
+		newName = cleanName(query);
+		value = '';
+		query = '';
+	}
+
+	function reset() {
+		value = '';
+		newName = '';
 	}
 </script>
 
 <div class="tag-picker">
-	{#if value}
+	{#if value || newName}
 		<p class="tag-picker__chosen">
 			<span class="tag-picker__label">{m.ask_tagLabel()}</span>
 			<!-- "Tag" -->
-			<span class="tag-picker__chip">#{value}</span>
-			<button type="button" class="tag-picker__change" onclick={() => (value = '')}
-				>{m.ask_tagChange()}</button
-			>
+			<span class="tag-picker__chip">#{value || fold(newName)}</span>
+			{#if newName}
+				<span class="tag-picker__badge">{m.tagnew_badge()}</span>
+				<!-- "new tag" -->
+			{/if}
+			<button type="button" class="tag-picker__change" onclick={reset}>{m.ask_tagChange()}</button>
 			<!-- "Change" -->
 		</p>
 	{:else}
@@ -94,26 +126,43 @@
 				if (e.key === 'Enter') {
 					e.preventDefault();
 					if (matches.length > 0) choose(matches[0]);
+					else if (canCreate) create();
 				}
 			}}
 		/>
 		<!-- "Start typing, e.g. integral" -->
 		{#if loadFailed}
 			<p class="tag-picker__note">{m.common_error_generic()}</p>
-		{:else if matches.length > 0}
-			<ul class="tag-picker__matches" aria-label={m.ask_tagMatches()}>
-				<!-- "Matching tags" -->
-				{#each matches as tag (tag)}
-					<li>
-						<button type="button" class="tag-picker__match" onclick={() => choose(tag)}
-							>#{tag}</button
-						>
-					</li>
-				{/each}
-			</ul>
-		{:else if query.trim() && tags.length > 0}
-			<p class="tag-picker__note">{m.ask_tagNoMatch()}</p>
-			<!-- "No tag like that yet. Pick the closest one that exists — new tags arrive with submitted exercises, which moderators check." -->
+		{:else if wanted}
+			{#if exact}
+				<p class="tag-picker__note">{m.tagnew_exists({ name: cleanName(query), tag: exact })}</p>
+				<!-- "“{name}” is already a tag — pick #{tag} below and your question goes there." -->
+			{/if}
+			{#if matches.length > 0}
+				<ul class="tag-picker__matches" aria-label={m.ask_tagMatches()}>
+					<!-- "Matching tags" -->
+					{#each matches as tag (tag)}
+						<li>
+							<button type="button" class="tag-picker__match" onclick={() => choose(tag)}
+								>#{tag}</button
+							>
+						</li>
+					{/each}
+				</ul>
+			{:else if tags.length > 0}
+				<p class="tag-picker__note">{m.ask_tagNoMatch()}</p>
+				<!-- "No tag like that yet — you can create it." -->
+			{/if}
+			{#if canCreate}
+				<div class="tag-picker__create">
+					<button type="button" class="tag-picker__create-button" onclick={create}
+						>{m.tagnew_create({ name: cleanName(query) })}</button
+					>
+					<!-- "Create tag “{name}”" -->
+					<p class="tag-picker__note">{m.tagnew_willBe({ slug: newSlug })}</p>
+					<!-- "It will be #{slug}. Everyone sees tags, so name a topic — like “power series”." -->
+				</div>
+			{/if}
 		{/if}
 	{/if}
 </div>
@@ -187,6 +236,25 @@
 			color: var(--accent);
 			border-color: var(--accent);
 		}
+	}
+	.tag-picker__badge {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		border: 1px dashed var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: 0 var(--space-1);
+	}
+	.tag-picker__create {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-1);
+	}
+	.tag-picker__create-button {
+		@include mix.button-secondary;
+		max-width: 100%;
+		overflow-wrap: anywhere;
+		text-align: left;
 	}
 	.tag-picker__note {
 		font-size: var(--font-size-xs);

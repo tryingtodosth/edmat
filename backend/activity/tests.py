@@ -447,14 +447,21 @@ class PostTagListTests(ActivityTestCase):
         self.assertEqual(self.client.get(f'/api/posts/?tag={self.tag.slug}').data, [])
         self.assertEqual(self._ask().status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_asking_only_uses_an_existing_tag(self):
-        # The owner's open question, answered "existing tags only" for now: an unknown slug is a
-        # 400, never a new Tag row.
+    def test_an_unknown_slug_is_refused_a_new_tag_comes_by_name(self):
+        # The contract moved with the owner's "tag creation is a must" (WP16, 2026-10-15). `tag` is
+        # still an EXISTING slug and an unknown one is still a 400 that mints nothing — a new tag
+        # arrives only as `tag_name`, through exercises/tags.py, with the post it anchors.
         response = self.client.post(
             '/api/posts/', {'body': 'New tag?', 'tag': 'no-such-tag-yet'}, format='json'
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Tag.objects.filter(slug='no-such-tag-yet').exists())
+        response = self.client.post(
+            '/api/posts/', {'body': 'New tag?', 'tag_name': 'No such tag yet'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['tag'], 'no-such-tag-yet')
+        self.assertTrue(response.data['tag_created'])
 
     def test_a_minors_question_is_held_and_not_listed(self):
         self.user.profile.is_minor = True
@@ -489,3 +496,175 @@ class PostTagListTests(ActivityTestCase):
             )
         finally:
             FeatureFlag.objects.filter(key='posts').update(is_enabled=True)
+
+
+class TagCreationTests(ActivityTestCase):
+    """Asking a question in a NEW tag (WP16, 2026-10-15 — the owner's "tag creation is a must").
+    Every rule is `exercises/tags.py`'s; these pin it through the one endpoint that uses it."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        # Throttle counters live in the process-wide cache and outlive a test's rollback.
+        cache.clear()
+        self.user = make_user('tag-maker')
+        self.client.force_authenticate(self.user)
+
+    def _ask(self, tag_name, body='Is this a new topic?', **extra):
+        return self.client.post(
+            '/api/posts/', {'body': body, 'tag_name': tag_name, 'language': 'pl', **extra}, format='json'
+        )
+
+    def test_a_new_name_makes_a_tag_and_the_post_together(self):
+        response = self._ask('  Całka   z 2-formy  ')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['tag'], 'calka-z-2-formy')
+        self.assertTrue(response.data['tag_created'])
+        tag = Tag.objects.get(slug='calka-z-2-formy')
+        self.assertTrue(tag.from_question)
+        self.assertEqual(tag.created_by, self.user)
+        self.assertIsNotNone(tag.created_at)
+        self.assertEqual(Post.objects.get(pk=response.data['id']).tag, tag)
+        # Listed, and its page answers, because a visible question uses it.
+        self.assertIn('calka-z-2-formy', [row['slug'] for row in self.client.get('/api/tags/').data])
+        self.assertEqual(self.client.get('/api/tags/calka-z-2-formy/').status_code, status.HTTP_200_OK)
+
+    def test_a_name_that_folds_to_an_existing_tag_reuses_it(self):
+        legacy = Tag.objects.create(slug='całka z 1-formy')  # a free-text corpus tag
+        ascii_tag = Tag.objects.create(slug='calka-gaussa')
+        before = Tag.objects.count()
+        for typed, expected in (
+            ('CAŁKA Z 1-FORMY', legacy),
+            ('calka z 1 formy', legacy),
+            ('#Całka Gaussa', ascii_tag),
+            ('całka-gaussa', ascii_tag),
+        ):
+            response = self._ask(typed)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED, typed)
+            self.assertEqual(response.data['tag'], expected.slug, typed)
+            self.assertFalse(response.data['tag_created'], typed)
+        self.assertEqual(Tag.objects.count(), before)
+
+    def test_every_name_refusal_carries_its_word_and_makes_nothing(self):
+        before = Tag.objects.count()
+        for typed, word in (
+            ('   ', None),  # blank is no anchor at all — the serializer's "pick one" refusal
+            ('!!!', 'tag_name_empty'),
+            ('x', 'tag_name_too_short'),
+            ('a' * 51, 'tag_name_too_long'),
+            ('https://example.com', 'tag_name_link_or_markup'),
+            ('www.example', 'tag_name_link_or_markup'),
+            ('spam.example', 'tag_name_link_or_markup'),
+            ('<b>bold</b>', 'tag_name_link_or_markup'),
+            ('me@example', 'tag_name_link_or_markup'),
+        ):
+            response = self._ask(typed)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, typed)
+            if word:
+                self.assertEqual(response.data['tag_name'], [word], typed)
+        self.assertEqual(Tag.objects.count(), before)
+        self.assertFalse(Post.objects.exists())
+
+    def test_a_removed_tag_cannot_be_made_again_by_spelling_it_differently(self):
+        Tag.objects.create(slug='zly-tag', is_removed=True)
+        response = self._ask('Zły   TAG')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['tag_name'], ['tag_removed'])
+        self.assertEqual(Tag.objects.filter(slug='zly-tag').count(), 1)
+
+    def test_a_slug_and_a_name_together_is_two_anchors(self):
+        Tag.objects.create(slug='istniejacy')
+        response = self._ask('nowy', tag='istniejacy')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('anchor', response.data)
+
+    def test_a_guest_cannot(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self._ask('gosc').status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(Tag.objects.filter(slug='gosc').exists())
+
+    def test_a_minor_may_reuse_a_tag_but_not_make_one(self):
+        Tag.objects.create(slug='indukcja')
+        self.user.profile.is_minor = True
+        self.user.profile.save(update_fields=['is_minor'])
+        refused = self._ask('Zupełnie nowy temat')
+        self.assertEqual(refused.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(refused.data['tag_name'], ['minor_cannot_create_tag'])
+        self.assertFalse(Tag.objects.filter(slug='zupelnie-nowy-temat').exists())
+        self.assertFalse(Post.objects.exists())
+        # An existing tag, typed in another case, is still fine — and the question is held.
+        reused = self._ask('INDUKCJA')
+        self.assertEqual(reused.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(reused.data['tag'], 'indukcja')
+        self.assertIsNotNone(reused.data['auto_hidden_at'])
+
+    def test_the_throttle_counts_only_new_tags(self):
+        from rest_framework.settings import api_settings
+
+        limit = int(api_settings.DEFAULT_THROTTLE_RATES['tag_create'].split('/')[0])
+        for n in range(limit):
+            self.assertEqual(self._ask(f'temat numer {n}').status_code, status.HTTP_201_CREATED)
+        refused = self._ask('jeden za duzo')
+        self.assertEqual(refused.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(refused.data['tag_name'], ['too_many_new_tags'])
+        self.assertFalse(Tag.objects.filter(slug='jeden-za-duzo').exists())
+        # Reusing a tag spends nothing, so it still works past the bound.
+        self.assertEqual(self._ask('Temat numer 0').status_code, status.HTTP_201_CREATED)
+
+    def test_the_posts_switch_closes_tag_creation_too(self):
+        FeatureFlag.objects.filter(key='posts').update(is_enabled=False)
+        try:
+            self.assertEqual(self._ask('wylaczone').status_code, status.HTTP_403_FORBIDDEN)
+        finally:
+            FeatureFlag.objects.filter(key='posts').update(is_enabled=True)
+        self.assertFalse(Tag.objects.filter(slug='wylaczone').exists())
+
+    def test_a_withdrawn_question_takes_its_new_tag_off_the_site(self):
+        post_id = self._ask('Słowo do wycofania').data['id']
+        self.assertEqual(self.client.get('/api/tags/slowo-do-wycofania/').status_code, 200)
+        self.client.delete(f'/api/posts/{post_id}/')
+        # Not listed, no page, nothing to follow — and the tombstone does not say the name.
+        self.assertNotIn('slowo-do-wycofania', [row['slug'] for row in self.client.get('/api/tags/').data])
+        self.assertEqual(self.client.get('/api/tags/slowo-do-wycofania/').status_code, 404)
+        self.assertEqual(
+            self.client.post('/api/tags/slowo-do-wycofania/follow/').status_code, status.HTTP_404_NOT_FOUND
+        )
+        tombstone = self.client.get(f'/api/posts/{post_id}/').data
+        self.assertIsNone(tombstone['tag'])
+        self.assertEqual(tombstone['anchor_label'], '')
+        # A moderator still sees what the post was anchored on.
+        staff = make_user('tag-staff', is_staff=True)
+        self.client.force_authenticate(staff)
+        self.assertEqual(self.client.get(f'/api/posts/{post_id}/').data['tag'], 'slowo-do-wycofania')
+        # Not removed, though: an author's withdrawal is no judgement on the name.
+        self.assertFalse(Tag.objects.get(slug='slowo-do-wycofania').is_removed)
+
+    def test_an_auto_hidden_question_hides_its_tag_and_another_use_keeps_it(self):
+        post_id = self._ask('Ukryty temat').data['id']
+        Post.objects.filter(pk=post_id).update(auto_hidden_at='2026-10-15T10:00:00Z')
+        self.assertEqual(self.client.get('/api/tags/ukryty-temat/').status_code, 404)
+        # A second, visible question in the same tag brings it back — something visible uses it.
+        again = self._ask('ukryty temat', body='Asking again, properly.')
+        self.assertFalse(again.data['tag_created'])
+        self.assertEqual(self.client.get('/api/tags/ukryty-temat/').status_code, 200)
+
+    def test_an_exercise_using_it_keeps_it_listed(self):
+        post_id = self._ask('Uzywany temat').data['id']
+        exercise = make_exercise(make_branch(), 1)
+        exercise.tags.add(Tag.objects.get(slug='uzywany-temat'))
+        self.client.delete(f'/api/posts/{post_id}/')
+        self.assertEqual(self.client.get('/api/tags/uzywany-temat/').status_code, 200)
+
+    def test_corpus_tags_are_listed_whatever_uses_them(self):
+        Tag.objects.create(slug='nieuzywany-korpus')
+        self.assertIn('nieuzywany-korpus', [row['slug'] for row in self.client.get('/api/tags/').data])
+
+    def test_an_edit_cannot_mint_a_tag(self):
+        Tag.objects.create(slug='stary')
+        picked = self.client.post('/api/posts/', {'body': 'x', 'tag': 'stary'}, format='json')
+        # A tag picked by slug says nothing about creation — the key is only for a typed name.
+        self.assertNotIn('tag_created', picked.data)
+        post_id = picked.data['id']
+        response = self.client.patch(f'/api/posts/{post_id}/', {'tag_name': 'nowy z edycji'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Tag.objects.filter(slug='nowy-z-edycji').exists())

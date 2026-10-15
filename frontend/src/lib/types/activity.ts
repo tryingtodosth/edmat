@@ -57,6 +57,9 @@ export interface Post {
 	isAutoHidden: boolean;
 	commentCount: number;
 	createdAt: string;
+	/** Only on the answer to creating a post with a tag NAME (WP16): true when that name made a new
+	 * tag, false when it folded to one that already existed. Absent everywhere else. */
+	tagCreated?: boolean;
 }
 
 /** One feed row. `post` is embedded for kind='post' so the feed renders the post's own words and

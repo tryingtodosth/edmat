@@ -54,6 +54,18 @@ never hand-toggle it, and call the recount after any queryset-`update()` on entr
 `TagViewSet.apply/` (POST attach / DELETE-with-body remove, any authenticated user — additive,
 reversible metadata, deliberately not moderation-gated).
 
+## Tags made by asking (`tags.py`, WP16, 2026-10-15)
+
+`tags.py` is the one rule for a tag somebody TYPES: `fold` (lower case, `ł`→`l`, accents off,
+non-alphanumerics → one hyphen — the shape of the corpus's 860 ASCII slugs; mirrored in
+`TagPicker.svelte`), `name_refusal`, `matching_tag` (folded match, live beats removed, so a removed
+tag cannot be re-made by respelling it), `create_tag_from` (refusal words mirrored in `labels.ts:
+TAG_REFUSAL_LABELS`), `listed_tags` (the orphan rule `TagViewSet` uses: a `from_question` tag is listed
+only while an exercise, material, concept or visible post uses it) and `merge_tag`. `Tag.created_by`,
+`created_at` (stamped on every new row by `save()`; null on the 1,022 that predate it) and
+`from_question` are migration 0016. The admin renames (folded, refused onto an existing name),
+removes, and merges ("merge into" moves every use and REMOVES the source). `test_tags.py` pins it.
+
 ## Covers / requires claims
 
 `ExerciseClaim` (+ `ExerciseClaimVote`, `ExerciseClaimImportanceVote`, migration 0008) inherits

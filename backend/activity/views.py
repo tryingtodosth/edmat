@@ -10,7 +10,7 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
-from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
 
 from materials.claims import thread_response
@@ -74,6 +74,27 @@ class PostCreateThrottle(ScopedRateThrottle):
     scope = 'post_create'
 
 
+class TagCreateThrottle(UserRateThrottle):
+    """Minting a NEW tag while asking (`exercises/tags.py`). Asked by hand, and only when a new
+    row is about to be written — reusing an existing tag never spends it.
+
+    A `UserRateThrottle` with its own scope, NOT a `ScopedRateThrottle`: the scoped class reads its
+    scope from the VIEW's `throttle_scope` and allows everything when the view has none, whatever
+    the subclass's own `scope` says — which is what `PostCreateThrottle` above does today (this
+    viewset sets no `throttle_scope`, so `post_create` is never counted; WP16 report, left open)."""
+
+    scope = 'tag_create'
+
+
+# How each refusal from `exercises/tags.py: create_tag_from` reaches the client: the shape of the
+# name is a malformed request (400), who is asking is authority (403), the hourly bound is 429.
+_TAG_REFUSAL_STATUS = {
+    'signin_required': status.HTTP_403_FORBIDDEN,
+    'minor_cannot_create_tag': status.HTTP_403_FORBIDDEN,
+    'too_many_new_tags': status.HTTP_429_TOO_MANY_REQUESTS,
+}
+
+
 class PostViewSet(viewsets.GenericViewSet):
     """Create/retrieve/edit/delete one post, plus its comment thread. Publishing is immediate
     (bounded by the per-account throttle and the `posts` kill switch); "delete" is a TOMBSTONE
@@ -100,11 +121,46 @@ class PostViewSet(viewsets.GenericViewSet):
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         serializer = PostCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        post = serializer.save(author=request.user)
+        extra = {}
+        # `tag_created` rides on the answer ONLY when the tag was named by typing it: true for a new
+        # tag, false when the name folded to one that existed (the UI says which). Absent otherwise.
+        extra_out = {}
+        tag_created = False
+        tag_name = serializer.validated_data.get('tag_name')
+        if tag_name:
+            # A tag by the name somebody typed: an existing one when it folds to it, else a new one
+            # (WP16 — every rule is in exercises/tags.py). The words are already validated, so the
+            # only thing that can fail after the tag is made is the save itself, and then the tag
+            # goes too: a tag never exists without the post that made it. Not `atomic()` — the save
+            # may re-encode a picture, and SQLite would hold its write lock for all of it
+            # (backend/CLAUDE.md, SQLite rule 2).
+            from exercises.tags import create_tag_from
+
+            tag, tag_created, refusal = create_tag_from(
+                tag_name,
+                request.user,
+                allow_create=lambda: TagCreateThrottle().allow_request(request, self),
+            )
+            if refusal:
+                return Response(
+                    {'tag_name': [refusal]},
+                    status=_TAG_REFUSAL_STATUS.get(refusal, status.HTTP_400_BAD_REQUEST),
+                )
+            extra['tag'] = tag
+            extra_out['tag_created'] = tag_created
+        try:
+            post = serializer.save(author=request.user, **extra)
+        except Exception:
+            if tag_created:
+                extra['tag'].delete()
+            raise
         if should_hold_post(post):
             # accounts/minors.py: held for a moderator's look; nothing announces it until then.
             hold_for_review(post, request.user)
-            return Response(PostSerializer(post, context={'request': request}).data, status=status.HTTP_201_CREATED)
+            return Response(
+                {**PostSerializer(post, context={'request': request}).data, **extra_out},
+                status=status.HTTP_201_CREATED,
+            )
         record_activity(
             'post',
             actor=request.user,
@@ -116,7 +172,7 @@ class PostViewSet(viewsets.GenericViewSet):
             tags=[post.tag] if post.tag_id else (),
         )
         return Response(
-            PostSerializer(post, context={'request': request}).data,
+            {**PostSerializer(post, context={'request': request}).data, **extra_out},
             status=status.HTTP_201_CREATED,
         )
 

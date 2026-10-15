@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 
 from .models import (
@@ -52,10 +53,76 @@ admin.site.register(ExerciseSourceTranslation)
 admin.site.register(ExerciseTranslation)
 
 
+class TagAdminForm(forms.ModelForm):
+    """Rename, remove or merge a tag (WP16, 2026-10-15 — a person can now mint one by asking).
+
+    The slug is a plain text field here, not a SlugField: 162 corpus tags are free text ("całka z
+    1-formy"), and the SlugField validator would refuse to save even a tick of `is_removed` on one
+    of them. A RENAME is folded the same way a new tag is (`exercises/tags.py: fold`), refused for
+    the same reasons, and refused when another tag already has that name — that is a merge."""
+
+    slug = forms.CharField(max_length=50)
+    merge_into = forms.CharField(
+        required=False,
+        max_length=50,
+        help_text=(
+            'Slug of another tag. On save, everything that uses this tag (exercises, materials, '
+            'concepts, questions, feed rows, follows) moves to that one, and this tag is removed.'
+        ),
+    )
+
+    class Meta:
+        model = Tag
+        fields = ['slug', 'is_removed', 'merge_into']
+
+    def clean_slug(self):
+        from .tags import clean_name, fold, name_refusal
+
+        value = self.cleaned_data['slug']
+        if self.instance.pk and value == self.instance.slug:
+            return value
+        refusal = name_refusal(value)
+        if refusal:
+            raise forms.ValidationError(f'Refused: {refusal}.')
+        slug = fold(clean_name(value))
+        if Tag.objects.filter(slug=slug).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError(f'#{slug} already exists — merge into it instead.')
+        return slug
+
+    def _get_validation_exclusions(self):
+        # The model's own SlugField validator would refuse an unchanged free-text corpus slug;
+        # `clean_slug` above is this form's whole rule for the slug, uniqueness included.
+        exclusions = super()._get_validation_exclusions()
+        exclusions.add('slug')
+        return exclusions
+
+    def clean_merge_into(self):
+        value = (self.cleaned_data.get('merge_into') or '').strip()
+        if not value:
+            return None
+        target = Tag.objects.filter(slug=value, is_removed=False).exclude(pk=self.instance.pk).first()
+        if target is None:
+            raise forms.ValidationError('No other live tag has that slug.')
+        return target
+
+
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
-    list_display = ['slug']
+    form = TagAdminForm
+    list_display = ['slug', 'from_question', 'created_by', 'created_at', 'is_removed']
+    list_filter = ['from_question', 'is_removed']
     search_fields = ['slug']
+    # Who made it and how are facts, not settings (backend/CLAUDE.md admin rule 1).
+    readonly_fields = ['from_question', 'created_by', 'created_at']
+    fields = ['slug', 'is_removed', 'merge_into', 'from_question', 'created_by', 'created_at']
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        target = form.cleaned_data.get('merge_into')
+        if target is not None:
+            from .tags import merge_tag
+
+            merge_tag(obj, target)
 
 
 @admin.register(TagFollow)

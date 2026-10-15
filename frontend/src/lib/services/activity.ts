@@ -27,6 +27,7 @@ interface RawPost {
 	auto_hidden_at: string | null;
 	comment_count: number;
 	created_at: string;
+	tag_created?: boolean;
 }
 
 interface RawActivityItem {
@@ -82,7 +83,8 @@ export function mapPost(json: RawPost): Post {
 		isRemoved: json.is_removed,
 		isAutoHidden: json.auto_hidden_at !== null,
 		commentCount: json.comment_count,
-		createdAt: json.created_at
+		createdAt: json.created_at,
+		tagCreated: json.tag_created
 	};
 }
 
@@ -151,6 +153,9 @@ export interface PostDraft {
 	branchId?: string;
 	topicId?: string;
 	tagSlug?: string;
+	/** A tag by the NAME somebody typed, instead of `tagSlug` (WP16): the server reuses the tag it
+	 * folds to, or makes a new one with the post (`exercises/tags.py`). On create only. */
+	tagName?: string;
 	/** At most one reference. */
 	refExerciseId?: string;
 	refMaterialId?: string;
@@ -166,6 +171,7 @@ function draftToForm(draft: PostDraft): FormData {
 	if (draft.disciplineId) form.set('discipline', draft.disciplineId);
 	if (draft.branchId) form.set('branch', draft.branchId);
 	if (draft.tagSlug) form.set('tag', draft.tagSlug);
+	if (draft.tagName) form.set('tag_name', draft.tagName);
 	if (draft.topicId) form.set('topic', draft.topicId);
 	if (draft.refExerciseId) form.set('ref_exercise', draft.refExerciseId);
 	if (draft.refMaterialId) form.set('ref_material', draft.refMaterialId);

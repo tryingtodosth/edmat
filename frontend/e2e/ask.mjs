@@ -11,6 +11,14 @@
 // `posts` switch, off, takes every entry point away from a NON-staff account (trap 10) — restored
 // in a `finally`.
 //
+// A NEW tag (WP16, 2026-10-15 — the owner's "tag creation is a must"), in both languages: the picker
+// offers "Utwórz tag „…”" / "Create tag “…”" (shot at 390 and 1280), the question lands on
+// /tags/<new-slug> with "the tag is created"; typing an existing tag in another case and without
+// its Polish letters ("CALKA Z 1-FORMY") names the existing tag instead of offering to create one,
+// and the API reuses it; a link as a tag name is refused with its reason, and so is a minor's new
+// tag. Cleanup tombstones the questions, and the new tags then leave the site with them (the orphan
+// rule) — asserted. Each run mints two tags as the asker; `tag_create` allows five an hour.
+//
 //   E2E_BASE=http://localhost:5221 E2E_API=http://127.0.0.1:8071 \
 //   E2E_ASKER_TOKEN=… E2E_ANSWER_TOKEN=… E2E_STAFF_TOKEN=… E2E_MINOR_TOKEN=… \
 //   E2E_SHOTS=/tmp/shots node e2e/ask.mjs
@@ -46,6 +54,9 @@ for (const [who, token] of Object.entries(TOKENS)) {
 }
 mkdirSync(SHOTS, { recursive: true });
 const MARK = 'WP15-e2e';
+// The existing free-text corpus tag the reuse check types in capitals and without Polish letters.
+const FOLD_TAG = process.env.E2E_FOLD_TAG ?? 'całka z 1-formy';
+const createdTags = [];
 const CATALOGUE = {
 	pl: JSON.parse(readFileSync(new URL('../messages/pl.json', import.meta.url), 'utf8')),
 	en: JSON.parse(readFileSync(new URL('../messages/en.json', import.meta.url), 'utf8'))
@@ -81,8 +92,15 @@ const api = async (method, path, token, body) => {
 /** Tombstone this script's own questions in the tag — never anybody else's. Staff list: bypasses
  * nothing but the switch, so a run that died with the switch off still cleans up. */
 async function cleanUp(extraIds = []) {
-	const listed = await api('GET', `/posts/?tag=${encodeURIComponent(TAG)}&limit=50`, TOKENS.staff);
-	const ids = (listed.json ?? []).filter((p) => p.body.includes(MARK)).map((p) => p.id);
+	const ids = [];
+	for (const tag of [TAG, FOLD_TAG, ...createdTags]) {
+		const listed = await api(
+			'GET',
+			`/posts/?tag=${encodeURIComponent(tag)}&limit=50`,
+			TOKENS.staff
+		);
+		ids.push(...(listed.json ?? []).filter((p) => p.body.includes(MARK)).map((p) => p.id));
+	}
 	for (const id of [...ids, ...extraIds]) await api('DELETE', `/posts/${id}/`, TOKENS.staff);
 	return ids.length + extraIds.length;
 }
@@ -90,6 +108,10 @@ async function cleanUp(extraIds = []) {
 // Trap 26: KaTeX fonts 403 under a worktree's dev server. Matched on the RESPONSE, counted, said.
 const errors = [];
 let ignoredFontErrors = 0;
+// The refusals this script provokes on purpose (a link as a tag → 400, a minor's new tag → 403):
+// the browser logs each as "Failed to load resource", which is the refusal working, not a bug.
+let expectedRefusals = 0;
+let ignoredRefusals = 0;
 const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
@@ -116,6 +138,11 @@ async function session(locale, { width = 1280, height = 950, token, colorScheme 
 	});
 	page.on('console', (msg) => {
 		if (msg.type() !== 'error') return;
+		if (expectedRefusals > 0 && /status of (400|403)/.test(msg.text())) {
+			expectedRefusals--;
+			ignoredRefusals++;
+			return;
+		}
 		if (fontFailures > 0 && msg.text().includes('403')) {
 			ignoredFontErrors++;
 			return;
@@ -346,9 +373,10 @@ try {
 		await dark.locator('form.ask #ask-tag').fill('zzzz-no-such');
 		await settle(300);
 		check(
-			'an unknown tag says how new tags arrive',
-			(await dark.locator('.tag-picker__note').textContent())?.trim() ===
-				CATALOGUE.pl.ask_tagNoMatch
+			'an unknown tag says so, and offers to create it',
+			(await dark.locator('.tag-picker__note').first().textContent())?.trim() ===
+				CATALOGUE.pl.ask_tagNoMatch &&
+				(await dark.locator('.tag-picker__create-button').count()) === 1
 		);
 		await dark.context().close();
 		const wide = await session('pl', { token: TOKENS.asker, colorScheme: 'dark' });
@@ -362,6 +390,166 @@ try {
 		await settle(500);
 		await wide.screenshot({ path: `${SHOTS}/ask-tagpage-pl-1280-dark.png`, fullPage: true });
 		await wide.context().close();
+	}
+
+	// ---- 4b. a NEW tag (WP16) --------------------------------------------------------------------
+	for (const locale of ['pl', 'en']) {
+		const T = CATALOGUE[locale];
+		const fill = (template, values) =>
+			template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''));
+		console.log(`\n== a new tag (${locale}) ==`);
+		const stamp = Date.now().toString(36);
+		const name = locale === 'pl' ? `Próba Łąki ${stamp}` : `Trial Meadow ${stamp}`;
+		const slug = locale === 'pl' ? `proba-laki-${stamp}` : `trial-meadow-${stamp}`;
+
+		// The picker offering "create", at both widths — the screenshots the brief asks for.
+		for (const width of [390, 1280]) {
+			const page = await session(locale, {
+				width,
+				height: width === 390 ? 844 : 950,
+				token: TOKENS.asker
+			});
+			await open(page, '/ask');
+			await page.locator('form.ask textarea#ask-body').waitFor({ timeout: 20000 });
+			await page.locator('form.ask #ask-tag').fill(name);
+			await settle(300);
+			const offer = page.locator('.tag-picker__create-button');
+			check(
+				`${width}: the picker offers "${fill(T.tagnew_create, { name })}"`,
+				(await offer.count()) === 1 &&
+					(await offer.textContent())?.trim() === fill(T.tagnew_create, { name })
+			);
+			check(
+				`${width}: …and says it will be #${slug}`,
+				(await page.locator('.tag-picker__create .tag-picker__note').textContent())?.trim() ===
+					fill(T.tagnew_willBe, { slug })
+			);
+			check(`${width}: no sideways scroll with the offer open`, await noHorizontalScroll(page));
+			await page.locator('form.ask').screenshot({
+				path: `${SHOTS}/tagnew-offer-${locale}-${width}.png`
+			});
+			if (width === 390) {
+				await page.context().close();
+				continue;
+			}
+
+			// Create it, ask, and land on the new tag's page.
+			await offer.click();
+			check(
+				'the chosen tag is the new slug, marked new',
+				(await page.locator('.tag-picker__chip').textContent())?.trim() === `#${slug}` &&
+					(await page.locator('.tag-picker__badge').textContent())?.trim() === T.tagnew_badge
+			);
+			await page
+				.locator('form.ask textarea#ask-body')
+				.fill(`${MARK} ${locale} new tag ${stamp}: ${locale === 'pl' ? 'czy ktoś' : 'anyone'}?`);
+			await page
+				.locator('form.ask select:has(option[value="university"])')
+				.selectOption('university');
+			const created = page.waitForResponse(
+				(r) => r.url().endsWith('/api/posts/') && r.request().method() === 'POST',
+				{ timeout: 15000 }
+			);
+			await page.locator('form.ask button[type="submit"]').click();
+			const response = await created;
+			const body = await response.json();
+			check(
+				'the question and the tag are made together (201, tag_created)',
+				response.status() === 201 && body.tag === slug && body.tag_created === true,
+				JSON.stringify({ status: response.status(), tag: body.tag, created: body.tag_created })
+			);
+			createdTags.push(slug);
+			await page.waitForURL((u) => u.pathname === `/tags/${slug}`, { timeout: 15000 });
+			await page.locator('.list article.post').first().waitFor({ timeout: 15000 });
+			await settle(500);
+			check(
+				`landed on /tags/${slug} saying the tag is created`,
+				(await page.locator('.notice').textContent())?.trim() ===
+					fill(T.tagnew_createdNotice, { tag: slug })
+			);
+			check(
+				'the question is listed on the new tag',
+				(await page.locator('.list article.post').first().textContent())?.includes(MARK)
+			);
+			await page.screenshot({ path: `${SHOTS}/tagnew-landed-${locale}-1280.png`, fullPage: true });
+
+			// An existing tag typed in capitals, without Polish letters: named, not re-made.
+			await open(page, '/ask');
+			await page.locator('form.ask #ask-tag').fill('CALKA Z 1-FORMY');
+			await settle(300);
+			check(
+				`"CALKA Z 1-FORMY" names the existing #${FOLD_TAG}`,
+				(await page.locator('.tag-picker__note').first().textContent())?.trim() ===
+					fill(T.tagnew_exists, { name: 'CALKA Z 1-FORMY', tag: FOLD_TAG }) &&
+					(await page.locator('.tag-picker__matches button').first().textContent())?.trim() ===
+						`#${FOLD_TAG}`
+			);
+			check(
+				'…and does not offer to create it',
+				(await page.locator('.tag-picker__create-button').count()) === 0
+			);
+			await page.locator('form.ask').screenshot({
+				path: `${SHOTS}/tagnew-exists-${locale}-1280.png`
+			});
+
+			// A link as a tag name: offered (it folds to letters), refused with its reason.
+			await page.locator('form.ask #ask-tag').fill('www.example.com');
+			await settle(300);
+			await page.locator('.tag-picker__create-button').click();
+			await page.locator('form.ask textarea#ask-body').fill(`${MARK} ${locale} link tag`);
+			await page
+				.locator('form.ask select:has(option[value="university"])')
+				.selectOption('university');
+			expectedRefusals++;
+			await page.locator('form.ask button[type="submit"]').click();
+			await page.locator('.ask__error').waitFor({ timeout: 15000 });
+			check(
+				'a link as a tag is refused with its reason',
+				(await page.locator('.ask__error').textContent())?.trim() === T.tagnew_reason_linkOrMarkup
+			);
+			check('…and nothing navigated', new URL(page.url()).pathname === '/ask');
+			await page.locator('form.ask').screenshot({
+				path: `${SHOTS}/tagnew-refused-${locale}-1280.png`
+			});
+			await page.context().close();
+		}
+
+		// The server reuses the tag a name folds to, whatever the picker knew.
+		const reused = await api('POST', '/posts/', TOKENS.asker, {
+			body: `${MARK} ${locale} reuse`,
+			tag_name: 'Całka Z 1-Formy',
+			audience: 'university',
+			language: locale
+		});
+		check(
+			`the API reuses #${FOLD_TAG} for "Całka Z 1-Formy"`,
+			reused.status === 201 && reused.json?.tag === FOLD_TAG && reused.json?.tag_created === false,
+			JSON.stringify({ status: reused.status, tag: reused.json?.tag })
+		);
+	}
+
+	// A minor may not mint a tag — refused with the reason, in the page.
+	{
+		const T = CATALOGUE.pl;
+		const minor = await session('pl', { token: TOKENS.minor });
+		await open(minor, '/ask');
+		await minor.locator('form.ask textarea#ask-body').waitFor({ timeout: 20000 });
+		await minor.locator('form.ask textarea#ask-body').fill(`${MARK} minor new tag`);
+		await minor.locator('form.ask #ask-tag').fill(`nowy temat ${Date.now().toString(36)}`);
+		await settle(300);
+		await minor.locator('.tag-picker__create-button').click();
+		await minor
+			.locator('form.ask select:has(option[value="university"])')
+			.selectOption('university');
+		expectedRefusals++;
+		await minor.locator('form.ask button[type="submit"]').click();
+		await minor.locator('.ask__error').waitFor({ timeout: 15000 });
+		check(
+			"a minor's new tag is refused with its reason",
+			(await minor.locator('.ask__error').textContent())?.trim() === T.tagnew_reason_minor
+		);
+		await minor.locator('form.ask').screenshot({ path: `${SHOTS}/tagnew-minor-pl-1280.png` });
+		await minor.context().close();
 	}
 
 	// ---- 5. a minor's question is held, and the page says so ----------------------------------
@@ -453,9 +641,16 @@ try {
 		`cleanup: tombstoned ${removed}, none of ours left listed`,
 		!(left.json ?? []).some((p) => p.body.includes(MARK))
 	);
+	// The orphan rule: a tag a question minted leaves the site when its only question does.
+	for (const slug of createdTags) {
+		const gone = await api('GET', `/tags/${encodeURIComponent(slug)}/`, TOKENS.asker);
+		check(`cleanup: #${slug} is no longer listed (404)`, gone.status === 404, String(gone.status));
+	}
 	await browser.close();
 }
 
+if (ignoredRefusals)
+	console.log(`(ignored ${ignoredRefusals} logged 400/403s — the refusals this script provokes)`);
 if (ignoredFontErrors)
 	console.log(`\n(ignored ${ignoredFontErrors} KaTeX font 403s — e2e/CLAUDE.md trap 26)`);
 check(

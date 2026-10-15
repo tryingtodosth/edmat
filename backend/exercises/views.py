@@ -109,6 +109,15 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
     # Tag directly via REPORT_KIND_MODELS, never through this ViewSet's own queryset.
     queryset = Tag.objects.filter(is_removed=False).order_by('slug')
     serializer_class = TagSerializer
+
+    def get_queryset(self):
+        # And a tag a question minted is listed only while something visible uses it — the orphan
+        # rule (`exercises/tags.py: listed_tags`, WP16). That covers retrieve too, so a withdrawn
+        # question's tag page, follow and "apply" all answer 404 as if it had never existed.
+        from .tags import listed_tags
+
+        return listed_tags(super().get_queryset())
+
     pagination_class = None
     lookup_field = 'slug'
 

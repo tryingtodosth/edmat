@@ -2022,3 +2022,31 @@ export function licenceReasonLabel(reason: string): string {
 			return m.licence_reason_generic(); // "The licence could not be changed."
 	}
 }
+
+// ---- a new tag, made by asking (backend `exercises/tags.py`, WP16, 2026-10-15) ----------------
+//
+// A hand-maintained mirror of the refusal words `exercises/tags.py: create_tag_from` answers with
+// (its `REFUSALS` tuple names this file back — house rule 13), each with its own sentence (house
+// rule 6). They arrive as `{tag_name: ['<word>']}` from `POST /api/posts/`.
+const TAG_REFUSAL_LABELS: Record<string, () => string> = {
+	signin_required: m.tagnew_reason_signinRequired, // "Sign in to create a tag."
+	tag_name_empty: m.tagnew_reason_nameEmpty, // "A tag name needs letters or digits."
+	tag_name_too_short: m.tagnew_reason_nameTooShort, // "That name is too short — a tag needs at least two letters or digits."
+	tag_name_too_long: m.tagnew_reason_nameTooLong, // "That name is too long — 50 characters at most."
+	tag_name_link_or_markup: m.tagnew_reason_linkOrMarkup, // "A tag cannot contain a link, an address or HTML."
+	tag_removed: m.tagnew_reason_tagRemoved, // "A tag like that was removed by the moderators and cannot be created again."
+	minor_cannot_create_tag: m.tagnew_reason_minor, // "Only adults can create new tags. Pick one that exists — you can ask your question just the same."
+	too_many_new_tags: m.tagnew_reason_throttled // "That is a lot of new tags for one hour. Pick an existing one, or try again a little later."
+};
+
+/** The sentence for a new-tag refusal on a failed post, or null when the failure was something
+ * else (the caller keeps its own message for those). */
+export function tagRefusalMessage(err: unknown): string | null {
+	if (err instanceof ApiError && err.body && typeof err.body === 'object') {
+		const field = (err.body as Record<string, unknown>).tag_name;
+		if (Array.isArray(field) && typeof field[0] === 'string' && field[0] in TAG_REFUSAL_LABELS) {
+			return TAG_REFUSAL_LABELS[field[0]]();
+		}
+	}
+	return null;
+}

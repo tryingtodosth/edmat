@@ -47,6 +47,28 @@ class Tag(models.Model):
     # effect. Filtered out wherever a tag is serialized to an ordinary reader (Exercise/Material
     # `tags`), same as a removed Comment/Review already disappears from its own reader-facing list.
     is_removed = models.BooleanField(default=False)
+    # Who made the tag and when (WP16, 2026-10-15 — the owner's "tag creation is a must"). Both are
+    # null on the 1,022 tags that predate them: nobody recorded it, and inventing a date would be
+    # a lie. `created_at` is stamped by `save()` on every NEW row whichever path makes it (the
+    # importer, a submission's approval, a concept article, a question); `created_by` is set where
+    # a person is known.
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    created_at = models.DateTimeField(null=True, blank=True)
+    # True for a tag a person minted by asking a question in it (`exercises/tags.py:
+    # create_tag_from`). Such a tag is LISTED only while something visible uses it — an exercise, a
+    # material, a concept, or a post a reader may see (`tags.listed_tags`) — so a question that is
+    # withdrawn, auto-hidden or held never leaves its tag's name standing on its own. The origin is
+    # a fact, not a decision: nothing flips it back.
+    from_question = models.BooleanField(default=False)
+
+    def save(self, *args, **kwargs):
+        if self._state.adding and self.created_at is None:
+            from django.utils import timezone
+
+            self.created_at = timezone.now()
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.slug

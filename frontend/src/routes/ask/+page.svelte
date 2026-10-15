@@ -28,9 +28,13 @@
 			return;
 		}
 		// A tag is not always a clean slug ("całka z 1-formy"), and `resolve()` does not encode.
+		// `tagged=` tells the tag page whether the name typed made a new tag or went into one that
+		// already existed (WP16), so it can say which — absent when an existing tag was picked.
+		const tagged =
+			post.tagCreated === undefined ? '' : `&tagged=${post.tagCreated ? 'new' : 'existing'}`;
 		goto(
-			// eslint-disable-next-line svelte/no-navigation-without-resolve -- built on resolve('/tags/[slug]'), one query parameter added
-			`${resolve('/tags/[slug]', { slug: encodeURIComponent(post.tagSlug) })}?asked=${encodeURIComponent(post.id)}`
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- built on resolve('/tags/[slug]'), query parameters added
+			`${resolve('/tags/[slug]', { slug: encodeURIComponent(post.tagSlug) })}?asked=${encodeURIComponent(post.id)}${tagged}`
 		);
 	}
 </script>

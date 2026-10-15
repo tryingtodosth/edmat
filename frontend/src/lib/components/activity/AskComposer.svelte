@@ -22,6 +22,7 @@
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { createPost } from '$lib/services/activity';
 	import { ApiError } from '$lib/api/client';
+	import { tagRefusalMessage } from '$lib/utils/labels';
 	import { untrack } from 'svelte';
 
 	let {
@@ -36,6 +37,9 @@
 	// Seeded once from the prop: after that the picker owns it, and a parent re-render must not
 	// undo the reader's own "change".
 	let chosenTag = $state(untrack(() => tag));
+	// A NEW tag's name, when the reader chose "Create tag …" in the picker (WP16). The server makes
+	// it with the question, or reuses the tag it folds to (`exercises/tags.py`).
+	let newTagName = $state('');
 
 	let body = $state('');
 	let audience = $state<Audience | ''>('');
@@ -44,7 +48,9 @@
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 
-	let missing = $derived(!body.trim() ? 'body' : !chosenTag ? 'tag' : !audience ? 'audience' : '');
+	let missing = $derived(
+		!body.trim() ? 'body' : !chosenTag && !newTagName ? 'tag' : !audience ? 'audience' : ''
+	);
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -52,16 +58,24 @@
 		busy = true;
 		error = null;
 		try {
-			const post = await createPost({ body, audience, language, tagSlug: chosenTag });
+			const post = await createPost({
+				body,
+				audience,
+				language,
+				...(newTagName ? { tagName: newTagName } : { tagSlug: chosenTag })
+			});
 			body = '';
 			onCreated(post);
 		} catch (e) {
-			// 429 is the per-account posting throttle; anything else is most likely the tag having
-			// been removed by a moderator between loading the picker and pressing the button.
+			// A new tag's refusal carries its own word (house rule 6) — including its own 429, the
+			// hourly bound on NEW tags. Otherwise 429 is the per-account posting throttle, and
+			// anything else is most likely the tag having been removed by a moderator between
+			// loading the picker and pressing the button.
 			error =
-				e instanceof ApiError && e.status === 429
+				tagRefusalMessage(e) ??
+				(e instanceof ApiError && e.status === 429
 					? m.ask_errorThrottled() // "That is a lot of questions for one hour. Try again a little later."
-					: m.ask_errorGeneric(); // "Could not publish the question. Check the tag and try again."
+					: m.ask_errorGeneric()); // "Could not publish the question. Check the tag and try again."
 		} finally {
 			busy = false;
 		}
@@ -75,7 +89,7 @@
 	<RichEditor id="ask-body" bind:value={body} placeholder={m.ask_bodyPlaceholder()} rows={5} />
 	<!-- "What are you stuck on? Write it the way you would ask a friend — maths goes between \( and \)." -->
 
-	<TagPicker bind:value={chosenTag} id="ask-tag" />
+	<TagPicker bind:value={chosenTag} bind:newName={newTagName} id="ask-tag" />
 
 	<div class="ask__row">
 		<AudienceSelect bind:value={audience} />
@@ -98,7 +112,7 @@
 			>{showPreview ? m.entry_hidePreview() : m.entry_showPreview()}</button
 		>
 	</div>
-	{#if missing && (body.trim() || chosenTag)}
+	{#if missing && (body.trim() || chosenTag || newTagName)}
 		<p class="ask__hint">
 			{missing === 'body'
 				? m.ask_missingBody() // "Write the question first."

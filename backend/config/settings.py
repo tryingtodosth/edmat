@@ -744,6 +744,10 @@ REST_FRAMEWORK = {
         # Publishing a micro-post is immediate (no review queue), so the flood-bound lives here:
         # plenty for a person with thoughts, far too few for a spam script.
         'post_create': '12/hour',
+        # Minting a NEW tag while asking a question (exercises/tags.py, WP16). A tag is global and
+        # shows on every chip, so this is much tighter than posting: a few honest new topics an hour,
+        # never a script filling the tag list. Reusing an existing tag does not count.
+        'tag_create': '5/hour',
         # Saving a chemistry drawing decodes and re-encodes a picture (chem/serializers.py) — plenty
         # for somebody drawing a mechanism step by step, far too few for a CPU-exhaustion loop.
         'chem_drawing': '60/hour',
