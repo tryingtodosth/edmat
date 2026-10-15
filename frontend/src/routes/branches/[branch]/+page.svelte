@@ -26,7 +26,7 @@
 	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
 	import { isPending } from '$lib/utils/taxonomy';
 	import { pageTitle } from '$lib/utils/pageTitle';
-	import ConceptCard from '$lib/components/concept/ConceptCard.svelte';
+	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import { getConcepts } from '$lib/services/concepts';
 	import type { ConceptListRow } from '$lib/types/concept';
 	import { CONCEPTS_FLAG } from '$lib/components/concept/labels';
@@ -38,6 +38,8 @@
 	let topics = $state<Topic[]>([]);
 	let materials = $state<Material[]>([]);
 	let concepts = $state<ConceptListRow[]>([]);
+	// How many concepts the strip under the list shows before "See all" takes over.
+	const CONCEPT_CHIPS = 8;
 	let exercises = $state<ResolvedExercise[]>([]);
 	let tab = $state<'exercises' | 'materials'>('exercises');
 	let filters = $state<ExerciseFilters>({});
@@ -106,9 +108,8 @@
 		field = f;
 		topics = t;
 		materials = await getMaterialsForBranch(branchId);
-		// The ideas this branch's exercises and materials are ABOUT. A separate section rather than a
-		// third tab: it is a short list, and it belongs beside both tabs rather than competing with
-		// them. With the kill switch off there is nothing to ask for — and the request is caught, so
+		// The ideas this branch's exercises and materials are ABOUT — a compact strip under both
+		// tabs (see the markup for why there). With the kill switch off there is nothing to ask for — and the request is caught, so
 		// a branch page never breaks over a feature it only decorates.
 		concepts = [];
 		if (featureFlagsStore.isEnabled(CONCEPTS_FLAG) || authStore.isModerator) {
@@ -245,21 +246,6 @@
 			</button>
 		</div>
 
-		{#if concepts.length > 0}
-			<section class="concepts">
-				<div class="concepts__head">
-					<h2>{m.branch_concepts_heading()}</h2>
-					<!-- "Concepts" -->
-					<a href={resolve('/concepts')}>{m.home_seeAll()}</a>
-				</div>
-				<div class="grid">
-					{#each concepts as concept (concept.id)}
-						<ConceptCard {concept} />
-					{/each}
-				</div>
-			</section>
-		{/if}
-
 		{#if tab === 'exercises'}
 			<div class="layout">
 				<FiltersSidebar
@@ -312,6 +298,36 @@
 				</div>
 			</div>
 		{/if}
+
+		<!-- The ideas this branch is ABOUT, as one compact strip AFTER the list (first-visitor audit
+		     finding 10, 2026-10-15): it used to sit between the tabs and the list as full cards and
+		     pushed the first exercise ~1000px down a phone, even on the Exercises tab. Below rather
+		     than a third tab, because it belongs to both tabs alike and a tab would make a short
+		     "see also" into a destination competing with the exercises; chips rather than cards,
+		     because the hub at /concepts?branch= is one tap away for anyone who wants the summaries. -->
+		{#if concepts.length > 0}
+			<section class="concepts" aria-labelledby="branch-concepts-heading">
+				<h2 id="branch-concepts-heading">{m.branch_concepts_heading()}</h2>
+				<!-- "Concepts" -->
+				<ul class="concepts__chips">
+					{#each concepts.slice(0, CONCEPT_CHIPS) as concept (concept.id)}
+						<li>
+							<a href={resolve('/concepts/[slug]', { slug: concept.slug })}>
+								<MathTitle text={concept.title || concept.slug} />
+							</a>
+						</li>
+					{/each}
+				</ul>
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- built on resolve('/concepts'), query params only; a block pair because the rule reports at the href line, which prettier moves -->
+				<a
+					class="concepts__all"
+					href={`${resolve('/concepts')}?branch=${encodeURIComponent(branch.id)}`}
+					>{m.wp14b_branch_conceptsAll({ n: concepts.length })}</a
+				>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
+				<!-- "See all {n}" -->
+			</section>
+		{/if}
 	{/if}
 </div>
 
@@ -328,22 +344,46 @@
 	}
 	.concepts {
 		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-	.concepts__head {
-		display: flex;
+		flex-wrap: wrap;
 		align-items: baseline;
-		justify-content: space-between;
-		gap: var(--space-2);
+		gap: var(--space-2) var(--space-3);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--border-color);
 		h2 {
-			font-size: var(--font-size-lg);
+			font-size: var(--font-size-base);
 			margin: 0;
 		}
+	}
+	.concepts__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		min-width: 0;
 		a {
-			color: var(--accent);
+			@include mix.focus-ring;
+			display: inline-block;
+			max-width: 100%;
+			padding: 2px var(--space-2);
+			border: 1px solid var(--border-color);
+			border-radius: 999px;
+			background: var(--bg-surface);
+			color: var(--text-primary);
 			font-size: var(--font-size-sm);
+			text-decoration: none;
+			overflow-wrap: anywhere;
+			&:hover {
+				border-color: var(--accent);
+				color: var(--accent);
+			}
 		}
+	}
+	.concepts__all {
+		color: var(--accent);
+		font-size: var(--font-size-sm);
+		white-space: nowrap;
 	}
 	.breadcrumb {
 		font-size: var(--font-size-sm);

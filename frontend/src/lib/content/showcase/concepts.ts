@@ -293,9 +293,9 @@ const PL: ConceptsShowcase = {
 	learnFirstItems: ['Ciągłość funkcji', 'Ciąg zbieżny', 'Granica ciągu', 'Kresy górny i dolny'],
 	learnFirstCaption:
 		'To nie bramka ani ostrzeżenie — to kolejność czytania, podana, zanim ktoś wyda dwadzieścia minut na odkrycie, że była mu potrzebna.',
-	deckHeading: 'Talia z pojęcia',
+	deckHeading: 'Fiszki z pojęcia',
 	deckBody: [
-		'Pojęcie zbiera zadania, które są o nim, więc „zrób talię z tego pojęcia” to talia każdego powiązanego z nim zadania, które czytelnik może widzieć. Dla fiszki z pojęcia przodem jest tytuł dobranego artykułu, a tyłem jego streszczenie; dla fiszki z zadania — treść i opublikowana odpowiedź.',
+		'Pojęcie zbiera zadania, które są o nim, więc „zrób fiszki z tego pojęcia” robi fiszkę z każdego powiązanego z nim zadania, które czytelnik może widzieć. Dla fiszki z pojęcia przodem jest tytuł dobranego artykułu, a tyłem jego streszczenie; dla fiszki z zadania — treść i opublikowana odpowiedź.',
 		'Fiszka trzyma żywe odniesienie do pojęcia, więc artykuł przepisany w przyszłym miesiącu dociera do fiszki. Fiszka zamrożona — trzymająca brzmienie, z którego powstała — celowo nie jest proponowana, bo fiszka z nieaktualnego wyjaśnienia jest fiszką z czegoś błędnego.'
 	],
 	deck: { name: 'Zwartość', cardCount: 9, dueCount: 9, source: 'concept', isPublic: false },

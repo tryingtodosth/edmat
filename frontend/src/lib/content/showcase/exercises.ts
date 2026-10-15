@@ -196,9 +196,9 @@ const EN: ExercisesShowcase = {
 };
 
 const PL: ExercisesShowcase = {
-	title: 'Zadanie, zestaw, talia',
+	title: 'Zadanie, zestaw, fiszki',
 	description:
-		'Co zawiera jedno zadanie w EdMacie, jak zbiera się zadania we własny zestaw i co się dzieje, gdy ten zestaw staje się talią fiszek.',
+		'Co zawiera jedno zadanie w EdMacie, jak zbiera się zadania we własny zestaw i co się dzieje, gdy ten zestaw staje się fiszkami.',
 	lead: [
 		'Zadanie to najmniejsza rzecz w tym serwisie i to, na co wskazuje wszystko inne. Nigdy nie jest kopiowane: kurs, który go uczy, zestaw układany przed kolokwium, pojęcie, do którego należy, i fiszka z niego zrobiona — wszystkie odsyłają do tego samego wiersza, więc poprawione rozwiązanie poprawia się wszędzie naraz.',
 		'Ta strona pokazuje jeden wiersz tak, jak widzi go czytelnik, a potem dwie rzeczy, które można zrobić z kilkoma — zebrać je w zestaw i zamienić ten zestaw w coś, z czego da się powtarzać.'
@@ -279,7 +279,7 @@ const PL: ExercisesShowcase = {
 	],
 	setCaption:
 		'Zestaw to uporządkowana lista zadań z twoją własną nazwą. Tutaj trzy; prawdziwe mają po trzydzieści.',
-	deckHeading: 'I talia, którą ten zestaw się staje',
+	deckHeading: 'I fiszki, którymi ten zestaw się staje',
 	deck: {
 		name: 'Kolokwium 2 — granice i szeregi',
 		cardCount: 3,
@@ -288,15 +288,15 @@ const PL: ExercisesShowcase = {
 		isPublic: false
 	},
 	deckCaption:
-		'Te same trzy zadania jako talia: z przodu treść, z tyłu opublikowana odpowiedź. Każda fiszka jest do powtórki w dniu, w którym powstała.',
+		'Te same trzy zadania jako fiszki: z przodu treść, z tyłu opublikowana odpowiedź. Każda jest do powtórki w dniu, w którym powstała.',
 	browseLinkLabel: 'Przeglądaj dziedziny',
 	setLinkLabel: 'Otwórz Mój zestaw',
 	snapshotNote:
-		'Skład jest migawką, a treść nie. To, które zadania weszły do talii, zostało ustalone w chwili naciśnięcia przycisku, więc dodanie czwartego do zestawu później nie zmienia talii — ale każda fiszka wciąż wskazuje na żywe zadanie, więc poprawiona odpowiedź dociera do fiszki bez przebudowywania czegokolwiek.',
+		'Skład jest migawką, a treść nie. To, z których zadań powstały fiszki, zostało ustalone w chwili naciśnięcia przycisku, więc dodanie czwartego do zestawu później nie dokłada fiszki — ale każda fiszka wciąż wskazuje na żywe zadanie, więc poprawiona odpowiedź dociera do fiszki bez przebudowywania czegokolwiek.',
 	tryIt: [
 		{ label: 'Przeglądaj zadania', route: '/disciplines' },
 		{ label: 'Otwórz Mój zestaw', route: '/my-set' },
-		{ label: 'Twoje talie fiszek', route: '/flashcards' }
+		{ label: 'Twoje fiszki', route: '/flashcards' }
 	],
 	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
 	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
@@ -320,7 +320,7 @@ const PL: ExercisesShowcase = {
 			route: '/my-set',
 			alt: 'Zrzut ekranu Mojego zestawu: przyciski eksportu do PDF i czyszczenia zestawu, pole do zapisania zestawu pod nazwą, zapisany zestaw „Before the midterm” z przyciskami udostępniania, wczytania i „Make a deck from this set” oraz dwa pierwsze zadania z polami Hint, Answer i Solution.',
 			caption:
-				'Mój zestaw: zebrane zadania, co wydrukować przy każdym, nazwa, pod którą go zapisać — i „zrób talię z tego zestawu”.'
+				'Mój zestaw: zebrane zadania, co wydrukować przy każdym, nazwa, pod którą go zapisać — i „zrób fiszki z tego zestawu”.'
 		}
 	]
 };

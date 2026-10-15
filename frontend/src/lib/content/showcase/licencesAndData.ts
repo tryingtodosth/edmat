@@ -425,7 +425,7 @@ const PL: ShowcaseModuleDoc = {
 				{
 					term: 'Jeszcze bez licencji',
 					detail:
-						'Talie fiszek, albumy zdjęć, szkice i rysunki chemiczne nie mają licencji. Fiszki w talii to kopie zadań o różnych licencjach, więc jedna licencja talii źle by je opisywała.'
+						'Fiszki, albumy zdjęć, szkice i rysunki chemiczne nie mają licencji. Fiszki to kopie zadań o różnych licencjach, więc jedna wspólna licencja źle by je opisywała.'
 				},
 				{
 					term: 'Łączenie',

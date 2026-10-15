@@ -81,7 +81,7 @@ const check = (label, ok, extra = '') => {
 const PAGES = [
 	{
 		slug: 'exercises',
-		pl: 'Zadanie, zestaw, talia',
+		pl: 'Zadanie, zestaw, fiszki',
 		en: 'An exercise, a set, a deck',
 		frames: 4,
 		tries: 3,
@@ -1229,7 +1229,7 @@ try {
 		const html = await (await fetch(`${BASE}/about/exercises`)).text();
 		check(
 			'raw HTML of /about/exercises carries its h1',
-			html.includes('Zadanie, zestaw, talia') || html.includes('An exercise, a set, a deck')
+			html.includes('Zadanie, zestaw, fiszki') || html.includes('An exercise, a set, a deck')
 		);
 		// `class="katex"` is the typeset output. KaTeX also emits the original TeX inside a MathML
 		// `<annotation>`, so the raw source APPEARING in the HTML is correct and is not the thing to

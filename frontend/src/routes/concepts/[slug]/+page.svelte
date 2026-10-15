@@ -433,9 +433,8 @@
 		margin: 0;
 	}
 	.error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 		margin: 0;
 		align-self: flex-start;
-		white-space: normal;
 	}
 </style>

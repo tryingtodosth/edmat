@@ -14,17 +14,22 @@
 	import { localizedPath } from '$lib/utils/localizedPath';
 	import { formatRelativeDate } from '$lib/utils/format';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import type { ActivityFeed, ActivityItem, ActivityKind } from '$lib/types/profileExtras';
 
 	let {
 		feed,
 		kindFilter = $bindable(''),
-		limit
+		limit,
+		own = false
 	}: {
 		feed: ActivityFeed;
 		kindFilter?: ActivityKind | '';
 		/** Set on the profile's own inline preview, omitted in the modal. */
 		limit?: number;
+		/** The reader is looking at their own profile: the empty state speaks to them and offers a
+		 *  first step, rather than describing a stranger. */
+		own?: boolean;
 	} = $props();
 
 	let tagFilter = $state('');
@@ -143,9 +148,24 @@
 	{/if}
 {/if}
 
-{#if visible.length === 0}
-	<p class="empty">{m.profile_activity_noMatches()}</p>
-	<!-- "Nothing matches those filters." -->
+<!-- Nothing at all, and "your filter matched nothing", are two different answers (audit finding 14,
+     2026-10-15: a brand-new profile with no filter set said "Nothing matches those filters"). -->
+{#if feed.items.length === 0}
+	<EmptyState
+		name="profile-activity"
+		message={own ? m.wp14b_activity_emptyOwn() : m.wp14b_activity_emptyOther()}
+		action={own
+			? { label: m.wp14b_activity_emptyOwnAction(), href: resolve('/disciplines') }
+			: undefined}
+	/>
+	<!-- "What you do here shows up in this list: exercises and materials you add, comments, reviews, finished lessons and saved sets. It is empty for now." / "Nothing public from this person here yet." / "Find exercises" -->
+{:else if visible.length === 0}
+	<EmptyState
+		name="profile-activity"
+		message=""
+		filtered
+		onclear={() => ((kindFilter = ''), (tagFilter = ''))}
+	/>
 {:else}
 	<ul class="feed">
 		{#each visible as item, index (`${item.kind}-${index}-${item.title}`)}
@@ -321,9 +341,5 @@
 		background: var(--bg-page);
 		border-radius: 999px;
 		padding: 0 var(--space-2);
-	}
-	.empty {
-		font-size: var(--font-size-sm);
-		color: var(--text-secondary);
 	}
 </style>

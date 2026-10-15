@@ -46,6 +46,8 @@
 	let error = $state<string | null>(null);
 	// Which attached PDF is open, if any — one at a time, the same as a comment's.
 	let openPdf = $state<string | null>(null);
+	// The licence sentence under the meta line, opened from the licence word in it.
+	let licenceOpen = $state(false);
 
 	let isOwn = $derived(
 		!!authStore.user && !!entry.authorId && entry.authorId === authStore.user.id
@@ -288,26 +290,18 @@
 	</div>
 
 	<div class="entry__main">
+		<!-- One quiet line, not a row of pills (first-visitor audit finding 11, 2026-10-15): every
+		     hint and solution opened with four filled chips — pinned, language, licence, author —
+		     that out-shouted the solution under them. The same facts, as text separated by dots;
+		     only pending and rejected keep a coloured pill, because those two ask something of the
+		     reader. The licence was a hover title, which a phone cannot reach: it is a button now
+		     that opens its own sentence under the line. -->
 		<header class="entry__meta">
-			{#if entry.pinned}
-				<span class="badge badge--pinned">{m.entry_pinnedBadge()}</span>
-			{/if}
 			{#if entry.status === 'pending'}
 				<span class="badge badge--pending">{m.entry_pendingBadge()}</span>
 			{:else if entry.status === 'rejected'}
 				<span class="badge badge--rejected">{m.entry_rejectedBadge()}</span>
 			{/if}
-			<span class="badge badge--lang">{entry.locale.toUpperCase()}</span>
-			<!-- Its own licence (backend licensing/): a solution is its author's work, not the
-			     statement's. The summary is the title, so the badge stays one word wide. -->
-			<span
-				class="badge badge--licence"
-				data-testid="entry-licence"
-				title={`${m.licence_entryTitle({ licence: licenceShort(entry.licence) })} — ${LICENCE_SUMMARIES[entry.licence]()}`}
-				>{licenceShort(entry.licence)}</span
-			>
-			<!-- "This entry is licensed under {licence}" -->
-			<AiAssistChip kind="solution_entry" id={entry.id} />
 			{#if entry.authorId}
 				<a class="entry__author" href={resolve('/users/[id]', { id: entry.authorId })}
 					>{entry.authorDisplayName}</a
@@ -315,7 +309,30 @@
 			{:else}
 				<span class="entry__author entry__author--corpus">{m.entry_corpusAuthor()}</span>
 			{/if}
+			{#if entry.pinned}
+				<span class="meta-item badge--pinned">{m.entry_pinnedBadge()}</span>
+			{/if}
+			<span class="meta-item badge--lang">{entry.locale.toUpperCase()}</span>
+			<!-- Its own licence (backend licensing/): a solution is its author's work, not the
+			     statement's. -->
+			<button
+				type="button"
+				class="meta-item meta-licence"
+				data-testid="entry-licence"
+				aria-expanded={licenceOpen}
+				title={m.licence_entryTitle({ licence: licenceShort(entry.licence) })}
+				onclick={() => (licenceOpen = !licenceOpen)}>{licenceShort(entry.licence)}</button
+			>
+			<!-- "This entry is licensed under {licence}" -->
+			<AiAssistChip kind="solution_entry" id={entry.id} />
 		</header>
+		{#if licenceOpen}
+			<p class="entry__licence">
+				{m.licence_entryTitle({ licence: licenceShort(entry.licence) })} — {LICENCE_SUMMARIES[
+					entry.licence
+				]()}
+			</p>
+		{/if}
 
 		<MathContent source={entry.body} />
 
@@ -591,17 +608,50 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: var(--space-1);
+		gap: var(--space-1) var(--space-2);
 		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
 	}
 	.badge {
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
 	}
-	// Pinned is a fact about the entry, not a question for the reader: the neutral pill, weighted
-	// up (2026-10-07 colour pass — info means "asks you" now).
+	// The quiet facts on the meta line: text in the secondary colour, no fill, a dot AFTER each one
+	// but the last — after, not before, so a line that wraps ends on a dot instead of starting with
+	// one. Inline-block, so a link's underline does not run under its dot.
+	.meta-item {
+		color: var(--text-secondary);
+	}
+	.entry__author::after,
+	.meta-item:not(:last-child)::after {
+		content: '·';
+		display: inline-block;
+		margin-left: var(--space-2);
+		color: var(--text-secondary);
+		font-weight: 400;
+	}
+	// Pinned is a fact about the entry, not a question for the reader (2026-10-07 colour pass) —
+	// weighted up so it is still the first thing the eye lands on among the quiet facts.
 	.badge--pinned {
-		@include mix.neutral-pill;
 		font-weight: 600;
+	}
+	.meta-licence {
+		@include mix.focus-ring;
+		padding: 0;
+		border: none;
+		background: none;
+		font: inherit;
+		text-decoration: underline dotted;
+		text-underline-offset: 2px;
+		cursor: pointer;
+		&:hover,
+		&[aria-expanded='true'] {
+			color: var(--text-primary);
+		}
+	}
+	.entry__licence {
+		margin: 0;
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
 	}
 	.badge--pending {
 		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
@@ -627,7 +677,7 @@
 		color: var(--status-danger);
 	}
 	.entry__notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 		align-self: flex-start;
 	}
 	.entry__actions {

@@ -103,17 +103,17 @@ const EN: GuideChapterDoc = {
 const PL: GuideChapterDoc = {
 	title: 'Fiszki',
 	lead: [
-		'Talia to stos kart, przez który przechodzi się po kilka naraz. Karta to albo zadanie z bazy, albo dwie linijki napisane przez Ciebie, a serwis prowadzi Twój własny harmonogram dla każdej z nich: mówisz, jak poszło, a karta wraca w dniu, w którym miałeś ją zapomnieć.',
-		'Talia należy do tego, kto ją zrobił. Umieszczenie jej na kursie albo na wydarzeniu to sposób, w jaki mogą się z niej uczyć inni.'
+		'Fiszki to stos kart, przez który przechodzi się po kilka naraz. Karta to albo zadanie z bazy, albo dwie linijki napisane przez Ciebie, a serwis prowadzi Twój własny harmonogram dla każdej z nich: mówisz, jak poszło, a karta wraca w dniu, w którym miałeś ją zapomnieć.',
+		'Fiszki należą do tego, kto je zrobił. Umieszczenie ich na kursie albo na wydarzeniu to sposób, w jaki mogą się z nich uczyć inni.'
 	],
 	steps: [
 		{
-			heading: 'Zrób talię',
+			heading: 'Zrób fiszki',
 			tryHref: '/my-set',
 			body: [
-				'Najkrótsza droga to zapisany zestaw. Na stronie „My set” każdy zapisany zestaw ma przycisk „Make a deck from this set”, a powstała talia ma jedną kartę na każde zadanie z zestawu.',
-				'Ten sam przycisk jest przy lekcji w kursie, przy sesji w programie wydarzenia i na stronie pojęcia — wszystko, co właśnie czytasz, może stać się talią. Menu „+” przy kafelku zadania ma też rozwijaną sekcję „Decks”, żeby wrzucić jedno zadanie do talii, którą już masz.',
-				'To, co powstaje, jest kopią, a nie odnośnikiem: dołożenie zadania do zestawu nie dołoży karty do talii, a talia przeżyje skasowanie zestawu.'
+				'Najkrótsza droga to zapisany zestaw. Na stronie „My set” każdy zapisany zestaw ma przycisk „Make a deck from this set”, a powstałe fiszki mają po jednej karcie na każde zadanie z zestawu.',
+				'Ten sam przycisk jest przy lekcji w kursie, przy sesji w programie wydarzenia i na stronie pojęcia — wszystko, co właśnie czytasz, może stać się fiszkami. Menu „+” przy kafelku zadania ma też rozwijaną sekcję „Decks”, żeby wrzucić jedno zadanie do fiszek, które już masz.',
+				'To, co powstaje, jest kopią, a nie odnośnikiem: dołożenie zadania do zestawu nie dołoży karty do fiszek, a fiszki przeżyją skasowanie zestawu.'
 			],
 			screenshot: {
 				src: '/guide/flashcards/01-make-from-set.png',
@@ -121,49 +121,49 @@ const PL: GuideChapterDoc = {
 			}
 		},
 		{
-			heading: 'Twoje talie i to, co czeka',
+			heading: 'Twoje fiszki i to, co czeka',
 			tryHref: '/flashcards',
 			body: [
-				'„My decks” w menu konta to lista. Każda talia mówi, ile ma kart, skąd pochodzi i ile czeka na Ciebie; wiersz nad listą sumuje to po wszystkich taliach.',
-				'Talia, której jeszcze nie powtarzałeś, liczy wszystkie swoje karty jako czekające, bo karta nieobejrzana to karta do nauczenia. Pole pod tym wierszem zakłada pustą talię, jeśli wolisz budować ją po jednej karcie.'
+				'„My decks” w menu konta to lista. Przy każdych fiszkach widać, ile mają kart, skąd pochodzą i ile czeka na Ciebie; wiersz nad listą sumuje to po wszystkich.',
+				'Fiszki, których jeszcze nie powtarzano, liczą wszystkie swoje karty jako czekające, bo karta nieobejrzana to karta do nauczenia. Pole pod tym wierszem zakłada nowe, puste fiszki, jeśli wolisz budować je po jednej karcie.'
 			],
 			screenshot: {
 				src: '/guide/flashcards/02-decks.png',
-				alt: 'Strona My decks: „5 cards waiting across 2 decks”, pole na nazwę nowej talii i dwie talie — „Definitions I keep forgetting”, 2 karty, zbudowana ręcznie, oraz „Limits and sequences”, 3 karty, z zestawu zadań — każda z przyciskami Open i Review.'
+				alt: 'Strona My decks: „5 cards waiting across 2 decks”, pole na nazwę nowych fiszek i dwie pozycje na liście — „Definitions I keep forgetting”, 2 karty, zbudowana ręcznie, oraz „Limits and sequences”, 3 karty, z zestawu zadań — każda z przyciskami Open i Review.'
 			}
 		},
 		{
-			heading: 'Co jest w talii',
+			heading: 'Co jest w fiszkach',
 			body: [
-				'Strona talii wypisuje jej karty po kolei. Karta z zadaniem jest odnośnikiem do zadania, więc wskazówka, rozwiązanie i dyskusja pod nim są zawsze o jedno kliknięcie dalej — karta jest pytaniem, a nie kopią zadania.',
-				'Zadanie, które w międzyczasie zdjęto, zostaje w talii i jest o tym napisane, a taką kartę widzisz tylko Ty. Nic nie znika po cichu.',
-				'Jeśli czytasz cudzą talię, bo ktoś umieścił ją na kursie, na który chodzisz, widzisz karty i przycisk Review, a nic z edycji. Uczciwa odpowiedź na pytanie „czy mogę to zmienić” jest przyciskiem obok: „Save a copy to my account” daje Ci własną talię.'
+				'Strona fiszek wypisuje ich karty po kolei. Karta z zadaniem jest odnośnikiem do zadania, więc wskazówka, rozwiązanie i dyskusja pod nim są zawsze o jedno kliknięcie dalej — karta jest pytaniem, a nie kopią zadania.',
+				'Zadanie, które w międzyczasie zdjęto, zostaje w fiszkach i jest o tym napisane, a taką kartę widzisz tylko Ty. Nic nie znika po cichu.',
+				'Jeśli czytasz cudze fiszki, bo ktoś umieścił je na kursie, na który chodzisz, widzisz karty i przycisk Review, a nic z edycji. Uczciwa odpowiedź na pytanie „czy mogę to zmienić” jest przyciskiem obok: „Save a copy to my account” daje Ci własne fiszki.'
 			],
 			screenshot: {
 				src: '/guide/flashcards/03-cards.png',
-				alt: 'Panel Cards w talii: trzy tytuły zadań, jeden ze złożonym wzorem, każdy z odnośnikiem Remove.'
+				alt: 'Panel Cards na stronie fiszek: trzy tytuły zadań, jeden ze złożonym wzorem, każdy z odnośnikiem Remove.'
 			}
 		},
 		{
 			heading: 'Dokładanie karty',
 			body: [
-				'Trzy sposoby, wszystkie na stronie talii. Wyszukaj zadanie w bazie po tytule i dodaj je; wciągnij naraz wszystkie zadania z jednego ze swoich zapisanych zestawów; albo napisz własną kartę — przód i tył. Matematykę pisze się tak samo jak wszędzie tutaj, między \\( i \\).',
-				'„Remove” wyjmuje kartę z talii razem z Twoim harmonogramem dla niej. „Delete deck” robi to samo ze wszystkimi kartami naraz i pyta, zanim to zrobi.'
+				'Trzy sposoby, wszystkie na stronie fiszek. Wyszukaj zadanie w bazie po tytule i dodaj je; wciągnij naraz wszystkie zadania z jednego ze swoich zapisanych zestawów; albo napisz własną kartę — przód i tył. Matematykę pisze się tak samo jak wszędzie tutaj, między \\( i \\).',
+				'„Remove” usuwa kartę razem z Twoim harmonogramem dla niej. „Delete deck” robi to samo ze wszystkimi kartami naraz i pyta, zanim to zrobi.'
 			],
 			screenshot: {
 				src: '/guide/flashcards/04-add-a-card.png',
-				alt: 'Panel „Add an exercise” w talii: wyszukiwarka, lista „Add from one of my sets” oraz formularz „Write a card of your own” z polami Front i Back i przyciskiem Add card.'
+				alt: 'Panel „Add an exercise” na stronie fiszek: wyszukiwarka, lista „Add from one of my sets” oraz formularz „Write a card of your own” z polami Front i Back i przyciskiem Add card.'
 			}
 		},
 		{
 			heading: 'Powtarzanie',
 			body: [
 				'„Review” pokazuje po jednej karcie, najpierw przód: treść zadania albo to, co napisałeś na przodzie, i nic więcej — chodzi o to, żeby odpowiedzieć, zanim zobaczysz odpowiedź. „Show the answer” odwraca kartę; spacja i Enter robią to samo.',
-				'Wiersz pod nazwą talii to jej rachunek: ile kart jest na dziś, ilu jeszcze nigdy nie widziałeś i ile ma już wyznaczony późniejszy dzień. „1 of 3” mówi, gdzie jesteś w tym posiedzeniu.'
+				'Wiersz pod nazwą fiszek to ich rachunek: ile kart jest na dziś, ile jest nowych, jeszcze nieoglądanych, i ile ma już wyznaczony późniejszy dzień. „1 of 3” mówi, gdzie jesteś w tym posiedzeniu.'
 			],
 			screenshot: {
 				src: '/guide/flashcards/05-review.png',
-				alt: 'Ekran powtórki talii „Limits and sequences”: liczby „0 due · 3 new · 0 scheduled”, pozycja „1 of 3”, karta z treścią zadania i złożonym wzorem oraz przycisk „Show the answer”.'
+				alt: 'Ekran powtórki fiszek „Limits and sequences”: liczby „0 due · 3 new · 0 scheduled”, pozycja „1 of 3”, karta z treścią zadania i złożonym wzorem oraz przycisk „Show the answer”.'
 			}
 		},
 		{
@@ -179,19 +179,19 @@ const PL: GuideChapterDoc = {
 			}
 		},
 		{
-			heading: 'Postawienie talii tam, gdzie ktoś ją znajdzie',
+			heading: 'Postawienie fiszek tam, gdzie ktoś je znajdzie',
 			body: [
-				'We własnej talii „Place this deck on a course or an event you run” to sposób, w jaki trafia ona do kogokolwiek innego. Po umieszczeniu na stronie kursu albo wydarzenia pojawia się panel „Flashcards”, a każdy, kto może otworzyć tę stronę, może się z talii uczyć — na Twoich kartach, z własnym harmonogramem, którego nikt inny nigdy nie widzi.',
-				'Umieszczenie to wskazanie, a nie przekazanie: talia dalej jest Twoja i dalej tylko Ty możesz ją zmieniać, możesz ją stamtąd zdjąć i może to zrobić także osoba prowadząca kurs. Kurs widoczny wyłącznie dla uczestników zachowuje to i przy taliach, bo panel rysuje się tylko komuś, kto i tak mógłby otworzyć stronę.',
-				'Zaznaczenie na stronie talii, „Anyone with the link can study this deck”, to wersja szersza: talia staje się czytelna dla każdego, komu podasz adres. Konta poniżej szesnastu lat nie mogą tego włączyć.'
+				'Na stronie własnych fiszek „Place this deck on a course or an event you run” to sposób, w jaki trafiają one do kogokolwiek innego. Po umieszczeniu na stronie kursu albo wydarzenia pojawia się panel „Flashcards”, a każdy, kto może otworzyć tę stronę, może się z tych fiszek uczyć — na Twoich kartach, z własnym harmonogramem, którego nikt inny nigdy nie widzi.',
+				'Umieszczenie to wskazanie, a nie przekazanie: fiszki dalej są Twoje i dalej tylko Ty możesz je zmieniać, możesz je stamtąd zdjąć i może to zrobić także osoba prowadząca kurs. Kurs widoczny wyłącznie dla uczestników zachowuje to i przy fiszkach, bo panel rysuje się tylko komuś, kto i tak mógłby otworzyć stronę.',
+				'Zaznaczenie na stronie fiszek, „Anyone with the link can study this deck”, to wersja szersza: fiszki stają się czytelne dla każdego, komu podasz adres. Konta poniżej szesnastu lat nie mogą tego włączyć.'
 			],
 			screenshot: {
 				src: '/guide/flashcards/07-on-a-course.png',
-				alt: 'Panel Flashcards na stronie kursu, widziany przez uczestnika: talia „Limits and sequences”, 3 karty, autorstwa Ani Kowalczyk, z przyciskiem „3 to review”.'
+				alt: 'Panel Flashcards na stronie kursu, widziany przez uczestnika: fiszki „Limits and sequences”, 3 karty, autorstwa Ani Kowalczyk, z przyciskiem „3 to review”.'
 			}
 		}
 	],
-	note: 'Czego jeszcze nie ma: listy publicznych talii do przeglądania, przypomnienia, kiedy karty robią się aktualne, ani nauki bez połączenia. Talia trafia do innych przez umieszczenie jej na kursie albo wydarzeniu, albo przez link — i w żaden inny sposób. Projekt, narysowany na danych przykładowych, jest pod adresem /about/flashcards.'
+	note: 'Czego jeszcze nie ma: listy publicznych fiszek do przeglądania, przypomnienia, kiedy karty robią się aktualne, ani nauki bez połączenia. Fiszki trafiają do innych przez umieszczenie ich na kursie albo wydarzeniu, albo przez link — i w żaden inny sposób. Projekt, narysowany na danych przykładowych, jest pod adresem /about/flashcards.'
 };
 
 export function flashcardsChapterFor(locale: string): GuideChapterDoc {

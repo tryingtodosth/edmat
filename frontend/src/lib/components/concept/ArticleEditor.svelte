@@ -428,9 +428,8 @@
 		}
 	}
 	.public-notice {
-		@include mix.status-pill(var(--status-info), var(--status-info-bg));
+		@include mix.status-message(info);
 		margin: 0;
-		white-space: normal;
 	}
 	.field {
 		display: flex;
@@ -503,26 +502,23 @@
 		}
 	}
 	.stale {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
 		gap: var(--space-1);
-		white-space: normal;
 
 		p {
 			margin: 0;
 		}
 	}
 	.error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 		align-self: flex-start;
-		white-space: normal;
 	}
 	.notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 		align-self: flex-start;
-		white-space: normal;
 	}
 	.actions {
 		display: flex;

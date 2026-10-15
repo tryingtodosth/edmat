@@ -138,10 +138,9 @@
 		color: inherit;
 	}
 	.fallback {
-		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
+		@include mix.status-message(warning);
 		margin: 0;
 		align-self: flex-start;
-		white-space: normal;
 	}
 	.write {
 		align-self: flex-start;

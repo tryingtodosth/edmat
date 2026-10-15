@@ -247,7 +247,7 @@ const INDEX_EN: ShowcaseIndexDoc = {
 const INDEX_PL: ShowcaseIndexDoc = {
 	heading: 'Zobacz, jak działa każda część',
 	intro:
-		'Czternaście stron, jedna na każdy element serwisu, pokazanych prawdziwymi komponentami, przykładowymi danymi i zrzutami ekranu — żeby dało się zobaczyć, jak naprawdę wygląda kurs z talią fiszek, rejestr nauki, rezerwacja korepetycji, tablica zadań zespołu albo skaner biletów na konferencji, bez zakładania konta i bez dołączania do czegokolwiek. Przykłady w ramkach nie są prawdziwe, zrzuty ekranu pochodzą z działającego serwisu, a każda strona prowadzi do prawdziwej wersji, żeby można było samemu spróbować.',
+		'Czternaście stron, jedna na każdy element serwisu, pokazanych prawdziwymi komponentami, przykładowymi danymi i zrzutami ekranu — żeby dało się zobaczyć, jak naprawdę wygląda kurs z fiszkami, rejestr nauki, rezerwacja korepetycji, tablica zadań zespołu albo skaner biletów na konferencji, bez zakładania konta i bez dołączania do czegokolwiek. Przykłady w ramkach nie są prawdziwe, zrzuty ekranu pochodzą z działającego serwisu, a każda strona prowadzi do prawdziwej wersji, żeby można było samemu spróbować.',
 	cardCta: 'Zobacz'
 };
 
@@ -258,12 +258,12 @@ export function showcaseIndexFor(locale: string): ShowcaseIndexDoc {
 export const SHOWCASE_PAGES: ShowcasePage[] = [
 	{
 		slug: 'exercises',
-		titleFor: (l) => pick(l, 'An exercise, a set, a deck', 'Zadanie, zestaw, talia'),
+		titleFor: (l) => pick(l, 'An exercise, a set, a deck', 'Zadanie, zestaw, fiszki'),
 		blurbFor: (l) =>
 			pick(
 				l,
 				'What one row of the corpus carries, how you collect rows into a set of your own, and what happens when that set becomes a deck of flashcards.',
-				'Co zawiera jeden wiersz bazy, jak zbiera się zadania we własny zestaw i co się dzieje, gdy ten zestaw staje się talią fiszek.'
+				'Co zawiera jeden wiersz bazy, jak zbiera się zadania we własny zestaw i co się dzieje, gdy ten zestaw staje się fiszkami.'
 			)
 	},
 	{
@@ -273,7 +273,7 @@ export const SHOWCASE_PAGES: ShowcasePage[] = [
 			pick(
 				l,
 				'A deck, a card with two faces, four grades and the schedule they move. Turn one over here — it saves nothing.',
-				'Talia, fiszka z dwiema stronami, cztery oceny i harmonogram, który one przesuwają. Odwróć jedną tutaj — nic się nie zapisze.'
+				'Fiszki, każda z dwiema stronami, cztery oceny i harmonogram, który one przesuwają. Odwróć jedną tutaj — nic się nie zapisze.'
 			)
 	},
 	{
@@ -293,7 +293,7 @@ export const SHOWCASE_PAGES: ShowcasePage[] = [
 			pick(
 				l,
 				'Chapters and lessons built out of the catalogue, a deck made from one week of them, and the completion a course can issue — which is not a grade.',
-				'Rozdziały i lekcje ułożone z katalogu, talia zrobiona z jednego tygodnia i zaświadczenie, które kurs może wydać — a które nie jest oceną.'
+				'Rozdziały i lekcje ułożone z katalogu, fiszki zrobione z jednego tygodnia i zaświadczenie, które kurs może wydać — a które nie jest oceną.'
 			)
 	},
 	{
@@ -324,7 +324,7 @@ export const SHOWCASE_PAGES: ShowcasePage[] = [
 			pick(
 				l,
 				'A programme session you can take home as a deck, and the courses an event meets through the organisation that runs both.',
-				'Sesja z programu, którą można zabrać do domu jako talię, i kursy, z którymi wydarzenie spotyka się przez organizację prowadzącą jedno i drugie.'
+				'Sesja z programu, którą można zabrać do domu jako fiszki, i kursy, z którymi wydarzenie spotyka się przez organizację prowadzącą jedno i drugie.'
 			)
 	},
 	{

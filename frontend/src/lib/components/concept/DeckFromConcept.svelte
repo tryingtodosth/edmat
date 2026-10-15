@@ -127,9 +127,8 @@
 		font-size: var(--font-size-sm);
 	}
 	.made {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 		margin: 0;
-		white-space: normal;
 	}
 	/* `inherit` rather than the link colour: the pill picked its foreground against its own green
 	   background, and a link colour chosen for the page background need not clear AA on this one.
@@ -140,8 +139,7 @@
 		text-decoration: underline;
 	}
 	.error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 		margin: 0;
-		white-space: normal;
 	}
 </style>

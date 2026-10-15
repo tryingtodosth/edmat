@@ -5333,5 +5333,17 @@
 	"wp12_orgBlockedCourseHasVersions": "This general course has university or faculty versions under it, so a school cannot run it as a class.",
 	"wp7_exploreHeading": "Explore",
 	"wp7_exploreIntro": "Two ways to find your way around: read the manual, or look at each part of the site with sample data and real screenshots — and then try the real thing.",
-	"wp7_exploreManualHeading": "The manual"
+	"wp7_exploreManualHeading": "The manual",
+	"wp14b_branch_conceptsAll": "See all ({n})",
+	"wp14b_claims_none": "nothing yet",
+	"wp14b_welcome_heading": "Your account is ready. Welcome, {name}!",
+	"wp14b_welcome_checkInbox": "We have sent a confirmation link to {email}. Open it to confirm your address; if it is not in your inbox, look in spam.",
+	"wp14b_welcome_stepsLead": "Where to start:",
+	"wp14b_welcome_stepExercises": "Find exercises for your subject",
+	"wp14b_welcome_stepGuide": "Read the 5-minute guide",
+	"wp14b_welcome_stepLanguages": "Choose the languages you read in",
+	"wp14b_welcome_dismiss": "Close the welcome",
+	"wp14b_activity_emptyOwn": "What you do here shows up in this list: exercises and materials you add, comments, reviews, finished lessons and saved sets. It is empty for now.",
+	"wp14b_activity_emptyOther": "Nothing public from this person here yet.",
+	"wp14b_activity_emptyOwnAction": "Find exercises"
 }

@@ -489,7 +489,7 @@
 					<!-- "See all" -->
 				</button>
 			</div>
-			<ActivityList {feed} limit={3} />
+			<ActivityList {feed} limit={3} own={isMe} />
 		</section>
 
 		{#if user.donationLinks && user.donationLinks.length > 0}
@@ -511,7 +511,7 @@
 	</ModalShell>
 {:else if modal === 'activity'}
 	<ModalShell title={m.profile_activityHeading()} onClose={() => (modal = null)}>
-		<ActivityList {feed} bind:kindFilter={activityFilter} />
+		<ActivityList {feed} bind:kindFilter={activityFilter} own={isMe} />
 	</ModalShell>
 {:else if modal === 'education' && education}
 	<ModalShell title={m.education_publicHeading()} onClose={() => (modal = null)}>

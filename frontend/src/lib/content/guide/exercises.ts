@@ -147,7 +147,7 @@ const PL: GuideChapterDoc = {
 		{
 			heading: 'Wrzucanie do zestawu',
 			body: [
-				'Znak + na dowolnym kafelku zadania otwiera to samo małe menu: zestaw roboczy, każdy z Twoich zapisanych zestawów, każdy prowadzony przez Ciebie kurs, który przyjmuje treści, i Twoje talie fiszek.',
+				'Znak + na dowolnym kafelku zadania otwiera to samo małe menu: zestaw roboczy, każdy z Twoich zapisanych zestawów, każdy prowadzony przez Ciebie kurs, który przyjmuje treści, i Twoje fiszki.',
 				'Zestaw roboczy nie wymaga konta — mieszka w tej przeglądarce. Zapisane zestawy wymagają.'
 			],
 			screenshot: {

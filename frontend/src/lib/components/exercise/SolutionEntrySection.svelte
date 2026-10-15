@@ -299,12 +299,15 @@
 		align-self: flex-start;
 	}
 	.notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 		align-self: flex-start;
 	}
-	// A submitted entry waits for a verdict — pending, not a warning.
+	// A submitted entry waits for a verdict — pending, not a warning. A sentence in the pending
+	// voice (neutral + dashed, `pending-pill`'s pair), not the pill itself, whose nowrap pushed
+	// "Added — it will appear once a reviewer accepts it." off a phone.
 	.notice--pending {
-		@include mix.pending-pill;
+		@include mix.status-message(neutral);
+		border: 1px dashed var(--status-neutral);
 	}
 	.composer {
 		display: flex;

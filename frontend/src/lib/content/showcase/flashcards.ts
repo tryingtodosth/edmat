@@ -188,9 +188,9 @@ const EN: FlashcardsShowcase = {
 const PL: FlashcardsShowcase = {
 	title: 'Fiszki i powtórki w odstępach',
 	description:
-		'Jak powstaje talia fiszek z zadań albo pojęć w EdMacie, co cztery oceny robią z harmonogramem i jak talia położona na kursie staje się czymś, z czego uczy się cała klasa.',
+		'Jak w EdMacie powstają fiszki z zadań albo pojęć, co cztery oceny robią z harmonogramem i jak fiszki położone na kursie stają się czymś, z czego uczy się cała klasa.',
 	lead: [
-		'Fiszka to najkrótsze możliwe użycie czegoś, co już jest w bazie: z przodu treść zadania albo tytuł pojęcia, z tyłu opublikowana odpowiedź albo streszczenie — i nic nie jest przepisywane. Fiszki żyją w taliach, a talia powstaje jednym naciśnięciem z ułożonego zestawu, z tygodnia kursu, z sesji wydarzenia albo z pojęcia.',
+		'Fiszka to najkrótsze możliwe użycie czegoś, co już jest w bazie: z przodu treść zadania albo tytuł pojęcia, z tyłu opublikowana odpowiedź albo streszczenie — i nic nie jest przepisywane. Fiszki powstają jednym naciśnięciem z ułożonego zestawu, z tygodnia kursu, z sesji wydarzenia albo z pojęcia.',
 		'Powtarzanie jest zaplanowane, nie bez końca. Każda fiszka ma własną następną datę, a przesuwają ją cztery oceny, które jej dajesz — fiszka, która była łatwa, wróci za miesiąc; ta, którą pomyliłeś, wróci dziś.'
 	],
 	points: [
@@ -199,15 +199,15 @@ const PL: FlashcardsShowcase = {
 			body: 'Wszystko inne tutaj jest oświadczeniem: zestaw, który ktoś ułożył, lekcja, którą oznaczył jako zrobioną. To, jak dobrze odpowiadałeś, jest czymś innym — więc jest prywatne z konstrukcji, agregowane przed jakimkolwiek pokazaniem i widoczne w profilu wyłącznie za osobną zgodą.'
 		},
 		{
-			heading: 'Talia jest prywatna; udostępnieniem jest położenie jej na czymś',
-			body: 'Nic, co zrobisz, nie jest w tym etapie czytelne dla świata. Talia może natomiast leżeć na kursie albo na wydarzeniu — i wtedy każdy, kto widzi ten kurs, może się z niej uczyć. To właśnie czyni „zrób talię z tego tygodnia” wartym naciśnięcia przez prowadzącego.'
+			heading: 'Twoje fiszki są prywatne; udostępnieniem jest położenie ich na czymś',
+			body: 'Nic, co zrobisz, nie jest w tym etapie czytelne dla świata. Fiszki mogą natomiast leżeć na kursie albo na wydarzeniu — i wtedy każdy, kto widzi ten kurs, może się z nich uczyć. To właśnie czyni „zrób fiszki z tego tygodnia” wartym naciśnięcia przez prowadzącego.'
 		},
 		{
 			heading: '„Do powtórki dziś” liczy się według dnia serwera',
 			body: 'Nie ma tu jeszcze stref czasowych per konto, więc „dziś” to dzień według zegara serwera, czyli UTC — w Polsce zmienia się o 1 albo 2 w nocy, a nie o północy. Powiedziane, a nie cicho zaokrąglone.'
 		}
 	],
-	decksHeading: 'Trzy talie, tak jak pokazuje je własna lista',
+	decksHeading: 'Fiszki z trzech źródeł, tak jak pokazuje je własna lista',
 	decks: [
 		{
 			name: 'Kolokwium 2 — granice i szeregi',
@@ -226,9 +226,9 @@ const PL: FlashcardsShowcase = {
 		},
 		{ name: 'Zwartość', cardCount: 9, dueCount: 3, source: 'concept', isPublic: false }
 	],
-	decksLinkLabel: 'Otwórz swoje talie',
+	decksLinkLabel: 'Otwórz swoje fiszki',
 	decksCaption:
-		'Każda talia mówi, ile ma fiszek i ile z nich jest dziś do powtórki, oraz skąd powstała. Środkowa leży na kursie, więc klasa też może się z niej uczyć.',
+		'Przy każdych fiszkach widać, ile ich jest, ile z nich jest dziś do powtórki i skąd powstały. Środkowe leżą na kursie, więc klasa też może się z nich uczyć.',
 	cardHeading: 'Jedna fiszka, obie strony',
 	card: {
 		frontLabel: 'Przód — treść zadania',
@@ -238,7 +238,7 @@ const PL: FlashcardsShowcase = {
 		hint: 'Podziel licznik i mianownik przez \\( n^{2} \\).'
 	},
 	cardCaption:
-		'Odwróć ją i oceń. To jedyna działająca demonstracja na tych stronach — nic nie zapisuje, bo nie stoi za nią żadna talia.',
+		'Odwróć ją i oceń. To jedyna działająca demonstracja na tych stronach — nic nie zapisuje, bo ta fiszka nie leży na niczyim koncie.',
 	gradesHeading: 'Co robią cztery oceny',
 	grades: [
 		{
@@ -265,21 +265,21 @@ const PL: FlashcardsShowcase = {
 		}
 	],
 	gradesNote:
-		'Liczby dni to arytmetyka SM-2 na jednej przykładowej fiszce — takiej już kilka razy widzianej, w tej chwili z odstępem dziesięciu dni. Pierwsze odstępy świeżej fiszki są znacznie krótsze, a każda fiszka ma własny współczynnik łatwości, więc żadne dwie talie nie zachowują się identycznie.',
+		'Liczby dni to arytmetyka SM-2 na jednej przykładowej fiszce — takiej już kilka razy widzianej, w tej chwili z odstępem dziesięciu dni. Pierwsze odstępy świeżej fiszki są znacznie krótsze, a każda fiszka ma własny współczynnik łatwości, więc żadne dwie fiszki nie zachowują się identycznie.',
 	queueHeading: 'Kolejka powtórek',
 	queue: { due: 7, fresh: 5, learned: 12, total: 24 },
 	queueLabels: {
 		due: 'Dziś do powtórki',
 		fresh: 'Nigdy niewidziane',
 		learned: 'Zaplanowane dalej',
-		total: 'Fiszek w talii'
+		total: 'Fiszek łącznie'
 	},
 	queueCaption:
 		'Najpierw fiszki do powtórki, potem te, których jeszcze nie widziałeś. Ekran końcowy mówi, co zrobiłeś; nie wystawia oceny.',
-	placementHeading: 'Talia położona na kursie',
+	placementHeading: 'Fiszki położone na kursie',
 	placementBody: [
-		'Położenie to wiersz mówiący „ta talia należy do tego kursu” i właśnie ono sprawia, że talia dociera do innych ludzi. Kto widzi kurs, może się z talii uczyć; kto prowadzi kurs, może talię położyć i zabrać. Sama talia nie zmienia właściciela — zostaje przy tym, kto ją zrobił, a usunięcie położenia usuwa udostępnienie, nie talię.',
-		'Talia może leżeć na kursie albo na wydarzeniu i na niczym więcej. Profil, materiał i pojęcie nie są miejscami, w których grupa ludzi uczy się razem, więc nie są proponowane.'
+		'Położenie to wiersz mówiący „te fiszki należą do tego kursu” i właśnie ono sprawia, że fiszki docierają do innych ludzi. Kto widzi kurs, może się z nich uczyć; kto prowadzi kurs, może je położyć i zabrać. Same fiszki nie zmieniają właściciela — zostają przy tym, kto je zrobił, a usunięcie położenia usuwa udostępnienie, nie fiszki.',
+		'Fiszki mogą leżeć na kursie albo na wydarzeniu i na niczym więcej. Profil, materiał i pojęcie nie są miejscami, w których grupa ludzi uczy się razem, więc nie są proponowane.'
 	],
 	placedDeck: {
 		name: 'Tydzień 4: ciągłość',
@@ -290,12 +290,12 @@ const PL: FlashcardsShowcase = {
 		isPublic: false
 	},
 	placementCaption:
-		'Ta sama talia widziana przez uczestnika kursu: do uczenia się, z własnym harmonogramem, nie z harmonogramem prowadzącego.',
+		'Te same fiszki widziane przez uczestnika kursu: do uczenia się, z własnym harmonogramem, nie z harmonogramem prowadzącego.',
 	closing:
-		'Publiczna biblioteka talii, kopiowanie talii od obcych i przypomnienie, gdy fiszki się nazbierają, celowo nie weszły do tej pierwszej wersji. To, co jest, wystarcza, by powtarzać, i wystarcza, by prowadzący podał klasie tydzień fiszek.',
+		'Publiczna biblioteka fiszek, kopiowanie fiszek od obcych i przypomnienie, gdy powtórki się nazbierają, celowo nie weszły do tej pierwszej wersji. To, co jest, wystarcza, by powtarzać, i wystarcza, by prowadzący podał klasie tydzień fiszek.',
 	tryIt: [
-		{ label: 'Otwórz swoje talie', route: '/flashcards' },
-		{ label: 'Złóż zestaw, z którego zrobisz talię', route: '/my-set' }
+		{ label: 'Otwórz swoje fiszki', route: '/flashcards' },
+		{ label: 'Złóż zestaw, z którego zrobisz fiszki', route: '/my-set' }
 	],
 	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
 	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
@@ -306,8 +306,8 @@ const PL: FlashcardsShowcase = {
 			width: 1280,
 			height: 580,
 			route: '/flashcards',
-			alt: 'Zrzut ekranu listy talii: „5 cards waiting across 2 decks”, pole na nazwę nowej talii i dwie talie — „Definitions I keep forgetting”, ułożona ręcznie, oraz „Limits and sequences”, zrobiona z zestawu zadań — każda z przyciskami Open i Review i liczbą kart do powtórki.',
-			caption: 'Twoje talie: ile kart czeka łącznie i przycisk powtórki przy każdej.'
+			alt: 'Zrzut ekranu strony z fiszkami: „5 cards waiting across 2 decks”, pole na nazwę nowych fiszek i dwie pozycje na liście — „Definitions I keep forgetting”, ułożona ręcznie, oraz „Limits and sequences”, zrobiona z zestawu zadań — każda z przyciskami Open i Review i liczbą kart do powtórki.',
+			caption: 'Twoje fiszki: ile kart czeka łącznie i przycisk powtórki przy każdej pozycji.'
 		},
 		{
 			src: '/guide/flashcards/06-grades.png',
@@ -315,10 +315,10 @@ const PL: FlashcardsShowcase = {
 			width: 1280,
 			height: 700,
 			route: '/flashcards',
-			alt: 'Zrzut ekranu powtórki w talii „Limits and sequences”, karta 1 z 3: treść zadania o pochodnych cząstkowych, odsłonięta pod nią odpowiedź i cztery przyciski — Again, Hard, Good, Easy — ponumerowane od 1 do 4.',
+			alt: 'Zrzut ekranu powtórki fiszek „Limits and sequences”, karta 1 z 3: treść zadania o pochodnych cząstkowych, odsłonięta pod nią odpowiedź i cztery przyciski — Again, Hard, Good, Easy — ponumerowane od 1 do 4.',
 			caption:
 				'Powtórka: odwrócona karta i cztery oceny — te same, które można wypróbować na przykładowej karcie poniżej.',
-			linkLabel: 'Otwórz talię i powtórz ją'
+			linkLabel: 'Otwórz fiszki i powtórz je'
 		}
 	]
 };

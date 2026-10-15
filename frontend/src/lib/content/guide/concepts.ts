@@ -95,7 +95,7 @@ const PL: GuideChapterDoc = {
 			body: [
 				'Po zalogowaniu strona proponuje trzy rzeczy: „Improve this article” poprawia czytaną wersję, „Write your own article for these readers” zaczyna nową tam, gdzie dla Twoich odbiorców jeszcze jej nie ma, a „Link something” podpina zadanie, materiał albo inne pojęcie.',
 				'Każda poprawka to rewizja, która zostaje. Nic nie jest nadpisywane, a historia pokazuje, kto co zmienił.',
-				'„Make a deck from this concept” robi z artykułu Twoją własną talię fiszek do powtarzania na stronie fiszek.'
+				'„Make a deck from this concept” robi z artykułu Twoje własne fiszki do powtarzania na stronie fiszek.'
 			],
 			screenshot: {
 				src: '/guide/concepts/03-signed-in.png',

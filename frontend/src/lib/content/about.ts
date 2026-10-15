@@ -350,7 +350,7 @@ const PL: AboutDoc = {
 		{
 			key: 'flashcards',
 			title: 'Fiszki',
-			body: 'Zrób z zadań i pojęć talię fiszek i powtarzaj ją w odstępach, tak żeby materiał wracał tuż przed tym, zanim zdążysz go zapomnieć. Kurs albo wydarzenie może udostępnić talię wszystkim uczestnikom.',
+			body: 'Zrób fiszki z zadań i pojęć i powtarzaj je w odstępach, tak żeby materiał wracał tuż przed tym, zanim zdążysz go zapomnieć. Kurs albo wydarzenie może udostępnić fiszki wszystkim uczestnikom.',
 			href: '/flashcards',
 			flag: 'flashcards'
 		},

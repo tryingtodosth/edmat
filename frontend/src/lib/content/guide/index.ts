@@ -88,7 +88,7 @@ const BLURBS: Record<string, { en: string; pl: string }> = {
 	},
 	flashcards: {
 		en: 'Decks of cards, the four grades, and placing a deck where other people study.',
-		pl: 'Talie kart, cztery oceny i postawienie talii tam, gdzie uczą się inni.'
+		pl: 'Fiszki, cztery oceny i postawienie ich tam, gdzie uczą się inni.'
 	}
 	// `contests` is deliberately NOT here: step B's i18n keys are prefixed (`CONTESTS-BRIEF.md` §4
 	// rule 5), so its blurb is `guide_contests_blurb` in both catalogues and the entry below reads

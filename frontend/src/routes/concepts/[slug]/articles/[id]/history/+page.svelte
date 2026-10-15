@@ -260,10 +260,9 @@
 		font-size: var(--font-size-sm);
 	}
 	.stale-note {
-		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
+		@include mix.status-message(warning);
 		margin: 0;
 		align-self: flex-start;
-		white-space: normal;
 	}
 	.action {
 		align-self: flex-start;

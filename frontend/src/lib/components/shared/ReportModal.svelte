@@ -84,11 +84,11 @@
 		resize: vertical;
 	}
 	.error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 		align-self: flex-start;
 	}
 	.success {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 	}
 	.actions {
 		display: flex;

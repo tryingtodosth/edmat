@@ -297,15 +297,15 @@ const EN: CoursesShowcase = {
 const PL: CoursesShowcase = {
 	title: 'Kurs, tydzień, zaświadczenie',
 	description:
-		'Jak kurs w EdMacie buduje się z zadań i materiałów, które już są, jak jeden jego tydzień staje się talią fiszek i co zaświadczenie wydawane przez kurs mówi, a czego nie mówi.',
+		'Jak kurs w EdMacie buduje się z zadań i materiałów, które już są, jak jeden jego tydzień staje się fiszkami i co zaświadczenie wydawane przez kurs mówi, a czego nie mówi.',
 	lead: [
 		'Kurs to ktoś, kto uczy, a nie katalog plików. Ma rozdziały, a w nich lekcje; lekcja wskazuje na zadania, materiały, wydarzenie albo dyskusję, która już odpowiedziała na pytanie tego tygodnia. Nic nie jest wgrywane dwa razy — lekcja odsyła do katalogu, więc ten sam materiał może być uczony w sześciu kursach i poprawiony raz.',
 		'Kurs jest tutaj jednostką nauczania. Właśnie dlatego to, co kurs może komuś wręczyć na koniec, jest zapisem udziału, a nie oceną.'
 	],
 	points: [
 		{
-			heading: 'Tydzień może stać się talią jednym naciśnięciem',
-			body: 'Każde zadanie, na które wskazuje lekcja, i każde zadanie z zestawów do niej dołączonych wchodzi do talii położonej na kursie. To, które zadania weszły, jest ustalone w tej chwili; same zadania pozostają żywe.'
+			heading: 'Z tygodnia można zrobić fiszki jednym naciśnięciem',
+			body: 'Każde zadanie, na które wskazuje lekcja, i każde zadanie z zestawów do niej dołączonych staje się fiszką położoną na kursie. To, które zadania weszły, jest ustalone w tej chwili; same zadania pozostają żywe.'
 		},
 		{
 			heading: 'Postęp jest oświadczeniem, nie pomiarem',
@@ -325,7 +325,7 @@ const PL: CoursesShowcase = {
 		...courseBase(),
 		title: 'Analiza I, grupa wiosenna',
 		summary:
-			'Cotygodniowe ćwiczenia idące za wykładem, z listami zadań i krótką talią fiszek na każdy tydzień.',
+			'Cotygodniowe ćwiczenia idące za wykładem, z listami zadań i garścią fiszek na każdy tydzień.',
 		instructor: { id: '501', displayName: 'dr Anna Lewandowska' },
 		language: 'pl'
 	},
@@ -381,9 +381,9 @@ const PL: CoursesShowcase = {
 	},
 	materialCaption:
 		'Materiał nosi deklaracje o sobie: co obejmuje i co trzeba już wiedzieć. Jedno i drugie proponują czytelnicy, a ich głosy to poprawiają — więc „obejmuje ciągłość” jest odczytem społeczności, a nie słowem wgrywającego.',
-	deckHeading: 'Zrób talię z tego tygodnia',
+	deckHeading: 'Zrób fiszki z tego tygodnia',
 	deckBody: [
-		'Przycisk stoi przy lekcji i jest dla wszystkich w kursie, nie tylko dla prowadzących. Uczestnik dostaje własną talię; prowadzący dostaje talię położoną na kursie, więc każdy, kto widzi kurs, może się z niej uczyć.',
+		'Przycisk stoi przy lekcji i jest dla wszystkich w kursie, nie tylko dla prowadzących. Uczestnik dostaje własne fiszki; prowadzący dostaje fiszki położone na kursie, więc każdy, kto widzi kurs, może się z nich uczyć.',
 		'Zadania biorą się z własnych elementów-zadań lekcji i z każdego dołączonego do niej zestawu, po kolei, z pominięciem tego, czego osoba naciskająca przycisk nie ma prawa widzieć.'
 	],
 	deck: {
@@ -425,7 +425,7 @@ const PL: CoursesShowcase = {
 		'Dziennik ocen, podpis opiekuna na zaświadczeniu i plan lekcji celowo zostały pominięte. Szkolna połowa tego — kurs prowadzony przez szkołę, z opiekunami na liście uczestników — ma własną stronę.',
 	tryIt: [
 		{ label: 'Przeglądaj kursy', route: '/courses' },
-		{ label: 'Twoje talie fiszek', route: '/flashcards' }
+		{ label: 'Twoje fiszki', route: '/flashcards' }
 	],
 	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
 	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.
@@ -438,7 +438,7 @@ const PL: CoursesShowcase = {
 			route: '/courses',
 			alt: 'Zrzut ekranu treści kursu oczami osoby, która go prowadzi: rozdział „Program” z dwiema lekcjami, „Ciągi i granice” i „Szeregi liczbowe”, każda z opisem, przyciskami „Make a deck from this week” i „Link a saved set”, paskiem postępu „0 of 4 have finished this” i zwiniętą dyskusją.',
 			caption:
-				'Treść kursu oczami prowadzącej osoby: lekcje z liczbą osób, które je skończyły, i „zrób talię z tego tygodnia” przy każdej.',
+				'Treść kursu oczami prowadzącej osoby: lekcje z liczbą osób, które je skończyły, i „zrób fiszki z tego tygodnia” przy każdej.',
 			linkLabel: 'Znajdź kurs'
 		}
 	]

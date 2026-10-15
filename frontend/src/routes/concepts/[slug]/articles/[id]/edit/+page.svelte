@@ -179,9 +179,8 @@
 		color: var(--text-secondary);
 	}
 	.notice {
-		@include mix.status-pill(var(--status-info), var(--status-info-bg));
+		@include mix.status-message(info);
 		margin: 0;
 		align-self: flex-start;
-		white-space: normal;
 	}
 </style>

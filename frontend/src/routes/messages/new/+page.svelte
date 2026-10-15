@@ -127,7 +127,7 @@
 		color: var(--text-secondary);
 	}
 	.error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 		align-self: flex-start;
 	}
 	.compose-form {

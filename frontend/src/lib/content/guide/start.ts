@@ -130,7 +130,7 @@ const PL: GuideChapterDoc = {
 		{
 			heading: 'Twoje własne menu',
 			body: [
-				'Po zalogowaniu Twoje nazwisko otwiera menu ze wszystkim, co należy do Ciebie, w czterech grupach: Learning (talie fiszek i konkursy), Taking part (grafik, plan dnia i wolontariat), Working together (współtworzone materiały, zadania do zrobienia, organizacje i panel pracy) oraz Your account (profil, ustawienia, ten podręcznik, zgłaszanie problemu i wylogowanie).',
+				'Po zalogowaniu Twoje nazwisko otwiera menu ze wszystkim, co należy do Ciebie, w czterech grupach: Learning (fiszki i konkursy), Taking part (grafik, plan dnia i wolontariat), Working together (współtworzone materiały, zadania do zrobienia, organizacje i panel pracy) oraz Your account (profil, ustawienia, ten podręcznik, zgłaszanie problemu i wylogowanie).',
 				'Przycisk „+ Add…” obok to krótka droga do dodania czegoś: zadania, materiału, kursu albo społeczności, wydarzenia, ogłoszenia korepetycyjnego, wpisu albo konkursu. Organizacje zakłada się z ich własnej strony.'
 			],
 			screenshot: {

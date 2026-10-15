@@ -233,7 +233,7 @@ const EN: EventsShowcase = {
 const PL: EventsShowcase = {
 	title: 'Co zostaje po wydarzeniu',
 	description:
-		'Jak jedna sesja z programu wydarzenia staje się talią fiszek położoną na tym wydarzeniu i jak wydarzenie spotyka się z kursem — przez organizację prowadzącą jedno i drugie, nigdy bezpośrednio.',
+		'Jak jedna sesja z programu wydarzenia staje się fiszkami położonymi na tym wydarzeniu i jak wydarzenie spotyka się z kursem — przez organizację prowadzącą jedno i drugie, nigdy bezpośrednio.',
 	lead: [
 		'Wydarzenie dzieje się raz. To cała różnica między nim a kursem i dlatego wszystko w wydarzeniu zbudowane jest wokół dnia, a nie semestru: program ze ścieżkami i sesjami, rejestracja, bilety przy wejściu, grafik wolontariuszy, miejsce na dokumenty organizatorów.',
 		'Kłopot z dzianiem się raz jest taki, że potem nie ma do czego wrócić. Sesja, która dołączyła trzy zadania i listę, ma je we wpisie programu i nigdzie więcej. Ten etap dodaje jedną rzecz, która to naprawia: sesję można zabrać do domu.'
@@ -241,11 +241,11 @@ const PL: EventsShowcase = {
 	points: [
 		{
 			heading: 'Zabranie do domu zbiera to, na co wskazywała sesja',
-			body: 'Każde zadanie, do którego sesja odsyła, i każde zadanie z dołączonych do niej zestawów, po kolei. Nic nie jest wymyślane i nic kopiowane — talia odsyła do tych samych wierszy, do których odsyłał program.'
+			body: 'Każde zadanie, do którego sesja odsyła, i każde zadanie z dołączonych do niej zestawów, po kolei. Nic nie jest wymyślane i nic kopiowane — fiszki odsyłają do tych samych wierszy, do których odsyłał program.'
 		},
 		{
-			heading: 'Talia organizatora idzie na wydarzenie; talia uczestnika jest jego własna',
-			body: 'Naciśnij jako organizator i talia zostaje położona na wydarzeniu, gdzie może się z niej uczyć każdy, kto widzi wydarzenie. Naciśnij jako uczestnik i dostajesz własną talię.'
+			heading: 'Fiszki organizatora idą na wydarzenie; fiszki uczestnika są jego własne',
+			body: 'Naciśnij jako organizator i fiszki zostają położone na wydarzeniu, gdzie może się z nich uczyć każdy, kto widzi wydarzenie. Naciśnij jako uczestnik i dostajesz własne fiszki.'
 		},
 		{
 			heading: 'Zestaw dołączony do sesji jest przez nią czytelny',
@@ -322,8 +322,8 @@ const PL: EventsShowcase = {
 		'Odnośniki sesji, każdy dokładnie jednego rodzaju. Dwa z tych czterech zawierają zadania — i to właśnie zbiera przycisk zabrania do domu.',
 	takeHomeHeading: 'Zabierz do domu',
 	takeHomeBody: [
-		'Przycisk stoi przy sesji i pojawia się tylko przy sesji, która naprawdę odsyła do co najmniej jednego zadania — przycisk, który zrobiłby pustą talię, jest gorszy niż brak przycisku.',
-		'Powstaje talia jedenastu fiszek: dziesięć zadań z dołączonej listy i jedno dołączone bezpośrednio. Skład listy jest przypięty w tej chwili; zadania pozostają żywe, więc rozwiązanie poprawione w czerwcu dociera do fiszki zrobionej w kwietniu.'
+		'Przycisk stoi przy sesji i pojawia się tylko przy sesji, która naprawdę odsyła do co najmniej jednego zadania — przycisk, który nie miałby z czego zrobić ani jednej fiszki, jest gorszy niż brak przycisku.',
+		'Powstaje jedenaście fiszek: dziesięć zadań z dołączonej listy i jedno dołączone bezpośrednio. Skład listy jest przypięty w tej chwili; zadania pozostają żywe, więc rozwiązanie poprawione w czerwcu dociera do fiszki zrobionej w kwietniu.'
 	],
 	deck: {
 		name: 'Ciągi i szeregi od podstaw',
@@ -334,7 +334,7 @@ const PL: EventsShowcase = {
 		isPublic: false
 	},
 	takeHomeCaption:
-		'Talia, którą robi naciśnięcie organizatora, położona na wydarzeniu. Trzy tygodnie później jest jedyną częścią tych dziewięćdziesięciu minut, z której da się jeszcze powtarzać.',
+		'Fiszki, które robi naciśnięcie organizatora, położone na wydarzeniu. Trzy tygodnie później są jedyną częścią tych dziewięćdziesięciu minut, z której da się jeszcze powtarzać.',
 	crossHeading: 'I do czego wydarzenie prowadzi',
 	crossBody: [
 		'Strona wydarzenia mówi, kto je prowadzi, a pod tym wypisuje kursy prowadzone przez tych samych ludzi. To cały związek między jednym a drugim: „ćwiczenia z tych warsztatów stały się kursem, który spotyka się co tydzień” jest faktem o kole, które zrobiło jedno i drugie, więc czyta się go z tego koła.',
@@ -357,7 +357,7 @@ const PL: EventsShowcase = {
 		instructor: { id: '501', displayName: 'dr Anna Lewandowska' },
 		title: 'Analiza I, grupa wiosenna',
 		summary:
-			'Cotygodniowe ćwiczenia idące za wykładem, z listami zadań i krótką talią fiszek na każdy tydzień.',
+			'Cotygodniowe ćwiczenia idące za wykładem, z listami zadań i garścią fiszek na każdy tydzień.',
 		description: '',
 		subjectSlugs: ['uw-mat-analiza-i'],
 		fieldSlug: 'uw-matematyka',
@@ -401,7 +401,7 @@ const PL: EventsShowcase = {
 	crossCaption:
 		'Jeden kurs, przefiltrowany przez własną widoczność: prywatny kurs prowadzony przez to samo koło nie pojawi się tutaj tylko dlatego, że ktoś widzi wydarzenie.',
 	closing:
-		'Odbicie w drugą stronę — strona kursu wypisująca wydarzenia prowadzone przez jego organizację — nie jest jeszcze zbudowane i jest tu nazwane, żeby nikt nie uznał, że zniknęło przez przypadek. Nie ma też zabrania do domu materiałów sesji: talia trzyma zadania i pojęcia, nie pliki.',
+		'Odbicie w drugą stronę — strona kursu wypisująca wydarzenia prowadzone przez jego organizację — nie jest jeszcze zbudowane i jest tu nazwane, żeby nikt nie uznał, że zniknęło przez przypadek. Nie ma też zabrania do domu materiałów sesji: w fiszkach są zadania i pojęcia, nie pliki.',
 	tryIt: [{ label: 'Zobacz, co się zbliża', route: '/events' }],
 	// Screenshots of the running site (`e2e/guide-screenshots.mjs`), each checked against the
 	// current screen before it was used here — see `ShowcaseShot` in `index.ts`.

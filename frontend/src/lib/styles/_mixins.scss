@@ -1,5 +1,7 @@
 // Small, shared mixins — introduced only as needed, not front-loaded.
 
+@use 'sass:list';
+
 @mixin status-pill($fg, $bg) {
 	display: inline-flex;
 	align-items: center;
@@ -11,6 +13,33 @@
 	color: $fg;
 	background: $bg;
 	white-space: nowrap;
+}
+
+// A SENTENCE in a status colour: an error, a "saved", a "request sent", a "this text may be out of
+// date". Not a pill. `status-pill` is a short label that must never break, so it carries
+// `white-space: nowrap`; a sentence under nowrap runs straight off a phone (audit finding 6,
+// 2026-10-15: a booking confirmation's link sat at x=396 on a 390px screen, and about twenty
+// `.notice`/`.error` rules had the same shape, half of them patched one by one with
+// `white-space: normal`). This one wraps, shrinks to its text when the text is short, and never
+// grows past its container. `$kind` is one of the five status pairs and nothing else, so the colour
+// vocabulary in frontend/CLAUDE.md (info / success / warning / danger / neutral) is the only choice
+// a caller makes.
+@mixin status-message($kind) {
+	@if not list.index((info, success, warning, danger, neutral), $kind) {
+		@error 'status-message: "#{$kind}" is not one of info, success, warning, danger, neutral';
+	}
+	display: block;
+	box-sizing: border-box;
+	width: fit-content;
+	max-width: 100%;
+	padding: var(--space-1) var(--space-2);
+	border-radius: var(--radius-sm);
+	font-size: var(--font-size-sm);
+	line-height: 1.45;
+	color: var(--status-#{$kind});
+	background: var(--status-#{$kind}-bg);
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 @mixin card-surface {

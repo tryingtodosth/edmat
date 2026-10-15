@@ -10,6 +10,7 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
+	import { welcomeStore } from '$lib/state/welcome.svelte';
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
 	import SsoButtons from '$lib/components/auth/SsoButtons.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
@@ -86,8 +87,12 @@
 			// store, so there is nothing left for a branch here to decide.
 			localeStore.set(preferredLocale);
 			// Back to wherever "Log in" was clicked, not the home page — see lib/utils/returnTo.ts.
+			const newId = authStore.user?.id;
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- an in-app path remembered at runtime (validated same-origin in returnTo.ts), not a literal route resolve() could name
-			goto(takeReturnTo(page.url));
+			await goto(takeReturnTo(page.url));
+			// AFTER the navigation, so the welcome card is drawn on the page the account lands on and
+			// not on this form for the moment before it leaves (WelcomeCard, audit finding 14).
+			if (newId) welcomeStore.arm(newId);
 		} else if (result.error === 'guardianRequired') {
 			error = 'guardianRequired';
 		} else if (result.error === 'termsRequired') {

@@ -8,6 +8,8 @@ try {
 	({ chromium } = await import('playwright-core'));
 }
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
+// Its checks name English buttons; the default interface is Polish (e2e/CLAUDE.md trap 24).
+const { englishContext } = await import('./english.mjs');
 const EXERCISE = process.env.E2E_EXERCISE ?? '51';
 const SHOTS = process.env.E2E_SHOTS ?? '/tmp';
 let pass = 0,
@@ -21,7 +23,9 @@ const check = (l, ok, x = '') => {
 const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
-const page = await (await browser.newContext({ viewport: { width: 1200, height: 900 } })).newPage();
+const page = await (
+	await englishContext(browser, BASE, { viewport: { width: 1200, height: 900 } })
+).newPage();
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(e.message));
 const settle = (ms = 800) => page.waitForTimeout(ms);

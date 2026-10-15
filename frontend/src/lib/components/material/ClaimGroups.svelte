@@ -38,6 +38,12 @@
 	let covers = $derived(claimsOfKind(claims, 'covers'));
 	let requires = $derived(claimsOfKind(claims, 'requires'));
 	let open = $derived(claims.find((c) => c.id === openId) ?? null);
+	// Nothing claimed either way (or not loaded yet): one quiet line instead of two cards that each
+	// say "nothing yet". Audit finding 11 (2026-10-15): on a phone those two empty boxes were most
+	// of what stood between an exercise's title and its statement. The groups are not hidden — a
+	// claim is something any signed-in reader can propose, so the line keeps both headings and both
+	// "add" buttons, and each group stays its own <section data-kind> for the scripts and a reader.
+	let compact = $derived(covers.length === 0 && requires.length === 0);
 
 	// In onMount, not at top level: the claims call is public but the page is auth-aware, and a
 	// top-level call would also run during SSR (frontend/CLAUDE.md, trap 5).
@@ -122,10 +128,39 @@
 	</section>
 {/snippet}
 
-<div class="claim-groups">
-	{@render group('covers', covers)}
-	{@render group('requires', requires)}
-</div>
+{#if compact}
+	<div class="claim-groups claim-groups--compact">
+		{#each ['covers', 'requires'] as const as kind (kind)}
+			<section
+				class="claim-group claim-group--compact"
+				data-kind={kind}
+				title={kind === 'covers' ? coversHint : requiresHint}
+			>
+				<h2 class="compact-heading">
+					{kind === 'covers' ? m.material_coversHeading() : m.material_requiresHeading()}
+				</h2>
+				<span class="compact-none">
+					{loaded ? m.wp14b_claims_none() : m.common_loading()}
+					<!-- "nothing yet" -->
+				</span>
+				{#if loaded && authStore.isAuthenticated && topics.length > 0}
+					<button
+						type="button"
+						class="add-trigger"
+						onclick={() => ((addingKind = kind), (addError = null))}
+					>
+						+ {kind === 'covers' ? m.coverage_addTrigger() : m.coverage_addRequirementTrigger()}
+					</button>
+				{/if}
+			</section>
+		{/each}
+	</div>
+{:else}
+	<div class="claim-groups">
+		{@render group('covers', covers)}
+		{@render group('requires', requires)}
+	</div>
+{/if}
 
 {#if open}
 	<CoveragePopover coverage={open} onClose={() => (openId = null)} onVoteChange={applyUpdate} />
@@ -159,7 +194,33 @@
 		gap: var(--space-4);
 		align-items: start;
 	}
-	.claim-group {
+	.claim-groups--compact {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-1) var(--space-4);
+	}
+	.claim-group--compact {
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-1) var(--space-2);
+		font-size: var(--font-size-sm);
+	}
+	.compact-heading {
+		margin: 0;
+		font-size: var(--font-size-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-secondary);
+		&::after {
+			content: ':';
+		}
+	}
+	.compact-none {
+		color: var(--text-secondary);
+	}
+	.claim-group:not(.claim-group--compact) {
 		@include mix.card-surface;
 		padding: var(--space-4);
 		display: flex;
@@ -205,6 +266,6 @@
 		}
 	}
 	.add-error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 	}
 </style>

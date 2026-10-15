@@ -403,7 +403,7 @@
 		font-weight: 400;
 	}
 	.error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 		align-self: flex-start;
 	}
 	.actions {

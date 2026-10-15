@@ -295,7 +295,7 @@
 		}
 	}
 	.error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 	}
 	.content-section {
 		@include mix.card-surface;
@@ -315,7 +315,7 @@
 		color: var(--text-secondary);
 	}
 	.notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 		align-self: flex-start;
 	}
 	.login-prompt {

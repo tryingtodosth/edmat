@@ -890,11 +890,15 @@
 
 	{#if unfiled.length > 0}
 		<article class="chapter">
-			<header>
-				<!-- Its own group rather than a nameless chapter: "not filed yet" is a real state, and a
-				     course that uses no chapters at all quite legitimately keeps everything here. -->
-				<h3>{chapters.length > 0 ? m.course_items_unfiled() : m.course_items_heading()}</h3>
-			</header>
+			<!-- Its own group rather than a nameless chapter: "not filed yet" is a real state, and a
+			     course that uses no chapters at all quite legitimately keeps everything here. With no
+			     chapters the group needs no heading of its own: it used to repeat the section's
+			     "Content" heading directly under it (the doubled heading of audit finding 13). -->
+			{#if chapters.length > 0}
+				<header>
+					<h3>{m.course_items_unfiled()}</h3>
+				</header>
+			{/if}
 			<ul class="items">
 				{#each unfiled as item (item.id)}
 					{@render itemRow(item)}

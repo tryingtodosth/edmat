@@ -196,7 +196,7 @@
 		border-color: var(--status-danger);
 	}
 	.history-error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 	}
 	.history-empty {
 		font-size: var(--font-size-sm);

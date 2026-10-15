@@ -18,6 +18,7 @@
 	import Header from '$lib/components/layout/Header.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
 	import { issueReportStore } from '$lib/state/issueReport.svelte';
+	import { welcomeStore } from '$lib/state/welcome.svelte';
 
 	let { children } = $props();
 
@@ -51,6 +52,9 @@
 	// survives a reload, unlike Phase 1's deliberately session-only mock auth. Notifications are
 	// only worth fetching once a real session actually resolves — a fresh, momentarily-unauthenticated
 	// page load never has anything to fetch anyway (the bell itself is hidden until authenticated).
+	// The one-off welcome after registering (WelcomeCard): armed by /register, read here once in case
+	// the landing page was reloaded before the card drew.
+	onMount(() => welcomeStore.load());
 	onMount(() => {
 		a11yPrefsStore.applyStored();
 		authStore.init().then(() => {
@@ -65,6 +69,13 @@
 <div class="app-shell">
 	<Header />
 	<main class="app-main">
+		<!-- Same on-demand shape as the issue modal below: a card one account in a thousand sees
+		     once should not be in every page's entry bundle. -->
+		{#if welcomeStore.pendingFor}
+			{#await import('$lib/components/layout/WelcomeCard.svelte') then { default: WelcomeCard }}
+				<WelcomeCard />
+			{/await}
+		{/if}
 		{@render children()}
 	</main>
 	<Footer />

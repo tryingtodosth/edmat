@@ -217,7 +217,7 @@ try {
 		a = await activeInfo(page);
 		check(
 			'ArrowDown on the trigger opens it on the first entry',
-			a.role === 'menuitem' && a.text === (locale === 'en' ? 'My decks' : 'Moje talie'),
+			a.role === 'menuitem' && a.text === (locale === 'en' ? 'My decks' : 'Moje fiszki'),
 			JSON.stringify(a)
 		);
 		const total = (await groupsIn(menu(page))).reduce((n, g) => n + g.hrefs.length, 0);

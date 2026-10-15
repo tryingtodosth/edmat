@@ -628,7 +628,7 @@
 		}
 	}
 	.add-error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 	}
 	.group-hint {
 		font-size: var(--font-size-xs);
@@ -720,15 +720,13 @@
 		color: var(--text-secondary);
 	}
 	.notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 		align-self: flex-start;
 	}
 	// The success hue above is right for "thanks for the review" and wrong for "this text may be
 	// out of date" — a caution that is drawn as a confirmation is a message the colour contradicts.
 	.notice--stale {
-		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
-		// A whole sentence, not a badge: the pill mixin's own `nowrap` would push it off a phone.
-		white-space: normal;
+		@include mix.status-message(warning);
 	}
 	// The material itself when it was written here. No card of its own — it is the page's content,
 	// the way an exercise's statement is, rather than one more section about the material.

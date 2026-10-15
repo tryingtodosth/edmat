@@ -404,6 +404,80 @@
 				</div>
 			</header>
 
+			<section class="content-section">
+				<div class="section-head">
+					<h2>{m.exercise_statement()}</h2>
+					<ContentActionsMenu
+						kind="exercise"
+						id={exercise.id}
+						label={m.content_actionsLabel_statement()}
+						onReply={scrollToDiscussion}
+						hidden={!exercise.published}
+						onModerated={reload}
+					/>
+				</div>
+				<MathContent source={exercise.statement} />
+				<!-- The licence of the statement and answer (backend licensing/). Keyed on the id so a
+				     client-side move to another exercise re-asks for "since" and the change control. -->
+				{#key exercise.id}
+					<LicenceNotice
+						kind="exercise"
+						id={exercise.id}
+						licence={exercise.licence}
+						textLicence={exercise.textLicence}
+						author={exercise.contributors.find((c) => c.role === 'submitted')?.displayName ?? ''}
+					/>
+				{/key}
+			</section>
+
+			<!-- What this exercise is ABOUT, as chips — right under the statement (they were under the
+			     tags until the tags moved down, audit finding 11), because "about" and "learn first"
+			     are worth knowing before the hints. Renders nothing at all when there is nothing linked
+			     and nothing this reader could do about it. -->
+			<LinkedConcepts exerciseId={exercise.id} />
+			<!-- learning: learn first (D) — the bounded prerequisite closure of this exercise's concepts,
+			     "before this, know…", mounted directly below this comment behind `concepts`. -->
+			<LearnFirst exerciseId={exercise.id} />
+			<!-- learning: add to deck (A) — A's "add to a deck" control goes through the existing
+			     save-targets store on the exercise card, NOT here; the marker records that decision. -->
+
+			<SolutionEntrySection
+				kind="hint"
+				exerciseId={exercise.id}
+				entries={exercise.entries.filter((e) => e.kind === 'hint')}
+				{contentLocale}
+				onUpdated={entryUpdated}
+				onDeleted={entryDeleted}
+				onCreated={entryCreated}
+			/>
+
+			{#if exercise.answer}
+				<section class="content-section content-section--stage">
+					<h2>{m.exercise_answer()}</h2>
+					<!-- "Odpowiedź" -->
+					<button type="button" class="reveal-toggle" onclick={() => (showAnswer = !showAnswer)}>
+						{showAnswer ? m.exercise_hideAnswer() : m.exercise_showAnswer()}
+					</button>
+					{#if showAnswer}
+						<MathContent source={exercise.answer} />
+					{/if}
+				</section>
+			{/if}
+
+			<SolutionEntrySection
+				kind="solution"
+				exerciseId={exercise.id}
+				entries={exercise.entries.filter((e) => e.kind === 'solution')}
+				{contentLocale}
+				onUpdated={entryUpdated}
+				onDeleted={entryDeleted}
+				onCreated={entryCreated}
+			/>
+
+			<!-- Filed under: topics, the covers/requires claims and the tags. Below the solutions,
+			     beside the source, since 2026-10-15 (first-visitor audit finding 11): above the
+			     statement they pushed the problem itself below the fold on a phone, and they answer
+			     "where does this belong", which a reader asks after reading it, not before. -->
 			{#if topics.length && exercise.topicIds.length}
 				<div class="topics">
 					<span class="label">{m.exercise_topics()}:</span>
@@ -444,75 +518,6 @@
 					{/each}
 				</div>
 			{/if}
-
-			<!-- What this exercise is ABOUT, as chips — right under the tags, because they answer
-			     neighbouring questions ("filed under" and "about"). Renders nothing at all when there
-			     is nothing linked and nothing this reader could do about it. -->
-			<LinkedConcepts exerciseId={exercise.id} />
-			<!-- learning: learn first (D) — the bounded prerequisite closure of this exercise's concepts,
-			     "before this, know…", mounted directly below this comment behind `concepts`. -->
-			<LearnFirst exerciseId={exercise.id} />
-			<!-- learning: add to deck (A) — A's "add to a deck" control goes through the existing
-			     save-targets store on the exercise card, NOT here; the marker records that decision. -->
-
-			<section class="content-section">
-				<div class="section-head">
-					<h2>{m.exercise_statement()}</h2>
-					<ContentActionsMenu
-						kind="exercise"
-						id={exercise.id}
-						label={m.content_actionsLabel_statement()}
-						onReply={scrollToDiscussion}
-						hidden={!exercise.published}
-						onModerated={reload}
-					/>
-				</div>
-				<MathContent source={exercise.statement} />
-				<!-- The licence of the statement and answer (backend licensing/). Keyed on the id so a
-				     client-side move to another exercise re-asks for "since" and the change control. -->
-				{#key exercise.id}
-					<LicenceNotice
-						kind="exercise"
-						id={exercise.id}
-						licence={exercise.licence}
-						textLicence={exercise.textLicence}
-						author={exercise.contributors.find((c) => c.role === 'submitted')?.displayName ?? ''}
-					/>
-				{/key}
-			</section>
-
-			<SolutionEntrySection
-				kind="hint"
-				exerciseId={exercise.id}
-				entries={exercise.entries.filter((e) => e.kind === 'hint')}
-				{contentLocale}
-				onUpdated={entryUpdated}
-				onDeleted={entryDeleted}
-				onCreated={entryCreated}
-			/>
-
-			{#if exercise.answer}
-				<section class="content-section content-section--stage">
-					<h2>{m.exercise_answer()}</h2>
-					<!-- "Odpowiedź" -->
-					<button type="button" class="reveal-toggle" onclick={() => (showAnswer = !showAnswer)}>
-						{showAnswer ? m.exercise_hideAnswer() : m.exercise_showAnswer()}
-					</button>
-					{#if showAnswer}
-						<MathContent source={exercise.answer} />
-					{/if}
-				</section>
-			{/if}
-
-			<SolutionEntrySection
-				kind="solution"
-				exerciseId={exercise.id}
-				entries={exercise.entries.filter((e) => e.kind === 'solution')}
-				{contentLocale}
-				onUpdated={entryUpdated}
-				onDeleted={entryDeleted}
-				onCreated={entryCreated}
-			/>
 
 			<AppearsInSessions exerciseId={exercise.id} />
 
@@ -811,7 +816,7 @@
 		color: var(--accent);
 	}
 	.notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 		align-self: flex-start;
 	}
 	.review-summary {

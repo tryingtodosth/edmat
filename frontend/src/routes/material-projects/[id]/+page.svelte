@@ -447,14 +447,12 @@
 		cursor: pointer;
 	}
 	.error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 		align-self: flex-start;
-		white-space: normal;
 	}
 	.notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 		align-self: flex-start;
-		white-space: normal;
 	}
 	.catalogue {
 		display: grid;

@@ -366,7 +366,7 @@
 		font-size: var(--font-size-sm);
 	}
 	.notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		@include mix.status-message(success);
 		align-self: flex-start;
 	}
 	.controls {

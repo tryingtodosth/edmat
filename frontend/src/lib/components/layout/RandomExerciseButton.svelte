@@ -355,7 +355,7 @@
 		font-weight: 500;
 	}
 	.notice {
-		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
+		@include mix.status-message(warning);
 	}
 	.random-menu__actions {
 		display: flex;

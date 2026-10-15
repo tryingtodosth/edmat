@@ -625,8 +625,8 @@ try {
 		await open(page, '/flashcards');
 		await page.locator('h1').waitFor({ timeout: 15000 });
 		check(
-			'pl: the heading is "Moje talie"',
-			(await page.locator('h1').first().textContent())?.trim() === 'Moje talie',
+			'pl: the heading is "Moje fiszki"',
+			(await page.locator('h1').first().textContent())?.trim() === 'Moje fiszki',
 			await page.locator('h1').first().textContent()
 		);
 		await shoot(page, '7-pl-my-decks');

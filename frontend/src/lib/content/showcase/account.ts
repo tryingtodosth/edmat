@@ -249,7 +249,7 @@ const PL: ShowcaseModuleDoc = {
 	description:
 		'Czym jest konto w EdMacie i co od ciebie zależy: zakładanie konta i sprawdzenie wieku, konta prowadzone przez opiekuna dla dziecka, logowanie przez Google, Apple, GitHub, Facebook albo Microsoft, e-mail i hasło, pobranie swoich danych i usunięcie konta.',
 	lead: [
-		'Wszystko, co w EdMacie jest publiczne, można czytać bez konta. Konto jest potrzebne, żeby coś napisać — zadanie, rozwiązanie, komentarz — zapisać zestaw albo talię fiszek, dołączyć do kursu czy wydarzenia. Konto to nazwa wyświetlana, adres e-mail i sposób logowania, i to ty decydujesz, czy je zabrać ze sobą, czy zamknąć.',
+		'Wszystko, co w EdMacie jest publiczne, można czytać bez konta. Konto jest potrzebne, żeby coś napisać — zadanie, rozwiązanie, komentarz — zapisać zestaw, zrobić fiszki, dołączyć do kursu czy wydarzenia. Konto to nazwa wyświetlana, adres e-mail i sposób logowania, i to ty decydujesz, czy je zabrać ze sobą, czy zamknąć.',
 		'Ta strona pokazuje po kolei, co dzieje się na każdym kroku i co możesz zrobić samodzielnie w Ustawieniach. Regulamin i polityka prywatności mówią o tym samym w pełnej wersji; tam, gdzie mówią to lepiej, linki poniżej prowadzą właśnie do nich.'
 	],
 	points: [
@@ -310,7 +310,7 @@ const PL: ShowcaseModuleDoc = {
 			width: 1280,
 			height: 1014,
 			route: '/settings/account',
-			alt: 'Zrzut ekranu „Your data and your account”. Karta „Download your data” z opisem pliku JSON, przycisk „Download my data” i „You can download it three times a day.” Pod nią karta „Delete your account” z czerwoną ramką: konto zostaje od razu wyłączone i skasowane po 14 dniach, oraz dwie listy z liczbami — „Deleted” (profil, logowanie, powiadomienia, co otwierano, zestawy i talie, role, zgłoszenia, wpisy w aktywności) i „Stays published, without your name” (zadania, rozwiązania, tłumaczenia, materiały; komentarze, recenzje i wpisy).',
+			alt: 'Zrzut ekranu „Your data and your account”. Karta „Download your data” z opisem pliku JSON, przycisk „Download my data” i „You can download it three times a day.” Pod nią karta „Delete your account” z czerwoną ramką: konto zostaje od razu wyłączone i skasowane po 14 dniach, oraz dwie listy z liczbami — „Deleted” (profil, logowanie, powiadomienia, co otwierano, zestawy i fiszki, role, zgłoszenia, wpisy w aktywności) i „Stays published, without your name” (zadania, rozwiązania, tłumaczenia, materiały; komentarze, recenzje i wpisy).',
 			caption:
 				'Twoje dane i twoje konto. Wszystko pod „Usuń konto” pochodzi z tej samej tabeli na serwerze, która przeprowadza usunięcie, z liczbami z twoich danych — więc strona nie może obiecać jednego i zrobić czegoś innego.'
 		},
@@ -381,7 +381,7 @@ const PL: ShowcaseModuleDoc = {
 				{
 					term: 'Usuwane',
 					detail:
-						'To, co prywatne: profil, ustawienia, metody logowania, historia, powiadomienia, zestawy i talie, role, wersje robocze.'
+						'To, co prywatne: profil, ustawienia, metody logowania, historia, powiadomienia, zestawy i fiszki, role, wersje robocze.'
 				},
 				{
 					term: 'Zostaje, bez twojego imienia',

@@ -1024,7 +1024,7 @@
 		font-weight: 600;
 	}
 	.error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-message(danger);
 		align-self: flex-start;
 	}
 	.success-body {
@@ -1106,9 +1106,8 @@
 		font-weight: 600;
 	}
 	.minor-notice {
-		@include mix.status-pill(var(--status-info), var(--status-info-bg));
+		@include mix.status-message(info);
 		align-self: flex-start;
-		white-space: normal;
 	}
 	.file-picked {
 		font-size: var(--font-size-xs);

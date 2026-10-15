@@ -213,13 +213,18 @@ one reveal hue of the learning flow and may be read only by `routes/exercises/[i
 alias of the accent for filled stars (`StarRating`, `LessonFeedback` only). The five status pairs
 mean: info = an open question for the reader (counts, open polls/needs, review), success = done/
 verified/ON, warning = near/stuck/short/drifted, danger = overdue/wrong/auto-hidden, neutral =
-closed/over/a fact. `_mixins.scss` carries the six shapes — `pending-pill` (neutral + dashed, "not
+closed/over/a fact. `_mixins.scss` carries the seven shapes — `pending-pill` (neutral + dashed, "not
 settled"), `neutral-pill` (a fact), `selected-soft` (the ON state: tint + accent text + 1px accent
 border — the border is load-bearing in dark mode), `count-badge` (info fill, contrast digits),
-`progress-track`/`progress-fill` (accent fill, never success) — use them rather than re-typing the
-pair; `status-pill(var(--accent), var(--accent-soft))` must have zero readers and a filled accent box
-is a command (`button-primary`, the brand tile), never a selection. Never opacity on content: dim a
-closed row's title to `--text-secondary`. `adapter-static` SPA fallback is a deliberate
+`progress-track`/`progress-fill` (accent fill, never success), and **`status-message(<kind>)`** for a
+SENTENCE in a status colour — an error, a "saved", a "request sent", a stale-text warning (`kind` is
+one of the five pair names and nothing else). A pill is a short label and keeps `white-space: nowrap`;
+a sentence styled as a pill runs off a phone (audit finding 6, 2026-10-15: a booking confirmation's
+link sat at x=396 on a 390 screen, and ~65 `.notice`/`.error` rules had that shape, half patched one
+by one with `white-space: normal`). If the content is a sentence, it is a message, however short.
+Use these rather than re-typing the pair; `status-pill(var(--accent), var(--accent-soft))` must have
+zero readers and a filled accent box is a command (`button-primary`, the brand tile), never a
+selection. Never opacity on content: dim a closed row's title to `--text-secondary`. `adapter-static` SPA fallback is a deliberate
 non-change — nothing needs SSR.
 
 ## First paint

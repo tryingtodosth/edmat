@@ -260,11 +260,11 @@
 		color: var(--text-secondary);
 		margin-top: var(--space-1);
 	}
+	// A ~110-character sentence, not a label: a message, in the pending voice (neutral + dashed).
 	.private-note {
-		@include mix.pending-pill;
+		@include mix.status-message(neutral);
+		border: 1px dashed var(--status-neutral);
 		margin-top: var(--space-2);
-		// A ~110-character sentence, not a label: the pill mixin's nowrap would overflow a phone.
-		white-space: normal;
 	}
 	.hint {
 		font-size: var(--font-size-sm);
