@@ -72,7 +72,7 @@
 		</section>
 	</DiscussableSection>
 
-	<section class="about__section">
+	<section class="about__section about__features">
 		<h2>{doc.featuresHeading}</h2>
 		<p class="about__intro">{doc.featuresIntro}</p>
 		<ul class="about__grid">
@@ -142,13 +142,16 @@
 		color: var(--text-secondary);
 		max-width: 62ch;
 	}
+	// The grid's container (WP13): `balanced-card-grid` picks its column count from this section's
+	// width, so that the last row is never one card on its own (13 cards at 1280 drew 4 + 4 + 4 + 1).
+	.about__features {
+		container-type: inline-size;
+	}
 	.about__grid {
+		@include mix.balanced-card-grid;
 		list-style: none;
 		margin: var(--space-3) 0 0;
 		padding: 0;
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-		gap: var(--space-3);
 	}
 	.about__card {
 		@include mix.card-surface;

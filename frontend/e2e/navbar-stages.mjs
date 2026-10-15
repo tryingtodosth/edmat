@@ -203,6 +203,29 @@ check(
 await signed.keyboard.press('Escape');
 await settle(signed, 200);
 
+// ---- the Add… menu (WP13, 2026-10-15) -------------------------------------------------------------
+// Grouped the same way: "Content" and "Something to run". kasia is staff, so both are drawn;
+// `e2e/add-menu.mjs` asserts the entries, the keyboard, the drawer and a killed group as non-staff.
+console.log('[1c] The Add… menu is grouped');
+await signed.locator('.site-header button.popover__trigger:has(.add-trigger)').click();
+const addMenu = signed.locator('.popover__panel[role="menu"]:has([data-group^="add-"])');
+await addMenu.waitFor({ timeout: 5000 });
+const addKeys = await addMenu
+	.locator('[role="group"][data-group]')
+	.evaluateAll((els) => els.map((e) => e.dataset.group));
+check(
+	'two groups, in order',
+	JSON.stringify(addKeys) === JSON.stringify(['add-content', 'add-run']),
+	JSON.stringify(addKeys)
+);
+check(
+	'the headings are labels, not menu items',
+	(await addMenu.locator('.menu-group__heading[role="menuitem"]').count()) === 0 &&
+		(await addMenu.locator('.menu-group__heading').count()) === 2
+);
+await signed.keyboard.press('Escape');
+await settle(signed, 200);
+
 // ---- the stages, in order ------------------------------------------------------------------------
 console.log('[2] About is an icon at every width now');
 await width(signed, 1200);

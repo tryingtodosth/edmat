@@ -129,8 +129,10 @@ async function open(page, path, signedIn) {
 }
 
 const menu = (page) => page.locator('.popover__panel[role="menu"]:has(.menu-group)');
+// The Add… menu's groups (WP13) are `add-*` and share the drawer with these; `e2e/add-menu.mjs`
+// is where they are asserted, so they are left out of every count here.
 const groupsIn = (root) =>
-	root.locator('[role="group"][data-group]').evaluateAll((els) =>
+	root.locator('[role="group"][data-group]:not([data-group^="add-"])').evaluateAll((els) =>
 		els.map((e) => ({
 			key: e.dataset.group,
 			label: e.getAttribute('aria-label'),

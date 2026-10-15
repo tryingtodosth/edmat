@@ -54,6 +54,9 @@
 	.showcase-index {
 		/* The sticky header would otherwise cover the heading the #showcase anchor lands on. */
 		scroll-margin-top: 5rem;
+		/* The grid's container (WP13): `balanced-card-grid` reads its width, so the index's last row
+		   is full like the feature grid's above it, whatever the number of pages. */
+		container-type: inline-size;
 	}
 
 	.showcase-index--nested {
@@ -72,12 +75,10 @@
 		line-height: 1.65;
 	}
 	.showcase-index__grid {
+		@include mix.balanced-card-grid;
 		list-style: none;
 		margin: var(--space-3) 0 0;
 		padding: 0;
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-		gap: var(--space-3);
 	}
 	.showcase-index__card {
 		@include mix.card-surface;

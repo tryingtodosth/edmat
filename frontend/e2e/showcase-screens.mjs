@@ -221,7 +221,10 @@ pages['goals-and-work'] = async () => {
 		const { ctx, page } = await open(null);
 		await visit(page, `/goals/${goalId}`);
 		// Down to the collapsed "Comment on …" line under the card, and no further.
-		const comment = await rect(page, 'text=/^Comment on /');
+		// The toggle's text starts with its chevron ("▸ Comment on …"), so a `^Comment on` text
+		// match never found it and the 440 fallback drew the clip — which cut the line in half once
+		// the pictures were drawn in Noto (WP13). The toggle's own class is what to ask for.
+		const comment = await rect(page, '.section-discussion__toggle');
 		await shoot(page, slug, '01-goal', {
 			x: 0,
 			y: 56,
@@ -247,7 +250,15 @@ pages['goals-and-work'] = async () => {
 	{
 		const { ctx, page } = await open(null);
 		await visit(page, '/needs', { wait: 'h1', extra: 2500 });
-		await shoot(page, slug, '03-needs', { x: 0, y: 56, width: WIDTH, height: 620 });
+		// Down to the end of the board's grid rather than a fixed 620 px, which cut the last card in
+		// half once the pictures were drawn in Noto (WP13).
+		const grid = await rect(page, 'main .grid');
+		await shoot(page, slug, '03-needs', {
+			x: 0,
+			y: 56,
+			width: WIDTH,
+			height: grid ? Math.round(grid.y + grid.height + 24 - 56) : 620
+		});
 		await ctx.close();
 	}
 };
@@ -329,7 +340,8 @@ pages.conference = async () => {
 		});
 
 		await visit(page, `/events/${conferenceId}/scan`, { wait: 'h1', extra: 2500 });
-		await shoot(page, slug, '04-scan', { x: 340, y: 56, width: 600, height: 580 });
+		// 612 rather than 580: drawn in Noto (WP13) the page runs a line taller, and 580 cut "Back to the event".
+		await shoot(page, slug, '04-scan', { x: 340, y: 56, width: 600, height: 612 });
 
 		await visit(page, `/events/${conferenceId}/rota`, { wait: 'table', extra: 2000 });
 		await shoot(page, slug, '05-rota', { x: 0, y: 56, width: WIDTH, height: 560 });

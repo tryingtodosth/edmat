@@ -181,16 +181,13 @@
 	// 2026-10-14: `canCreateCourse` joined with its entry, and `canPosts` / `canCreateContest` —
 	// whose entries were already in the menu but missing here, so somebody with only those left
 	// lost the trigger while still being allowed both.
-	let hasAnythingToAdd = $derived(
-		canSubmitExercise ||
-			canSubmitMaterial ||
-			canCreateCourse ||
-			canCreateService ||
-			canCreateEvent ||
-			canPosts ||
-			canCreateContest ||
-			runsAVenue
+	// WP13 (2026-10-15): the same list, split by the two groups the menu now draws — keep each line
+	// in step with its group in `createItems` below, exactly as the account menu's are.
+	let hasContentToAdd = $derived(canSubmitExercise || canSubmitMaterial || canPosts);
+	let hasSomethingToRun = $derived(
+		canCreateCourse || canCreateEvent || canCreateService || canCreateContest || runsAVenue
 	);
+	let hasAnythingToAdd = $derived(hasContentToAdd || hasSomethingToRun);
 
 	function logout() {
 		authStore.logout();
@@ -547,100 +544,141 @@
 	{/if}
 {/snippet}
 
-{#snippet createItems(itemClass: string, onclick: () => void)}
-	{#if canSubmitExercise}
-		<a role="menuitem" class={itemClass} href={resolve('/submit')} {onclick}>{m.nav_submit()}</a>
-	{/if}
-	{#if canSubmitMaterial}
-		<a role="menuitem" class={itemClass} href={resolve('/submit-material')} {onclick}>
-			{m.nav_submitMaterial()}
-		</a>
-		<!-- "Start a material with others" used to sit on the line below this one, under the same
-		     flag — the two were one question with two answers ("by myself" / "with other people").
-		     The owner moved it out of this menu on 2026-10-01 and asked for it to live on
-		     `/materials` (and its Polish address `/materialy`) instead, which is where somebody
-		     already looking at materials is. `MaterialsAddBar` on that page carries BOTH answers
-		     now, so the pair stays together where it matters; this menu keeps only the plain one,
-		     because "submit a material" is the common act and the hub is one click away.
-		     The flag is still `material_submissions`, deliberately NOT `coauthoring`: that one
-		     gates collaborating on a material, and a project with a team of one is still somebody
-		     uploading a material. -->
-	{/if}
-	<!-- "Add a course" left this menu on 2026-10-01 and came BACK on 2026-10-14, by owner decision
-	     both times — the second time as "Start a course or community", because a course is now
-	     also where people gather around a topic or a university course. Wrapped like "New event":
-	     the `courses` switch AND the creation gate's `course` answer, either one alone removes it. -->
-	{#if canCreateCourse}
-		<a role="menuitem" class={itemClass} href={resolve('/courses/new')} {onclick}>
-			{m.nav_add_course()}
-			<!-- "Start a course or community" -->
-		</a>
-	{/if}
-	{#if canCreateEvent}
-		<a role="menuitem" class={itemClass} href={resolve('/events/new')} {onclick}>
-			{m.nav_add_event()}
-		</a>
-	{/if}
-	{#if canCreateService}
-		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
-		<a role="menuitem" class={itemClass} href={localizedPath(resolve('/tutoring/new'))} {onclick}>
-			{m.nav_add_service()}
-		</a>
-	{/if}
-	{#if canPosts}
-		<!-- The composer lives at the top of /activity — this entry is what makes it findable
-		     from anywhere, the same job every other create action in this menu does. -->
-		<a role="menuitem" class={itemClass} href={resolve('/activity')} {onclick}>
-			{m.nav_add_post()}
-		</a>
-	{/if}
-	<!-- "New concept" left this menu on 2026-10-01, by owner decision, the same pass that took
-	     Concepts out of the navbar. The surface is NOT killed — the `concepts` flag is untouched,
-	     `/concepts/new` still works and the hub still carries its own "New concept" control, which
-	     is where somebody who is already reading concepts makes one. What went away is the offer
-	     to start one from anywhere, which is a different claim about how central the feature is.
-	     (It is deliberately not gated on being an adult the way Events is: a minor may write a
-	     concept article, their revision simply always queues, CONCEPTS-BRIEF.md §0.) -->
-	{#if runsAVenue}
-		<!-- Conference step A. Not a "create" action like the rest of this menu, and deliberately
-		     placed last: it is the one entry here that only exists for the handful of people who run
-		     a building, and it is where they go to answer the room requests sitting in their queue.
-		     A venue's own page carries the link onward when somebody runs more than one. -->
-		<a
-			role="menuitem"
-			class={itemClass}
-			href={resolve('/venues/[slug]/manage', { slug: venueStaffStore.venues[0].slug })}
-			{onclick}
-		>
-			{m.venues_navAdd()}
-			<!-- "Venues you run" -->
-		</a>
-	{/if}
-	<!-- Management Add… marker (MANAGEMENT-BRIEF.md §4 rule 4): step A appended "New organisation"
-	     directly below this comment, behind its flag and for adults only.
+<!-- **The Add… menu, grouped (WP13, 2026-10-15)**, on the account menu's pattern (WP8). Eight flat
+     entries in the order they were built read as one undifferentiated list; they answer two
+     different questions, so they sit under two headings: **Content** — something you put into the
+     collection for others to read (an exercise, a material, a post) — and **Something to run** —
+     something you start and then look after, with people coming to it (a course or community, an
+     event, a tutoring listing, a contest, and the venues you manage). "New concept" and "New
+     organisation" are not in this menu (owner's call, 2026-10-01), so neither group pretends to
+     hold them.
 
-	     It left again on 2026-10-01, by owner decision, with "New concept" and the school-demo
-	     link — see the note on those. The surface is NOT killed: the `organizations` flag is
-	     untouched, "Organisations" is still in the account menu below, and `/organizations/new`
-	     still works and is still reachable from the hub. Founding a body is a rare act and a
-	     deliberate one; offering it from every page of the site said otherwise.
-	     (It was, and still is where it remains, closed to an under-16: founding a body means
-	     standing publicly behind it, which `accounts/minors.py` closes exactly as it closes event
-	     hosting.) -->
-	<!-- Learning Add… marker (prompts/README.md §5 rule 4): step F hides the "New event" and "New
-	     listing" entries above for an account `GET /api/creation/` refuses (courses and organisations
-	     left this menu on 2026-10-01 and are founded from their hubs, which F gates the same way),
-	     by appending its `creation` state in the script block and wrapping nothing but those two
-	     `{#if}`s. No learning step ADDS an entry here. -->
-	<!-- Contests Add… marker (CONTESTS-BRIEF.md §4 rule 4): step A appends "New contest" (→
-	     /contests/new) directly below this comment, behind `contests`, for adults only, and hidden
-	     for an account `GET /api/creation/` refuses for the `contest` kind — the same wrapping step
-	     F gave "New event". Step B does not touch this menu. -->
-	{#if canCreateContest}
-		<a role="menuitem" class={itemClass} href={resolve('/contests/new')} {onclick}>
-			{m.contests_newContest()}
-			<!-- "New contest" -->
-		</a>
+     Every entry keeps exactly the switch and creation-gate check it had, and **a heading never
+     outlives its entries** (house rule 3): `hasContentToAdd` / `hasSomethingToRun` in the script
+     list exactly the `can…` each group's entries read, and the trigger itself goes when both are
+     false. **One snippet, both surfaces**: `surface` gives the desktop popover `menuitem`s inside a
+     `role="group"`, and the drawer the same groups with no `menuitem` role at all — the drawer is
+     not a menu, and a `menuitem` outside one is an orphan (the old drawer copy had them; WP8 named
+     it, this closes it). -->
+{#snippet createItems(surface: 'menu' | 'drawer', onclick: () => void)}
+	{@const itemClass = surface === 'menu' ? 'menu-item' : 'drawer__item'}
+	{@const itemRole = surface === 'menu' ? 'menuitem' : undefined}
+
+	{#snippet contentItems()}
+		{#if canSubmitExercise}
+			<a role={itemRole} class={itemClass} href={resolve('/submit')} {onclick}>
+				{m.nav_submit()}
+				<!-- "Submit exercise" -->
+			</a>
+		{/if}
+		{#if canSubmitMaterial}
+			<a role={itemRole} class={itemClass} href={resolve('/submit-material')} {onclick}>
+				{m.nav_submitMaterial()}
+				<!-- "Add a material" -->
+			</a>
+			<!-- "Start a material with others" used to sit on the line below this one, under the same
+			     flag — the two were one question with two answers ("by myself" / "with other people").
+			     The owner moved it out of this menu on 2026-10-01 and asked for it to live on
+			     `/materials` (and its Polish address `/materialy`) instead, which is where somebody
+			     already looking at materials is. `MaterialsAddBar` on that page carries BOTH answers
+			     now, so the pair stays together where it matters; this menu keeps only the plain one,
+			     because "submit a material" is the common act and the hub is one click away.
+			     The flag is still `material_submissions`, deliberately NOT `coauthoring`: that one
+			     gates collaborating on a material, and a project with a team of one is still somebody
+			     uploading a material. -->
+		{/if}
+		{#if canPosts}
+			<!-- The composer lives at the top of /activity — this entry is what makes it findable
+			     from anywhere, the same job every other create action in this menu does. A post is
+			     something written for others to read, so it sits with the content, not the running. -->
+			<a role={itemRole} class={itemClass} href={resolve('/activity')} {onclick}>
+				{m.nav_add_post()}
+				<!-- "Write a post" -->
+			</a>
+		{/if}
+		<!-- "New concept" left this menu on 2026-10-01, by owner decision, the same pass that took
+		     Concepts out of the navbar. The surface is NOT killed — the `concepts` flag is untouched,
+		     `/concepts/new` still works and the hub still carries its own "New concept" control, which
+		     is where somebody who is already reading concepts makes one. What went away is the offer
+		     to start one from anywhere, which is a different claim about how central the feature is.
+		     (It is deliberately not gated on being an adult the way Events is: a minor may write a
+		     concept article, their revision simply always queues, CONCEPTS-BRIEF.md §0.) -->
+	{/snippet}
+
+	{#snippet runItems()}
+		<!-- "Add a course" left this menu on 2026-10-01 and came BACK on 2026-10-14, by owner decision
+		     both times — the second time as "Start a course or community", because a course is now
+		     also where people gather around a topic or a university course. Wrapped like "New event":
+		     the `courses` switch AND the creation gate's `course` answer, either one alone removes it. -->
+		{#if canCreateCourse}
+			<a role={itemRole} class={itemClass} href={resolve('/courses/new')} {onclick}>
+				{m.nav_add_course()}
+				<!-- "Start a course or community" -->
+			</a>
+		{/if}
+		<!-- Learning Add… marker (prompts/README.md §5 rule 4): step F hides the "New event" and "New
+		     listing" entries below for an account `GET /api/creation/` refuses (courses and
+		     organisations are also founded from their hubs, which F gates the same way), by appending
+		     its `creation` state in the script block and wrapping nothing but those two `{#if}`s. No
+		     learning step ADDS an entry here. -->
+		{#if canCreateEvent}
+			<a role={itemRole} class={itemClass} href={resolve('/events/new')} {onclick}>
+				{m.nav_add_event()}
+				<!-- "Host an event" -->
+			</a>
+		{/if}
+		{#if canCreateService}
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
+			<a role={itemRole} class={itemClass} href={localizedPath(resolve('/tutoring/new'))} {onclick}>
+				{m.nav_add_service()}
+				<!-- "Offer tutoring" -->
+			</a>
+		{/if}
+		<!-- Contests Add… marker (CONTESTS-BRIEF.md §4 rule 4): step A appended "New contest" (→
+		     /contests/new) here, behind `contests`, for adults only, and hidden for an account
+		     `GET /api/creation/` refuses for the `contest` kind — the same wrapping step F gave
+		     "New event". Step B does not touch this menu. -->
+		{#if canCreateContest}
+			<a role={itemRole} class={itemClass} href={resolve('/contests/new')} {onclick}>
+				{m.contests_newContest()}
+				<!-- "New contest" -->
+			</a>
+		{/if}
+		<!-- Management Add… marker (MANAGEMENT-BRIEF.md §4 rule 4): step A appended "New organisation"
+		     here, behind its flag and for adults only.
+
+		     It left again on 2026-10-01, by owner decision, with "New concept" and the school-demo
+		     link — see the note on those. The surface is NOT killed: the `organizations` flag is
+		     untouched, "Organisations" is still in the account menu, and `/organizations/new`
+		     still works and is still reachable from the hub. Founding a body is a rare act and a
+		     deliberate one; offering it from every page of the site said otherwise.
+		     (It was, and still is where it remains, closed to an under-16: founding a body means
+		     standing publicly behind it, which `accounts/minors.py` closes exactly as it closes event
+		     hosting.) -->
+		{#if runsAVenue}
+			<!-- Conference step A. Not a "create" action like the rest of this menu, and deliberately
+			     placed last: it is the one entry here that only exists for the handful of people who
+			     run a building, and it is where they go to answer the room requests sitting in their
+			     queue. A venue's own page carries the link onward when somebody runs more than one. -->
+			<a
+				role={itemRole}
+				class={itemClass}
+				href={resolve('/venues/[slug]/manage', { slug: venueStaffStore.venues[0].slug })}
+				{onclick}
+			>
+				{m.venues_navAdd()}
+				<!-- "Venues you run" -->
+			</a>
+		{/if}
+	{/snippet}
+
+	{#if hasContentToAdd}
+		{@render menuGroup(surface, 'add-content', m.addMenu_groupContent(), contentItems)}
+		<!-- "Content" -->
+	{/if}
+	{#if hasSomethingToRun}
+		{@render menuGroup(surface, 'add-run', m.addMenu_groupRun(), runItems)}
+		<!-- "Something to run" -->
 	{/if}
 {/snippet}
 
@@ -1151,7 +1189,7 @@
 							</span>
 						{/snippet}
 						{#snippet children(close: () => void)}
-							{@render createItems('menu-item', close)}
+							{@render createItems('menu', close)}
 						{/snippet}
 					</Popover>
 				{/if}
@@ -1354,9 +1392,12 @@
 
 	{#if authStore.isAuthenticated}
 		{#if hasAnythingToAdd}
-			<div class="drawer__section">
+			<!-- The Add… groups, one under the other inside the one "Add…" section (WP13): in the drawer
+			     there is no trigger to say what they are FOR, so the section heading says it and each
+			     group carries a smaller sub-heading under it. -->
+			<div class="drawer__section drawer__section--add">
 				<p class="drawer__heading">{m.nav_add()}</p>
-				{@render createItems('drawer__item', closeOnNavigate)}
+				{@render createItems('drawer', closeOnNavigate)}
 			</div>
 		{/if}
 
@@ -2055,6 +2096,20 @@
 			letter-spacing: 0.06em;
 			color: var(--text-secondary);
 			padding: var(--space-1) 0;
+		}
+		// The Add… section holds its two groups (WP13): each group is a `.drawer__section` drawn by
+		// the shared `menuGroup` snippet, but inside "Add…" it is a sub-group, not a sibling section,
+		// so it loses the rule above it and its heading steps down a level — sentence case, no
+		// tracking — so the eye reads "Add…" first and the group second.
+		.drawer__section--add > .drawer__section {
+			border-top: none;
+			padding-top: var(--space-1);
+		}
+		.drawer__section--add > .drawer__section > .drawer__heading {
+			text-transform: none;
+			letter-spacing: 0;
+			font-weight: 600;
+			padding-bottom: 0;
 		}
 		.drawer__item,
 		.drawer__link,

@@ -53,7 +53,7 @@ const EN: ShowcaseModuleDoc = {
 			src: '/showcase/conference/01-event.png',
 			focus: [250, 1030],
 			width: 1280,
-			height: 946,
+			height: 982,
 			route: '/conference',
 			alt: 'Screenshot of the demo conference’s page as its organiser sees it: “You are running this” with Edit and Cancel this event, then a stack of folded panels — Programme 20, Proposals 7, Your registration questions 4, Registrations 14, Who runs this event 17, Venue and room 10, The building’s checklist 1, Documents 10, Tickets, Volunteer rota 28, Cloakroom 1.',
 			caption:
@@ -63,7 +63,7 @@ const EN: ShowcaseModuleDoc = {
 			src: '/showcase/conference/02-venue.png',
 			focus: [260, 1020],
 			width: 1280,
-			height: 786,
+			height: 802,
 			route: '/venues',
 			alt: 'Screenshot of the demo venue “Wydział Fizyki UW — Pasteura 5 (demo)”: its address, a contact note saying room numbers and capacities in the demo are illustrative, a porter’s lodge number, and six rooms, each with its floor, seats, fire capacity and pills for step-free access and AV equipment.',
 			caption:
@@ -80,7 +80,7 @@ const EN: ShowcaseModuleDoc = {
 		{
 			src: '/showcase/conference/04-scan.png',
 			width: 600,
-			height: 580,
+			height: 612,
 			alt: 'Screenshot of the Door scanner for the demo conference: a choice between Coming in and Going out, a Use the camera button, a field to type a code, a field to find somebody by first name, and a line saying how many scans are waiting to be sent and that a list of 12 people is loaded.',
 			caption:
 				'The door scanner, seen only by the people working the door: camera, a typed code or a name, coming in or going out — and it keeps working offline.'
@@ -205,7 +205,7 @@ const PL: ShowcaseModuleDoc = {
 			src: '/showcase/conference/01-event.png',
 			focus: [250, 1030],
 			width: 1280,
-			height: 946,
+			height: 982,
 			route: '/conference',
 			alt: 'Zrzut ekranu strony konferencji demonstracyjnej tak, jak widzi ją organizatorka: „You are running this” z przyciskami Edit i Cancel this event, a pod spodem stos zwiniętych paneli — Programme 20, Proposals 7, Your registration questions 4, Registrations 14, Who runs this event 17, Venue and room 10, The building’s checklist 1, Documents 10, Tickets, Volunteer rota 28, Cloakroom 1.',
 			caption:
@@ -215,7 +215,7 @@ const PL: ShowcaseModuleDoc = {
 			src: '/showcase/conference/02-venue.png',
 			focus: [260, 1020],
 			width: 1280,
-			height: 786,
+			height: 802,
 			route: '/venues',
 			alt: 'Zrzut ekranu budynku demonstracyjnego „Wydział Fizyki UW — Pasteura 5 (demo)”: adres, notka kontaktowa mówiąca, że numery sal i pojemności w demo są przykładowe, numer portierni i sześć sal, każda z piętrem, liczbą miejsc, pojemnością przeciwpożarową i oznaczeniami wejścia bez schodów i sprzętu AV.',
 			caption:
@@ -232,7 +232,7 @@ const PL: ShowcaseModuleDoc = {
 		{
 			src: '/showcase/conference/04-scan.png',
 			width: 600,
-			height: 580,
+			height: 612,
 			alt: 'Zrzut ekranu skanera „Door scanner” dla konferencji demonstracyjnej: wybór między Coming in i Going out, przycisk Use the camera, pole do wpisania kodu, pole do szukania kogoś po imieniu i linia mówiąca, ile skanów czeka na wysłanie i że wczytano listę 12 osób.',
 			caption:
 				'Skaner przy wejściu, widoczny tylko dla osób pilnujących drzwi: kamera, wpisany kod albo imię, wejście albo wyjście — i działa też bez internetu.'

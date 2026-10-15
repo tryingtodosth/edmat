@@ -65,7 +65,7 @@ const EN: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/start/05-account-menu.png',
-				alt: 'The account menu open, in four groups: Learning — My decks, My contests; Taking part — My schedule, My agenda, Volunteering, My volunteering offers; Working together — Co-authoring, My tasks, My organisations, My work; Your account — Profile, Settings, Help & manual, Report issue, Log out.'
+				alt: 'The account menu open, in four groups: Learning — My decks; Taking part — My contests, My schedule, My agenda, Volunteering, My volunteering offers; Working together — Co-authoring, My tasks, My organisations, My work; Your account — Profile, Settings, Help & manual, Report issue, Log out.'
 			}
 		}
 	],
@@ -135,7 +135,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/start/05-account-menu.png',
-				alt: 'Otwarte menu konta w czterech grupach: Learning — My decks, My contests; Taking part — My schedule, My agenda, Volunteering, My volunteering offers; Working together — Co-authoring, My tasks, My organisations, My work; Your account — Profile, Settings, Help & manual, Report issue, Log out.'
+				alt: 'Otwarte menu konta w czterech grupach: Learning — My decks; Taking part — My contests, My schedule, My agenda, Volunteering, My volunteering offers; Working together — Co-authoring, My tasks, My organisations, My work; Your account — Profile, Settings, Help & manual, Report issue, Log out.'
 			}
 		}
 	],

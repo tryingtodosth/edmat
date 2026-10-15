@@ -1871,7 +1871,18 @@ chapters.contests = async () => {
 			.catch(() => {});
 		await settle(page, 600);
 		const willCreate = await rect(page, '.will-create');
-		const from = Math.round((willCreate?.y ?? 900) - 330);
+		// About 330 px of the checklist above "What will be set up for you", starting at the top of
+		// an obligation rather than through the middle of one: a fixed offset cut a line in half as
+		// soon as the font changed (WP13, the re-shoot in Noto).
+		const target = (willCreate?.y ?? 900) - 330;
+		const tops = await page
+			.locator('.checklist > li')
+			.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().top + window.scrollY));
+		// The obligation the offset falls inside, from its own top (so the picture keeps the four
+		// label kinds its alt text names), or the first one after it if the offset is above them all.
+		const from = Math.round(
+			([...tops].reverse().find((t) => t <= target) ?? tops.find((t) => t >= target) ?? target) - 8
+		);
 		await shoot(page, 'contests', '09-law', {
 			clip: {
 				x: 0,
