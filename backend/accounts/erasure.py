@@ -324,6 +324,9 @@ REGISTRY: list[Rule] = [
     R('taxonomy.Topic', 'proposed_by', ANONYMISE, 'contributions'),
     # exercises
     R('exercises.TagFollow', 'user', DELETE, 'follows'),
+    # A tag somebody created while asking (WP16, 2026-10-15): the tag is everybody's once it exists;
+    # who coined it is a contribution, anonymised like every other.
+    R('exercises.Tag', 'created_by', ANONYMISE, 'contributions'),
     _licensed('exercises.Exercise', 'submitted_by'),
     R('exercises.ExerciseMaterialLink', 'added_by', ANONYMISE, 'contributions'),
     R('exercises.ExerciseTranslation', 'translated_by', ANONYMISE, 'contributions'),
