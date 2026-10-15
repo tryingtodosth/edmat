@@ -16876,6 +16876,16 @@ manual had none, and no manual step linked to the screen it described.
   An unknown code reads "Status unknown", never the code. Also: `about-discussions.mjs` brought in line
   with today's `/about`, and plan step rows whose status select fell onto its own line.
 
+- **`/about` tells a newcomer where to go** (WP7; owner, 2026-10-15: *"yes, put the strip above the
+  organisation page"*): the homepage's three doors at the top of `/about`, the same `StartHere`
+  component with a `variant`, and one shared "hide" — not needing to be told where to start is a fact
+  about the visitor, not the page. Four more feature cards (flashcards, contests, help wanted,
+  organisations; 13, each behind its flag) and one "Explore" section holding the manual and the
+  showcase index. `about-page.mjs` was already broken by the folded panels and is 58/58 again.
+- **Owner's answers, 2026-10-15:** the homepage band stays for everybody; "My contests" moved to Taking
+  part; screenshots may show the demo rows; licence wording for the showcase is CC BY (WP6, below the
+  line when it lands).
+
 ### Bugs found by doing this, and where they went
 
 - **`localizedPath()` wrote the prerenderer's origin into links**: `href="http://sveltekit-prerender/
@@ -16904,11 +16914,8 @@ catalogues merged as JSON three-way with no key changed on both sides (5280 = 52
 
 ### Left open
 
-- **Owner decisions:** whether a "New here?" strip may sit above the organisation page on `/about`
-  (WP7, not built); whether the homepage band shows to signed-in readers; "My contests" under Learning
-  or Taking part; whether pictures of the dev database's own rows (TEST=FAKE events, the EdMat
-  organisation's help-wanted posts) should ship; the licence wording a `/about/licences-and-data` page
-  would need (WP6, not built — `/about/account` waits with it).
+- `OrganizationPage` still asks for the organisation when `organizations` is off, and an anonymous
+  reader gets a 401 in the console on `/about`; the 13 cards leave one alone on the last row at 1280.
 - The screenshots are English-only and in two fonts (DejaVu on this machine, Noto on the older ones):
   one consistent set needs one re-shoot on one machine.
 - No showcase pictures yet for contests, the learning record and schools; the course and exercise
