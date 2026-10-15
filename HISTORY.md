@@ -16882,9 +16882,15 @@ manual had none, and no manual step linked to the screen it described.
   about the visitor, not the page. Four more feature cards (flashcards, contests, help wanted,
   organisations; 13, each behind its flag) and one "Explore" section holding the manual and the
   showcase index. `about-page.mjs` was already broken by the folded panels and is 58/58 again.
+- **Your account, licences and your data** (WP6): `/about/account` (the age gate, a guardian's child,
+  sign-in providers — none configured on the dev database, so the page says so and draws no buttons —
+  mail and password, export, deletion) and `/about/licences-and-data`, which presents **CC BY 4.0 as
+  EdMat's suggestion for your own work** (owner: *"as for license cc-by"*), the other licences as
+  facts, and the consent-free statistics and error reports, linking `/terms` and `/privacy` rather than
+  restating them. Fourteen showcase pages; `/about/materials` reworded the same night so the two pages
+  agree. `showcase.mjs` 507/507, `about-discussions.mjs` 57/57, axe 0 violations on both.
 - **Owner's answers, 2026-10-15:** the homepage band stays for everybody; "My contests" moved to Taking
-  part; screenshots may show the demo rows; licence wording for the showcase is CC BY (WP6, below the
-  line when it lands).
+  part; screenshots may show the demo rows; licence wording for the showcase is CC BY (WP6, above).
 
 ### Bugs found by doing this, and where they went
 
