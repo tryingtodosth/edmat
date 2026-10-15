@@ -16889,6 +16889,15 @@ manual had none, and no manual step linked to the screen it described.
   facts, and the consent-free statistics and error reports, linking `/terms` and `/privacy` rather than
   restating them. Fourteen showcase pages; `/about/materials` reworded the same night so the two pages
   agree. `showcase.mjs` 507/507, `about-discussions.mjs` 57/57, axe 0 violations on both.
+- **Every picture matches the site** (WP10): all 61 manual pictures re-shot against a fresh database
+  copy and compared with what was committed — 32 had drifted (the grouped menu, the terms tick box,
+  licence lines, folded panels, general courses, a picture that had shipped showing "Loading…") and were
+  replaced, 29 put back untouched. Alt texts that named dates or counts were made generic so they do not
+  drift again. The courses chapter explains general courses and their versions. Pictures for the
+  contests, learning-record and schools showcase pages (the logbook demo shot from its real static
+  build). **Two lessons:** this machine runs in UTC, so `guide-screenshots.mjs` must run with
+  `TZ=Europe/Warsaw` — five showcase pictures had shown times two hours early; and Noto Sans is now in
+  `~/.local/share/fonts`, so new pictures are drawn in Noto (about 25 older ones are still DejaVu).
 - **Owner's answers, 2026-10-15:** the homepage band stays for everybody; "My contests" moved to Taking
   part; screenshots may show the demo rows; licence wording for the showcase is CC BY (WP6, above).
 
@@ -16920,6 +16929,11 @@ catalogues merged as JSON three-way with no key changed on both sides (5280 = 52
 
 ### Left open
 
+- Found by WP10, not fixed: a school class reads "A general course" and offers "Add a university/
+  faculty version" (a §17CM side effect); the "under 16" badge stretches across a class's People row;
+  the manual prints Markdown asterisks literally; the tutoring showcase says times are in the server's
+  zone while the browser draws its own; the `/dziennik` demo's sample school name may match a real
+  school (owner's call).
 - `OrganizationPage` still asks for the organisation when `organizations` is off, and an anonymous
   reader gets a 401 in the console on `/about`; the 13 cards leave one alone on the last row at 1280.
 - The screenshots are English-only and in two fonts (DejaVu on this machine, Noto on the older ones):
