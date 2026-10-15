@@ -450,7 +450,7 @@ node e2e/login-return.mjs
 E2E_USER=<id> E2E_PUBLISHED=55 E2E_PRIVATE=2 node e2e/profile-exercise-counts.mjs   # needs an account with >50 exercises; see its header
 node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs in as ola + kasia, toggles the `issues` flag and restores it
 node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with it, the drawer's own ✕, the focus trap
-E2E_TOKEN=<kasia> E2E_USER_TOKEN=<michal> node e2e/account-menu.mjs   # the grouped account menu + Help (WP8): both locales, keyboard, drawer at 390, dark; flips `flashcards` + `contests` off and back on
+E2E_TOKEN=<kasia> E2E_USER_TOKEN=<michal> node e2e/account-menu.mjs   # the grouped account menu + Help (WP8): both locales, keyboard, drawer at 390, dark; flips `flashcards` off and back on
 node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
 node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
 node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck

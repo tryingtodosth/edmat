@@ -15,7 +15,7 @@
 //
 // The two tokens are optional — without them the script signs in with password123 — but five
 // scripts signing in within the hour burn the login throttle (trap 30), so pass them when you can.
-// It turns `flashcards` and `contests` OFF for the killed-group check and puts both back on in a
+// It turns `flashcards` OFF for the killed-group check and puts it back on in a
 // `finally`, through the same staff API the Flags tab uses. Run it against a COPY of the database.
 let chromium;
 try {
@@ -84,8 +84,15 @@ const LABELS = {
 // What each group carries for an ordinary adult account with every switch on. `null` is a button
 // (Report issue, Log out), which has no href.
 const ENTRIES = {
-	learning: ['/flashcards', '/contests?mine=1'],
-	'taking-part': ['/bookings', '/events/agenda', '/volunteering/hours', '/volunteering/mine'],
+	// "My contests" is under Taking part by the owner's call (2026-10-15), so Learning holds one entry.
+	learning: ['/flashcards'],
+	'taking-part': [
+		'/contests?mine=1',
+		'/bookings',
+		'/events/agenda',
+		'/volunteering/hours',
+		'/volunteering/mine'
+	],
 	together: ['/material-projects?tab=mine', '/tasks', '/organizations', '/work'],
 	account: [`/users/${me.id}`, '/settings', '/about/guide', null, null]
 };
@@ -351,9 +358,8 @@ try {
 	}
 
 	// ---- a fully killed group disappears -------------------------------------------------------
-	console.log('[killed] flashcards and contests off: the Learning group goes, heading and all');
+	console.log('[killed] flashcards off: the Learning group goes, heading and all');
 	await setFlag('flashcards', false);
-	await setFlag('contests', false);
 	{
 		const { ctx, page } = await contextFor('en', {
 			token: USER,
@@ -387,7 +393,7 @@ try {
 		);
 		await ctx.close();
 	}
-	// One switch back on: the group returns with just that entry.
+	// The switch back on: the group returns with its entry.
 	await setFlag('flashcards', true);
 	{
 		const { ctx, page } = await contextFor('en', {
@@ -398,7 +404,7 @@ try {
 		await openAccountMenu(page);
 		const learning = (await groupsIn(menu(page))).find((g) => g.key === 'learning');
 		check(
-			'one switch back on brings the group back with only its entry',
+			'the switch back on brings the group back with its entry',
 			JSON.stringify(learning?.hrefs) === JSON.stringify(['/flashcards']),
 			JSON.stringify(learning?.hrefs)
 		);
@@ -406,12 +412,9 @@ try {
 	}
 } finally {
 	await setFlag('flashcards', true);
-	await setFlag('contests', true);
 	const flags = await api('GET', '/feature-flags/', STAFF);
-	const back = flags
-		.filter((f) => ['flashcards', 'contests'].includes(f.key))
-		.every((f) => f.is_enabled);
-	check('both switches are back on (re-queried)', back);
+	const back = flags.filter((f) => f.key === 'flashcards').every((f) => f.is_enabled);
+	check('the switch is back on (re-queried)', back);
 	await browser.close();
 }
 

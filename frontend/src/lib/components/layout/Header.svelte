@@ -142,8 +142,8 @@
 	// read — keep these in step with `accountItems` below, one line per group. ("My agenda" needs
 	// `canTutoring` as well as `events`, so it adds nothing to the Taking part line.)
 	let canShifts = $derived(can('shifts'));
-	let hasLearningItems = $derived(canFlashcards || canContests);
-	let hasTakingPartItems = $derived(canTutoring || canShifts || canOffers);
+	let hasLearningItems = $derived(canFlashcards);
+	let hasTakingPartItems = $derived(canContests || canTutoring || canShifts || canOffers);
 	let hasTogetherItems = $derived(canCoauthoring || canTasks || canOrganizations || canWork);
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
@@ -669,8 +669,8 @@
 	{#snippet learningItems()}
 		<!-- Learning account-menu marker (prompts/README.md §5 rule 4): step A appended "My decks"
 		     (→ /flashcards, behind `flashcards`). Contests account-menu marker (CONTESTS-BRIEF.md
-		     §4 rule 4): step A appended "My contests" (→ /contests?mine=1, behind `contests`). Both
-		     live in this group since WP8. -->
+		     §4 rule 4): step A appended "My contests" (→ /contests?mine=1, behind `contests`). WP8
+		     put both here; the owner moved "My contests" to Taking part on 2026-10-15. -->
 		{#if canFlashcards}
 			<!-- A thing of theirs to come back to, like "My tasks", rather than something to make —
 			     which is why it is here and not in the Add… menu. A deck is created from a set, a
@@ -680,17 +680,17 @@
 				<!-- "My decks" -->
 			</a>
 		{/if}
+	{/snippet}
+
+	{#snippet takingPartItems()}
 		{#if canContests}
-			<!-- `?mine=1` is the hub's own tab, not a second page. With learning rather than taking
-			     part: a contest here is an olympiad-style problem set, which a student enters to learn. -->
+			<!-- `?mine=1` is the hub's own tab, not a second page. Under Taking part by the owner's call
+			     (2026-10-15): entering, judging and running a contest are all taking part in one. -->
 			<a role={itemRole} class={itemClass} href="{resolve('/contests')}?mine=1" {onclick}>
 				{m.contests_navMine()}
 				<!-- "My contests" -->
 			</a>
 		{/if}
-	{/snippet}
-
-	{#snippet takingPartItems()}
 		{#if canTutoring}
 			<a role={itemRole} class={itemClass} href={resolve('/bookings')} {onclick}>
 				{m.nav_bookings()}
