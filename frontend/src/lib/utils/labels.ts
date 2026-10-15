@@ -1045,7 +1045,13 @@ export const ORGANIZATION_BLOCK_LABELS: Record<string, () => string> = {
 	not_linkable: m.orgs_blocked_notLinkable, // "Only a course, an event or a material can be linked."
 	already_linked: m.orgs_blocked_alreadyLinked, // "This is already linked to this organisation."
 	already_member: m.orgs_blocked_alreadyMember, // "This person is already on the roster."
-	no_such_user: m.orgs_blocked_noSuchUser // "There is no account with that id."
+	no_such_user: m.orgs_blocked_noSuchUser, // "There is no account with that id."
+	// A school RUNNING a course makes it a class, and a class is neither a university version nor a
+	// general course with versions (WP12). The two words are `backend/courses/rules.py:
+	// SCHOOL_RUN_REFUSALS`, answered through `organizations/access.py` — mirrored here, and that
+	// tuple names this table back (house rule 13).
+	course_is_version: m.wp12_orgBlockedCourseIsVersion, // "This course is a university or faculty version of a general course, so a school cannot run it as a class."
+	course_has_versions: m.wp12_orgBlockedCourseHasVersions // "This general course has university or faculty versions under it, so a school cannot run it as a class."
 };
 
 /** The one lookup every organisation surface uses, so that an unknown word is still a sentence
@@ -1394,6 +1400,21 @@ export function courseKindBadge(course: {
 	school: { name: string } | null;
 }): string {
 	return course.school ? m.wp11_courseKindClassBadge() : COURSE_KIND_BADGES[course.kind](); // "School class"
+}
+
+/** Whether a course is a GENERAL course — what the `/courses` hub's "General courses" chip shows and
+ *  what a course page offers university/faculty versions under. A `topic` course with no parent
+ *  that no school runs: the hub used to test "has no parent" alone, which is also true of a school
+ *  class and of a stand-alone university course, so a listed class showed up under "General"
+ *  (WP12). **Mirrored** from `backend/courses/rules.py: general_courses` (`?general=true`), which
+ *  names this function back; `school` is the server's own resolution of the same `runs` links, and
+ *  a backend test holds the payload's three fields to the rule (house rule 13). */
+export function isGeneralCourse(course: {
+	kind: CourseKind;
+	parent: string | null;
+	school: { name: string } | null;
+}): boolean {
+	return course.kind === 'topic' && !course.parent && !course.school;
 }
 
 // Flashcards enums — a hand-maintained mirror of `backend/flashcards/models.py`

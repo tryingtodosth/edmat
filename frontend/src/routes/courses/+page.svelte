@@ -18,6 +18,7 @@
 	import StaleRow from '$lib/components/shared/StaleRow.svelte';
 	import { cachedList, type TrackedRow } from '$lib/state/cachedList.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import { isGeneralCourse } from '$lib/utils/labels';
 
 	let courses = $state<TrackedRow<Course>[]>([]);
 	let loading = $state(true);
@@ -66,7 +67,7 @@
 	// HERE, over the rows already loaded, rather than as new query parameters: the list is bounded
 	// by construction (no pagination anywhere in this API), so a request per chip would buy nothing,
 	// and the offline/saved-copy machinery above keeps working under a filter for free. The API
-	// takes the same filters (`?top=`, `?kind=`, `?university=`, `?faculty=`) for anybody else.
+	// takes the same filters (`?general=`, `?kind=`, `?university=`, `?faculty=`) for anybody else.
 	type View = 'general' | 'versions' | 'all';
 	let view = $state<View>('general');
 	let universityFilter = $state('');
@@ -102,7 +103,9 @@
 	let visible = $derived(
 		courses.filter((row) => {
 			const c = row.item;
-			if (view === 'general') return !c.parent;
+			// Not "has no parent": a school class and a stand-alone university course have none
+			// either (WP12). The one row-level spelling of `rules.general_courses`.
+			if (view === 'general') return isGeneralCourse(c);
 			if (view === 'versions') {
 				if (c.kind !== 'university') return false;
 				if (universityFilter && fold(c.university) !== fold(universityFilter)) return false;

@@ -30,6 +30,7 @@ from .access import (
     FEATURE_KEY,
     can_manage,
     found_block_reason,
+    kind_change_block_reason,
     link_block_reason,
     organizations_managed_by,
     remove_block_reason,
@@ -54,6 +55,12 @@ User = get_user_model()
 
 def _forbidden(reason):
     return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
+
+
+#: The link refusals that are 409 — the world is not what the request assumed (somebody linked it
+#: first; the course is already a version or already has versions, WP12). `not_linkable` is 400 and
+#: the rest are 403, below.
+_CONFLICT_REASONS = frozenset({'already_linked', 'course_is_version', 'course_has_versions'})
 
 
 def _conflict(reason):
@@ -124,6 +131,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             organization, data=request.data, partial=kwargs.pop('partial', False)
         )
         write.is_valid(raise_exception=True)
+        if 'kind' in write.validated_data:
+            # A body becoming a school makes every course it `runs` a class (WP12).
+            reason = kind_change_block_reason(organization, write.validated_data['kind'])
+            if reason:
+                return _conflict(reason)
         write.save()
         return Response(
             OrganizationSerializer(organization, context=self.get_serializer_context()).data
@@ -193,8 +205,10 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             # House rule 4: a node this caller cannot see does not exist for them, and neither does
             # the question of linking to it.
             raise Http404
-        reason = link_block_reason(request.user, organization, node)
-        if reason == 'already_linked':
+        reason = link_block_reason(
+            request.user, organization, node, kind=write.validated_data['kind']
+        )
+        if reason in _CONFLICT_REASONS:
             return _conflict(reason)
         if reason == 'not_linkable':
             return Response({'detail': reason}, status=status.HTTP_400_BAD_REQUEST)

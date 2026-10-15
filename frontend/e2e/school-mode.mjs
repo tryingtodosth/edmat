@@ -19,6 +19,15 @@
 // verified at integration once A has merged. The route `/flashcards/[id]` the link points at is A's
 // too, so the link is asserted to EXIST and is deliberately not followed.
 //
+// **The control course in section 2 is founded by the teacher**, and founding a course passes the
+// creation gate (`backend/config/creation.py`): with `creation_requires_verification` on, an
+// unverified account is refused 403 `verification_required` — which `school.teacher` is, as seeded.
+// So when `/api/creation/` says so, the script turns that switch OFF (as the seeded staff account,
+// the way section 7 flips its switches) for the one POST that founds the control, and back ON in a
+// `finally` — run it against a database COPY. The control must be the SAME teacher's course: what
+// it proves is that the register comes from the school's link and not from the teacher's role.
+// (WP12; until then the control was refused and section 2 failed on the gate, not on school mode.)
+//
 // Run (ports are step C's):
 //   rm -rf backend/cachedata/*
 //   E2E_BASE=http://localhost:5233 E2E_API=http://127.0.0.1:8133/api node e2e/school-mode.mjs
@@ -61,7 +70,18 @@ const check = (label, ok, extra = '') => {
 	console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${label} ${ok ? '' : extra}`);
 };
 
+// One sign-in per account per run, and none at all for an account whose token is passed in: the
+// login endpoint is throttled ~10/hour per IP (e2e/CLAUDE.md trap 30), and this script used to sign
+// the staff account in three times. `E2E_TEACHER_TOKEN` / `E2E_STAFF_TOKEN` skip those two.
+const knownTokens = {
+	[TEACHER]: process.env.E2E_TEACHER_TOKEN,
+	[STRANGER]: process.env.E2E_STAFF_TOKEN
+};
 async function tokenFor(username, password) {
+	knownTokens[username] ??= await signIn(username, password);
+	return knownTokens[username];
+}
+async function signIn(username, password) {
 	const response = await fetch(`${API}/auth/login/`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -138,6 +158,19 @@ async function openCourse(page, courseId, { tab } = {}) {
 
 async function shoot(page, name) {
 	await page.screenshot({ path: `${SHOTS}school-${name}.png`, fullPage: true });
+}
+
+/** Open a folded panel the way a reader does — by its toggle — and return the fold. Every panel
+ *  below the tabs has been one line until opened since 3d9f613c (`FoldSection`), and its body is
+ *  not in the DOM while shut, so waiting for `.completions` on a fresh context waited for something
+ *  that is never drawn (WP12). A fresh context remembers no open folds, so it starts shut. */
+async function openFold(page, key) {
+	const fold = page.locator(`section.fold[data-fold="${key}"]`);
+	await fold.waitFor({ timeout: 15000 });
+	const toggle = fold.locator('.fold__toggle');
+	if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+	await fold.locator('.fold__body > *').first().waitFor({ timeout: 15000 });
+	return fold;
 }
 
 const DESKTOP = { width: 1280, height: 950 };
@@ -264,18 +297,39 @@ try {
 	{
 		// 3b is also a class, so the control has to be a course NO school runs. Made and removed
 		// through the real API, which is also what proves the widening is the link and not the role.
-		const made = await api(teacherToken, '/courses/', {
-			method: 'POST',
-			body: JSON.stringify({
-				title: 'E2E school-mode control',
-				visibility: 'private',
-				status: 'running',
-				progress_visibility: 'private',
-				enrollment_policy: 'approval',
-				audience: 'university',
-				language: 'pl'
-			})
-		});
+		// The creation gate is lifted for this one POST when it would refuse the teacher (header).
+		const gate = await (await api(teacherToken, '/creation/')).json();
+		const lifted = gate.course === 'verification_required';
+		const staffToken = lifted ? await tokenFor(STRANGER, STRANGER_PASSWORD) : null;
+		if (lifted) {
+			console.log('   (creation gate refuses the teacher: lifting it for the control POST only)');
+			await setFlag(staffToken, 'creation_requires_verification', false);
+		}
+		let made;
+		try {
+			made = await api(teacherToken, '/courses/', {
+				method: 'POST',
+				body: JSON.stringify({
+					title: 'E2E school-mode control',
+					visibility: 'private',
+					status: 'running',
+					progress_visibility: 'private',
+					enrollment_policy: 'approval',
+					audience: 'university',
+					language: 'pl'
+				})
+			});
+		} finally {
+			if (lifted) await setFlag(staffToken, 'creation_requires_verification', true);
+		}
+		if (lifted) {
+			const back = await (await api(teacherToken, '/creation/')).json();
+			check(
+				'control: the creation gate is back on afterwards',
+				back.course === 'verification_required',
+				JSON.stringify(back)
+			);
+		}
 		if (made.status === 201) {
 			const control = await made.json();
 			const chapter = await (
@@ -306,7 +360,11 @@ try {
 			const after = await api(teacherToken, `/courses/${control.id}/`);
 			check('control: scratch course removed', after.status === 404, `status ${after.status}`);
 		} else {
-			check('control: scratch course created', false, `status ${made.status}`);
+			check(
+				'control: scratch course created',
+				false,
+				`status ${made.status} ${JSON.stringify(await made.json().catch(() => null))}`
+			);
 		}
 	}
 
@@ -336,8 +394,14 @@ try {
 		const page = await ctx.newPage();
 		watch(page);
 		await openCourse(page, klass.id);
-		const panel = page.locator('.completions');
+		const fold = await openFold(page, 'completions');
+		const panel = fold.locator('.completions');
 		await panel.waitFor({ timeout: 15000 });
+		check(
+			'the certificates panel is headed "Completion certificates" for staff',
+			(await fold.locator('h2').textContent())?.includes('Completion certificates') === true,
+			await fold.locator('h2').textContent()
+		);
 		check('the certificates panel is drawn for staff', await panel.isVisible());
 		check(
 			'the panel says what a certificate does NOT carry',
@@ -438,12 +502,14 @@ try {
 		const page = await ctx.newPage();
 		watch(page);
 		await openCourse(page, klass.id);
-		const panel = page.locator('.completions');
+		// The heading is the fold's own since 3d9f613c, so it is read from the fold, not the body.
+		const fold = await openFold(page, 'completions');
+		const panel = fold.locator('.completions');
 		await panel.waitFor({ timeout: 15000 });
 		check(
 			'the panel is headed "Your certificate" for a holder, not "Completion certificates"',
-			(await panel.locator('h2').textContent())?.includes('Your certificate') === true,
-			await panel.locator('h2').textContent()
+			(await fold.locator('h2').textContent())?.includes('Your certificate') === true,
+			await fold.locator('h2').textContent()
 		);
 		check('a pupil is offered no issue form', (await panel.locator('select').count()) === 0);
 		check('a pupil is offered no Withdraw', (await panel.locator('button.danger').count()) === 0);

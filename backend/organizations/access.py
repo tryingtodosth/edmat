@@ -125,7 +125,7 @@ def found_block_reason(user):
     return None
 
 
-def link_block_reason(user, organization, node):
+def link_block_reason(user, organization, node, *, kind='runs'):
     """Why this organisation may not be linked to this node — or `None`.
 
     - ``not_org_manager`` — you do not run the organisation whose name would go on the badge (403).
@@ -136,6 +136,14 @@ def link_block_reason(user, organization, node):
       first). Changing `runs` to `supports` is a PATCH of nothing — the link is deleted and made
       again, because the two are different claims rather than two settings of one.
     - ``not_linkable`` — the target is not one of `LINKABLE_KINDS` (400).
+    - ``course_is_version`` / ``course_has_versions`` — a SCHOOL asking to RUN a course that is a
+      university/faculty version, or a general course with versions under it (409: the course is
+      already something a class cannot also be). A `runs` link from a school is what makes a course
+      a class, so this is where a course becomes one; the rule itself is
+      `courses.rules.school_run_block_reason` and is only asked here (WP12). `supports`, and any
+      other kind of body, is never refused for this.
+
+    `kind` is the link kind being asked for — `runs` by default, the serializer's own default.
 
     The node's own visibility is NOT checked here: the caller resolved it through
     `config.nodes.resolve_node` and 404s a node it may not see before ever reaching this function,
@@ -145,8 +153,8 @@ def link_block_reason(user, organization, node):
 
     if not can_manage(user, organization):
         return 'not_org_manager'
-    kind = nodes.kind_of(node)
-    if kind not in LINKABLE_KINDS:
+    kind_of_node = nodes.kind_of(node)
+    if kind_of_node not in LINKABLE_KINDS:
         return 'not_linkable'
     if not nodes.can_manage_node(user, node):
         return 'not_node_manager'
@@ -156,6 +164,39 @@ def link_block_reason(user, organization, node):
         object_id=node.pk,
     ).exists():
         return 'already_linked'
+    if kind_of_node == 'course':
+        from courses import rules as course_rules
+
+        if course_rules.makes_a_class(organization.kind, kind):
+            return course_rules.school_run_block_reason(node)
+    return None
+
+
+def kind_change_block_reason(organization, new_kind):
+    """Why this organisation may not change its kind to `new_kind` — or `None`.
+
+    The second door into a class (WP12): a body of another kind that already `runs` courses, turned
+    into a school, makes every one of them a class in the same instant. So the same rule
+    `link_block_reason` asks for one new link is asked here of every course the body already runs,
+    and the first refusal is the answer (``course_is_version`` / ``course_has_versions``, 409). A
+    body that is already a school, or is becoming anything else, is never refused for this.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from courses import rules as course_rules
+    from courses.models import Course
+
+    if new_kind == organization.kind or not course_rules.makes_a_class(
+        new_kind, course_rules.SCHOOL_LINK_KIND
+    ):
+        return None
+    run_ids = organization.links.filter(
+        content_type=ContentType.objects.get_for_model(Course), kind=course_rules.SCHOOL_LINK_KIND
+    ).values('object_id')
+    for course in Course.objects.filter(pk__in=run_ids):
+        reason = course_rules.school_run_block_reason(course)
+        if reason:
+            return reason
     return None
 
 

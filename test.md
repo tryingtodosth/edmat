@@ -457,6 +457,7 @@ node e2e/learning-record.mjs          # the learning record on a public profile 
 node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck
 node e2e/about-page.mjs               # /about as the project's organisation page (2026-10-08): both locales, both themes, phone width, the open board drawn for a stranger with nothing to press, five kill switches hiding their cards, the "New here?" strip and the Explore section (WP7); since WP11 it also asserts that with `organizations` off the page sends NO request for the organisation (it used to excuse a 401); needs the EdMat seed; kasia's token or login only to flip the flags
 E2E_TEACHER_TOKEN=<school.teacher> E2E_STAFF_TOKEN=<kasia> node e2e/wp11-fixes.mjs   # WP11's five fixes (38 checks + 1 skip): a school class reads "A school class" with no versions panel, the People tab's under-16 badge on the pupil's line, no Markdown asterisks in four manual chapters + /about/contests (both locales), /about/tutoring names UTC, /about with `organizations` off asks for nothing and logs nothing; needs seed_school_demo; flips `organizations` off and back on — run on a DB copy
+E2E_TEACHER_TOKEN=<school.teacher> E2E_STAFF_TOKEN=<kasia> node e2e/wp12-schools-tidy.mjs   # WP12 (73 checks): the /courses hub's "General courses" chip leaves out a LISTED school class (en/pl, 1280/390) while "All" shows it; a school may not run a version (`course_is_version`) or a general course with versions (`course_has_versions`) — the organisations panel says why, nothing is linked, `supports` still works; a body running a version may not turn into a school (the manage page says why); needs seed_school_demo; lifts the creation gate for its two scratch courses, makes the class public and the school "Other" for the run, puts all three back — run on a DB copy, and wait 60 s between runs (the anonymous read cache)
 node e2e/showcase.mjs                 # the fourteen design-showcase pages under /about/<feature>, their screenshots, live links and switches; signs nobody in (E2E_TOKEN adds the signed-in /work check; E2E_NO_BACKEND=1 runs with the API down)
 node e2e/showcase-screens.mjs         # re-takes the module pages' screenshots into static/showcase/<slug>/ (E2E_TOKENS=<json of DRF tokens>; writes one demo goal; ONLY=<slug,…> for a subset)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
@@ -2305,6 +2306,13 @@ says so twice in its own output; `/flashcards/[id]` is A's route and is asserted
 followed. It signs in by writing the token into `localStorage` the way `token.svelte.ts` keeps it,
 so no run touches the register throttle (trap 1), and every scratch row is removed through the real
 API and confirmed with an authenticated re-query (trap 12).
+**Since WP12 (2026-10-15)** the control course is founded through the creation gate, which refuses
+the unverified seeded teacher: when `/api/creation/` says `verification_required`, the script turns
+`creation_requires_verification` off as kasia for that one POST and back on in a `finally` (and checks
+it is back). Sections 3 and 4 open the `completions` fold by its toggle, the way a reader does — the
+panel has been folded since 3d9f613c and its body is not in the DOM while shut — and read the
+heading from the fold. It accepts `E2E_TEACHER_TOKEN` / `E2E_STAFF_TOKEN` and signs each account in
+at most once (trap 30). 65/65 on a DB copy, ports 8063/5213.
 
 **`manage.py seed_school_demo`** is itself worth running as a check: it asks
 `completion_block_reason` before writing its certificate and `progress_writable_by` before each

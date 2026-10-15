@@ -5,7 +5,7 @@
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
-	import { courseKindLabel } from '$lib/utils/labels';
+	import { courseKindLabel, isGeneralCourse } from '$lib/utils/labels';
 	import CourseMaterialsIndex from '$lib/components/course/CourseMaterialsIndex.svelte';
 	import CourseVersions from '$lib/components/course/CourseVersions.svelte';
 	import FoldSection from '$lib/components/shared/FoldSection.svelte';
@@ -681,8 +681,9 @@
 		<!-- A general course's university/faculty versions, above the tabs: they are the first thing
 		     somebody studying this subject at one university is looking for (owner, 2026-10-14). A
 		     version has none — one level only — and neither does a school class, whose `kind` is still
-		     `topic` because school mode is a link, not a kind (`rules.py: parent_is_class`, WP11). -->
-		{#if !course.parent && course.kind === 'topic' && !course.school}
+		     `topic` because school mode is a link, not a kind (`rules.py: parent_is_class`, WP11).
+		     `isGeneralCourse` is the same test the hub's "General courses" chip makes (WP12). -->
+		{#if isGeneralCourse(course)}
 			<CourseVersions {course} />
 		{/if}
 

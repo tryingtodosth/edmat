@@ -214,6 +214,10 @@
 	// Card chrome and the heading are `FoldSection`'s since 2026-10-08; this is its body.
 	.orgs-panel {
 		display: grid;
+		// `minmax(0, 1fr)`, not the implicit `auto` track: an `auto` track grows to its widest
+		// child's min-content, and the organisation select's is a whole organisation name — at 390px
+		// the form, and the refusal sentence under it, ran past the card's clipped edge (WP12).
+		grid-template-columns: minmax(0, 1fr);
 		gap: var(--space-2);
 	}
 	h3 {
@@ -259,6 +263,14 @@
 		display: grid;
 		gap: 0.2rem;
 		font-size: 0.85rem;
+		// The same `auto`-track trap one level down: without it the label's own grid column is the
+		// select's min-content, and the select ran past the card at 390px.
+		grid-template-columns: minmax(0, 1fr);
+		min-width: 0;
+		max-width: 100%;
+	}
+	.field select {
+		max-width: 100%;
 	}
 	.error {
 		margin: 0.5rem 0 0;

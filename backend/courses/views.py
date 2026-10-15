@@ -249,12 +249,19 @@ class CourseViewSet(viewsets.ModelViewSet):
         if faculty:
             qs = qs.filter(faculty__iexact=faculty)
         # `?parent=<id>` — one general course's university/faculty versions (its page lists them);
-        # `?top=true` — general courses and stand-alone ones only, the hub's default view.
+        # `?top=true` — every course with no parent: general ones, stand-alone university ones and
+        # school classes alike (it is a shape, not a meaning; `?general=true` below is the meaning).
         parent = self.request.query_params.get('parent')
         if parent and parent.isdigit():
             qs = qs.filter(parent_id=int(parent))
         if self.request.query_params.get('top') == 'true':
             qs = qs.filter(parent__isnull=True)
+        # `?general=true` — GENERAL courses only (`rules.general_courses`): `?top=true` minus
+        # stand-alone university courses and school classes, which have no parent either. The
+        # hub's "General courses" chip, filtered client-side over the loaded list, mirrors the same
+        # rule row by row (`labels.ts: isGeneralCourse`, WP12).
+        if self.request.query_params.get('general') == 'true':
+            qs = rules.general_courses(qs)
         # `?q=` — free-text course search, feeding the site-wide search page (the navbar's staged
         # collapse removes the Courses link at narrow widths on the grounds that search still
         # reaches it, so this filter is what makes that claim true). Plain icontains on the two

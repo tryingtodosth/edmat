@@ -83,7 +83,11 @@ export type OrganizationBlockReason =
 	| 'not_linkable'
 	| 'already_linked'
 	| 'already_member'
-	| 'no_such_user';
+	| 'no_such_user'
+	// `backend/courses/rules.py: SCHOOL_RUN_REFUSALS` (WP12): a school may not run a version, or a
+	// general course with versions, as a class.
+	| 'course_is_version'
+	| 'course_has_versions';
 
 export interface OrganizationDraft {
 	name: string;

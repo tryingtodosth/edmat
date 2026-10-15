@@ -97,9 +97,14 @@ kill switch and is unaffected.
 ## Refusals are words, not booleans (house rule 6)
 
 `minor` `last_owner` `not_org_manager` `not_org_owner` `not_node_manager` `not_linkable`
-`already_linked` `already_member` `no_such_user`.
+`already_linked` `already_member` `no_such_user`, and two words this app only relays:
+`course_is_version` / `course_has_versions` (WP12) — a SCHOOL that would `run` a course that is a
+university version, or a general course with versions, which would make it a class
+(`courses/rules.py: school_run_block_reason` is the rule). Asked by `link_block_reason` (now taking
+the link `kind`) and by `kind_change_block_reason` on the organisation PATCH, because a body that
+already runs such a course and becomes a school is the same state reached by another door.
 
-`last_owner`, `already_linked` and `already_member` are **409** (the world moved — somebody got there
+`last_owner`, `already_linked`, `already_member` and those two are **409** (the world moved — somebody got there
 first, or the roster is not what the caller thought); `not_linkable` and `no_such_user` are **400**
 (the request was wrong when it was written); the rest are **403**. A node the caller may not see is
 **404** before any of this is asked. The frontend has a line for each in `ORGANIZATION_BLOCK_LABELS`

@@ -105,8 +105,13 @@ that "all the materials are in one place". `rules.py` (bottom section) is the wh
   `_visible_courses` (claims): own rule AND (no parent, or the parent visible to the caller, or the
   caller is inside the version). The write-time rank check stops a version being MORE visible than
   its parent; the read-time filter keeps that true after the parent is narrowed later.
-- Filters: `?kind=`, `?university=`, `?faculty=` (iexact), `?parent=<id>`, `?top=true`; `?q=` also
-  searches university/faculty/code. **`?parent=` is not narrowed by content language** — it is a
+- Filters: `?kind=`, `?university=`, `?faculty=` (iexact), `?parent=<id>`, `?top=true` (no parent — a
+  SHAPE, classes and stand-alone university courses included), `?general=true` (WP12,
+  `rules.general_courses`: `kind='topic'`, no parent, and no active school `runs` it — the MEANING);
+  `?q=` also searches university/faculty/code. The hub's "General courses" chip filters client-side
+  with `labels.ts: isGeneralCourse`, the row-level mirror of `general_courses` (both files say so); it
+  used to test "has no parent" alone and so listed a public class as a general course. The course
+  page mounts the versions panel on the same test. **`?parent=` is not narrowed by content language** — it is a
   course page's own list, and a detail page never narrows.
 - `GET /courses/{id}/materials/` — "all the materials in one place": approved material items of
   this course and (on a general course) of its versions the caller can see, minus unopened weeks
@@ -117,7 +122,17 @@ that "all the materials are in one place". `rules.py` (bottom section) is the wh
   version" → `/courses/new?parent=`), `CourseMaterialsIndex.svelte`, the hub's
   General/Versions/All chips + university/faculty selects (client-side over the loaded list).
   Browser check: `e2e/courses-communities.mjs` (45 checks, tokens not logins).
-- Tests: `test_kind.py`.
+- **A school may not start to RUN a version, or a general course with versions** (WP12) —
+  `rules.school_run_block_reason` → `course_is_version` / `course_has_versions`, the other door
+  into the state `parent_is_class` closes. Asked by `organizations/access.py` in two places: a new
+  `runs` link from a school (`link_block_reason`) and a body that already `runs` such a course
+  turning into a school (`kind_change_block_reason`, on the organisation PATCH). Both 409
+  `{detail: word}`; `supports` and every other kind of body are untouched. Mirrored in
+  `labels.ts: ORGANIZATION_BLOCK_LABELS` (the refusal surfaces on the organisation forms). A
+  stand-alone university course (no parent, no versions) is NOT refused — odd for a school, but
+  nothing contradicts itself; that is a decision nobody has taken.
+- Tests: `test_kind.py`; the two WP12 edges in `test_school_mode.py` (`GeneralCourseTests`,
+  `SchoolTakesOnAVersionTests`).
 
 ## School mode — a class is a course a school runs (learning step C, 2026-10-05)
 

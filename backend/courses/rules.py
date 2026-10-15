@@ -346,3 +346,70 @@ def subcourse_block_reason(user, parent, *, visibility, instance=None) -> str | 
     if VISIBILITY_RANK.get(visibility, 0) > VISIBILITY_RANK.get(parent.visibility, 0):
         return 'more_visible_than_parent'
     return None
+
+
+# ---- what a "general course" is, and which courses a school may take on (WP12) ------------------
+#
+# Two edges WP11 left. School mode is a `runs` LINK, not a kind (top of this module), so a class is
+# still `kind='topic'`, `parent=None` — which is exactly the shape of a general course. Every place
+# that asks "is this a general course" therefore has to ask about the school as well, and every
+# place that makes a course a class has to ask about versions. Both questions live here.
+
+
+def general_courses(qs):
+    """GENERAL courses only — `?general=true` on `/api/courses/`, and the meaning of the `/courses`
+    hub's "General courses" chip.
+
+    A general course is `kind='topic'`, has no parent, and is not a school class. Each half rules
+    out one thing that has the other two: a version (it has a parent), a stand-alone university
+    course (it is one university's, `kind='university'`), and a class (an active school `runs` it —
+    one school's group of pupils, not a community around a subject). The third is the one that used
+    to slip through, because without the `organizations` table a class's row is indistinguishable
+    from a general course's; the hub's chip filtered on "has no parent" alone (WP12).
+
+    **Mirrored** row by row in `frontend/src/lib/utils/labels.ts: isGeneralCourse`, which the hub
+    filters with client-side over the rows it already holds (the list is bounded by construction).
+    It reads the payload's `kind`, `parent` and `school` — the last resolved by this module's own
+    `schools_running_courses` — so the two spellings ask the same three facts (house rule 13).
+    """
+    class_ids = _school_link_queryset().values('object_id')
+    return qs.filter(kind='topic', parent__isnull=True).exclude(pk__in=class_ids)
+
+
+#: The refusal words `school_run_block_reason` answers with. Mirrored in
+#: `frontend/src/lib/utils/labels.ts` (`ORGANIZATION_BLOCK_LABELS` — the refusal surfaces on the
+#: organisation's link form, so it reads from that table; house rule 13).
+SCHOOL_RUN_REFUSALS = ('course_is_version', 'course_has_versions')
+
+
+def makes_a_class(organization_kind: str, link_kind: str) -> bool:
+    """Whether a link of this kind from an organisation of this kind would make its course a class.
+    The same two constants `_school_link_queryset` filters on, asked before the row exists."""
+    return organization_kind == SCHOOL_ORGANIZATION_KIND and link_kind == SCHOOL_LINK_KIND
+
+
+def school_run_block_reason(course) -> str | None:
+    """Why a school may not start to RUN this course (a `runs` link, which makes it a class) — or
+    None. The other half of `parent_is_class`: that word stops a version being made UNDER a class;
+    this stops a course that is already in the general/version shape becoming a class afterwards.
+
+      - `course_is_version` — it is one university's/faculty's version of a general course. A class
+        is one school's group of pupils; a version is one faculty's companion to a subject. A row
+        cannot be both without the general course's page listing a school class among its
+        university versions, under a university and faculty that are not the school's.
+      - `course_has_versions` — it is a general course with versions under it. Making it a class
+        would turn every one of those faculty groups into "a version of a school class", the exact
+        state `parent_is_class` exists to prevent, reached from the other side.
+
+    Asked by `organizations.access.link_block_reason` for a new link and by
+    `organizations.access.kind_change_block_reason` for a body that becomes a school while it
+    already `runs` courses — two doors into one state, one rule. A course that is neither is
+    untouched, including a stand-alone university course (no parent, no versions): odd for a
+    school, but nothing on any page contradicts itself, and refusing it is a decision about what
+    schools may run that nobody has taken.
+    """
+    if course.parent_id is not None:
+        return 'course_is_version'
+    if course.subcourses.exists():
+        return 'course_has_versions'
+    return None

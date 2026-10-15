@@ -5327,6 +5327,8 @@
 	"wp11_courseKindClass": "A school class",
 	"wp11_courseKindClassBadge": "School class",
 	"wp11_versionRefusalParentIsClass": "A school class has no university or faculty versions.",
+	"wp12_orgBlockedCourseIsVersion": "This course is a university or faculty version of a general course, so a school cannot run it as a class.",
+	"wp12_orgBlockedCourseHasVersions": "This general course has university or faculty versions under it, so a school cannot run it as a class.",
 	"wp7_exploreHeading": "Explore",
 	"wp7_exploreIntro": "Two ways to find your way around: read the manual, or look at each part of the site with sample data and real screenshots — and then try the real thing.",
 	"wp7_exploreManualHeading": "The manual"

@@ -739,3 +739,168 @@ class SchoolDemoSeedTests(TestCase):
         self.assertIn('printed-pass', printed)
         self.assertIn('TEST=FAKE', printed)
         self.assertIn('1 certificate', printed)
+
+
+class GeneralCourseTests(SchoolTestCase):
+    """WP12: "General courses" on the hub meant "has no parent", which is also true of a school class
+    and of a stand-alone university course. `rules.general_courses` is the meaning (`?general=true`),
+    and the hub's row-by-row mirror of it is held to it here."""
+
+    def setUp(self):
+        super().setUp()
+        self.general = Course.objects.create(
+            instructor=self.teacher, title='Mechanika dla wszystkich', visibility='public'
+        )
+        self.version = Course.objects.create(
+            instructor=self.teacher,
+            title='Mechanika na UW',
+            visibility='public',
+            kind='university',
+            university='Uniwersytet Warszawski',
+            parent=self.general,
+        )
+        self.standalone = Course.objects.create(
+            instructor=self.teacher,
+            title='Fizyka I na PW',
+            visibility='public',
+            kind='university',
+            university='Politechnika Warszawska',
+        )
+
+    def _general(self):
+        return set(rules.general_courses(Course.objects.all()).values_list('pk', flat=True))
+
+    def test_only_a_topic_course_with_no_parent_and_no_school_is_general(self):
+        # `self.klass` is the one that slipped through: topic, no parent — and a school runs it.
+        self.assertEqual(self._general(), {self.general.pk, self.plain.pk})
+
+    def test_a_supporting_school_or_a_dissolved_one_leaves_a_general_course_general(self):
+        self.link.kind = 'supports'
+        self.link.save(update_fields=['kind'])
+        self.assertIn(self.klass.pk, self._general())
+        self.link.kind = 'runs'
+        self.link.save(update_fields=['kind'])
+        self.school.is_active = False
+        self.school.save(update_fields=['is_active'])
+        self.assertIn(self.klass.pk, self._general())
+
+    def test_the_filter_and_the_payload_the_hub_mirrors_it_from_agree(self):
+        """`?general=true` is the rule; the hub applies `labels.ts: isGeneralCourse` to each row's
+        `kind`, `parent` and `school`. Both are asked of the same list here, so a drift between the
+        payload and the rule fails a test rather than a reader's chip."""
+        rows = self.as_(self.teacher).get('/api/courses/').data  # inside the private class
+        mirrored = {
+            row['id']
+            for row in rows
+            if row['kind'] == 'topic' and row['parent'] is None and row['school'] is None
+        }
+        listed = {row['id'] for row in self.as_(self.teacher).get('/api/courses/?general=true').data}
+        self.assertEqual(listed, mirrored)
+        self.assertEqual(listed, {self.general.pk, self.plain.pk})
+        # `?top=true` stays the SHAPE (no parent), class and stand-alone course included.
+        top = {row['id'] for row in self.as_(self.teacher).get('/api/courses/?top=true').data}
+        self.assertTrue({self.klass.pk, self.standalone.pk, self.general.pk} <= top)
+        self.assertNotIn(self.version.pk, top)
+
+
+class SchoolTakesOnAVersionTests(SchoolTestCase):
+    """WP12: WP11's `parent_is_class` stops a version being made UNDER a class. The other door is a
+    school starting to RUN a course that is already a version, or already has versions — through a
+    new `runs` link, or by a body that already runs it turning into a school. Both are refused with
+    a word (`rules.school_run_block_reason`), and everything next to them still works."""
+
+    def setUp(self):
+        super().setUp()
+        # The teacher runs the courses AND administers the bodies: a link needs both ends.
+        OrganizationMember.objects.create(organization=self.school, user=self.teacher, role='admin')
+        self.general = Course.objects.create(
+            instructor=self.teacher, title='Mechanika dla wszystkich', visibility='public'
+        )
+        self.version = Course.objects.create(
+            instructor=self.teacher,
+            title='Mechanika na UW',
+            visibility='public',
+            kind='university',
+            university='Uniwersytet Warszawski',
+            parent=self.general,
+        )
+        self.circle = Organization.objects.create(
+            name='Koło fizyków', slug='kolo', kind='student_circle', created_by=self.teacher
+        )
+        OrganizationMember.objects.create(organization=self.circle, user=self.teacher, role='owner')
+
+    def _post_link(self, organization, course, kind='runs'):
+        return self.as_(self.teacher).post(
+            f'/api/organizations/{organization.pk}/links/',
+            {'node_kind': 'course', 'node_id': course.pk, 'kind': kind},
+            format='json',
+        )
+
+    def _links(self, course):
+        return OrganizationLink.objects.filter(object_id=course.pk).exclude(pk=self.link.pk)
+
+    def test_the_rule_names_both_shapes_and_passes_an_ordinary_course(self):
+        self.assertEqual(rules.school_run_block_reason(self.version), 'course_is_version')
+        self.assertEqual(rules.school_run_block_reason(self.general), 'course_has_versions')
+        self.assertIsNone(rules.school_run_block_reason(self.plain))
+        self.assertEqual(set(rules.SCHOOL_RUN_REFUSALS), {'course_is_version', 'course_has_versions'})
+
+    def test_a_school_may_not_start_to_run_a_version(self):
+        response = self._post_link(self.school, self.version)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['detail'], 'course_is_version')
+        self.assertFalse(self._links(self.version).exists())
+        self.assertIsNone(rules.is_school_course(self.version))
+
+    def test_a_school_may_not_start_to_run_a_general_course_with_versions(self):
+        response = self._post_link(self.school, self.general)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['detail'], 'course_has_versions')
+        self.assertFalse(self._links(self.general).exists())
+
+    def test_the_same_general_course_without_versions_may_become_a_class(self):
+        self.version.delete()  # SET_NULL leaves nothing under it
+        response = self._post_link(self.school, self.general)
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNotNone(rules.is_school_course(self.general))
+
+    def test_supports_and_other_kinds_of_body_are_not_refused(self):
+        """Only a school RUNNING it makes a class; nothing else is this rule's business."""
+        self.assertEqual(self._post_link(self.school, self.version, kind='supports').status_code, 201)
+        self.assertEqual(self._post_link(self.circle, self.version).status_code, 201)
+        self.assertEqual(self._post_link(self.circle, self.general).status_code, 201)
+        self.assertIsNone(rules.is_school_course(self.version))
+
+    def test_a_body_that_runs_a_version_may_not_turn_into_a_school(self):
+        self.assertEqual(self._post_link(self.circle, self.version).status_code, 201)
+        response = self.as_(self.teacher).patch(
+            f'/api/organizations/{self.circle.pk}/', {'kind': 'school'}, format='json'
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['detail'], 'course_is_version')
+        self.circle.refresh_from_db()
+        self.assertEqual(self.circle.kind, 'student_circle')
+        self.assertIsNone(rules.is_school_course(self.version))
+
+    def test_a_body_that_runs_a_parent_of_versions_may_not_turn_into_a_school(self):
+        self.assertEqual(self._post_link(self.circle, self.general).status_code, 201)
+        response = self.as_(self.teacher).patch(
+            f'/api/organizations/{self.circle.pk}/', {'kind': 'school'}, format='json'
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['detail'], 'course_has_versions')
+
+    def test_a_body_that_only_supports_a_version_or_runs_a_plain_course_may_become_a_school(self):
+        self.assertEqual(self._post_link(self.circle, self.version, kind='supports').status_code, 201)
+        self.assertEqual(self._post_link(self.circle, self.plain).status_code, 201)
+        response = self.as_(self.teacher).patch(
+            f'/api/organizations/{self.circle.pk}/', {'kind': 'school'}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.circle.refresh_from_db()
+        self.assertEqual(self.circle.kind, 'school')
+        # An edit that leaves the kind alone is never asked the question.
+        response = self.as_(self.teacher).patch(
+            f'/api/organizations/{self.school.pk}/', {'city': 'Warszawa'}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
