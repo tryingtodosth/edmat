@@ -5324,6 +5324,9 @@
 		}
 	],
 	"workStatus_contestComplaint_open": "Waiting for your answer",
+	"wp11_courseKindClass": "A school class",
+	"wp11_courseKindClassBadge": "School class",
+	"wp11_versionRefusalParentIsClass": "A school class has no university or faculty versions.",
 	"wp7_exploreHeading": "Explore",
 	"wp7_exploreIntro": "Two ways to find your way around: read the manual, or look at each part of the site with sample data and real screenshots — and then try the real thing.",
 	"wp7_exploreManualHeading": "The manual"

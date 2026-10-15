@@ -5,7 +5,7 @@
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
-	import { COURSE_KIND_LABELS } from '$lib/utils/labels';
+	import { courseKindLabel } from '$lib/utils/labels';
 	import CourseMaterialsIndex from '$lib/components/course/CourseMaterialsIndex.svelte';
 	import CourseVersions from '$lib/components/course/CourseVersions.svelte';
 	import FoldSection from '$lib/components/shared/FoldSection.svelte';
@@ -495,8 +495,8 @@
 			{/if}
 			<p class="kind-line">
 				<span class="kind-pill">
-					{course.parent ? m.course_version_badge() : COURSE_KIND_LABELS[course.kind]()}
-					<!-- "University/faculty version" -->
+					{course.parent ? m.course_version_badge() : courseKindLabel(course)}
+					<!-- "University/faculty version" / "A general course" / "A school class" -->
 				</span>
 				{#if course.kind === 'university'}
 					<span>
@@ -680,8 +680,9 @@
 
 		<!-- A general course's university/faculty versions, above the tabs: they are the first thing
 		     somebody studying this subject at one university is looking for (owner, 2026-10-14). A
-		     version has none — one level only. -->
-		{#if !course.parent && course.kind === 'topic'}
+		     version has none — one level only — and neither does a school class, whose `kind` is still
+		     `topic` because school mode is a link, not a kind (`rules.py: parent_is_class`, WP11). -->
+		{#if !course.parent && course.kind === 'topic' && !course.school}
 			<CourseVersions {course} />
 		{/if}
 
@@ -1012,14 +1013,18 @@
 							<ul>
 								{#each activeParticipants as row (row.id)}
 									<li>
-										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal route with a dynamic id segment -->
-										<a href={`${resolve('/users')}/${row.participant.id}`}
-											>{row.participant.displayName}</a
-										>
-										{#if row.isMinor}
-											<span class="badge">{m.school_minorBadge()}</span>
-											<!-- "under 16" -->
-										{/if}
+										<!-- The name and its badge share one line: the row is a flex COLUMN, so a
+										     badge left as its own child was stretched across the full width (WP11). -->
+										<span class="who">
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal route with a dynamic id segment -->
+											<a href={`${resolve('/users')}/${row.participant.id}`}
+												>{row.participant.displayName}</a
+											>
+											{#if row.isMinor}
+												<span class="badge">{m.school_minorBadge()}</span>
+												<!-- "under 16" -->
+											{/if}
+										</span>
 										{#if row.isMinor || row.guardians.length > 0}
 											<!-- School mode's guardian column. Drawn off the ROW rather than off
 											     `course.school`, because the server is the only thing that knows
@@ -1168,11 +1173,18 @@
 	.class-notice {
 		max-width: 60ch;
 	}
+	.who {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-2);
+	}
 	.badge {
 		font-size: var(--font-size-xs);
 		border: 1px solid var(--border-color);
 		border-radius: 999px;
 		padding: 0 0.5em;
+		white-space: nowrap;
 	}
 	.guardians {
 		font-size: var(--font-size-sm);

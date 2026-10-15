@@ -86,33 +86,24 @@ const browser = await chromium.launch(
 const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 390, height: 844 };
 const errors = [];
-// With the organisations switch OFF, `OrganizationPage` still asks for the organisation and the
-// gate answers an anonymous caller 401 — one refused request per load, and a console line for it.
-// That is OrganizationPage's own behaviour (left open, WP7), not this page's; while the switch is
-// off it is counted and printed here, never silently dropped, and nothing else is excused.
+// With the organisations switch OFF, `OrganizationPage` used to ask for the organisation anyway and
+// the gate answered an anonymous caller 401 — one refused request and a console line per load
+// (left open by WP7). WP11 made it stop asking, so this now COUNTS every request for the
+// organisation while the switch is off, and section 4 asserts the count is zero; a refusal of any
+// kind is an ordinary error again, with nothing excused.
 let orgKilled = false;
-let orgKilledNoise = 0;
+let orgAskedWhileKilled = 0;
 function watch(page) {
 	page.on('pageerror', (e) => errors.push(String(e)));
-	let refused = 0;
 	page.on('console', (msg) => {
-		if (msg.type() !== 'error') return;
-		if (orgKilled && refused > 0 && msg.text().includes('401')) {
-			refused--;
-			orgKilledNoise++;
-			return;
-		}
-		errors.push(msg.text());
+		if (msg.type() === 'error') errors.push(msg.text());
+	});
+	page.on('request', (r) => {
+		if (orgKilled && r.url().includes('/api/organizations/')) orgAskedWhileKilled++;
 	});
 	// A refused request's console line carries no URL; this says which one it was.
 	page.on('response', (r) => {
-		if (r.status() < 400) return;
-		if (orgKilled && r.status() === 401 && r.url().includes('/organizations/?slug=')) {
-			refused++;
-			orgKilledNoise++;
-			return;
-		}
-		errors.push(`${r.status()} ${r.url()}`);
+		if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`);
 	});
 }
 /** `withOrg: false` when the organisations switch is off: there are no plans to wait for then. */
@@ -163,7 +154,9 @@ try {
 		check(
 			'Explore holds the manual band and the showcase index',
 			(await explore.locator('.about__manual a[href$="/about/guide"]').count()) === 1 &&
-				(await explore.locator('section.showcase-index .showcase-index__card').count()) === 12
+				(await explore.locator('section.showcase-index .showcase-index__card').count()) === 14,
+			// Fourteen showcase pages since WP6 (root CLAUDE.md); this said 12 until WP11 ran it.
+			`${await explore.locator('section.showcase-index .showcase-index__card').count()} cards`
 		);
 		check(
 			'Explore is headed in Polish',
@@ -332,6 +325,15 @@ try {
 					check(
 						'organizations off: the strip still opens the page',
 						(await page.locator(STRIP).count()) === 1
+					);
+					check(
+						'organizations off: the page never asks for the organisation (WP11)',
+						orgAskedWhileKilled === 0,
+						`${orgAskedWhileKilled} request(s) to /organizations/`
+					);
+					check(
+						'organizations off: the About sections below are still drawn',
+						(await page.locator('.about__research').count()) === 1
 					);
 					await shoot(page, 'en-desktop-organizations-off');
 				}
@@ -527,11 +529,6 @@ try {
 	await browser.close();
 }
 
-if (orgKilledNoise) {
-	console.log(
-		`  (ignored ${orgKilledNoise} 401 lines for the organisation while its switch was off)`
-	);
-}
 check('zero console/page errors', errors.length === 0, errors.join(' | ').slice(0, 300));
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

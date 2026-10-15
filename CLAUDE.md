@@ -505,6 +505,13 @@ Long-standing, still true. Feature-level gaps live in each `HISTORY.md` section'
 - **No people search**, so granting a role or messaging someone new needs their numeric account id.
 - **No per-account timezone.** Availability is interpreted in `settings.TIME_ZONE`; the display
   preferences (24h/12h, week start) say how a time is *drawn*, not which clock it is drawn from.
+  **And the two halves disagree today, for everybody in Poland** (WP11, 2026-10-15): `TIME_ZONE`
+  is `'UTC'`, so a weekly rule "14:00–17:00" is 14:00 UTC, while the browser draws slots and
+  bookings (ISO instants) in ITS zone — a Polish tutor's 14:00 is offered to a Polish student as
+  16:00 in summer, 15:00 in winter, and the tutor's own rule list still says 14:00. The manual and
+  `/about/tutoring` say so plainly; the fix (a `TIME_ZONE` of `Europe/Warsaw`, or rules carrying a
+  zone) is an owner decision, because `TIME_ZONE` also sets the flashcards' "day", the shifts'
+  night rule and the analytics days.
 - **Accessibility is axe-only** (about a third of WCAG by axe's own account) — no screen-reader or
   keyboard-only walkthrough has been done.
 - **Locales beyond en/pl** are not a structural blocker: `locale` is a free string, not an enum tied

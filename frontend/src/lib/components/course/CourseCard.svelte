@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import type { Course } from '$lib/types/course';
-	import { COURSE_KIND_BADGES } from '$lib/utils/labels';
+	import { courseKindBadge } from '$lib/utils/labels';
 
 	// `versionCount`: how many university/faculty versions of this general course the hub has in
 	// hand (it counts them from the rows it loaded; 0 elsewhere, where nobody counted).
@@ -51,7 +51,8 @@
 	<!-- What kind of gathering, and for a university course WHERE: the line a newcomer reads to tell
 	     "a community about linear algebra" from "the group for 1000-112bAM2 at UW". -->
 	<p class="kind">
-		<span class="kind-pill">{COURSE_KIND_BADGES[course.kind]()}</span>
+		<span class="kind-pill">{courseKindBadge(course)}</span>
+		<!-- "General course" / "University course" / "School class" -->
 		{#if course.kind === 'university'}
 			<span class="where">
 				{[course.university, course.faculty]

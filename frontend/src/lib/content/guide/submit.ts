@@ -11,7 +11,7 @@ const EN: GuideChapterDoc = {
 			heading: 'The form',
 			tryHref: '/submit',
 			body: [
-				'Discipline, then subject, then a title. Difficulty, who it is for, and what kind of source it came from — an exercise sheet, a midterm, an exam. The language is the language the exercise is *written* in, not your interface language: it starts on the language you are reading the site in, so change it if you are writing in another one.',
+				'Discipline, then subject, then a title. Difficulty, who it is for, and what kind of source it came from — an exercise sheet, a midterm, an exam. The language is the language the exercise is written in, not your interface language: it starts on the language you are reading the site in, so change it if you are writing in another one.',
 				'The line under the heading tells you what will happen when you press Submit. For most accounts it says the exercise will be reviewed first; for a verified contributor it says it publishes straight away.'
 			],
 			screenshot: {
@@ -85,7 +85,7 @@ const PL: GuideChapterDoc = {
 			heading: 'Formularz',
 			tryHref: '/submit',
 			body: [
-				'Kierunek, potem przedmiot, potem tytuł. Trudność, dla kogo jest zadanie i z jakiego źródła pochodzi — ćwiczenia, kolokwium, egzamin. Język to język, w którym zadanie jest *napisane*, a nie język Twojego interfejsu: na start ustawia się na język, w którym czytasz serwis, więc zmień go, jeśli piszesz w innym.',
+				'Kierunek, potem przedmiot, potem tytuł. Trudność, dla kogo jest zadanie i z jakiego źródła pochodzi — ćwiczenia, kolokwium, egzamin. Język to język, w którym zadanie jest napisane, a nie język Twojego interfejsu: na start ustawia się na język, w którym czytasz serwis, więc zmień go, jeśli piszesz w innym.',
 				'Zdanie pod nagłówkiem mówi, co się stanie po wysłaniu. Dla większości kont: zadanie najpierw trafi do sprawdzenia; dla zweryfikowanego autora: publikuje się od razu.'
 			],
 			screenshot: {

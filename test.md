@@ -455,7 +455,8 @@ E2E_TOKEN=<kasia> E2E_USER_TOKEN=<michal> node e2e/account-menu.mjs   # the grou
 node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
 node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
 node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck
-node e2e/about-page.mjs               # /about as the project's organisation page (2026-10-08): both locales, both themes, phone width, the open board drawn for a stranger with nothing to press, five kill switches hiding their cards, the "New here?" strip and the Explore section (WP7); needs the EdMat seed; kasia's token or login only to flip the flags
+node e2e/about-page.mjs               # /about as the project's organisation page (2026-10-08): both locales, both themes, phone width, the open board drawn for a stranger with nothing to press, five kill switches hiding their cards, the "New here?" strip and the Explore section (WP7); since WP11 it also asserts that with `organizations` off the page sends NO request for the organisation (it used to excuse a 401); needs the EdMat seed; kasia's token or login only to flip the flags
+E2E_TEACHER_TOKEN=<school.teacher> E2E_STAFF_TOKEN=<kasia> node e2e/wp11-fixes.mjs   # WP11's five fixes (38 checks + 1 skip): a school class reads "A school class" with no versions panel, the People tab's under-16 badge on the pupil's line, no Markdown asterisks in four manual chapters + /about/contests (both locales), /about/tutoring names UTC, /about with `organizations` off asks for nothing and logs nothing; needs seed_school_demo; flips `organizations` off and back on — run on a DB copy
 node e2e/showcase.mjs                 # the fourteen design-showcase pages under /about/<feature>, their screenshots, live links and switches; signs nobody in (E2E_TOKEN adds the signed-in /work check; E2E_NO_BACKEND=1 runs with the API down)
 node e2e/showcase-screens.mjs         # re-takes the module pages' screenshots into static/showcase/<slug>/ (E2E_TOKENS=<json of DRF tokens>; writes one demo goal; ONLY=<slug,…> for a subset)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
@@ -1397,6 +1398,7 @@ cd frontend
 npm run check   # svelte-check — expect 0 errors, 0 warnings
 npm run build   # production build; also what regenerates the Paraglide message modules
 npm run lint    # prettier + eslint (pre-existing formatting debt in older files)
+npm run check:plain   # no *emphasis*, _this_, backticks or [links](…) in the manual's / showcase's plain-text strings (WP11); no servers needed
 ```
 
 **If `npm run check` reports dozens of "Cannot find module '$lib/paraglide/messages'"**, the message

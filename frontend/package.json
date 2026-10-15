@@ -13,7 +13,8 @@
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"check:katex": "NODE_OPTIONS=--max-old-space-size=8192 tsx scripts/check_katex_compatibility.ts",
-		"check:a11y": "tsx scripts/check_accessibility.ts"
+		"check:a11y": "tsx scripts/check_accessibility.ts",
+		"check:plain": "node scripts/check_plain_content.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

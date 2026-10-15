@@ -94,8 +94,10 @@ that "all the materials are in one place". `rules.py` (bottom section) is the wh
   leaves its versions standing alone, which is why a top-level `university` course stays valid).
   A version is always `kind='university'`. Refusal words (`SUBCOURSE_REFUSALS`, mirrored as
   `SUBCOURSE_REFUSAL_LABELS`): `parent_not_found`, `parent_is_subcourse`, `parent_not_general`,
-  `has_subcourses`, `parent_is_self`, `parent_fixed` (the parent is chosen at creation, never
-  moved — moving is left open), `more_visible_than_parent`. Answered as 400 `{parent: [word]}`.
+  `parent_is_class` (a school class — school mode is a link, not a kind, so a class is still
+  `kind='topic'` and the kind test alone let it through; WP11), `has_subcourses`,
+  `parent_is_self`, `parent_fixed` (the parent is chosen at creation, never moved — moving is left
+  open), `more_visible_than_parent`. Answered as 400 `{parent: [word]}`.
 - **Who may add a version: anybody the creation gate lets found a course and who can see the
   general course** — not the general course's managers only (a faculty's students need nobody's
   permission; a version is its own course with its own staff).

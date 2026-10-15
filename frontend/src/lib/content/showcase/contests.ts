@@ -80,7 +80,7 @@ const EN: ContestsShowcase = {
 		},
 		{
 			heading: 'A draw is structurally impossible',
-			body: 'There is no "decide by lot" anywhere: not as a way of advancing between stages, not as a tie-break. A stage whose description promises a *losowanie* is refused. Chance deciding any part of it would make the whole thing a lottery needing a permit, with two sets of penalties that stack.'
+			body: 'There is no "decide by lot" anywhere: not as a way of advancing between stages, not as a tie-break. A stage whose description promises a draw (a "losowanie") is refused. Chance deciding any part of it would make the whole thing a lottery needing a permit, with two sets of penalties that stack.'
 		},
 		{
 			heading: 'The default promises nothing',
@@ -93,13 +93,13 @@ const EN: ContestsShowcase = {
 	],
 	noPrizeHeading: 'What changes the moment a prize exists',
 	noPrizeBody: [
-		'Without a prize, a contest here is a problem set with a jury and a leaderboard. With one, it becomes a *przyrzeczenie publiczne* — a public promise of a reward — and five things become true at once.',
+		'Without a prize, a contest here is a problem set with a jury and a leaderboard. With one, it becomes a "przyrzeczenie publiczne" — a public promise of a reward — and five things become true at once.',
 		'It needs a deadline within which the prize may be claimed, or the whole promise is ineffective and nobody can enforce it. It may not be revoked once somebody has performed, and a revocation has to use the same channel the announcement did — which means that if the announcement was here, so is the withdrawal. Chance may decide nothing. The prize is income, so somebody is the payer of the tax on it. And a minor can only enter with a guardian’s consent recorded against their entry.',
 		'None of that is a reason not to offer a prize. It is a reason to know, before you do, that you have taken on five obligations — which is what the checklist on your contest’s own page is for.'
 	],
 	presetsHeading: 'Ten kinds of contest, because they are not the same thing',
 	presetsBody: [
-		'A teacher’s contest inside one school, an open internet contest with a prize pot, and a kurator’s *konkurs przedmiotowy* whose laureate is excused part of a state exam are three completely different legal animals. The wizard asks which one you are running first, and everything after that is prefilled from the answer.',
+		'A teacher’s contest inside one school, an open internet contest with a prize pot, and a kurator’s "konkurs przedmiotowy" whose laureate is excused part of a state exam are three completely different legal animals. The wizard asks which one you are running first, and everything after that is prefilled from the answer.',
 		'Two of the ten can only be founded by a platform operator. A false claim that a contest is the kurator’s harms pupils who believe they are earning an exam exemption, so those two require a link to the kurator’s or the committee’s own announcement and are not a user’s to start.'
 	],
 	presets: [

@@ -132,7 +132,7 @@ const EN: GuideChapterDoc = {
 		{
 			heading: 'The rules, and the compliance panel',
 			body: [
-				'Every contest has a rules page — the *regulamin* — and it starts as numbered sections, eleven or twelve depending on the kind, with a sentence in each saying what belongs there and why. Readers see them rendered, with the version number and date, and can print them. You also see "Edit the rules", which opens an editor with one block per section.',
+				'Every contest has a rules page — the "regulamin" — and it starts as numbered sections, eleven or twelve depending on the kind, with a sentence in each saying what belongs there and why. Readers see them rendered, with the version number and date, and can print them. You also see "Edit the rules", which opens an editor with one block per section.',
 				'Publishing the rules makes a version, and an entry stores which version it accepted. That matters more than it sounds: amended rules may not take away what somebody already earned, and the stored version is the evidence of what they agreed to.',
 				'The compliance panel — "What the law asks of the organiser", on the contest page and on "Run this contest", for the people running it only — is the checklist evaluated against what you have actually filled in: the claim deadline present or not, the jury big enough or not, the prize value against the 2 000 zł exemption line, the complaints window long enough, the stage descriptions free of anything that reads like a draw. Every line is marked done, missing, or "check this" — the ones only a person can check, like actually handing the prize over — and carries its article and its label. It is a prompt, not a certificate.'
 			],
@@ -146,7 +146,7 @@ const EN: GuideChapterDoc = {
 			body: [
 				'A stage can only be scored once it has closed. "Score the entries" on the contest page opens the jury’s sheet: one card per entry, a row per problem with the answer, your mark and a note, and the other jurors’ marks beside yours. Entries are shown by number, never by name.',
 				'"Save my marks" under each entry saves your row for it, and the line at the top of the card says what it adds up to so far and whether your marks for it are complete — which is what tells the organiser the stage is ready. The organiser sees the ranking before it is published; everybody else sees it after.',
-				'Advancing to the next stage is by the rule the stage carries — the top N, or everybody above a threshold, or everybody. There is no "pick by lot", anywhere, as a stage rule or as a tie-break: chance deciding any part of a contest with a prize would make the whole thing a lottery needing a permit. A stage whose description promises a *losowanie* is refused outright.'
+				'Advancing to the next stage is by the rule the stage carries — the top N, or everybody above a threshold, or everybody. There is no "pick by lot", anywhere, as a stage rule or as a tie-break: chance deciding any part of a contest with a prize would make the whole thing a lottery needing a permit. A stage whose description promises a draw (a "losowanie") is refused outright.'
 			],
 			screenshot: {
 				src: '/guide/contests/11-judge.png',

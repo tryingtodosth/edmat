@@ -5334,6 +5334,9 @@
 		}
 	],
 	"workStatus_contestComplaint_open": "Czeka na Twoją odpowiedź",
+	"wp11_courseKindClass": "Klasa szkolna",
+	"wp11_courseKindClassBadge": "Klasa szkolna",
+	"wp11_versionRefusalParentIsClass": "Klasa szkolna nie ma wersji uczelnianych ani wydziałowych.",
 	"wp7_exploreHeading": "Poznaj EdMat",
 	"wp7_exploreIntro": "Dwa sposoby, żeby się tu odnaleźć: przeczytaj podręcznik albo obejrzyj każdą część serwisu na przykładowych danych i prawdziwych zrzutach ekranu — a potem spróbuj na żywo.",
 	"wp7_exploreManualHeading": "Podręcznik"

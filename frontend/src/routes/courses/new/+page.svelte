@@ -5,7 +5,7 @@
 	import { page } from '$app/state';
 	import { createCourse, getCourse } from '$lib/services/course';
 	import type { Course } from '$lib/types/course';
-	import { courseWriteErrorMessage } from '$lib/utils/labels';
+	import { courseWriteErrorMessage, SUBCOURSE_REFUSAL_LABELS } from '$lib/utils/labels';
 	import { authStore } from '$lib/state/auth.svelte';
 	// The creation gate (learning step F): somebody can still reach this address by typing it or
 	// following an old link, so the page says WHY rather than showing a form the server would
@@ -76,6 +76,12 @@
 		<CreationGateNote kind="course" />
 	{:else if !creationStore.allows('course')}
 		<p class="status">{m.common_loading()}</p>
+	{:else if parent?.school}
+		<!-- Asked before the form rather than after a refused submit: a school class takes no
+		     versions (`backend/courses/rules.py: parent_is_class`), and an old link must not lead to a
+		     form the server will turn down. -->
+		<p class="status">{SUBCOURSE_REFUSAL_LABELS.parent_is_class()}</p>
+		<!-- "A school class has no university or faculty versions." -->
 	{:else if parentId && parentMissing}
 		<p class="status">{m.course_version_refusal_parentNotFound()}</p>
 		<!-- "That general course is not visible to you." -->

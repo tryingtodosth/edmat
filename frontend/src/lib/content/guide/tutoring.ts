@@ -45,7 +45,7 @@ const EN: GuideChapterDoc = {
 			heading: 'Asking for an hour',
 			body: [
 				'Choosing an hour sends a request, not a booking: the panel says in one line that the tutor still has to confirm it, and links to your own bookings. The tutor is notified, and confirms or declines.',
-				"All times are shown in the site's own timezone. There is no per-account timezone yet, so if you are not in Poland, do the arithmetic yourself."
+				'A known bug with the clock: a tutor’s weekly hours are read by the server in UTC, while the hours on this panel are shown in your own device’s time zone. In Poland that moves them two hours later in summer and one hour later in winter — hours a tutor set as 14:00 appear here as 16:00 or 15:00. There is no per-account time zone yet.'
 			],
 			screenshot: {
 				src: '/guide/tutoring/04-requested.png',
@@ -106,7 +106,7 @@ const PL: GuideChapterDoc = {
 			heading: 'Prośba o godzinę',
 			body: [
 				'Wybranie godziny wysyła prośbę, a nie rezerwację: panel pisze jednym zdaniem, że korepetytor musi ją jeszcze potwierdzić, i odsyła do Twoich rezerwacji. Korepetytor dostaje powiadomienie i potwierdza albo odmawia.',
-				'Wszystkie godziny są pokazywane w strefie czasowej serwisu. Strefy per konto jeszcze nie ma, więc będąc poza Polską, trzeba przeliczyć samodzielnie.'
+				'Znany błąd z zegarem: serwer czyta godziny tygodniowe korepetytora w UTC, a godziny w tym panelu pokazują się w strefie czasowej Twojego urządzenia. W Polsce przesuwa je to o dwie godziny później latem i o godzinę zimą — godziny ustawione przez korepetytora jako 14:00 widać tu jako 16:00 albo 15:00. Strefy czasowej przypisanej do konta jeszcze nie ma.'
 			],
 			screenshot: {
 				src: '/guide/tutoring/04-requested.png',

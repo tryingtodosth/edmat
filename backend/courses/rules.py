@@ -261,6 +261,7 @@ SUBCOURSE_REFUSALS = (
     'parent_not_found',
     'parent_is_subcourse',
     'parent_not_general',
+    'parent_is_class',
     'has_subcourses',
     'parent_is_self',
     'parent_fixed',
@@ -318,6 +319,12 @@ def subcourse_block_reason(user, parent, *, visibility, instance=None) -> str | 
       - `parent_is_subcourse` — one level only: a version cannot have versions;
       - `parent_not_general` — versions hang under a GENERAL (`topic`) course; a stand-alone
         university course is already one university's, so "a version of it" means nothing;
+      - `parent_is_class` — a school class (a course an active school `runs`, `is_school_course`
+        above) is one school's group of pupils, not a general course about a subject, so "a
+        university/faculty version" of it means nothing. Asked separately from `parent_not_general`
+        because a class's `kind` is still the default `topic` (school mode is a link, not a kind),
+        so the kind test alone lets it through — which is how a class came to read "A general
+        course" and offer versions (WP11);
       - `has_subcourses` — a course that already has versions cannot itself become one;
       - `more_visible_than_parent` — e.g. a public version of an unlisted general course, which
         would publish the existence of something its owner chose not to list.
@@ -332,6 +339,8 @@ def subcourse_block_reason(user, parent, *, visibility, instance=None) -> str | 
         return 'parent_is_subcourse'
     if parent.kind != 'topic':
         return 'parent_not_general'
+    if is_school_course(parent) is not None:
+        return 'parent_is_class'
     if instance is not None and instance.subcourses.exists():
         return 'has_subcourses'
     if VISIBILITY_RANK.get(visibility, 0) > VISIBILITY_RANK.get(parent.visibility, 0):

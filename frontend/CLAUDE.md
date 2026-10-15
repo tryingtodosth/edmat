@@ -237,6 +237,8 @@ serve of `build/` that falls back to 200.html; the dev server's paint is not rep
 ## Verify
 
 `npm run check` (0 errors/0 warnings expected), `npm run lint`, `npm run build`,
-`npm run check:katex`, `npm run check:a11y`. Real-browser verification is mandatory for
+`npm run check:katex`, `npm run check:a11y`, `npm run check:plain` (the manual's and the showcase's
+words are plain text, drawn as typed — it refuses `*emphasis*`, `_this_`, backticks and Markdown
+links in their string literals; WP11). Real-browser verification is mandatory for
 anything interactive — see `e2e/CLAUDE.md`; several real bugs were only ever found by looking
 at a screenshot.

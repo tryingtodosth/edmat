@@ -58,6 +58,7 @@
 	slug={PROJECT_SLUG}
 	headTitle={doc.title}
 	headDescription={m.seo_about_description()}
+	quietWhenOff
 />
 <!-- "About EdMat" / "What EdMat is: a moderated, bilingual community database of exercises…" -->
 

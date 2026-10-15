@@ -132,6 +132,35 @@ class IsSchoolCourseTests(SchoolTestCase):
         self.assertEqual(bulk.get(self.klass.pk), self.school)
         self.assertNotIn(self.plain.pk, bulk)
 
+    def test_a_class_cannot_have_university_versions(self):
+        """WP11: a class's `kind` is the default `topic` — school mode is a link, not a kind — so
+        the kind test alone let a class through as "a general course" with versions under it. The
+        refusal is its own word, and the same class without its school takes versions again."""
+        self.assertEqual(self.klass.kind, 'topic')
+        self.assertEqual(
+            rules.subcourse_block_reason(self.teacher, self.klass, visibility='private'),
+            'parent_is_class',
+        )
+        self.teacher.profile.is_verified_contributor = True
+        self.teacher.profile.save(update_fields=['is_verified_contributor'])
+        body = {
+            'title': 'Fizyka 2a na UW',
+            'parent': self.klass.pk,
+            'university': 'Uniwersytet Warszawski',
+            'visibility': 'private',
+        }
+        response = self.as_(self.teacher).post('/api/courses/', body, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['parent'], ['parent_is_class'])
+        self.assertFalse(Course.objects.filter(parent=self.klass).exists())
+
+        # `supports` is not `runs`: a school lending its name does not make a class.
+        self.link.kind = 'supports'
+        self.link.save(update_fields=['kind'])
+        self.assertIsNone(
+            rules.subcourse_block_reason(self.teacher, self.klass, visibility='private')
+        )
+
     def test_the_course_payload_names_the_school(self):
         response = self.as_(self.teacher).get(f'/api/courses/{self.klass.pk}/')
         self.assertEqual(response.data['school']['slug'], 'szkola')

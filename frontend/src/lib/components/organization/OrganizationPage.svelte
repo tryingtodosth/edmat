@@ -24,6 +24,7 @@
 	import { RowDiscussions } from '$lib/components/discussion/rowDiscussions.svelte';
 	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import {
 		getMembers,
 		getOrganizationBySlug,
@@ -40,8 +41,19 @@
 	let {
 		slug,
 		headTitle,
-		headDescription
-	}: { slug: string; headTitle?: string; headDescription?: string } = $props();
+		headDescription,
+		quietWhenOff = false
+	}: {
+		slug: string;
+		headTitle?: string;
+		headDescription?: string;
+		/** Draw NOTHING, rather than the gate's "this feature is unavailable" notice, while the
+		 *  `organizations` switch is off. For `/about`, where the organisation is one section of a
+		 *  page that goes on below it and an unexplained "unavailable" line at the top reads as if
+		 *  the whole About page were switched off (WP11). `/organizations/[slug]` keeps the notice:
+		 *  there the organisation IS the page. */
+		quietWhenOff?: boolean;
+	} = $props();
 
 	let organization = $state<Organization | null>(null);
 	let members = $state<OrganizationMember[]>([]);
@@ -63,11 +75,28 @@
 		rowDiscussions.load(discussionKey ? [discussionKey] : [], authStore.user?.id ?? 'anon')
 	);
 
+	// Not asked at all while the `organizations` switch is off for this reader (house rule 3: a
+	// killed feature stops ASKING, not only drawing). `/about` mounts this page for every visitor,
+	// and an anonymous reader with the switch off got a refused request in the console on every
+	// visit (WP11). `isLoaded` is waited for because `isEnabled` fails OPEN until the first flag
+	// fetch lands — right for drawing a link, wrong for firing a request (`users/[id]` and
+	// `RotaPanel` say the same). `|| isModerator` is `FeatureGate`'s own bypass, which mirrors the
+	// backend's staff bypass; the switch state is part of the key, so turning it back on loads.
+	let enabled = $derived(featureFlagsStore.isEnabled('organizations') || authStore.isModerator);
 	let loadedFor = $state('');
 	$effect(() => {
-		const key = `${slug}:${authStore.user?.id ?? 'anon'}`;
+		if (!featureFlagsStore.isLoaded) return;
+		const key = `${slug}:${authStore.user?.id ?? 'anon'}:${enabled}`;
 		if (!slug || key === loadedFor) return;
 		loadedFor = key;
+		if (!enabled) {
+			// The gate below draws its own notice; nothing here to fetch or show.
+			organization = null;
+			members = [];
+			links = [];
+			loading = false;
+			return;
+		}
 		void load(slug, key);
 	});
 
@@ -107,166 +136,169 @@
 />
 <!-- "Organisations" / "Bodies that stand behind what happens here — faculties, schools, student circles and the rest." -->
 
-<FeatureGate feature="organizations">
-	<div class="page">
-		{#if loading}
-			<p class="status">{m.common_loading()}</p>
-		{:else if missing || !organization}
-			<p class="status">{m.orgs_notFound()}</p>
-			<!-- "There is no organisation at this address." -->
-		{:else}
-			<header class="head">
-				<div>
-					<h1>{organization.name}</h1>
-					<p class="meta">
-						{ORGANIZATION_KIND_LABELS[organization.kind]?.() ?? organization.kind}{organization.city
-							? ` · ${organization.city}`
-							: ''}
-					</p>
-				</div>
-				{#if organization.canManage}
-					<a
-						class="manage"
-						href={resolve('/organizations/[slug]/manage', { slug: organization.slug })}
-					>
-						{m.orgs_manageAction()}
-						<!-- "Manage" -->
-					</a>
-				{/if}
-			</header>
-
-			{#if !organization.isActive}
-				<p class="notice">{m.orgs_dissolvedNotice()}</p>
-				<!-- "This organisation has been dissolved. Only its own members can see this page." -->
-			{/if}
-
-			<section class="block">
-				<div class="block__head">
-					<h2>{m.orgs_aboutHeading()}</h2>
-					<!-- "About" -->
+{#if !(quietWhenOff && !enabled)}
+	<FeatureGate feature="organizations">
+		<div class="page">
+			{#if loading}
+				<p class="status">{m.common_loading()}</p>
+			{:else if missing || !organization}
+				<p class="status">{m.orgs_notFound()}</p>
+				<!-- "There is no organisation at this address." -->
+			{:else}
+				<header class="head">
+					<div>
+						<h1>{organization.name}</h1>
+						<p class="meta">
+							{ORGANIZATION_KIND_LABELS[organization.kind]?.() ??
+								organization.kind}{organization.city ? ` · ${organization.city}` : ''}
+						</p>
+					</div>
 					{#if organization.canManage}
-						<!-- The first paragraph on `/about` is this one, and until 2026-10-08 it was a
+						<a
+							class="manage"
+							href={resolve('/organizations/[slug]/manage', { slug: organization.slug })}
+						>
+							{m.orgs_manageAction()}
+							<!-- "Manage" -->
+						</a>
+					{/if}
+				</header>
+
+				{#if !organization.isActive}
+					<p class="notice">{m.orgs_dissolvedNotice()}</p>
+					<!-- "This organisation has been dissolved. Only its own members can see this page." -->
+				{/if}
+
+				<section class="block">
+					<div class="block__head">
+						<h2>{m.orgs_aboutHeading()}</h2>
+						<!-- "About" -->
+						{#if organization.canManage}
+							<!-- The first paragraph on `/about` is this one, and until 2026-10-08 it was a
 						     single field with the Polish and the English glued together by hand
 						     (`work/edmat_project.py: _pl_en`). This writes them as two. There is no
 						     heading pane: an organisation's NAME is a registered name and the same in
 						     every language. -->
-						<ManagementTextMenu
-							kind="organization"
-							id={organization.id}
-							versions={organization.textVersions}
-							fallbackBody={organization.description}
-							withHeading={false}
-							headingLabel={m.orgs_aboutHeading()}
-							bodyLabel={m.orgs_descriptionLabel()}
-							label={m.orgs_aboutActionsLabel()}
-							onSaved={(written) => {
-								if (!organization) return;
-								organization = {
-									...organization,
-									description: written.body,
-									language: written.language,
-									textVersions: written.textVersions
-								};
-							}}
-						/>
+							<ManagementTextMenu
+								kind="organization"
+								id={organization.id}
+								versions={organization.textVersions}
+								fallbackBody={organization.description}
+								withHeading={false}
+								headingLabel={m.orgs_aboutHeading()}
+								bodyLabel={m.orgs_descriptionLabel()}
+								label={m.orgs_aboutActionsLabel()}
+								onSaved={(written) => {
+									if (!organization) return;
+									organization = {
+										...organization,
+										description: written.body,
+										language: written.language,
+										textVersions: written.textVersions
+									};
+								}}
+							/>
+						{/if}
+					</div>
+					<LanguageNote language={organization.language} />
+					{#if organization.description}
+						<MathContent source={organization.description} />
+					{:else}
+						<p class="status">{m.orgs_noDescription()}</p>
+						<!-- "This organisation has not written anything about itself yet." -->
 					{/if}
-				</div>
-				<LanguageNote language={organization.language} />
-				{#if organization.description}
-					<MathContent source={organization.description} />
-				{:else}
-					<p class="status">{m.orgs_noDescription()}</p>
-					<!-- "This organisation has not written anything about itself yet." -->
-				{/if}
-				<ul class="facts">
-					{#if organization.website}
-						<li>
-							{m.orgs_websiteLabel()}:
-							<!-- "Website" -->
-							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an external address the organisation gave -->
-							<a href={organization.website} rel="nofollow noopener external">
-								{organization.website}
-							</a>
-						</li>
-					{/if}
-					{#if organization.createdBy}
-						<li>
-							{m.orgs_foundedByLabel()}:
-							<!-- "Founded by" -->
-							<a href={resolve('/users/[id]', { id: organization.createdBy.id })}>
-								{organization.createdBy.displayName}
-							</a>
-						</li>
-					{/if}
-				</ul>
-				<!-- The thread the owner asked for: "after the header, the description should be
+					<ul class="facts">
+						{#if organization.website}
+							<li>
+								{m.orgs_websiteLabel()}:
+								<!-- "Website" -->
+								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an external address the organisation gave -->
+								<a href={organization.website} rel="nofollow noopener external">
+									{organization.website}
+								</a>
+							</li>
+						{/if}
+						{#if organization.createdBy}
+							<li>
+								{m.orgs_foundedByLabel()}:
+								<!-- "Founded by" -->
+								<a href={resolve('/users/[id]', { id: organization.createdBy.id })}>
+									{organization.createdBy.displayName}
+								</a>
+							</li>
+						{/if}
+					</ul>
+					<!-- The thread the owner asked for: "after the header, the description should be
 				     commentable as well". Named by the organisation rather than by the heading —
 				     "Comments on EdMat.net" says what the talk is about, where "Comments on About"
 				     would not. Draws nothing until the policy lands and nothing when the location is
 				     off (house rule 3, which `SectionDiscussion` keeps). -->
-				<RowDiscussion policy={rowDiscussions.byKey[discussionKey]} title={organization.name} />
-			</section>
+					<RowDiscussion policy={rowDiscussions.byKey[discussionKey]} title={organization.name} />
+				</section>
 
-			<section class="block">
-				<h2>{m.orgs_rosterHeading()}</h2>
-				<!-- "Members" -->
-				{#if members.length === 0}
-					<p class="status">{m.orgs_rosterEmpty()}</p>
-					<!-- "Nobody is listed yet." -->
-				{:else}
-					<ul class="roster">
-						{#each members as member (member.id)}
-							<li>
-								<a href={resolve('/users/[id]', { id: member.user.id })}>
-									{member.user.displayName}
-								</a>
-								<span class="role">{ORGANIZATION_ROLE_LABELS[member.role]?.() ?? member.role}</span>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-			</section>
-
-			<section class="block">
-				<h2>{m.orgs_runsHeading()}</h2>
-				<!-- "What it stands behind" -->
-				<p class="note">{m.orgs_membershipNote()}</p>
-				<!-- "Being on this list gives nobody any standing on the courses, events or materials below — each of those has its own team." -->
-				{#if links.length === 0}
-					<p class="status">{m.orgs_runsEmpty()}</p>
-					<!-- "Nothing has been linked to this organisation yet." -->
-				{:else}
-					<ul class="links">
-						{#each links as link (link.id)}
-							{#if link.node}
+				<section class="block">
+					<h2>{m.orgs_rosterHeading()}</h2>
+					<!-- "Members" -->
+					{#if members.length === 0}
+						<p class="status">{m.orgs_rosterEmpty()}</p>
+						<!-- "Nobody is listed yet." -->
+					{:else}
+						<ul class="roster">
+							{#each members as member (member.id)}
 								<li>
-									{#if link.node.kind === 'course'}
-										<a href={resolve('/courses/[id]', { id: link.node.id })}>{link.node.title}</a>
-									{:else if link.node.kind === 'event'}
-										<a href={resolve('/events/[id]', { id: link.node.id })}>{link.node.title}</a>
-									{:else if link.node.kind === 'material'}
-										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
-										<a href={localizedPath(resolve('/materials/[id]', { id: link.node.id }))}
-											>{link.node.title}</a
-										>
-									{:else}
-										<span>{link.node.title}</span>
-									{/if}
-									<span class="role">
-										{NODE_KIND_LABELS[link.node.kind]?.() ?? link.node.kind} ·
-										{ORGANIZATION_LINK_KIND_LABELS[link.kind]?.() ?? link.kind}
-									</span>
+									<a href={resolve('/users/[id]', { id: member.user.id })}>
+										{member.user.displayName}
+									</a>
+									<span class="role"
+										>{ORGANIZATION_ROLE_LABELS[member.role]?.() ?? member.role}</span
+									>
 								</li>
-							{/if}
-						{/each}
-					</ul>
-				{/if}
-			</section>
+							{/each}
+						</ul>
+					{/if}
+				</section>
 
-			<ManagementPanels nodeKind="organization" nodeId={organization.id} />
-		{/if}
-	</div>
-</FeatureGate>
+				<section class="block">
+					<h2>{m.orgs_runsHeading()}</h2>
+					<!-- "What it stands behind" -->
+					<p class="note">{m.orgs_membershipNote()}</p>
+					<!-- "Being on this list gives nobody any standing on the courses, events or materials below — each of those has its own team." -->
+					{#if links.length === 0}
+						<p class="status">{m.orgs_runsEmpty()}</p>
+						<!-- "Nothing has been linked to this organisation yet." -->
+					{:else}
+						<ul class="links">
+							{#each links as link (link.id)}
+								{#if link.node}
+									<li>
+										{#if link.node.kind === 'course'}
+											<a href={resolve('/courses/[id]', { id: link.node.id })}>{link.node.title}</a>
+										{:else if link.node.kind === 'event'}
+											<a href={resolve('/events/[id]', { id: link.node.id })}>{link.node.title}</a>
+										{:else if link.node.kind === 'material'}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
+											<a href={localizedPath(resolve('/materials/[id]', { id: link.node.id }))}
+												>{link.node.title}</a
+											>
+										{:else}
+											<span>{link.node.title}</span>
+										{/if}
+										<span class="role">
+											{NODE_KIND_LABELS[link.node.kind]?.() ?? link.node.kind} ·
+											{ORGANIZATION_LINK_KIND_LABELS[link.kind]?.() ?? link.kind}
+										</span>
+									</li>
+								{/if}
+							{/each}
+						</ul>
+					{/if}
+				</section>
+
+				<ManagementPanels nodeKind="organization" nodeId={organization.id} />
+			{/if}
+		</div>
+	</FeatureGate>
+{/if}
 
 <style lang="scss">
 	.page {

@@ -1350,6 +1350,7 @@ export const SUBCOURSE_REFUSAL_LABELS: Record<string, () => string> = {
 	parent_not_found: m.course_version_refusal_parentNotFound, // "That general course is not visible to you."
 	parent_is_subcourse: m.course_version_refusal_parentIsSubcourse, // "A version cannot have versions of its own — add it under the general course."
 	parent_not_general: m.course_version_refusal_parentNotGeneral, // "Versions are added under a general course, not under one university's course."
+	parent_is_class: m.wp11_versionRefusalParentIsClass, // "A school class has no university or faculty versions."
 	has_subcourses: m.course_version_refusal_hasSubcourses, // "This course already has versions, so it cannot become one."
 	parent_is_self: m.course_version_refusal_parentIsSelf, // "A course cannot be a version of itself."
 	parent_fixed: m.course_version_refusal_parentFixed, // "A version stays under the general course it was created in."
@@ -1376,6 +1377,24 @@ export const COURSE_KIND_BADGES: Record<CourseKind, () => string> = {
 	topic: m.course_kind_topicBadge, // "General course"
 	university: m.course_kind_universityBadge // "University course"
 };
+
+/** What a course IS, for its page's kind line and a card's badge — `COURSE_KIND_*` above, except
+ *  that a school CLASS says so. School mode is a `runs` link from a school, not a kind
+ *  (`backend/courses/rules.py: is_school_course`), so a class's `kind` is still the default `topic`
+ *  and read alone called it "A general course" — under which it then offered university versions
+ *  (WP11). The server refuses those with `parent_is_class`; this is the reading half. */
+export function courseKindLabel(course: {
+	kind: CourseKind;
+	school: { name: string } | null;
+}): string {
+	return course.school ? m.wp11_courseKindClass() : COURSE_KIND_LABELS[course.kind](); // "A school class"
+}
+export function courseKindBadge(course: {
+	kind: CourseKind;
+	school: { name: string } | null;
+}): string {
+	return course.school ? m.wp11_courseKindClassBadge() : COURSE_KIND_BADGES[course.kind](); // "School class"
+}
 
 // Flashcards enums — a hand-maintained mirror of `backend/flashcards/models.py`
 // (`SOURCE_KIND_CHOICES`, `GRADE_CHOICES`) and of the refusal words `flashcards/rules.py` answers

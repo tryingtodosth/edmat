@@ -46,7 +46,10 @@ session length, taken hours removed, `has_schedule` its own flag) lives in THIS 
 URL (services importing booking would be circular). `GET /api/my-schedule/` (tutor's own week,
 every listing, both sides of their bookings, **never subtracts** — appointments drawn on top of
 whole bands; deliberately disagrees with the student view about a hosted event's hour).
-All times are project-TZ (UTC) — no per-user timezone exists anywhere.
+All times are project-TZ (UTC) — no per-user timezone exists anywhere. **That is a live bug, not
+only a gap** (WP11): a rule's wall-clock "14:00" is 14:00 UTC, and the frontend draws the resulting
+slot instants in the BROWSER's zone, so a Polish reader sees it as 16:00 (summer) / 15:00 (winter)
+while the tutor's rule list says 14:00. Root `CLAUDE.md`, known gaps, says what fixing it touches.
 
 ## Verify
 

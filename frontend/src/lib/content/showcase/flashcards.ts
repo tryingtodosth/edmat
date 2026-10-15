@@ -59,7 +59,7 @@ const EN: FlashcardsShowcase = {
 		},
 		{
 			heading: 'Due is counted on the server’s day',
-			body: 'There are no per-account time zones here yet, so “due today” means the day where the server is. Said rather than quietly rounded.'
+			body: 'There are no per-account time zones here yet, so “due today” means today in UTC, the server’s clock — which in Poland turns over at 1 or 2 in the morning, not at midnight. Said rather than quietly rounded.'
 		}
 	],
 	decksHeading: 'Three decks, as a reader’s own list shows them',
@@ -204,7 +204,7 @@ const PL: FlashcardsShowcase = {
 		},
 		{
 			heading: '„Do powtórki dziś” liczy się według dnia serwera',
-			body: 'Nie ma tu jeszcze stref czasowych per konto, więc „dziś” to dzień tam, gdzie stoi serwer. Powiedziane, a nie cicho zaokrąglone.'
+			body: 'Nie ma tu jeszcze stref czasowych per konto, więc „dziś” to dzień według zegara serwera, czyli UTC — w Polsce zmienia się o 1 albo 2 w nocy, a nie o północy. Powiedziane, a nie cicho zaokrąglone.'
 		}
 	],
 	decksHeading: 'Trzy talie, tak jak pokazuje je własna lista',

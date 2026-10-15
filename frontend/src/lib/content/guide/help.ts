@@ -11,7 +11,7 @@ const EN: GuideChapterDoc = {
 			heading: 'What is being asked for',
 			tryHref: '/needs',
 			body: [
-				'Each posting says what kind of help it is — general help, expertise, equipment, a venue — how many people are wanted, whether it can be done remotely, and roughly how many hours it is. It also says what it is *for*, because a posting always belongs to something: a course, an event, a material, an organisation.',
+				'Each posting says what kind of help it is — general help, expertise, equipment, a venue — how many people are wanted, whether it can be done remotely, and roughly how many hours it is. It also says what it is for, because a posting always belongs to something: a course, an event, a material, an organisation.',
 				'Filter by kind, by skill level, or to remote-only work, or search the text.'
 			],
 			screenshot: {
@@ -63,7 +63,7 @@ const PL: GuideChapterDoc = {
 			heading: 'O co ktoś prosi',
 			tryHref: '/needs',
 			body: [
-				'Każde ogłoszenie mówi, jakiego rodzaju to pomoc — ogólna, fachowa, sprzęt, lokal — ile osób jest potrzebnych, czy da się to zrobić zdalnie i ile mniej więcej godzin zajmie. Mówi też, *do czego* jest, bo ogłoszenie zawsze należy do czegoś: kursu, wydarzenia, materiału, organizacji.',
+				'Każde ogłoszenie mówi, jakiego rodzaju to pomoc — ogólna, fachowa, sprzęt, lokal — ile osób jest potrzebnych, czy da się to zrobić zdalnie i ile mniej więcej godzin zajmie. Mówi też, do czego jest, bo ogłoszenie zawsze należy do czegoś: kursu, wydarzenia, materiału, organizacji.',
 				'Filtruj po rodzaju, po wymaganym poziomie albo do pracy wyłącznie zdalnej, albo przeszukaj treść.'
 			],
 			screenshot: {
