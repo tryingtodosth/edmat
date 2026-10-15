@@ -16941,6 +16941,14 @@ catalogues merged as JSON three-way with no key changed on both sides (5280 = 52
   (`school_run_block_reason`: `course_is_version`, `course_has_versions`, asked at the `runs` link AND
   at an organisation's change of kind to school, the second way in); `school-mode.mjs` passes again
   (65/65) without weakening an assertion. **Full backend suite after WP12: 3428 tests OK.**
+- **A first-visitor audit** (read-only: six journeys in Polish at 390 and 1280, 58 screenshots, each
+  finding traced to a file and line) found 22 problems; its report is the next loop's list. Two were
+  live and went straight onto `deploy/2026-10-15` (bundle rebuilt from `19b7e99`): **an exercise page
+  with a deleted comment sent ~10 requests a second for the "AI-assisted" chips** — a key the endpoint
+  leaves out never lands in `readings`, so the chip's `$effect` re-registered it on every flush, and
+  the anonymous throttle then locked the visitor out of the WHOLE site for an hour (live since
+  2026-10-08; measured 262 requests in 25 s before, 1 after) — and **the branch page wider than a
+  phone** (a bare `1fr` grew to the topic select's longest option). Both fixed in `a8c58c0`.
 - **A live bug found by WP11, not fixed — the owner's decision:** `settings.TIME_ZONE` is `UTC`, a
   tutor's weekly rule "14:00" becomes 14:00 UTC, and the browser draws it in its own zone — so every
   reader in Poland is offered slots two hours (summer) or one hour (winter) later than the tutor set.
