@@ -29,7 +29,7 @@
  * design is and must be re-read once its feature has actually landed.
  */
 
-/** The twelve pages, by their URL segment under `/about/`. `contests` is the eighth (2026-10-09,
+/** The fourteen pages, by their URL segment under `/about/`. `contests` is the eighth (2026-10-09,
  *  CONTESTS-BRIEF.md §3.B) and the only one whose subject is mostly law rather than design — see
  *  `content/showcase/contests.ts` for what that changes about how it is written. The last four
  *  (2026-10-14, WP5) show modules that had no page here: the management layer, tutoring,
@@ -48,7 +48,11 @@ export type ShowcaseSlug =
 	| 'goals-and-work'
 	| 'tutoring'
 	| 'materials'
-	| 'conference';
+	| 'conference'
+	// WP6 (2026-10-15): not a module but the person — the account and what it controls, and the
+	// licence and data questions every module shares. Same `ShowcaseModuleDoc` shape.
+	| 'account'
+	| 'licences-and-data';
 
 /**
  * One entry of the index. The shape is fixed by `prompts/08-about-showcase.md` because step H (the
@@ -95,7 +99,19 @@ export type ShowcaseLiveRoute =
 	| '/material-projects'
 	| '/conference'
 	| '/venues'
-	| '/volunteering/hours';
+	| '/volunteering/hours'
+	// WP6 (2026-10-15). `/settings#account` is the one key here that is not a bare route: `/settings`
+	// is already keyed for the learning record and answers to `learning_record` there, while the
+	// account page links the same page for its e-mail, password and children cards, which no switch
+	// removes. The key is a purpose, not an address — `SHOWCASE_LIVE` resolves it to `/settings`.
+	| '/register'
+	| '/login'
+	| '/settings#account'
+	| '/settings/account'
+	| '/submit'
+	| '/submit-material'
+	| '/terms'
+	| '/privacy';
 
 /** One link in the "Try it yourself" row: a real page, named for what the reader will do there. */
 export interface ShowcaseTryLink {
@@ -224,14 +240,14 @@ export interface ShowcaseIndexDoc {
 const INDEX_EN: ShowcaseIndexDoc = {
 	heading: 'See how each part of it works',
 	intro:
-		'Twelve pages, one per piece of the site, each drawn with the real components, sample data and screenshots — so you can see what a course with a deck on it, a learning record, a tutoring booking, a team’s task board or a conference door scanner actually looks like without signing in or joining anything. The framed samples are not live; the screenshots are of the running site, and every page links to the real thing so you can try it yourself.',
+		'Fourteen pages, one per piece of the site, each drawn with the real components, sample data and screenshots — so you can see what a course with a deck on it, a learning record, a tutoring booking, a team’s task board or a conference door scanner actually looks like without signing in or joining anything. The framed samples are not live; the screenshots are of the running site, and every page links to the real thing so you can try it yourself.',
 	cardCta: 'See the design'
 };
 
 const INDEX_PL: ShowcaseIndexDoc = {
 	heading: 'Zobacz, jak działa każda część',
 	intro:
-		'Dwanaście stron, jedna na każdy element serwisu, pokazanych prawdziwymi komponentami, przykładowymi danymi i zrzutami ekranu — żeby dało się zobaczyć, jak naprawdę wygląda kurs z talią fiszek, rejestr nauki, rezerwacja korepetycji, tablica zadań zespołu albo skaner biletów na konferencji, bez zakładania konta i bez dołączania do czegokolwiek. Przykłady w ramkach nie są prawdziwe, zrzuty ekranu pochodzą z działającego serwisu, a każda strona prowadzi do prawdziwej wersji, żeby można było samemu spróbować.',
+		'Czternaście stron, jedna na każdy element serwisu, pokazanych prawdziwymi komponentami, przykładowymi danymi i zrzutami ekranu — żeby dało się zobaczyć, jak naprawdę wygląda kurs z talią fiszek, rejestr nauki, rezerwacja korepetycji, tablica zadań zespołu albo skaner biletów na konferencji, bez zakładania konta i bez dołączania do czegokolwiek. Przykłady w ramkach nie są prawdziwe, zrzuty ekranu pochodzą z działającego serwisu, a każda strona prowadzi do prawdziwej wersji, żeby można było samemu spróbować.',
 	cardCta: 'Zobacz'
 };
 
@@ -361,6 +377,27 @@ export const SHOWCASE_PAGES: ShowcasePage[] = [
 				l,
 				'A building and its rooms, documents by who may read them, tickets scanned at the door, a volunteer rota and a cloakroom desk — on an invented demo conference.',
 				'Budynek i jego sale, dokumenty według tego, kto może je czytać, bilety skanowane przy wejściu, grafik wolontariuszy i szatnia — na wymyślonej konferencji demonstracyjnej.'
+			)
+	},
+	// WP6 (2026-10-15).
+	{
+		slug: 'account',
+		titleFor: (l) => pick(l, 'Your account', 'Twoje konto'),
+		blurbFor: (l) =>
+			pick(
+				l,
+				'Opening an account and the age check, accounts a guardian runs for a child, signing in with a provider, e-mail and passwords — and downloading your data or deleting the account.',
+				'Zakładanie konta i sprawdzenie wieku, konta prowadzone przez opiekuna dla dziecka, logowanie przez dostawcę, e-mail i hasło — oraz pobranie swoich danych albo usunięcie konta.'
+			)
+	},
+	{
+		slug: 'licences-and-data',
+		titleFor: (l) => pick(l, 'Licences, and what EdMat counts', 'Licencje i to, co EdMat liczy'),
+		blurbFor: (l) =>
+			pick(
+				l,
+				'Why CC BY 4.0 is suggested for your own work, what the other licences allow, and the statistics EdMat keeps without placing anything in your browser.',
+				'Dlaczego dla własnej pracy sugerujemy CC BY 4.0, na co pozwalają inne licencje i jakie statystyki EdMat prowadzi bez umieszczania czegokolwiek w twojej przeglądarce.'
 			)
 	}
 ];

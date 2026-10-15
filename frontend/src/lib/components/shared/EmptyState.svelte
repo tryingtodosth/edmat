@@ -96,7 +96,9 @@
 		'goals-and-work': resolve('/about/goals-and-work'),
 		tutoring: resolve('/about/tutoring'),
 		materials: resolve('/about/materials'),
-		conference: resolve('/about/conference')
+		conference: resolve('/about/conference'),
+		account: resolve('/about/account'),
+		'licences-and-data': resolve('/about/licences-and-data')
 	};
 
 	const flagOn = $derived(

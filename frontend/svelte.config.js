@@ -67,6 +67,9 @@ const config = {
 				'/about/tutoring',
 				'/about/materials',
 				'/about/conference',
+				// WP6 (2026-10-15): your account, and licences and data.
+				'/about/account',
+				'/about/licences-and-data',
 
 				// learning: guide (H) appends its /about/guide/** pages here, after G's.
 				// The manual: the hub is an ordinary route and `'*'` would reach it, but the eleven

@@ -193,6 +193,10 @@ async function main() {
 		{ name: 'Showcase: tutoring', url: '/about/tutoring' },
 		{ name: 'Showcase: materials', url: '/about/materials' },
 		{ name: 'Showcase: conference', url: '/about/conference' },
+		// WP6 (2026-10-15): the account page and the licences-and-data page — the same module shape,
+		// with a definition list of facts in most sections.
+		{ name: 'Showcase: account', url: '/about/account' },
+		{ name: 'Showcase: licences and data', url: '/about/licences-and-data' },
 
 		// The user manual (HISTORY.md §17BR.H): the hub and every chapter. Prose and screenshots, so
 		// the only thing axe has to say about them is whether the headings nest, the images carry

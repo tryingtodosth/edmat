@@ -369,7 +369,8 @@ a timeout. It now plays every policy on that one location in turn (`anyone` → 
 → switched off), reads the location's original policy first and **puts it back at the end, and on
 an abort**, and scopes its `/about` counts to `article.about` — the second collapsed line on the
 page is the organisation description's row discussion, which `management-discussions.mjs` owns. The
-four module showcase pages' checks run first, unchanged.
+four module showcase pages' checks run first, unchanged — six since WP6 (2026-10-15) added
+`/about/account` and `/about/licences-and-data`, seven discussable sections each (57 checks).
 
 ```bash
 cd backend && ../.venv/bin/python3 manage.py migrate   # trap 23: the tables are new
@@ -455,8 +456,8 @@ node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the 
 node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
 node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck
 node e2e/about-page.mjs               # /about as the project's organisation page (2026-10-08): both locales, both themes, phone width, the open board drawn for a stranger with nothing to press, five kill switches hiding their cards, the "New here?" strip and the Explore section (WP7); needs the EdMat seed; kasia's token or login only to flip the flags
-node e2e/showcase.mjs                 # the twelve design-showcase pages under /about/<feature>, their screenshots, live links and switches; signs nobody in (E2E_TOKEN adds the signed-in /work check; E2E_NO_BACKEND=1 runs with the API down)
-node e2e/showcase-screens.mjs         # re-takes the module pages' screenshots into static/showcase/<slug>/ (E2E_TOKENS=<json of DRF tokens>; writes one demo goal)
+node e2e/showcase.mjs                 # the fourteen design-showcase pages under /about/<feature>, their screenshots, live links and switches; signs nobody in (E2E_TOKEN adds the signed-in /work check; E2E_NO_BACKEND=1 runs with the API down)
+node e2e/showcase-screens.mjs         # re-takes the module pages' screenshots into static/showcase/<slug>/ (E2E_TOKENS=<json of DRF tokens>; writes one demo goal; ONLY=<slug,…> for a subset)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/exercise-card-click.mjs      # E2E_BASE=http://localhost:5173, E2E_BRANCH=<slug>, default analiza-matematyczna; signs nobody in, saves to the guest working set only
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
@@ -2130,6 +2131,19 @@ discussion-policy request for the page's own `about/<slug>` key.
 
     cd frontend && E2E_BASE=http://localhost:5237 E2E_API=http://127.0.0.1:8137/api node e2e/showcase.mjs
 
+**Extended 2026-10-15 (507 checks), the account and licences pages (WP6)** — `/about/account` and
+`/about/licences-and-data`, the same module shape: h1s in both languages, one sample frame each (a
+deletion timeline; a licence history), five and three screenshots. The account page's "Create an
+account" and "Log in" links are `SHOWCASE_LIVE.signedOut` — drawn only for a signed-out reader — so a
+signed-out run expects four "Try it" links and five screenshot links, and the `E2E_TOKEN` pass (9c)
+now also asserts a signed-in reader gets two (`/settings`, `/settings/account`) and no screenshot
+link to `/register` or `/login`. Section 9d turns off `social_login` (the providers section says so,
+no link moves — none answers to it) and `exercise_submissions` + `material_submissions` +
+`client_errors` (`/submit` and `/submit-material` leave, `/terms` and `/privacy` stay, the error-report
+section says so). Phone overflow for both, a dark-theme shot of `/about/account`, and a raw-HTML check
+that the licences page's prose (the CC BY 4.0 suggestion) is in the server-rendered page.
+
+
 **`e2e/showcase-screens.mjs` (new 2026-10-14)** takes the module pages' pictures into
 `frontend/static/showcase/<slug>/` with the guide script's shapes (English interface, clipped shots,
 the 400 KB budget). It signs in from DRF tokens in a JSON file (`E2E_TOKENS`, trap 30) rather than
@@ -2137,7 +2151,16 @@ the login endpoint. The development database had no goal anywhere, so it writes 
 API — on the seeded `TEST=FAKE Dni Dydaktyki Fizyki 2026` conference, as its organiser, found by title
 so a re-run does not add a second. The tutoring page reuses `static/guide/tutoring/01–02`, checked
 against today's screen; `03`/`04` were not reused because the reviews panel under the booking box has
-changed since. Last run: 13 pictures, 921 KB in total, largest 135 KB.
+changed since. Last run: 13 pictures, 921 KB in total, largest 135 KB. **WP6 (2026-10-15)** added `account`
+(register, login, a guardian's Settings cards, the data and deletion page in two crops) and
+`licences-and-data` (the licence picker on `/submit` with its "Suggested" tag, a CC BY 4.0 licence line
+and a corpus "rights not yet clarified" line) — eight pictures, 547 KB, largest 157 KB. They need the
+token-file keys `persona.guardian`, `julia` and `ola`; `julia` is used because her deletion plan has
+"EdMat only" content and no blockers, so the page draws its whole plan, the keep-or-remove choice and
+the confirm form. Nothing is written — the delete button is never pressed. The CC BY line is
+exercise 748 on the development database (an `e2e/licences.mjs` row, cropped to its statement so its
+test title is out of the picture; `E2E_CCBY_EXERCISE` overrides it), the corpus line exercise 1
+(`E2E_CORPUS_EXERCISE`). `ONLY=account,licences-and-data` skips the conference arrangement.
 
 Thirteen screenshots in `e2e/screens/showcase-*.png`, meant to be looked at — three real defects in
 this step were found that way and by nothing else (a lost space in a deck tile, a table column cut

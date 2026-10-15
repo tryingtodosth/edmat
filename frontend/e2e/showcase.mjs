@@ -1,11 +1,12 @@
 // The design showcase under `/about/<feature>` (HISTORY.md §17BR.G, prompts/08-about-showcase.md).
 //
-// Twelve prerendered pages built from sample data in `lib/content/showcase/`, plus — since
+// Fourteen prerendered pages built from sample data in `lib/content/showcase/`, plus — since
 // 2026-10-14 — screenshots of the running site and links to the real pages. The last four
 // (goals-and-work, tutoring, materials, conference — WP5) are module pages with one framed sample
-// each and more screenshots. What this script is actually for:
+// each and more screenshots; WP6 (2026-10-15) added two more in the same shape, `account` and
+// `licences-and-data`. What this script is actually for:
 //
-//   1. all twelve open, in BOTH interface languages, each with its own `<h1>`, the honest "nothing
+//   1. all fourteen open, in BOTH interface languages, each with its own `<h1>`, the honest "nothing
 //      here is live" notice, and at least one sample frame — with zero console/page errors and
 //      zero failed requests;
 //   2. nothing on them reaches the API beyond what every page asks for — the root layout's boot
@@ -20,7 +21,7 @@
 //      database. `SampleFrame` wraps them in `inert`; this clicks one and asserts the URL did not
 //      move, which is the only way to tell a working `inert` from a decorative attribute;
 //   4. every link a reader CAN follow goes somewhere that exists (the allowlist below);
-//   5. the index on `/about` has twelve cards, and no page overflows at phone width;
+//   5. the index on `/about` has fourteen cards, and no page overflows at phone width;
 //   6. the real screens and the ways out (2026-10-14): each page's "Try it yourself" row has the
 //      links it should, every screenshot is a real PNG of the size it claims and sits OUTSIDE any
 //      inert frame, every followable link answers 200 from the server, the "Read the manual
@@ -192,6 +193,27 @@ const PAGES = [
 		shots: 6,
 		links: 2,
 		guide: null
+	},
+	// WP6 (2026-10-15): the account and licences-and-data pages. `tries` is again the SIGNED-OUT
+	// count: the account page's "Create an account" and "Log in" are drawn only for a signed-out
+	// reader (`SHOWCASE_LIVE.signedOut`), so a signed-in one gets two (checked in 9c with E2E_TOKEN).
+	{
+		slug: 'account',
+		pl: 'Twoje konto',
+		en: 'Your account',
+		frames: 1,
+		tries: 4,
+		shots: 5,
+		guide: null
+	},
+	{
+		slug: 'licences-and-data',
+		pl: 'Licencje i to, co EdMat liczy',
+		en: 'Licences, and what EdMat counts',
+		frames: 1,
+		tries: 4,
+		shots: 3,
+		guide: null
 	}
 ];
 
@@ -247,7 +269,17 @@ const ALLOWED = [
 	'/material-projects',
 	'/conference',
 	'/venues',
-	'/volunteering/hours'
+	'/volunteering/hours',
+	// WP6 (2026-10-15): the account and licences pages, and where they send readers.
+	'/about/account',
+	'/about/licences-and-data',
+	'/register',
+	'/login',
+	'/settings/account',
+	'/submit',
+	'/submit-material',
+	'/terms',
+	'/privacy'
 ];
 
 /** Live links that must come out in the reader's own address: Polish readers get `/korki` and
@@ -394,15 +426,15 @@ try {
 		);
 		const cards = index.locator('.showcase-index__card');
 		check(
-			'/about: twelve showcase cards',
-			(await cards.count()) === PAGES.length && PAGES.length === 12,
+			'/about: fourteen showcase cards',
+			(await cards.count()) === PAGES.length && PAGES.length === 14,
 			String(await cards.count())
 		);
 		const hrefs = await index
 			.locator('.showcase-index__card a')
 			.evaluateAll((els) => els.map((el) => el.getAttribute('href')));
 		check(
-			'/about: every card points at one of the twelve pages',
+			'/about: every card points at one of the fourteen pages',
 			PAGES.every((p) => hrefs.includes(`/about/${p.slug}`)),
 			hrefs.join(' ')
 		);
@@ -410,7 +442,7 @@ try {
 		await ctx.close();
 	}
 
-	// ---- 2. All twelve, Polish (the base locale) and English ------------------------------------
+	// ---- 2. All fourteen, Polish (the base locale) and English ------------------------------------
 	/** Every followable link and every screenshot seen on any page, fetched once each in step 7. */
 	const seenLinks = new Set();
 	const seenImages = new Set();
@@ -674,7 +706,9 @@ try {
 			'goals-and-work',
 			'tutoring',
 			'materials',
-			'conference'
+			'conference',
+			'account',
+			'licences-and-data'
 		]) {
 			const ctx = await englishContext(browser, BASE, { viewport: PHONE });
 			const page = await ctx.newPage();
@@ -722,6 +756,23 @@ try {
 		check(
 			'dark theme: /about/materials draws its licence facts',
 			(await page.locator('.module-section__facts dt').count()) === 7
+		);
+		// And the account page (WP6): five sections of facts, a timeline sample, five pictures.
+		await open(page, '/about/account');
+		await page.evaluate(() => {
+			localStorage.setItem('edmat-theme', 'dark');
+			document.documentElement.setAttribute('data-theme', 'dark');
+		});
+		await page.waitForTimeout(200);
+		await loadShots(page);
+		await page.screenshot({ path: `${SHOTS}showcase-account-dark.png`, fullPage: true });
+		check(
+			'dark theme: /about/account draws its deletion facts and its not-built list',
+			(await page.locator('section[data-section="deletion"] .module-section__facts dt').count()) ===
+				5 &&
+				(await page
+					.locator('section[data-section="not-yet"] .module-section__facts dt')
+					.count()) === 6
 		);
 		await ctx.close();
 	}
@@ -991,6 +1042,85 @@ try {
 		}
 	}
 
+	// ---- 9d. The account and licences pages' switches (WP6) ------------------------------------
+	// Neither page is ever off as a whole: accounts, licences and the statistics have no switch. The
+	// sign-in-provider section answers to `social_login`, the error-report section to
+	// `client_errors`, and the two forms the licences page links to their own submission switches.
+	{
+		async function withOff(off, path) {
+			const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+			const page = await ctx.newPage();
+			watch(page);
+			await page.route('**/api/feature-flags/**', async (route) => {
+				const res = await route.fetch();
+				const flags = await res.json();
+				await route.fulfill({
+					response: res,
+					json: flags.map((f) => (off.includes(f.key) ? { ...f, is_enabled: false } : f))
+				});
+			});
+			const booted = page
+				.waitForResponse((r) => r.url().includes('/feature-flags/'), { timeout: 30000 })
+				.catch(() => null);
+			await open(page, path);
+			await settled(page, booted);
+			const links = await page.evaluate(() =>
+				Array.from(document.querySelectorAll('article.showcase a[href]'))
+					.filter((a) => !a.closest('[inert]'))
+					.map((a) => new URL(a.href).pathname)
+			);
+			return { ctx, page, links };
+		}
+		const offNote = (page, key) =>
+			page.locator(`section[data-section="${key}"] .module-section__off`).count();
+		{
+			const { ctx, page, links } = await withOff(['social_login'], '/about/account');
+			check(
+				'social_login off: the providers section says so, the others do not',
+				(await offNote(page, 'providers')) === 1 &&
+					(await offNote(page, 'register')) === 0 &&
+					(await offNote(page, 'deletion')) === 0
+			);
+			check(
+				'social_login off: no page-wide notice, and every "Try it" link stays (none needs it)',
+				(await page.locator('.showcase__notice--off').count()) === 0 &&
+					(await page.locator('.showcase__try a.showcase__try-link').count()) === 4 &&
+					links.includes('/login') &&
+					links.includes('/settings/account'),
+				links.join(' ')
+			);
+			await ctx.close();
+		}
+		{
+			const { ctx, page, links } = await withOff(
+				['exercise_submissions', 'material_submissions', 'client_errors'],
+				'/about/licences-and-data'
+			);
+			check(
+				'submissions off: /submit and /submit-material are gone, /terms and /privacy stay',
+				!links.includes('/submit') &&
+					!links.includes('/submit-material') &&
+					links.includes('/terms') &&
+					links.includes('/privacy') &&
+					(await page.locator('.showcase__try a.showcase__try-link').count()) === 2,
+				links.join(' ')
+			);
+			check(
+				'submissions off: three screenshots stay, the picker loses its "open" link',
+				(await page.locator('figure.shot').count()) === 3 &&
+					(await page.locator('figure.shot a.shot__open').count()) === 2
+			);
+			check(
+				'client_errors off: the error-report section says so, statistics and licences do not',
+				(await offNote(page, 'error-reports')) === 1 &&
+					(await offNote(page, 'statistics')) === 0 &&
+					(await offNote(page, 'suggested')) === 0
+			);
+			await page.screenshot({ path: `${SHOTS}showcase-licences-killed.png`, fullPage: true });
+			await ctx.close();
+		}
+	}
+
 	// ---- 9c. `/work` is offered only to a signed-in reader ------------------------------------
 	// It answers a signed-out visitor with an error, not a sign-in prompt, so the shell draws it
 	// only after sign-in. E2E_TOKEN (any account's DRF token, e2e trap 30) turns this on.
@@ -1014,6 +1144,29 @@ try {
 			'signed in: goals-and-work offers four links, /work among them',
 			tryHrefs.length === 4 && tryHrefs.includes('/work'),
 			tryHrefs.join(' ')
+		);
+		// WP6: a signed-in reader is not offered "Create an account" or "Log in", nor a screenshot
+		// link to either; Settings and the data page stay.
+		const rebooted = page
+			.waitForResponse((r) => r.url().includes('/feature-flags/'), { timeout: 30000 })
+			.catch(() => null);
+		await open(page, '/about/account');
+		await settled(page, rebooted);
+		const accountTries = await page
+			.locator('.showcase__try a.showcase__try-link')
+			.evaluateAll((els) => els.map((a) => new URL(a.href).pathname));
+		const accountOpens = await page
+			.locator('figure.shot a.shot__open')
+			.evaluateAll((els) => els.map((a) => new URL(a.href).pathname));
+		check(
+			'signed in: /about/account offers Settings and the data page, not /register or /login',
+			accountTries.length === 2 &&
+				accountTries.includes('/settings') &&
+				accountTries.includes('/settings/account') &&
+				!accountOpens.includes('/register') &&
+				!accountOpens.includes('/login') &&
+				accountOpens.length === 3,
+			`${accountTries.join(' ')} | ${accountOpens.join(' ')}`
 		);
 		await ctx.close();
 	} else {
@@ -1051,6 +1204,16 @@ try {
 		check(
 			'raw HTML of /about/conference carries its sections and its sample',
 			(html.includes('Prowadzenie konferencji') || html.includes('Running a conference')) &&
+				html.split('module-section__body').length - 1 >= 10 &&
+				html.includes('figcaption')
+		);
+	}
+	{
+		// WP6: the licences page's prose is in the HTML too, CC BY suggestion and all.
+		const html = await (await fetch(`${BASE}/about/licences-and-data`)).text();
+		check(
+			'raw HTML of /about/licences-and-data carries the CC BY suggestion and its sections',
+			html.includes('CC BY 4.0') &&
 				html.split('module-section__body').length - 1 >= 10 &&
 				html.includes('figcaption')
 		);

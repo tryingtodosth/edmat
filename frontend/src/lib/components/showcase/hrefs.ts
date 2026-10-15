@@ -26,7 +26,9 @@ export const SHOWCASE_HREF: Record<ShowcaseSlug, string> = {
 	'goals-and-work': resolve('/about/goals-and-work'),
 	tutoring: resolve('/about/tutoring'),
 	materials: resolve('/about/materials'),
-	conference: resolve('/about/conference')
+	conference: resolve('/about/conference'),
+	account: resolve('/about/account'),
+	'licences-and-data': resolve('/about/licences-and-data')
 };
 
 /**
@@ -50,6 +52,12 @@ export interface ShowcaseLiveLink {
 	 * than a sign-in prompt, so the link is drawn only for a signed-in reader.
 	 */
 	signedIn?: boolean;
+	/**
+	 * The mirror image: `/login` and `/register` are for somebody who is not signed in — a signed-in
+	 * reader already has the account those pages would make or open, and "Create an account" would
+	 * only offer them a second one. Drawn only for a signed-out reader.
+	 */
+	signedOut?: boolean;
 }
 
 export const SHOWCASE_LIVE: Record<ShowcaseLiveRoute, ShowcaseLiveLink> = {
@@ -73,7 +81,19 @@ export const SHOWCASE_LIVE: Record<ShowcaseLiveRoute, ShowcaseLiveLink> = {
 	'/material-projects': { href: resolve('/material-projects'), flag: 'coauthoring' },
 	'/conference': { href: resolve('/conference'), flag: 'events' },
 	'/venues': { href: resolve('/venues'), flag: 'venues' },
-	'/volunteering/hours': { href: resolve('/volunteering/hours'), flag: 'shifts' }
+	'/volunteering/hours': { href: resolve('/volunteering/hours'), flag: 'shifts' },
+	// The account and licences pages (2026-10-15, WP6). None of these has a kill switch: signing up,
+	// signing in, Settings, the terms and the privacy policy are always there. The two forms each
+	// answer to their own submission switch. `/settings#account` is `/settings` itself — see
+	// `ShowcaseLiveRoute` for why it has a key of its own.
+	'/register': { href: resolve('/register'), flag: null, signedOut: true },
+	'/login': { href: resolve('/login'), flag: null, signedOut: true },
+	'/settings#account': { href: resolve('/settings'), flag: null },
+	'/settings/account': { href: resolve('/settings/account'), flag: null },
+	'/submit': { href: resolve('/submit'), flag: 'exercise_submissions' },
+	'/submit-material': { href: resolve('/submit-material'), flag: 'material_submissions' },
+	'/terms': { href: resolve('/terms'), flag: null },
+	'/privacy': { href: resolve('/privacy'), flag: null }
 };
 
 /** The href to draw for a live route, in the reader's own address where it has one. Reactive

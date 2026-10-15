@@ -71,11 +71,13 @@
 	// the prerendered HTML carries every link and a killed one leaves on hydration.
 	//
 	// A `signedIn` route (`/work`) is also dropped for a signed-out reader, because that page answers
-	// them with an error rather than a sign-in prompt.
+	// them with an error rather than a sign-in prompt; a `signedOut` one (`/login`, `/register`) is
+	// dropped for a signed-in reader, who already has the account those pages make or open.
 	function reachable(route: ShowcaseLiveRoute | undefined): boolean {
 		if (!route) return false;
-		const { flag, signedIn } = SHOWCASE_LIVE[route];
+		const { flag, signedIn, signedOut } = SHOWCASE_LIVE[route];
 		if (signedIn && !authStore.isAuthenticated) return false;
+		if (signedOut && authStore.isAuthenticated) return false;
 		return flag === null || featureFlagsStore.isEnabled(flag) || authStore.isModerator;
 	}
 	const tryLinks = $derived((doc.tryIt ?? []).filter((link) => reachable(link.route)));

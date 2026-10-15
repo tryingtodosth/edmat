@@ -199,7 +199,7 @@ page.on('request', (r) => {
 	if (r.url().includes('/api/discussions/thread/')) threadCalls.push(`${r.method()} ${r.url()}`);
 });
 
-console.log('\n== the four module showcase pages (2026-10-14) ==');
+console.log('\n== the module showcase pages (four of 2026-10-14, two of 2026-10-15) ==');
 // Run FIRST, as the anonymous reader the context starts as, so that its result does not depend on
 // the `/about` checks below. Each draws one quiet discussion per section, asked for in ONE policy request under its own
 // `about/<slug>` key (`ShowcasePage` → `providePageDiscussions`), and opening one asks for that
@@ -214,7 +214,10 @@ for (const [slug, sections, first] of [
 	['goals-and-work', 6, 'goals'],
 	['tutoring', 4, 'listing'],
 	['materials', 4, 'material'],
-	['conference', 6, 'venue']
+	['conference', 6, 'venue'],
+	// WP6 (2026-10-15): the account and licences-and-data pages, same shape.
+	['account', 7, 'register'],
+	['licences-and-data', 7, 'suggested']
 ]) {
 	const policyAsked = modulePage
 		.waitForRequest((r) => r.url().includes('/api/discussions/?'), { timeout: 30000 })

@@ -346,8 +346,128 @@ pages.conference = async () => {
 	}
 };
 
+// ---- your account (WP6, 2026-10-15) ------------------------------------------------------------
+// Signed-out forms, then the account pages as two seeded people: `persona.guardian` (who has a
+// child account, so the Children card has something in it) and `julia` (an ordinary contributor
+// with "EdMat only" content and nothing to hand over — so the deletion page draws its whole plan,
+// the keep-or-remove choice and the confirm form, rather than a list of blockers). Nothing is
+// written: the delete button is never pressed.
+pages.account = async () => {
+	const slug = 'account';
+	{
+		const { ctx, page } = await open(null);
+		await visit(page, '/register', { wait: 'h1', extra: 2500 });
+		const h1 = await rect(page, 'main h1');
+		const end = await rect(page, 'p.switch');
+		const top = Math.round((h1?.y ?? 100) - 24);
+		await shoot(page, slug, '01-register', {
+			x: 0,
+			y: top,
+			width: WIDTH,
+			height: Math.round((end ? end.y + end.height : top + 1000) + 24 - top)
+		});
+		await visit(page, '/login', { wait: 'h1', extra: 2500 });
+		const h1b = await rect(page, 'main h1');
+		const endb = await rect(page, 'p.switch');
+		const topb = Math.round((h1b?.y ?? 100) - 24);
+		await shoot(page, slug, '02-login', {
+			x: 0,
+			y: topb,
+			width: WIDTH,
+			height: Math.round((endb ? endb.y + endb.height : topb + 700) + 24 - topb)
+		});
+		await ctx.close();
+	}
+	{
+		const { ctx, page } = await open('persona.guardian');
+		await visit(page, '/settings', { wait: 'section.email-settings', extra: 2500 });
+		const first = await rect(page, 'section.email-settings');
+		// Down to the child's row and its Suspend / Delete buttons; the "Add a child" form below it
+		// would push the picture past the height budget, and the caption says it is there.
+		const add = await rect(page, 'section.guardian form.add');
+		const top = Math.round((first?.y ?? 400) - 16);
+		await shoot(page, slug, '03-settings', {
+			x: 0,
+			y: top,
+			width: WIDTH,
+			height: Math.round((add ? add.y : top + 900) - 4 - top)
+		});
+		await ctx.close();
+	}
+	{
+		const { ctx, page } = await open('julia');
+		await visit(page, '/settings/account', { wait: '[data-testid="erasure-plan"]', extra: 2500 });
+		const h1 = await rect(page, 'main h1');
+		const plan = await rect(page, '[data-testid="erasure-plan"] .plan-group >> nth=1');
+		const top = Math.round((h1?.y ?? 120) - 20);
+		await shoot(page, slug, '04-data', {
+			x: 0,
+			y: top,
+			width: WIDTH,
+			height: Math.round((plan ? plan.y + plan.height : top + 1000) + 8 - top)
+		});
+		const choice = await rect(page, '[data-testid="content-choice"]');
+		const form = await rect(page, '[data-testid="erasure-form"]');
+		const topc = Math.round((choice?.y ?? 1400) - 10);
+		await shoot(page, slug, '05-delete', {
+			x: 0,
+			y: topc,
+			width: WIDTH,
+			height: Math.round((form ? form.y + form.height : topc + 600) + 24 - topc)
+		});
+		await ctx.close();
+	}
+};
+
+// ---- licences and your data (WP6, 2026-10-15) ---------------------------------------------------
+// The licence picker on /submit as `ola` with nothing typed — no source named, so the form
+// suggests CC BY 4.0 — and two licence lines: an exercise somebody published under CC BY 4.0
+// (`E2E_CCBY_EXERCISE`, default 748: an e2e row on the development database, cropped to its
+// statement so its test title is not in the picture) and a corpus exercise whose rights are not yet
+// clarified (`E2E_CORPUS_EXERCISE`, default 1). No analytics picture, on purpose: the dashboard is
+// staff-only and shows real counts.
+pages['licences-and-data'] = async () => {
+	const slug = 'licences-and-data';
+	{
+		const { ctx, page } = await open('ola');
+		await visit(page, '/submit', { wait: '.licence-picker__hint', extra: 2500 });
+		const box = await rect(page, 'fieldset:has(.licence-picker__hint)');
+		const top = Math.round((box?.y ?? 1800) - 12);
+		await shoot(page, slug, '01-picker', {
+			x: 0,
+			y: top,
+			width: WIDTH,
+			height: Math.round((box?.height ?? 820) + 24)
+		});
+		await ctx.close();
+	}
+	for (const [name, id] of [
+		['02-cc-by', process.env.E2E_CCBY_EXERCISE ?? '748'],
+		['03-corpus', process.env.E2E_CORPUS_EXERCISE ?? '1']
+	]) {
+		const { ctx, page } = await open(null);
+		await visit(page, `/exercises/${id}`, { wait: '.licence-notice', extra: 3000 });
+		await page
+			.locator('.katex')
+			.first()
+			.waitFor({ timeout: 15000 })
+			.catch(() => {});
+		const notice = await rect(page, '.licence-notice');
+		const heading = await rect(page, 'text=/^Statement$/i');
+		const top = Math.round((heading?.y ?? (notice?.y ?? 500) - 200) - 40);
+		await shoot(page, slug, name, {
+			x: 0,
+			y: top,
+			width: WIDTH,
+			height: Math.round((notice ? notice.y + notice.height : top + 300) + 36 - top)
+		});
+		await ctx.close();
+	}
+};
+
 try {
-	await arrange();
+	// Only the goals and conference pictures need the demo conference and its goal.
+	if (!ONLY || ONLY.has('goals-and-work') || ONLY.has('conference')) await arrange();
 	for (const [slug, run] of Object.entries(pages)) {
 		if (ONLY && !ONLY.has(slug)) continue;
 		console.log(`\n== ${slug} ==`);
