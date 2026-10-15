@@ -48,7 +48,7 @@ const EN: ShowcaseModuleDoc = {
 	],
 	tryIt: [
 		{ label: 'Browse tutoring listings', route: '/tutoring' },
-		{ label: 'Your schedule', route: '/bookings' }
+		{ label: 'My bookings', route: '/bookings' }
 	],
 	// The first two are the manual's (`e2e/guide-screenshots.mjs`); the third is
 	// `e2e/showcase-screens.mjs`'s. All three looked at against today's screen before use.
@@ -159,7 +159,7 @@ const PL: ShowcaseModuleDoc = {
 	],
 	tryIt: [
 		{ label: 'Przejrzyj ogłoszenia', route: '/tutoring' },
-		{ label: 'Twój grafik', route: '/bookings' }
+		{ label: 'Moje rezerwacje', route: '/bookings' }
 	],
 	shots: [
 		{
