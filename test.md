@@ -374,7 +374,7 @@ four module showcase pages' checks run first, unchanged.
 ```bash
 cd backend && ../.venv/bin/python3 manage.py migrate   # trap 23: the tables are new
 cd frontend && E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 \
-  node e2e/about-discussions.mjs
+  [E2E_LOCALE=en] node e2e/about-discussions.mjs   # Polish by default; E2E_LOCALE=en for English (WP7)
 ```
 
 It drives the surface as a reader meets it: the collapsed lines are drawn, and **no thread is
@@ -454,7 +454,7 @@ E2E_TOKEN=<kasia> E2E_USER_TOKEN=<michal> node e2e/account-menu.mjs   # the grou
 node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
 node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
 node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck
-node e2e/about-page.mjs               # /about as the project's organisation page (2026-10-08): both locales, both themes, phone width, the open board drawn for a stranger with nothing to press, the tutoring kill switch hiding its card; needs the EdMat seed; kasia's token or login only to flip the flag
+node e2e/about-page.mjs               # /about as the project's organisation page (2026-10-08): both locales, both themes, phone width, the open board drawn for a stranger with nothing to press, five kill switches hiding their cards, the "New here?" strip and the Explore section (WP7); needs the EdMat seed; kasia's token or login only to flip the flags
 node e2e/showcase.mjs                 # the twelve design-showcase pages under /about/<feature>, their screenshots, live links and switches; signs nobody in (E2E_TOKEN adds the signed-in /work check; E2E_NO_BACKEND=1 runs with the API down)
 node e2e/showcase-screens.mjs         # re-takes the module pages' screenshots into static/showcase/<slug>/ (E2E_TOKENS=<json of DRF tokens>; writes one demo goal)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
@@ -1833,15 +1833,32 @@ a name-shaped `{name}` slot cannot decline) in a screenshot.
 
     cd frontend && E2E_BASE=http://localhost:5232 E2E_API=http://127.0.0.1:8132/api node e2e/learning-record.mjs
 
-**`e2e/about-page.mjs` (17 checks, rewritten 2026-10-08)** — `/about` is the project's own organisation page
-(`OrganizationPage` for the `edmat` body; HISTORY §17BW.C) with the research thread's section, the
-nine-card feature grid, the showcase index and the manual link. Polish desktop, anonymous: the h1 is
-the organisation's name, at least fifteen goals (plan rows), nine cards, one `<title>` shaped by
-PageHead, the footer link — and the open board: the task panel drawn with no "add" button, the two
-polls drawn with no vote button, the thread toggle present; a light and a dark screenshot. English at
-phone width: the same h1 and cards, no horizontal overflow. Tutoring off (kasia's token via
-`E2E_TOKEN`, else login): its card gone and eight left, nine again after. Needs
-`manage.py seed_edmat_project --owner <username>` on the database first. Ran 2026-10-08: 17/0.
+**`e2e/about-page.mjs` (58 checks; 17 when rewritten 2026-10-08, extended by WP7 on 2026-10-15)** — `/about`
+is the project's own organisation page (`OrganizationPage` for the `edmat` body; HISTORY §17BW.C), opened
+by the "New here?" strip (`StartHere variant="about"`), then the research thread's section, the
+thirteen-card feature grid and ONE Explore section (`id="showcase"`: the manual band, then the showcase
+index nested inside it). Polish desktop, anonymous: the h1 is the organisation's name, at least fifteen
+goals (plan rows — the plans, tasks and polls folds are OPENED first, since a folded panel draws no
+body), thirteen cards including flashcards / contests / help wanted / organisations, one `#showcase`,
+Explore holding the manual and the twelve showcase cards, the strip before the h1 in the DOM and on
+screen and reading the catalogue, one `<title>` shaped by PageHead, the footer link — and the open
+board: the task panel drawn with no "add" button, the two polls drawn with no "Vote" button (scoped to
+the polls fold: an unscoped `has-text("Głosuj")` matched a task titled "…głosuje"), the research
+thread's toggle (matched by its title — task rows carry toggles too). English at phone width: the same
+h1, cards, headings, no horizontal overflow. Kill switches as a stranger (kasia's token via
+`E2E_TOKEN`, else login), one at a time: tutoring, flashcards, contests, needs, organizations — each
+card gone and twelve left, every switch back on afterwards (re-read through the API). With
+`organizations` off `OrganizationPage` still asks for the body and gets a 401; those lines are counted
+and printed, not failed (left open, WP7). The strip: in the server-rendered HTML before the
+organisation's `.page` and with nothing but wrappers before it inside `<main>` (and in
+`E2E_BUILD_HTML=build/about.html`, the prerendered file, when given); in both locales the middle door
+scrolls THIS page to Explore with its heading clear of the sticky header, the guide door lands on
+"Getting started" and the third on `/disciplines`; hide (English only — each `/about` load is ~20
+anonymous requests against the 600/hour throttle) takes it away with no gap left, survives a reload,
+hides the HOMEPAGE band too (one shared key), and clearing the key brings it back. Screens
+`about-wp7-{1280,390}-{light,dark}-{top,explore}.png`. Needs `manage.py seed_edmat_project --owner
+<username>` on the database first. Two back-to-back runs exhaust the anonymous throttle: clear it with
+`manage.py shell -c "from django.core.cache import cache; cache.clear()"` (trap 30). Ran 2026-10-15: 58/0.
 
 ## Management step D — `plans`
 

@@ -1,6 +1,9 @@
 // Discussions under the standing pages (`backend/community/discussions.py`, HISTORY §17BS).
 //
-// Run: E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 node e2e/about-discussions.mjs
+// Run: E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 [E2E_LOCALE=en] node e2e/about-discussions.mjs
+//
+// The Polish default is what a fresh context reads; `E2E_LOCALE=en` runs the same checks through
+// `english.mjs` (the picker's own cookie), so both interface languages are covered (WP7).
 //
 // **What `/about` draws now** (rewritten 2026-10-15). Since `/about` became the EdMat
 // organisation's page (owner, 2026-10-07/08) it keeps exactly ONE location of its own from the old
@@ -28,6 +31,8 @@
 // public — by staff through the report queue the hold already filed. Neither a tombstone nor a
 // held row is counted anywhere (`community/discussions.py`, "What \"N comments\" counts"), so the
 // count comes back to exactly the number this run started from.
+import { englishContext } from './english.mjs';
+
 let chromium;
 try {
 	({ chromium } = await import('playwright-core'));
@@ -159,7 +164,11 @@ const countBefore = await publicCount();
 console.log(`  (before: ${KEY} ${countBefore})`);
 
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const newContext = (options) =>
+	process.env.E2E_LOCALE === 'en'
+		? englishContext(browser, BASE, options)
+		: browser.newContext(options);
+const ctx = await newContext({ viewport: { width: 1280, height: 900 } });
 const page = await ctx.newPage();
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 // `e2e/CLAUDE.md` trap 26: in a WORKTREE `frontend/node_modules` is a symlink outside Vite's
@@ -198,7 +207,7 @@ console.log('\n== the four module showcase pages (2026-10-14) ==');
 // (`lib/content/showcase/<slug>.ts: sections`).
 // Its own context, so its requests never reach the thread-request log the `/about` checks below
 // count from.
-const moduleCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const moduleCtx = await newContext({ viewport: { width: 1280, height: 900 } });
 const modulePage = await moduleCtx.newPage();
 modulePage.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 for (const [slug, sections, first] of [

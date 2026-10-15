@@ -5323,5 +5323,8 @@
 			}
 		}
 	],
-	"workStatus_contestComplaint_open": "Waiting for your answer"
+	"workStatus_contestComplaint_open": "Waiting for your answer",
+	"wp7_exploreHeading": "Explore",
+	"wp7_exploreIntro": "Two ways to find your way around: read the manual, or look at each part of the site with sample data and real screenshots — and then try the real thing.",
+	"wp7_exploreManualHeading": "The manual"
 }

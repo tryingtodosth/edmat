@@ -17,6 +17,11 @@
  * Feature cards carry the flag that governs their surface. The page hides a card whose flag is off
  * (house rule 3: a kill switch removes the links, not just the pages), so the two lists below must
  * name the flag exactly as `types/featureFlag.ts` spells it.
+ *
+ * **Thirteen cards since 2026-10-15 (WP7):** flashcards, contests, help wanted (`needs`) and
+ * organisations joined the nine, each behind its own switch. The volunteering card was narrowed to
+ * the offers board in the same change, because "help wanted" now has a card of its own and the
+ * two boards answer two different questions (who needs help / who is offering it).
  */
 
 import type { FeatureFlagKey } from '$lib/types';
@@ -28,7 +33,7 @@ export interface AboutFeature {
 	body: string;
 	/** A route path — `/disciplines`, never a URL with a query string. */
 	href: string;
-	/** The kill switch for this surface; `null` for the two that are always on. */
+	/** The kill switch for this surface; `null` for the ones that are always on. */
 	flag: FeatureFlagKey | null;
 }
 
@@ -154,6 +159,13 @@ const EN: AboutDoc = {
 			flag: 'concepts'
 		},
 		{
+			key: 'flashcards',
+			title: 'Flashcards',
+			body: 'Turn exercises and concepts into a deck and review it on a spaced schedule, so what you learned comes back just before you would forget it. A course or an event can put a deck in front of everyone who joins.',
+			href: '/flashcards',
+			flag: 'flashcards'
+		},
+		{
 			key: 'translations',
 			title: 'Translations',
 			body: 'Any exercise can be translated by the community and reviewed by a moderator, independently of the language you read the interface in.',
@@ -175,11 +187,32 @@ const EN: AboutDoc = {
 			flag: 'tutoring'
 		},
 		{
+			key: 'contests',
+			title: 'Contests',
+			body: 'Competitions in stages, with problems drawn from the database, registration, a jury’s scores and published results with time to appeal. Prize-free by default; a prize brings its rules with it.',
+			href: '/contests',
+			flag: 'contests'
+		},
+		{
 			key: 'volunteering',
 			title: 'Volunteering',
-			body: 'Courses and events post what help they need; people post what they can help with, and in which languages. Nothing here is paid.',
+			body: 'People say what they can help with, and in which languages, so whoever is looking for a hand can find them. Nothing here is paid.',
 			href: '/volunteering',
 			flag: 'volunteering'
+		},
+		{
+			key: 'needs',
+			title: 'Help wanted',
+			body: 'Courses, events, materials and organisations say what help they need — how many people, about how many hours — and you can answer one. Nobody is paid.',
+			href: '/needs',
+			flag: 'needs'
+		},
+		{
+			key: 'organisations',
+			title: 'Organisations',
+			body: 'Faculties, schools, student circles and the rest: the bodies behind the courses and events, each with its members, goals, needs and tasks. EdMat itself is one.',
+			href: '/organizations',
+			flag: 'organizations'
 		},
 		{
 			key: 'events',
@@ -315,6 +348,13 @@ const PL: AboutDoc = {
 			flag: 'concepts'
 		},
 		{
+			key: 'flashcards',
+			title: 'Fiszki',
+			body: 'Zrób z zadań i pojęć talię fiszek i powtarzaj ją w odstępach, tak żeby materiał wracał tuż przed tym, zanim zdążysz go zapomnieć. Kurs albo wydarzenie może udostępnić talię wszystkim uczestnikom.',
+			href: '/flashcards',
+			flag: 'flashcards'
+		},
+		{
 			key: 'translations',
 			title: 'Tłumaczenia',
 			body: 'Każde zadanie może zostać przetłumaczone przez społeczność i sprawdzone przez moderatora — niezależnie od tego, w jakim języku czytasz interfejs.',
@@ -336,11 +376,32 @@ const PL: AboutDoc = {
 			flag: 'tutoring'
 		},
 		{
+			key: 'contests',
+			title: 'Konkursy',
+			body: 'Zawody w etapach, z zadaniami z bazy, zapisami, ocenami jury i opublikowanymi wynikami z czasem na odwołanie. Domyślnie bez nagród; nagroda pociąga za sobą własne przepisy.',
+			href: '/contests',
+			flag: 'contests'
+		},
+		{
 			key: 'volunteering',
 			title: 'Wolontariat',
-			body: 'Kursy i wydarzenia piszą, jakiej pomocy potrzebują; ludzie piszą, w czym i w jakich językach mogą pomóc. Nic tutaj nie jest płatne.',
+			body: 'Ludzie piszą, w czym i w jakich językach mogą pomóc, żeby ten, kto szuka wsparcia, mógł ich znaleźć. Nic tutaj nie jest płatne.',
 			href: '/volunteering',
 			flag: 'volunteering'
+		},
+		{
+			key: 'needs',
+			title: 'Szukamy pomocy',
+			body: 'Kursy, wydarzenia, materiały i organizacje piszą, jakiej pomocy potrzebują — ile osób, mniej więcej ile godzin — a ty możesz się zgłosić. Nikt tu nie dostaje pieniędzy.',
+			href: '/needs',
+			flag: 'needs'
+		},
+		{
+			key: 'organisations',
+			title: 'Organizacje',
+			body: 'Wydziały, szkoły, koła naukowe i inne: podmioty, które stoją za kursami i wydarzeniami, każdy ze swoimi członkami, celami, potrzebami i zadaniami. EdMat też jest jednym z nich.',
+			href: '/organizations',
+			flag: 'organizations'
 		},
 		{
 			key: 'events',

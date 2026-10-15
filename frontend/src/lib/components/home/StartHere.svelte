@@ -17,9 +17,29 @@
 	// localStorage, not an account setting: it is a per-browser convenience, and it must work for a
 	// visitor with no account — which is exactly who it is for. Every access is in try/catch,
 	// because storage throws in some private windows and the band must still render then.
+	//
+	// **Two places, one band (WP7, 2026-10-15).** `/about` opens with the same three doors, above the
+	// organisation's page (owner: "yes, put the strip above the organisation page"). It is this
+	// component with `variant="about"`, not a second copy: the doors, their copy and their targets
+	// are identical, and only the spacing differs (on `/` the band tucks into the hero's gap; on
+	// `/about` it stands at the top of the page on its own). **The dismissal is shared too** — one
+	// storage key, so "hide" on either page hides it on both. The choice a visitor made was "I do not
+	// need to be told where to start", which is a fact about the visitor, not about the page; asking
+	// again on the next page would treat a considered answer as an accident. Both pages are
+	// prerendered and both draw the band in their HTML, so the rule above holds on each.
+	//
+	// On `/about` the middle door is an in-page jump: its href is `/about#showcase` either way, and
+	// SvelteKit treats a same-path hash link as a scroll, not a navigation. The target is the
+	// Explore section, which carries the id and its own `scroll-margin-top` for the sticky header.
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+
+	interface Props {
+		/** `home` (the default) under the hero on `/`; `about` at the very top of `/about`. */
+		variant?: 'home' | 'about';
+	}
+	let { variant = 'home' }: Props = $props();
 
 	const STORAGE_KEY = 'edmat.startHere.hidden';
 
@@ -67,7 +87,12 @@
 </script>
 
 {#if !hidden}
-	<section class="start-here" aria-label={m.startHere_label()} data-start-here>
+	<section
+		class="start-here"
+		class:start-here--about={variant === 'about'}
+		aria-label={m.startHere_label()}
+		data-start-here={variant}
+	>
 		<!-- "Where to start" -->
 		<ul class="start-here__doors">
 			{#each DOORS as door (door.key)}
@@ -115,6 +140,10 @@
 		// Pulls the band up into the gap the page's own flex `gap` leaves under the hero, so adding
 		// it costs the fold its own height and little more.
 		margin-top: calc(-1 * var(--space-3));
+	}
+	// On `/about` nothing sits above it to tuck into: it is the first thing under the header.
+	.start-here--about {
+		margin-top: 0;
 	}
 	.start-here__doors {
 		flex: 1;
@@ -183,6 +212,9 @@
 	@media (max-width: 720px) {
 		.start-here {
 			margin-top: calc(-1 * var(--space-2));
+		}
+		.start-here--about {
+			margin-top: 0;
 		}
 		.start-here__doors {
 			grid-template-columns: 1fr;

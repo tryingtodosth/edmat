@@ -8,6 +8,14 @@
 	// Prerendered like before (`+page.ts`), but the organisation body loads client-side, so the
 	// prerendered HTML carries the head and the static blocks and the body paints after the SPA
 	// boots — the trade the owner chose over the brochure's first paint.
+	//
+	// **A newcomer's three doors come first (WP7, 2026-10-15; owner: "yes, put the strip above the
+	// organisation page").** The page opens on a body's roster and task board, which is the project
+	// being honest about itself and not where somebody new should start, so the homepage's
+	// `StartHere` band sits above it — the same component, `variant="about"`, the same shared "hide".
+	// It is in the prerendered HTML and reads storage only in its own `onMount`. Its middle door
+	// lands on the Explore section at the bottom: the manual and the twelve showcase pages, which
+	// used to be two bands, as one section carrying `id="showcase"`.
 	import { resolve } from '$app/paths';
 	import { getLocale, localizeHref } from '$lib/paraglide/runtime.js';
 	import { m } from '$lib/paraglide/messages.js';
@@ -16,6 +24,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import OrganizationPage from '$lib/components/organization/OrganizationPage.svelte';
 	import ShowcaseIndex from '$lib/components/showcase/ShowcaseIndex.svelte';
+	import StartHere from '$lib/components/home/StartHere.svelte';
 	import DiscussableSection from '$lib/components/discussion/DiscussableSection.svelte';
 	import { providePageDiscussions } from '$lib/components/discussion/pageDiscussions.svelte';
 
@@ -40,6 +49,10 @@
 	}
 	const features = $derived(doc.features.filter(shown));
 </script>
+
+<div class="about-start">
+	<StartHere variant="about" />
+</div>
 
 <OrganizationPage
 	slug={PROJECT_SLUG}
@@ -74,18 +87,31 @@
 		</ul>
 	</section>
 
-	<!-- learning: showcase (G) — the index of the design showcase pages under /about/<feature>. -->
-	<ShowcaseIndex />
-
-	<!-- contests: showcase (B) — DONE. The /about/contests card is in `SHOWCASE_PAGES`
-	     (`lib/content/showcase/index.ts`), which is what `<ShowcaseIndex />` above draws, so this
-	     page needed no markup of its own. The marker is left in place as the record of that. -->
-	<!-- learning: guide (H) — the one link into the manual at /about/guide. -->
-	<section class="about__section about__manual">
-		<h2>{m.guide_aboutLink()}</h2>
-		<!-- "How to use EdMat: the manual, chapter by chapter, with real screenshots." -->
-		<p><a class="btn-secondary" href={resolve('/about/guide')}>{m.guide_aboutLinkCta()}</a></p>
-		<!-- "Open the manual →" -->
+	<!-- Explore: the manual and the design showcase, one section (WP7). It used to be the showcase
+	     index followed by a separate one-link band for the manual; a newcomer looking for "how do I
+	     find my way around" now finds both answers under one heading, the manual first because it is
+	     the one destination and the showcase is twelve.
+	     learning: showcase (G) — the index of the design showcase pages under /about/<feature>.
+	     learning: guide (H) — the one link into the manual at /about/guide.
+	     contests: showcase (B) — DONE. The /about/contests card is in `SHOWCASE_PAGES`
+	     (`lib/content/showcase/index.ts`), which is what `<ShowcaseIndex />` draws, so this page
+	     needed no markup of its own. The marker is left in place as the record of that. -->
+	<section class="about__section about__explore" id="showcase" aria-labelledby="about-explore">
+		<h2 id="about-explore">{m.wp7_exploreHeading()}</h2>
+		<!-- "Explore" -->
+		<p class="about__intro">{m.wp7_exploreIntro()}</p>
+		<!-- "Two ways to find your way around: read the manual, or look at each part of the site with sample data and real screenshots, and then try the real thing." -->
+		<div class="about__manual">
+			<div>
+				<h3>{m.wp7_exploreManualHeading()}</h3>
+				<!-- "The manual" -->
+				<p>{m.guide_aboutLink()}</p>
+				<!-- "How to use EdMat: the manual, chapter by chapter, with real screenshots." -->
+			</div>
+			<a class="btn-secondary" href={resolve('/about/guide')}>{m.guide_aboutLinkCta()}</a>
+			<!-- "Open the manual →" -->
+		</div>
+		<ShowcaseIndex nested />
 	</section>
 </article>
 
@@ -158,19 +184,64 @@
 		max-width: 66ch;
 	}
 
-	// ---- the manual -----------------------------------------------------------------------------
+	// ---- the newcomer's strip -------------------------------------------------------------------
+	// The width of the organisation page directly under it (`OrganizationPage`'s `.page`), so the
+	// doors line up with the h1 they sit above rather than with the wider grid further down.
+	.about-start {
+		max-width: 820px;
+		margin: 0 auto;
+		padding: var(--space-4) var(--space-4) 0;
+		// The band, when hidden, leaves no wrapper padding behind that reads as a gap.
+		&:empty {
+			display: none;
+		}
+	}
+
+	// ---- Explore: the manual, then the showcase ---------------------------------------------------
+	.about__explore {
+		// The sticky header would otherwise cover the heading the #showcase anchor lands on.
+		scroll-margin-top: 5rem;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+
+		h2,
+		.about__intro {
+			margin-bottom: 0;
+		}
+	}
 	// A band rather than a card: the manual is one destination, and a single card in a grid of its
 	// own reads as a grid with one thing missing.
 	.about__manual {
-		h2 {
-			max-width: 62ch;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-4);
+		border: 1px solid var(--border-color);
+		border-left: 3px solid var(--accent);
+		border-radius: var(--radius-md);
+		background: var(--bg-surface);
+
+		div {
+			flex: 1 1 22rem;
+			min-width: 0;
+		}
+		h3 {
 			font-size: var(--font-size-base);
-			font-weight: 600;
-			color: var(--text-secondary);
-			margin-bottom: var(--space-3);
+			margin: 0 0 var(--space-1);
 		}
 		p {
 			margin: 0;
+			color: var(--text-secondary);
+			max-width: 62ch;
+		}
+		// `btn-secondary` has no global rule — the class alone drew plain text, here and before WP7.
+		.btn-secondary {
+			@include mix.button-secondary;
+			flex: none;
+			text-decoration: none;
 		}
 	}
 

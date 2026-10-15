@@ -5333,5 +5333,8 @@
 			}
 		}
 	],
-	"workStatus_contestComplaint_open": "Czeka na Twoją odpowiedź"
+	"workStatus_contestComplaint_open": "Czeka na Twoją odpowiedź",
+	"wp7_exploreHeading": "Poznaj EdMat",
+	"wp7_exploreIntro": "Dwa sposoby, żeby się tu odnaleźć: przeczytaj podręcznik albo obejrzyj każdą część serwisu na przykładowych danych i prawdziwych zrzutach ekranu — a potem spróbuj na żywo.",
+	"wp7_exploreManualHeading": "Podręcznik"
 }

@@ -7,18 +7,32 @@
 	 * description of a design; it reads correctly whether or not the surface it describes is
 	 * switched on, and the page itself says so when it is off. Hiding the explanation of a killed
 	 * feature would leave a reader with no way to find out what the site does.
+	 *
+	 * **`nested` (WP7, 2026-10-15):** `/about` now draws this inside its "Explore" section, beside
+	 * the manual, and that section carries `id="showcase"` (the start-here strip's middle door) and
+	 * the `h2`. Nested, the index gives up both — an id may appear once, and its heading becomes an
+	 * `h3` under Explore's. Not nested, it is exactly what it was.
 	 */
 	import { getLocale } from '$lib/paraglide/runtime.js';
 	import { SHOWCASE_PAGES, showcaseIndexFor } from '$lib/content/showcase';
 	import { SHOWCASE_HREF } from './hrefs';
 
+	let { nested = false }: { nested?: boolean } = $props();
+
 	const doc = $derived(showcaseIndexFor(getLocale()));
 	const locale = $derived(getLocale());
 </script>
 
-<!-- `id="showcase"` is the homepage band's "See what EdMat can do" target (StartHere.svelte). -->
-<section class="showcase-index" id="showcase">
-	<h2>{doc.heading}</h2>
+<!-- Not nested, `id="showcase"` is the start-here band's "See what EdMat can do" target
+     (StartHere.svelte); nested, `/about`'s Explore section carries it instead. -->
+<section
+	class="showcase-index"
+	class:showcase-index--nested={nested}
+	id={nested ? undefined : 'showcase'}
+>
+	<svelte:element this={nested ? 'h3' : 'h2'} class="showcase-index__heading"
+		>{doc.heading}</svelte:element
+	>
 	<p class="showcase-index__intro">{doc.intro}</p>
 	<ul class="showcase-index__grid">
 		{#each SHOWCASE_PAGES as entry (entry.slug)}
@@ -40,6 +54,16 @@
 	.showcase-index {
 		/* The sticky header would otherwise cover the heading the #showcase anchor lands on. */
 		scroll-margin-top: 5rem;
+	}
+
+	.showcase-index--nested {
+		scroll-margin-top: 0;
+	}
+	// Nested under Explore's h2: the same size the page's h2s had, so the index still reads as the
+	// section's main body and not as a footnote under the manual.
+	.showcase-index--nested .showcase-index__heading {
+		font-size: var(--font-size-lg);
+		margin-bottom: var(--space-3);
 	}
 
 	.showcase-index__intro {
