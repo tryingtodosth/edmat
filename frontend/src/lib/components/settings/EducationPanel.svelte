@@ -18,7 +18,7 @@
 	} from '$lib/services/identity';
 	import TranscriptView from '$lib/components/profile/TranscriptView.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
-	import type { EducationSnapshot, School } from '$lib/types/identity';
+	import type { EducationSnapshot, School, StandingReason } from '$lib/types/identity';
 
 	// `embedded` drops this component's own heading and lead paragraph, for the one caller that already
 	// supplies both: the profile editor opens it inside a modal whose header says "Education", and a
@@ -84,6 +84,25 @@
 		self_declared: () => m.education_verification_selfDeclared(),
 		school_email: () => m.education_verification_schoolEmail(),
 		usos: () => m.education_verification_usos()
+	};
+	// The backend sends a CODE per line and the words live here, in both languages (house rule 1;
+	// WP14a). It used to send English prose, which the Polish page showed verbatim — one line of it
+	// still saying email confirmation was not built, after it was. Mirrors
+	// `backend/identity/standing.py` and `usos.py: GRANT_CODES`; an unknown code shows the code
+	// itself rather than nothing, so a new one added there is visible here rather than silently lost.
+	const REASON_TEXT: Record<string, (r: StandingReason) => string> = {
+		account_active: () => m.wp14a_reason_accountActive(), // "Active account. Your email address isn't confirmed yet."
+		email_confirmed: () => m.wp14a_reason_emailConfirmed(), // "Active account, email address confirmed."
+		declared_school: (r) => m.wp14a_reason_declaredSchool({ school: r.params.school ?? '' }), // "You declared {school}. …"
+		school_email: () => m.wp14a_reason_schoolEmail(), // "Signed in with an address on the institution's own domain. …"
+		usos_verified: () => m.wp14a_reason_usosVerified() // "Enrolment confirmed by the university's own registry. …"
+	};
+	const GRANT_TEXT: Record<string, () => string> = {
+		verified_enrolment: () => m.wp14a_grant_verifiedEnrolment(), // "Verified enrolment — from the registry, not from anything you typed."
+		ceiling_s: () => m.wp14a_grant_ceilingS(), // "Level S: full participation straight away, without waiting to earn it."
+		no_moderation_authority: () => m.wp14a_grant_noModeration(), // "No authority over other people's work. …"
+		no_vote_weight: () => m.wp14a_grant_noVoteWeight(), // "No extra weight for your votes until you earn a reputation."
+		optional_transcript: () => m.wp14a_grant_optionalTranscript() // "Only if you ask for it separately: your diploma and transcript, …"
 	};
 	const STATUS_LABEL = {
 		unknown: () => m.education_status_unknown(),
@@ -170,7 +189,9 @@
 		<!-- USOS ------------------------------------------------------------------------------ -->
 		<div class="usos">
 			<h3>{m.education_usosHeading()}</h3>
-			<p class="muted small">{m.education_usosProtocol({ protocol: usos.protocol })}</p>
+			<!-- The protocol line ("OAuth 1.0a (HMAC-SHA1, three-legged). Credentials are issued per
+			     university…") stood here; it was developer documentation in somebody's settings, and
+			     it went (WP14a). Why a school cannot connect is said below, per school. -->
 
 			{#if usos.isMock}
 				<p class="note">{m.education_usosMockNote()}</p>
@@ -183,7 +204,7 @@
 			{:else if !education.usosConnected}
 				<ul class="grants">
 					{#each usos.grants as grant (grant)}
-						<li>{grant}</li>
+						<li>{GRANT_TEXT[grant]?.() ?? grant}</li>
 					{/each}
 				</ul>
 				<div class="actions">
@@ -357,7 +378,9 @@
 			     where they are, and the same instinct is why a ceiling is not blended into anything. -->
 			<ul class="reasons">
 				{#each standing.reasons as reason (reason.code)}
-					<li><strong>{reason.tier}</strong> — {reason.detail}</li>
+					<li>
+						<strong>{reason.tier}</strong> — {REASON_TEXT[reason.code]?.(reason) ?? reason.code}
+					</li>
 				{/each}
 				{#if !standing.reasons.length}
 					<li class="muted">{m.education_standingNothing()}</li>

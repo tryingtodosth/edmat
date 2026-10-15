@@ -27,3 +27,13 @@ export async function getExerciseSubmissionsForBranch(
 	);
 	return raw.map(mapExerciseSubmission);
 }
+
+/** Everything the signed-in account has sent through `/submit`, newest first — pending, accepted
+ * and rejected alike, with the moderator's reason on a rejected one (`/submit/mine`, WP14a).
+ * `mine=1` matters only to staff, who otherwise list the whole queue here. */
+export async function getMyExerciseSubmissions(locale: string): Promise<ExerciseSubmission[]> {
+	const raw = await apiClient.get<RawExerciseSubmission[]>(
+		`/exercise-submissions/?mine=1&lang=${encodeURIComponent(locale)}`
+	);
+	return raw.map(mapExerciseSubmission);
+}

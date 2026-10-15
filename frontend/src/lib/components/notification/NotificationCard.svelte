@@ -9,6 +9,7 @@
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { formatRelativeDate } from '$lib/utils/format';
 	import { notificationStore } from '$lib/state/notifications.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { NOTIFICATION_NEEDS_ACTION } from '$lib/utils/labels';
 
 	let { notification }: { notification: Notification } = $props();
@@ -253,14 +254,24 @@
 	);
 
 	let message = $derived(MESSAGE_BY_TYPE[notification.type]());
+
+	// The two answers a REQUESTER gets open on their own tab (`?tab=mine`, WP14a): the page's default
+	// is the tutor's inbox, and a student told "confirmed" landed on "nobody has asked you yet".
+	const BOOKING_REQUESTER_TYPES = new Set<Notification['type']>([
+		'bookingConfirmed',
+		'bookingDeclined'
+	]);
+
 	// ✅ Phase 4 — a newTaggedContent notification can target a Material instead of an Exercise;
 	// this used to have nowhere real to link to at all (no routes/materials/[id] existed), so that
 	// case fell through to the same non-navigating, mark-as-read-only card the "a rejected
-	// submission has no exercise to link to" case still correctly uses below. Now resolves to the
+	// submission has no exercise to link to" case used below until WP14a. Now resolves to the
 	// real material detail page (materials/[id]/+page.svelte) instead.
 	let href = $derived(
 		BOOKING_TYPES.has(notification.type)
-			? resolve('/bookings')
+			? BOOKING_REQUESTER_TYPES.has(notification.type)
+				? `${resolve('/bookings')}?tab=mine`
+				: resolve('/bookings')
 			: APPLICATION_HREF[notification.type]
 				? APPLICATION_HREF[notification.type]
 				: conceptHref
@@ -288,7 +299,13 @@
 												? resolve('/material-projects/[id]', {
 														id: notification.materialProjectId
 													})
-												: undefined
+												: // A rejected submission has no exercise to open — but it does have a
+													// place: the list of what you sent, with the moderator's reason on it
+													// (WP14a). Behind the same switch as that page.
+													notification.type === 'submissionRejected' &&
+													  featureFlagsStore.isEnabled('exercise_submissions')
+													? resolve('/submit/mine')
+													: undefined
 	);
 
 	function handleClick() {

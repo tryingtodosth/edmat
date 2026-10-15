@@ -35,12 +35,17 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
     # place the answer lives (`ExerciseMaterialLink` is created from it on approval).
     material_id = serializers.SerializerMethodField()
     material_title = serializers.SerializerMethodField()
+    # The branch's name in the reader's language, so "my submissions" (`/submit/mine`) can say WHERE
+    # each one was filed without a lookup per row — and a branch proposed through "Other…" is still
+    # pending, so it is not in the public taxonomy list the frontend could have looked it up in.
+    branch_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ExerciseSubmission
         fields = [
             'id',
             'branch',
+            'branch_name',
             'submitted_by',
             'payload',
             'material_id',
@@ -55,6 +60,10 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
 
     def get_material_id(self, obj):
         return submission_material_id(obj.payload)
+
+    def get_branch_name(self, obj):
+        translation = resolve_translation(obj.branch.translations, request_locale(self.context))
+        return translation.name if translation else obj.branch.slug
 
     def get_material_title(self, obj):
         """The material's own title, resolved for the reader's locale.

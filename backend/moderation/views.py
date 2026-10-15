@@ -100,8 +100,13 @@ class ExerciseSubmissionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, feature_gate('exercise_submissions')]
 
     def get_queryset(self):
-        qs = ExerciseSubmission.objects.all()
-        if not self.request.user.is_staff:
+        qs = ExerciseSubmission.objects.select_related('branch').prefetch_related(
+            'branch__translations'
+        )
+        # `?mine=1` is "what did I send, and what became of it" (`/submit/mine`, WP14a). Staff list
+        # everybody's submissions by default, so without it a moderator's own list would be the
+        # whole queue; for everybody else it changes nothing, because they only ever see their own.
+        if not self.request.user.is_staff or self.request.query_params.get('mine') in ('1', 'true'):
             qs = qs.filter(submitted_by=self.request.user)
         branch = self.request.query_params.get('branch')
         if branch:

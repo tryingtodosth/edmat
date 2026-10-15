@@ -340,13 +340,22 @@ def active_connector() -> UsosConnector:
     return UnconfiguredUsosConnector()
 
 
+#: What connecting USOS grants, in the order the settings page lists it — `grants` below.
+GRANT_CODES = (
+    'verified_enrolment',
+    'ceiling_s',
+    'no_moderation_authority',
+    'no_vote_weight',
+    'optional_transcript',
+)
+
+
 def integration_state(school: School | None = None) -> dict:
     """The current state of the USOS connection, for the UI's own state panel."""
     connector = active_connector()
     configured_schools = sorted(getattr(settings, 'EDMAT_USOS_CREDENTIALS', {}).keys())
     caps = connector.capabilities(school) if school else UsosCapabilities()
     return {
-        'protocol': 'OAuth 1.0a (HMAC-SHA1, three-legged)',
         'is_mock': isinstance(connector, MockUsosConnector),
         'configured_schools': configured_schools,
         'base_scopes': list(BASE_SCOPES),
@@ -361,16 +370,13 @@ def integration_state(school: School | None = None) -> dict:
             'diplomas': caps.supports_diplomas,
         },
         'blockers': _blockers(school),
-        'grants': [
-            'Verified enrolment, from the registry rather than from anything the visitor typed.',
-            'A capability ceiling of S — full participation without waiting to earn it '
-            '(LAUNCHCHECKLIST §3).',
-            'Moderation authority over other people\'s work: none. Being a real student is an '
-            'identity claim, not evidence of judgement (§2b).',
-            'Vote weight: none until reputation is actually earned (§2c).',
-            'Optionally, and only if asked for separately: a diploma and a transcript, which map '
-            'onto real branches on this site.',
-        ],
+        # What connecting gives you, as CODES the frontend words in both languages (house rule 1).
+        # It was five English sentences citing LAUNCHCHECKLIST sections, shown verbatim on the
+        # Polish settings page. In order: verified enrolment, from the registry rather than from
+        # anything typed; a capability ceiling of S (§3); moderation authority over other people's
+        # work: none (§2b); vote weight: none until reputation is earned (§2c); and, only if asked
+        # for separately, a diploma and a transcript mapped onto real branches.
+        'grants': list(GRANT_CODES),
     }
 
 

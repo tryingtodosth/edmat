@@ -563,7 +563,7 @@ chapters.submit = async () => {
 	if (await submitButton.count()) {
 		await submitButton.click().catch(() => {});
 		await page
-			.locator('.notice, [class*="success"]')
+			.locator('.notice, .submitted, [class*="success"]')
 			.first()
 			.waitFor({ timeout: 15000 })
 			.catch(() => {});

@@ -157,7 +157,8 @@ class UsosStateTests(ApiTestCase):
         self.assertEqual(res.data['configured_schools'], [])
         blockers = ' '.join(res.data['blockers'])
         self.assertIn('per institution', blockers)
-        self.assertIn('OAuth 1.0a', res.data['protocol'])
+        # The protocol line was developer jargon shown verbatim on the settings page (WP14a).
+        self.assertNotIn('protocol', res.data)
 
     def test_grades_are_not_in_the_default_scope(self):
         res = self.client.get('/api/education/usos/')
@@ -184,8 +185,28 @@ class EducationClaimTests(ApiTestCase):
         self.assertEqual(res.data['standing']['tier'], 'D')
         self.assertIsNone(res.data['standing']['usos_tier'])
 
+    def test_the_first_rung_says_whether_the_address_is_confirmed(self):
+        """Email confirmation exists since `mail/` (2026-10-14); the reason used to say it did not."""
+        from mail.models import ConfirmedEmail
+
+        reasons = self.client.get('/api/education/me/').data['standing']['reasons']
+        self.assertEqual(reasons[0], {'code': 'account_active', 'tier': 'E', 'params': {}})
+        ConfirmedEmail.objects.create(user=self.user, email=self.user.email)
+        res = self.client.get('/api/education/me/')
+        self.assertEqual(res.data['standing']['reasons'][0]['code'], 'email_confirmed')
+        # Confirming the inbox moves nothing up: it is what the floor already assumed.
+        self.assertEqual(res.data['standing']['tier'], 'E')
+
+    def test_a_declared_school_reason_carries_the_name_as_a_parameter(self):
+        res = self.client.patch(
+            '/api/education/me/', {'other_school_name': 'XIV LO'}, format='json'
+        )
+        declared = [r for r in res.data['standing']['reasons'] if r['code'] == 'declared_school']
+        self.assertEqual(declared, [{'code': 'declared_school', 'tier': 'D', 'params': {'school': 'XIV LO'}}])
+
     def test_an_institutional_address_alone_does_not_verify_anything(self):
-        """Because EdMat cannot confirm an address yet, so this would be earned by typing."""
+        """An address on the domain is something the account holder typed. A CONFIRMED one counting
+        as step 3 is a policy call not yet made (WP14a, 2026-10-15), so it still verifies nothing."""
         self.user.email = 'ola@uw.edu.pl'
         self.user.save()
         res = self.client.patch('/api/education/me/', {'school': 'uw'}, format='json')
@@ -243,15 +264,17 @@ class UsosConnectedTests(ApiTestCase):
         res = self.client.get('/api/education/me/')
         codes = [r['code'] for r in res.data['standing']['reasons']]
         self.assertIn('usos_verified', codes)
-        detail = ' '.join(r['detail'] for r in res.data['standing']['reasons'])
-        self.assertIn('registry', detail)
+        # Codes and parameters, never prose: the frontend words them in both languages (WP14a).
+        for reason in res.data['standing']['reasons']:
+            self.assertEqual(set(reason), {'code', 'tier', 'params'})
 
     def test_connecting_grants_no_authority_over_other_people(self):
         self.connect()
         self.user.refresh_from_db()
         self.assertFalse(self.user.is_staff)
-        grants = ' '.join(self.client.get('/api/education/usos/?school=uw').data['grants'])
-        self.assertIn('none', grants.lower())
+        grants = self.client.get('/api/education/usos/?school=uw').data['grants']
+        self.assertIn('no_moderation_authority', grants)
+        self.assertIn('no_vote_weight', grants)
 
     def test_grades_need_their_own_authorization(self):
         """Connecting normally must not quietly pull a transcript."""

@@ -778,6 +778,7 @@ export function mapCommentRevision(json: RawCommentRevision): CommentRevision {
 export interface RawExerciseSubmission {
 	id: number;
 	branch: string; // slug (SlugRelatedField)
+	branch_name?: string;
 	submitted_by: number;
 	payload: unknown; // round-trips as ExerciseSubmissionDraft verbatim, see submissions.ts
 	status: ModerationStatus;
@@ -791,6 +792,7 @@ export function mapExerciseSubmission(json: RawExerciseSubmission): ExerciseSubm
 	return {
 		id: String(json.id),
 		branchId: json.branch,
+		branchName: json.branch_name || undefined,
 		submittedByUserId: String(json.submitted_by),
 		draft: json.payload as ExerciseSubmission['draft'],
 		status: json.status,

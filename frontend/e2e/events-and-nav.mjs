@@ -262,7 +262,7 @@ for (const [label, needle] of [
 	['Profile', /Profile/i],
 	// My Set moved out of this menu onto the bar's bookmark icon; Report issue (2026-08-26) joined it.
 	['Report issue', /Report issue/i],
-	['the schedule', /My schedule/i],
+	['the bookings page', /My bookings/i],
 	['Settings', /Settings/i],
 	['Log out', /Log out/i]
 ]) {

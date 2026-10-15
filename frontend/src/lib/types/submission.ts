@@ -43,6 +43,9 @@ export interface ExerciseSubmissionDraft {
 export interface ExerciseSubmission {
 	id: string;
 	branchId: string;
+	/** The branch's name in the reader's language (the backend's `branch_name`, WP14a). Absent on a
+	 *  payload from before it existed; the slug is the honest fallback. */
+	branchName?: string;
 	submittedByUserId: string;
 	draft: ExerciseSubmissionDraft;
 	status: ModerationStatus;

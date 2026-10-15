@@ -10,6 +10,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import type { ProviderState } from '$lib/types/identity';
+	import { providerLabel } from './providerLabel';
 
 	let {
 		provider,
@@ -32,11 +33,11 @@
 	};
 </script>
 
-<ModalShell title={m.auth_connection_title({ provider: provider.label })} {onClose}>
+<ModalShell title={m.auth_connection_title({ provider: providerLabel(provider) })} {onClose}>
 	<p class="lead">
 		{provider.status === 'draft'
-			? m.auth_connection_draftLead({ provider: provider.label })
-			: m.auth_connection_configuredLead({ provider: provider.label })}
+			? m.auth_connection_draftLead({ provider: providerLabel(provider) })
+			: m.auth_connection_configuredLead({ provider: providerLabel(provider) })}
 	</p>
 
 	{#if extra}

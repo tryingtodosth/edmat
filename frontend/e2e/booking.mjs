@@ -22,6 +22,8 @@
 // fails in a way that looks exactly like a regression. Signing in costs nothing per run. The price
 // is that these accounts carry state between runs, so the script starts by clearing the tutor's own
 // schedule and settling their outstanding requests; see `resetTutor` below.
+import { englishContext } from './english.mjs';
+
 let chromium;
 try {
 	({ chromium } = await import('playwright'));
@@ -76,7 +78,10 @@ function wire(page, ctx, name) {
 }
 
 async function person(name) {
-	const ctx = await browser.newContext();
+	// English, because every check below names English copy: the interface default has been Polish
+	// since 2026-09-23 and this script had been failing its first tab check on it (e2e/CLAUDE.md
+	// trap 24; found and fixed by WP14a, 2026-10-15).
+	const ctx = await englishContext(browser, BASE);
 	return wire(await ctx.newPage(), ctx, name);
 }
 
@@ -402,7 +407,7 @@ check('declining the other works', /Declined/i.test(text), text.slice(0, 300));
 console.log('\n[7] Each student sees their own answer, and nobody sees the tutor’s calendar');
 studentPage = await renew(studentPage);
 await goto(studentPage, '/bookings');
-await studentPage.getByRole('button', { name: /My bookings/i }).click();
+await studentPage.getByRole('button', { name: /Booked by me/i }).click();
 await settle(studentPage, 1400);
 const studentRow = studentPage.locator('.booking', { hasText: `Real availability ${RUN}` });
 check(
@@ -417,7 +422,7 @@ check(
 
 rivalPage = await renew(rivalPage);
 await goto(rivalPage, '/bookings');
-await rivalPage.getByRole('button', { name: /My bookings/i }).click();
+await rivalPage.getByRole('button', { name: /Booked by me/i }).click();
 await settle(rivalPage, 1400);
 const rivalRow = rivalPage.locator('.booking', { hasText: `Published hours ${RUN}` });
 check(

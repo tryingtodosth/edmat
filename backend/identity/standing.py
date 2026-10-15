@@ -43,16 +43,23 @@ def ceiling_for(profile: EducationProfile | None, user=None) -> dict:
     reasons: list[dict] = []
     tier = 'E'
 
-    # Step 1 of §3's ladder. Django's own `User.is_active` is the closest thing this codebase has to
-    # a confirmed address today; there is no email-confirmation flow yet, which is itself a known
-    # open item on the checklist. Named honestly rather than silently treated as confirmation.
+    # Step 1 of §3's ladder: an active account. Whether its address has been confirmed (`mail/`,
+    # 2026-10-14) is said in the same line rather than treated as a rung of its own — confirming
+    # an address proves the inbox, which is exactly what the floor already assumes, so it moves
+    # nothing up. A confirmed address on an institution's domain counting as step 3 is a policy
+    # call that has not been made yet (see `school_email` below; WP14a, 2026-10-15).
+    #
+    # Every reason is a CODE plus the parameters its sentence needs, never prose: the frontend owns
+    # the words in both languages (house rule 1). The English `detail` this used to carry reached
+    # the Polish settings page verbatim, and said email confirmation was not built after it was.
     if user is not None and user.is_active:
+        from mail.services import is_confirmed
+
         reasons.append(
             {
-                'code': 'account_active',
+                'code': 'email_confirmed' if is_confirmed(user) else 'account_active',
                 'tier': 'E',
-                'detail': 'Active account. Email confirmation is not built yet, so this is the '
-                'weakest rung and is counted as such.',
+                'params': {},
             }
         )
 
@@ -66,8 +73,8 @@ def ceiling_for(profile: EducationProfile | None, user=None) -> dict:
             {
                 'code': 'declared_school',
                 'tier': 'D',
-                'detail': f'Declared {profile.school_label}. Self-declared, so it is worth the '
-                'step it is worth and no more.',
+                # Self-declared, so it is worth the step it is worth and no more.
+                'params': {'school': profile.school_label},
             }
         )
 
@@ -79,8 +86,8 @@ def ceiling_for(profile: EducationProfile | None, user=None) -> dict:
             {
                 'code': 'school_email',
                 'tier': 'C',
-                'detail': 'Signed in with an address on the institution\'s own domain. This proves '
-                'the address, not the affiliation.',
+                # Proves the address, not the affiliation.
+                'params': {},
             }
         )
 
@@ -94,9 +101,9 @@ def ceiling_for(profile: EducationProfile | None, user=None) -> dict:
             {
                 'code': 'usos_verified',
                 'tier': 'S',
-                'detail': 'Enrolment confirmed by the university\'s own registry. This is the '
-                'strongest identity claim available here, and it grants full participation — and '
-                'no authority whatsoever over other people\'s work.',
+                # The strongest identity claim available here: full participation, and no
+                # authority whatsoever over other people's work.
+                'params': {},
             }
         )
 

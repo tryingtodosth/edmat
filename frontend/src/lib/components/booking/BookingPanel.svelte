@@ -355,7 +355,10 @@
 			     misleading sentence this feature could say. -->
 			<p class="notice">
 				{m.booking_requestSent()}
-				<a href={resolve('/bookings')}>{m.booking_seeYourBookings()}</a>
+				<!-- On the requester's own tab: the page opens on the tutor's inbox otherwise, which
+				     says nobody has asked you for anything a second after you asked (WP14a). -->
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() plus a query string the rule cannot see through -->
+				<a href={`${resolve('/bookings')}?tab=mine`}>{m.booking_seeYourBookings()}</a>
 			</p>
 		{/if}
 	{/if}
@@ -423,10 +426,15 @@
 		@include mix.button-secondary;
 		padding: var(--space-1) var(--space-2);
 		font-size: var(--font-size-sm);
-		&--selected {
-			background: var(--accent);
-			color: var(--accent-contrast);
-			border-color: var(--accent);
+		// The ON state is `selected-soft` (frontend/CLAUDE.md's colour vocabulary) — a filled accent
+		// box means a command. And it has to win under :hover as well: button-secondary's hover rule
+		// is `.slot:not(:disabled):hover`, more specific than `.slot--selected`, and a touch screen
+		// keeps :hover on the slot it just tapped — so the chosen slot turned to light grey with the
+		// selected state's white text on it, and vanished (first-visitor audit, finding 20).
+		&--selected,
+		&--selected:not(:disabled):hover {
+			@include mix.selected-soft;
+			font-weight: 600;
 		}
 	}
 	.request {

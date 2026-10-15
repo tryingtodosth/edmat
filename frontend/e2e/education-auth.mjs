@@ -62,7 +62,7 @@ await goto('/login');
 const buttons = await page.locator('.provider').allInnerTexts();
 check(
 	'school is offered',
-	buttons.some((t) => /University account/i.test(t)),
+	buttons.some((t) => /University account|konto uczelniane/i.test(t)),
 	buttons.join(' | ')
 );
 check(
@@ -112,7 +112,7 @@ check(
 console.log('\n[4] The school draft asks which institution, because USOS is per-university');
 await page.keyboard.press('Escape');
 await settle(400);
-await page.locator('.provider', { hasText: 'University account' }).click();
+await page.locator('.provider', { hasText: /University account|konto uczelniane/ }).click();
 await settle();
 check('a school picker is offered', (await page.locator('.modal-panel select').count()) === 1);
 await page.locator('.modal-panel select').selectOption('uw');

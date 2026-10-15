@@ -103,10 +103,13 @@ export interface EducationProfile {
 	gradeYears: GradeYear[];
 }
 
+/** One line of the verification ceiling, as a CODE the frontend words (WP14a — the backend used to
+ *  send English prose, which the Polish settings page showed verbatim). Mirrors the codes in
+ *  `backend/identity/standing.py`; `EducationPanel`'s `REASON_TEXT` is the other half. */
 export interface StandingReason {
 	code: string;
 	tier: string;
-	detail: string;
+	params: { school?: string };
 }
 
 export interface Standing {
@@ -119,7 +122,6 @@ export interface Standing {
 }
 
 export interface UsosState {
-	protocol: string;
 	isMock: boolean;
 	configuredSchools: string[];
 	baseScopes: string[];
@@ -127,6 +129,8 @@ export interface UsosState {
 	schoolRunsUsos: boolean;
 	capabilities: { identity: boolean; studies: boolean; grades: boolean; diplomas: boolean };
 	blockers: string[];
+	/** What connecting grants, as codes (`backend/identity/usos.py: GRANT_CODES`, mirrored by
+	 *  `EducationPanel`'s `GRANT_TEXT`). */
 	grants: string[];
 }
 

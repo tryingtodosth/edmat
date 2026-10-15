@@ -427,7 +427,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /concepts /concepts/[slug] … /articles/[id]/{edit,history}     concept wiki, articles per audience
 /messages … /notifications /activity /posts/[id]              inbox + feed
 /ask /tags/[slug]                                             ask a question in a tag, and the tag's own page (WP15)
-/my-set /sets/[id] /submit /submit-material /search           study + contribute
+/my-set /sets/[id] /submit /submit/mine /submit-material /search   study + contribute (`/submit/mine`: what you sent, and what became of it)
 /settings /settings/profile /users/[id] /login /register      account
 /forgot-password /reset-password /confirm-email                 the links in the mail (query-string tokens)
 /moderation /legal/queue /issues                              staff + reports

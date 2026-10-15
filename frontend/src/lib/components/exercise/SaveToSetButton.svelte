@@ -87,8 +87,12 @@
 	});
 
 	function toggleWorking() {
+		// Read BEFORE toggling. `inWorkingSet` is derived from the store, so after `toggle()` it
+		// already says the new state — and the message said "Removed from the working set" right
+		// under a button that had just changed to "Saved ✓" (first-visitor audit, finding 8).
+		const wasIn = inWorkingSet;
 		guestSetStore.toggle(exerciseId);
-		notice = inWorkingSet ? m.save_removedFromWorking() : m.save_addedToWorking();
+		notice = wasIn ? m.save_removedFromWorking() : m.save_addedToWorking();
 	}
 
 	async function toggleSet(setId: string, name: string, isIn: boolean) {

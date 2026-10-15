@@ -288,6 +288,85 @@ class SubmissionApprovalTests(ApiTestCase):
 # the moderation surface, which never went anywhere.
 
 
+class MySubmissionsTests(ApiTestCase):
+    """`GET /api/exercise-submissions/?mine=1` — what `/submit/mine` reads (WP14a, 2026-10-15).
+
+    A submitter only ever lists their own, with or without `?mine`; a moderator lists the whole
+    queue by default, so `?mine=1` is what gives them their own list rather than everybody's."""
+
+    def setUp(self):
+        from moderation.models import ExerciseSubmission
+        from taxonomy.models import BranchTranslation
+
+        self.branch = make_course(slug='mine-branch')
+        BranchTranslation.objects.filter(branch=self.branch).update(name='Analiza')
+        BranchTranslation.objects.create(branch=self.branch, locale='en', name='Calculus')
+        self.student = make_user('mine-student')
+        self.other = make_user('mine-other')
+        self.moderator = make_user('mine-mod', is_staff=True)
+        payload = {'title': 'T', 'statement': 'S', 'difficulty': 'easy', 'locale': 'pl'}
+        self.own = ExerciseSubmission.objects.create(
+            branch=self.branch, submitted_by=self.student, payload=payload
+        )
+        self.rejected = ExerciseSubmission.objects.create(
+            branch=self.branch,
+            submitted_by=self.student,
+            payload=payload,
+            status='rejected',
+            review_note='Please add the missing statement.',
+        )
+        self.foreign = ExerciseSubmission.objects.create(
+            branch=self.branch, submitted_by=self.other, payload=payload
+        )
+        self.mod_own = ExerciseSubmission.objects.create(
+            branch=self.branch, submitted_by=self.moderator, payload=payload
+        )
+
+    def _ids(self, url):
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {row['id'] for row in response.data}
+
+    def test_a_submitter_lists_only_their_own_with_or_without_mine(self):
+        self.client.force_authenticate(self.student)
+        mine = {self.own.pk, self.rejected.pk}
+        self.assertEqual(self._ids('/api/exercise-submissions/'), mine)
+        self.assertEqual(self._ids('/api/exercise-submissions/?mine=1'), mine)
+
+    def test_a_moderator_gets_the_queue_by_default_and_their_own_with_mine(self):
+        self.client.force_authenticate(self.moderator)
+        self.assertEqual(
+            self._ids('/api/exercise-submissions/'),
+            {self.own.pk, self.rejected.pk, self.foreign.pk, self.mod_own.pk},
+        )
+        self.assertEqual(self._ids('/api/exercise-submissions/?mine=1'), {self.mod_own.pk})
+
+    def test_a_stranger_cannot_open_somebody_elses_submission(self):
+        self.client.force_authenticate(self.other)
+        response = self.client.get(f'/api/exercise-submissions/{self.own.pk}/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_signed_out_is_refused(self):
+        response = self.client.get('/api/exercise-submissions/?mine=1')
+        self.assertIn(response.status_code, (401, 403))
+
+    def test_each_row_names_its_branch_in_the_readers_language_and_carries_the_reason(self):
+        self.client.force_authenticate(self.student)
+        rows = {r['id']: r for r in self.client.get('/api/exercise-submissions/?mine=1&lang=en').data}
+        self.assertEqual(rows[self.own.pk]['branch_name'], 'Calculus')
+        self.assertEqual(rows[self.own.pk]['branch'], 'mine-branch')
+        self.assertEqual(rows[self.rejected.pk]['status'], 'rejected')
+        self.assertEqual(rows[self.rejected.pk]['review_note'], 'Please add the missing statement.')
+        rows = self.client.get('/api/exercise-submissions/?mine=1&lang=pl').data
+        self.assertEqual({r['branch_name'] for r in rows}, {'Analiza'})
+
+    def test_the_moderation_queue_rows_carry_the_branch_name_too(self):
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(reverse('moderation-queue'))
+        names = {s['branch_name'] for s in response.data['submissions']}
+        self.assertEqual(names, {'Analiza'})
+
+
 class EditSuggestionApprovalTests(ApiTestCase):
     def setUp(self):
         self.moderator = make_user('mod3', is_staff=True)

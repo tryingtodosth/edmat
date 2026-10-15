@@ -484,6 +484,7 @@ E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of bu
 node e2e/classroom-overhaul.mjs      # staff, contributions, locked chapters, invite links; ola/julia/bartek/michał by token
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
 node e2e/booking.mjs
+node e2e/wp14a-flows.mjs        # the audit's broken flows (WP14a); E2E_OLA_TOKEN / E2E_KASIA_TOKEN; PL at 390 + EN at 1280; deletes its submissions, cancels its booking requests
 node e2e/schedule-editing.mjs
 node e2e/events-and-nav.mjs
 E2E_BASE=http://localhost:5225 E2E_API=http://127.0.0.1:8125 node e2e/polls.mjs   # polls end to end (§17BI.E); kasia creates, opens, votes and closes a poll on her own event
@@ -692,6 +693,28 @@ selector matching nothing anywhere in the app, which crashed the run at check 6 
 with it. And the tutor-calendar check never paged forward to the week the session is actually in, so it
 passed on a Monday and could not pass on a Sunday; it now walks forward the same way the student side
 already did.
+
+It had also been failing its very first tab check since the interface went Polish by default
+(2026-09-23, `e2e/CLAUDE.md` trap 24) — every check names English copy — and since WP14a
+(2026-10-15) its people read the English interface through `englishContext`. The student's tab is
+"Booked by me" now: the page is "My bookings" / "Moje rezerwacje", one name everywhere.
+
+**`e2e/wp14a-flows.mjs` (66 checks, WP14a, 2026-10-15)** — the first-visitor audit's broken flows,
+each driven the way a person meets it, once in Polish on a 390 px touch screen and once in English at
+1280. `/submit`: the success notice is scrolled into view and focused, and links to `/submit/mine`;
+kasia rejects the submission with a reason through the real moderation endpoint, and `/submit/mine`
+lists it as not accepted with that reason; the rejection notification links to the same list;
+`/users/{me}/unpublished` counts what is waiting and no longer says everything is published. A
+tapped tutoring slot keeps a readable selected state under the touch screen's sticky `:hover`;
+"See your bookings" opens `/bookings?tab=mine`, the page is "Moje rezerwacje" / "My bookings" and
+opens on "Booked by me", and a tab click writes `?tab=` into the address. Settings' standing and USOS
+sections carry no English developer text in Polish, the register form names the institutional
+provider in the interface language and Apple's card has a mark, an exercise's rating line agrees with
+its number ("3 recenzje", "3 reviews"), and saving to the working set says "added". Signs in by token
+(`E2E_OLA_TOKEN`, `E2E_KASIA_TOKEN`; it falls back to logging in, which spends the throttle), deletes
+its two submissions through the API and cancels its two booking requests (a booking has no delete),
+both confirmed by an authenticated re-query. `E2E_LISTING` (default 7) is a listing with published
+hours that ola does not own; `E2E_RATED_EXERCISE` (default 1) one with exactly three reviews.
 
 **`e2e/schedule-editing.mjs` (36 checks)** — laying a schedule out on the calendar instead of through a
 form. The editor opens and says, before any change is made, whether it is about to change this week

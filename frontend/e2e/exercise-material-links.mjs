@@ -16,6 +16,8 @@
 // The corpus is Polish and a fresh context reads the English interface, so the picker's own search
 // would honestly return nothing for seeded rows (trap 16). This script sets the account's
 // `content_locales` to ['pl'] through the real API before browsing and puts it back at the end.
+import { englishContext } from './english.mjs';
+
 let chromium;
 try {
 	({ chromium } = await import('playwright'));
@@ -77,7 +79,10 @@ for (const row of existing) {
 const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
-const context = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+// English, because the checks name English copy and the interface default is Polish (e2e/CLAUDE.md
+// trap 24; the anonymous checks had been passing vacuously and the first signed-in one failing —
+// found by WP14a, 2026-10-15).
+const context = await englishContext(browser, BASE, { viewport: { width: 1200, height: 900 } });
 const page = await context.newPage();
 page.on('console', (msg) => msg.type() === 'error' && errors.push(`console: ${msg.text()}`));
 page.on('pageerror', (e) => errors.push(`page: ${e.message}`));

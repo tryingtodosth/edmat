@@ -129,7 +129,18 @@
 	"exercise_suggestEdit": "Zaproponuj poprawkę",
 	"exercise_noAnswerNote": "Brak samodzielnej odpowiedzi dla tego zadania — zobacz rozwiązanie.",
 	"review_heading": "Oceny i recenzje",
-	"review_average": "Średnia {average} · {count} recenzji",
+	"review_average": [
+		{
+			"declarations": ["input average", "input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Średnia {average} · {count} recenzja",
+				"countPlural=few": "Średnia {average} · {count} recenzje",
+				"countPlural=many": "Średnia {average} · {count} recenzji",
+				"countPlural=*": "Średnia {average} · {count} recenzje"
+			}
+		}
+	],
 	"review_noReviews": "Brak recenzji — bądź pierwszy.",
 	"review_yourRating": "Twoja ocena",
 	"review_commentPlaceholder": "Co sądzisz? (opcjonalnie)",
@@ -164,7 +175,18 @@
 	"myset_namePlaceholder": "np. Powtórka do kolokwium 2",
 	"myset_saveButton": "Zapisz zestaw",
 	"myset_savedSets": "Twoje zapisane zestawy",
-	"myset_savedSetItemCount": "{count} zadań",
+	"myset_savedSetItemCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} zadanie",
+				"countPlural=few": "{count} zadania",
+				"countPlural=many": "{count} zadań",
+				"countPlural=*": "{count} zadania"
+			}
+		}
+	],
 	"myset_loadSet": "Wczytaj",
 	"myset_printTitle": "Mój zestaw — EdMat",
 	"myset_share": "Udostępnij",
@@ -280,7 +302,18 @@
 	"submitMaterial_field_description": "Opis",
 	"submitMaterial_field_file": "Plik",
 	"submitMaterial_multiFileHint": "Wybierz kilka naraz, a każdy stanie się osobnym materiałem, zapisanym pod tym, co wybrano powyżej.",
-	"submitMaterial_multiFileLegend": "Tytuły ({count} plików)",
+	"submitMaterial_multiFileLegend": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Tytuły ({count} plik)",
+				"countPlural=few": "Tytuły ({count} pliki)",
+				"countPlural=many": "Tytuły ({count} plików)",
+				"countPlural=*": "Tytuły ({count} pliki)"
+			}
+		}
+	],
 	"submitMaterial_alsoMade": "I jeszcze {count} — zapisane tak samo.",
 	"submitMaterial_partialFailure": "Dodano {done} z {total}; następny został odrzucony. Te, które weszły, są już zapisane — nie wysyłaj ich ponownie.",
 	"submitMaterial_fileHint": "PDF, PNG, JPEG, .tex, .doc, .docx lub .odt.",
@@ -406,7 +439,18 @@
 	"coverage_depth_light": "Pobieżne omówienie",
 	"coverage_depth_moderate": "Umiarkowane omówienie",
 	"coverage_depth_deep": "Dogłębne omówienie",
-	"coverage_commentCountTitle": "{count} komentarzy w dyskusji",
+	"coverage_commentCountTitle": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} komentarz w dyskusji",
+				"countPlural=few": "{count} komentarze w dyskusji",
+				"countPlural=many": "{count} komentarzy w dyskusji",
+				"countPlural=*": "{count} komentarze w dyskusji"
+			}
+		}
+	],
 	"coverage_voteQuestion": "Czy ten poziom jest trafny?",
 	"coverage_agree": "Zgadzam się",
 	"coverage_disagree": "Nie zgadzam się",
@@ -437,7 +481,18 @@
 	"comment_autoHiddenPlaceholder": "[Ten komentarz jest ukryty do czasu weryfikacji przez moderatora — został zgłoszony przez wielu użytkowników]",
 	"moderation_tab_reports": "Zgłoszenia ({count})",
 	"moderation_alreadyHidden": "Już ukryte",
-	"moderation_reportStats": "{count} zgłoszeń · {percent}% widzów",
+	"moderation_reportStats": [
+		{
+			"declarations": ["input percent", "input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} zgłoszenie · {percent}% widzów",
+				"countPlural=few": "{count} zgłoszenia · {percent}% widzów",
+				"countPlural=many": "{count} zgłoszeń · {percent}% widzów",
+				"countPlural=*": "{count} zgłoszenia · {percent}% widzów"
+			}
+		}
+	],
 	"moderation_viewInContext": "Zobacz w kontekście →",
 	"moderation_restore": "Przywróć",
 	"moderation_remove": "Usuń",
@@ -527,7 +582,18 @@
 	"tag_notifyMe": "Powiadamiaj mnie o nowych treściach",
 	"tag_loginToFollow": "Zaloguj się, aby obserwować tagi",
 	"tag_saveForLater": "Zapisz wszystko na później",
-	"tag_savedCount": "Dodano {count} zadanie(a) do Twojego zestawu.",
+	"tag_savedCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Dodano {count} zadanie do Twojego zestawu.",
+				"countPlural=few": "Dodano {count} zadania do Twojego zestawu.",
+				"countPlural=many": "Dodano {count} zadań do Twojego zestawu.",
+				"countPlural=*": "Dodano {count} zadania do Twojego zestawu."
+			}
+		}
+	],
 	"tag_savedNone": "Już w Twoim zestawie.",
 	"tag_addToContent": "Dodaj do innej treści…",
 	"tag_removeFromContent": "Usuń ten tag",
@@ -728,9 +794,8 @@
 	"education_factProgramme": "Kierunek",
 	"education_factStudentNumber": "Numer albumu",
 	"education_factNothing": "Nie ustawiono",
-	"education_emailEligibleNote": "Twój adres jest w domenie tej uczelni. Na razie niczego to nie potwierdza, bo EdMat nie umie jeszcze potwierdzić adresu — a weryfikacja, którą da się zdobyć samym wpisaniem, jest dokładnie tyle samo warta dla kogoś, kto kłamie.",
+	"education_emailEligibleNote": "Twój adres jest w domenie tej uczelni. Na razie nie liczy się to jako weryfikacja — nawet po potwierdzeniu adresu, bo tego kroku jeszcze nie zbudowano.",
 	"education_usosHeading": "USOS",
-	"education_usosProtocol": "{protocol}. Klucze wydaje każda uczelnia osobno, po wniosku, który zatwierdza tam konkretna osoba.",
 	"education_usosMockNote": "To wdrożenie działa na zastępczym łączniku. Przechodzi całą ścieżkę przenoszenia danych i zgód, ale z żadną uczelnią się nie łączy i nikogo nie weryfikuje.",
 	"education_usosPickSchoolFirst": "Najpierw wybierz uczelnię — USOS to system osobny dla każdej uczelni, nie jedna usługa.",
 	"education_usosNoInstallation": "{school} nie ma instalacji USOS, więc nie ma się z czym połączyć.",
@@ -1099,10 +1164,10 @@
 	"notification_bookingConfirmed": "Twoje zajęcia zostały potwierdzone — „{title}”",
 	"notification_bookingDeclined": "Twoja prośba o zajęcia została odrzucona — „{title}”",
 	"notification_bookingCancelled": "{actor} odwołał zajęcia — „{title}”",
-	"nav_bookings": "Mój grafik",
-	"booking_pageTitle": "Mój grafik",
+	"nav_bookings": "Moje rezerwacje",
+	"booking_pageTitle": "Moje rezerwacje",
 	"booking_heading": "Zarezerwuj zajęcia",
-	"booking_loadFailed": "Nie udało się wczytać grafiku. Spróbuj ponownie.",
+	"booking_loadFailed": "Nie udało się wczytać rezerwacji. Spróbuj ponownie.",
 	"booking_actionFailed": "Nie udało się. Spróbuj ponownie.",
 	"booking_noSchedule": "Ten korepetytor nie opublikował jeszcze żadnych godzin. Napisz do niego, żeby umówić termin.",
 	"booking_messageTutor": "Napisz do korepetytora",
@@ -1114,7 +1179,7 @@
 	"booking_nextWeek": "Później →",
 	"booking_noSlotsThisWeek": "W tym tygodniu nic wolnego. Sprawdź kolejny.",
 	"booking_ownListing": "To Twoje własne ogłoszenie.",
-	"booking_manageSchedule": "Zarządzaj swoim grafikiem →",
+	"booking_manageSchedule": "Zarządzaj rezerwacjami i godzinami →",
 	"booking_loginToBook": "Zaloguj się, żeby zarezerwować zajęcia.",
 	"booking_chosen": "Wybrany termin: {time}",
 	"booking_noteLabel": "Nad czym chcesz popracować?",
@@ -1131,7 +1196,7 @@
 	"booking_field_sessionMinutes": "Ile trwają jedne zajęcia? (minuty)",
 	"booking_field_sessionMinutesHint": "To dzieli Twoje opublikowane godziny na terminy do rezerwacji. Od 15 minut do 8 godzin.",
 	"booking_tab_incoming": "Prośby do mnie",
-	"booking_tab_mine": "Moje rezerwacje",
+	"booking_tab_mine": "Zarezerwowane przeze mnie",
 	"booking_tab_availability": "Moja dostępność",
 	"booking_noIncoming": "Nikt jeszcze nie poprosił Cię o zajęcia.",
 	"booking_noneOfMine": "Nie zarezerwowałeś jeszcze żadnych zajęć.",
@@ -1409,7 +1474,18 @@
 	"comment_deleteConfirm": "Usunąć ten komentarz?",
 	"comment_deletedByAuthorPlaceholder": "Autor usunął ten komentarz.",
 	"review_reply": "Odpowiedz",
-	"review_replyCount": "{count} odpowiedzi",
+	"review_replyCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} odpowiedź",
+				"countPlural=few": "{count} odpowiedzi",
+				"countPlural=many": "{count} odpowiedzi",
+				"countPlural=*": "{count} odpowiedzi"
+			}
+		}
+	],
 	"notification_taxonomyApproved": "Zaproponowane przez Ciebie „{title}” jest już częścią taksonomii.",
 	"notification_taxonomyMerged": "Zaproponowane przez Ciebie „{title}” już istniało, więc zostało scalone — wszystko, co było pod nim, też się przeniosło.",
 	"notification_taxonomyMoved": "Zaproponowane przez Ciebie „{title}” zostało przeniesione w inne miejsce taksonomii.",
@@ -1581,7 +1657,18 @@
 	"profile_tile_comments": "Komentarze",
 	"profile_tile_exercises": "Zadania",
 	"profile_tile_finished": "Ukończone",
-	"profile_tile_unpublished": "+ {count} nieopublikowanych",
+	"profile_tile_unpublished": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "+ {count} nieopublikowane",
+				"countPlural=few": "+ {count} nieopublikowane",
+				"countPlural=many": "+ {count} nieopublikowanych",
+				"countPlural=*": "+ {count} nieopublikowane"
+			}
+		}
+	],
 	"profile_unpublished_heading": "Nieopublikowane zadania",
 	"profile_unpublished_intro": "Zadania, które dodałeś/aś, a których nikt inny teraz nie widzi — cofnięte przez moderatora, ukryte po zgłoszeniach lub usunięte. Tę listę widzisz tylko Ty.",
 	"profile_unpublished_empty": "Wszystko, co dodałeś/aś, jest opublikowane.",
@@ -1903,7 +1990,18 @@
 	"activity_clearAnchor": "Wyczyść filtr: {anchor}",
 	"activity_emptyFollowed": "Nic z obserwowanych — zaobserwuj tagi lub dołącz do kursu, albo przełącz na Wszystko.",
 	"activity_loadMore": "Pokaż więcej",
-	"activity_burst": "{name} — {count} podobne działania. Pokaż wszystkie",
+	"activity_burst": [
+		{
+			"declarations": ["input name", "input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{name} — {count} podobne działanie. Pokaż",
+				"countPlural=few": "{name} — {count} podobne działania. Pokaż wszystkie",
+				"countPlural=many": "{name} — {count} podobnych działań. Pokaż wszystkie",
+				"countPlural=*": "{name} — {count} podobne działania. Pokaż wszystkie"
+			}
+		}
+	],
 	"post_open": "Otwórz",
 	"post_removed": "Ten wpis został usunięty.",
 	"post_refExercise": "→ Zadanie: {title}",
@@ -2010,7 +2108,18 @@
 	"events_sessionQA": "Pytania",
 	"events_bookmark": "Dodaj do mojego planu",
 	"events_bookmarked": "W moim planie",
-	"events_addToSet": "Dodaj {count} zadań do Mojego zestawu",
+	"events_addToSet": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Dodaj {count} zadanie do Mojego zestawu",
+				"countPlural=few": "Dodaj {count} zadania do Mojego zestawu",
+				"countPlural=many": "Dodaj {count} zadań do Mojego zestawu",
+				"countPlural=*": "Dodaj {count} zadania do Mojego zestawu"
+			}
+		}
+	],
 	"events_addedToSet": "Dodano {count} do Mojego zestawu",
 	"events_joinOnline": "Dołącz online",
 	"events_sessionRemoveConfirm": "Usunąć „{title}” z programu?",
@@ -2170,7 +2279,18 @@
 	"events_registerChild": "Zapisz dziecko",
 	"events_registerChildGoing": "Przyjdzie",
 	"events_childRegistered": "Zapisane.",
-	"contentLocales_hidden": "Ukryto {count} pozycji w innych językach.",
+	"contentLocales_hidden": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Ukryto {count} pozycję w innych językach.",
+				"countPlural=few": "Ukryto {count} pozycje w innych językach.",
+				"countPlural=many": "Ukryto {count} pozycji w innych językach.",
+				"countPlural=*": "Ukryto {count} pozycje w innych językach."
+			}
+		}
+	],
 	"contentLocales_showThem": "Pokaż je",
 	"contentLocales_detailOther": "To jest po {lang}; czytasz interfejs po {ui}.",
 	"contentLocales_showLang": "Pokazuj treści {lang} wszędzie",
@@ -3184,8 +3304,30 @@
 	"tickets_neverSynced": "Nic jeszcze nie zostało wysłane.",
 	"tickets_syncNow": "Wyślij teraz",
 	"tickets_syncFailed": "Nie udało się wysłać. Skany są zachowane i zostaną wysłane ponownie.",
-	"tickets_listLive": "Lista wczytana: {count} osób.",
-	"tickets_listCached": "Pracujesz na kopii zapisanej o {when}: {count} osób.",
+	"tickets_listLive": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Lista wczytana: {count} osoba.",
+				"countPlural=few": "Lista wczytana: {count} osoby.",
+				"countPlural=many": "Lista wczytana: {count} osób.",
+				"countPlural=*": "Lista wczytana: {count} osoby."
+			}
+		}
+	],
+	"tickets_listCached": [
+		{
+			"declarations": ["input when", "input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Pracujesz na kopii zapisanej o {when}: {count} osoba.",
+				"countPlural=few": "Pracujesz na kopii zapisanej o {when}: {count} osoby.",
+				"countPlural=many": "Pracujesz na kopii zapisanej o {when}: {count} osób.",
+				"countPlural=*": "Pracujesz na kopii zapisanej o {when}: {count} osoby."
+			}
+		}
+	],
 	"tickets_listNotCached": "Lista nie została jeszcze zapisana na tym urządzeniu.",
 	"tickets_counts": "Wejścia: {entries} · wyjścia: {exits} · teraz w środku: {inside}",
 	"tickets_result_admitted": "Zapraszamy",
@@ -3480,7 +3622,18 @@
 	"needs_reopenNeed": "Otwórz ponownie",
 	"needs_panelHeading": "Szukamy pomocy",
 	"needs_panelEmpty": "Nie ma tu jeszcze żadnych otwartych ogłoszeń.",
-	"needs_panelPendingBadge": "{count} oczekuje na decyzję",
+	"needs_panelPendingBadge": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} oczekuje na decyzję",
+				"countPlural=few": "{count} oczekują na decyzję",
+				"countPlural=many": "{count} oczekuje na decyzję",
+				"countPlural=*": "{count} oczekują na decyzję"
+			}
+		}
+	],
 	"needs_panelSeeAll": "Zobacz wszystkie",
 	"tasks_panelTitle": "Zadania zespołu",
 	"tasks_empty": "Na tablicy nic jeszcze nie ma.",
@@ -3813,7 +3966,18 @@
 	"school_revokedOn": "Unieważnione {date}",
 	"school_issuedBy": "Wystawione {date} przez {issuer}",
 	"school_openCertificate": "Otwórz zaświadczenie",
-	"school_lessonsNow": "Kurs ma teraz {count} lekcji.",
+	"school_lessonsNow": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Kurs ma teraz {count} lekcję.",
+				"countPlural=few": "Kurs ma teraz {count} lekcje.",
+				"countPlural=many": "Kurs ma teraz {count} lekcji.",
+				"countPlural=*": "Kurs ma teraz {count} lekcje."
+			}
+		}
+	],
 	"school_certificatePageTitle": "Zaświadczenie o ukończeniu",
 	"school_print": "Drukuj",
 	"school_backToCourse": "Powrót do kursu",
@@ -3846,7 +4010,18 @@
 	"record_tableAverage": "Średnia",
 	"record_tableCount": "Oceny",
 	"record_noAverage": "Różne skale",
-	"record_resultCount": "{count} ocen",
+	"record_resultCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} ocena",
+				"countPlural=few": "{count} oceny",
+				"countPlural=many": "{count} ocen",
+				"countPlural=*": "{count} oceny"
+			}
+		}
+	],
 	"record_metric_sets": "Zestawy",
 	"record_metric_lessonsDone": "Ukończone zajęcia",
 	"record_metric_cardsReviewed": "Powtórzone fiszki",
@@ -3879,7 +4054,18 @@
 	"decks_signInNote": "Zaloguj się, aby robić fiszki i mieć harmonogram powtórek.",
 	"decks_newNamePlaceholder": "Nazwa nowych fiszek",
 	"decks_create": "Utwórz fiszki",
-	"decks_cardCount": "{count} fiszek",
+	"decks_cardCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} fiszka",
+				"countPlural=few": "{count} fiszki",
+				"countPlural=many": "{count} fiszek",
+				"countPlural=*": "{count} fiszki"
+			}
+		}
+	],
 	"decks_dueCount": "{count} do powtórki",
 	"decks_dueNone": "Nic do powtórki",
 	"decks_dueSummary": "Fiszki do powtórki: {cards}.",
@@ -3933,7 +4119,18 @@
 	"decks_error": "Nie udało się. Spróbuj ponownie.",
 	"decks_makeFromSet": "Zrób fiszki z tego zestawu",
 	"decks_madeFromSet": "Fiszki gotowe.",
-	"decks_skipped": "{count} zadań pominięto, bo nie są już dostępne.",
+	"decks_skipped": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} zadanie pominięto, bo nie jest już dostępne.",
+				"countPlural=few": "{count} zadania pominięto, bo nie są już dostępne.",
+				"countPlural=many": "{count} zadań pominięto, bo nie są już dostępne.",
+				"countPlural=*": "{count} zadania pominięto, bo nie są już dostępne."
+			}
+		}
+	],
 	"decks_openDeck": "Otwórz fiszki",
 	"decks_saveMenuHeading": "Fiszki",
 	"decks_addedToDeck": "Dodano do „{name}”",
@@ -4081,7 +4278,18 @@
 	"language_fallback": "Pokazane w {shown}: nikt jeszcze nie napisał wersji {wanted}.",
 	"language_gapMinutes": "{count} min",
 	"language_gapHours": "{count} godz.",
-	"language_gapDays": "{count} dni",
+	"language_gapDays": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} dzień",
+				"countPlural=few": "{count} dni",
+				"countPlural=many": "{count} dni",
+				"countPlural=*": "{count} dni"
+			}
+		}
+	],
 	"orgs_aboutActionsLabel": "Działania dla tego opisu",
 	"orgs_descriptionLabel": "Czym jest ta organizacja",
 	"fold_expand": "Pokaż",
@@ -4513,7 +4721,18 @@
 	"contests_stageAdvanced": "dalej przeszło: {count}",
 	"contests_stageClose": "Zamknij etap",
 	"contests_stageClosesAt": "Zamknięcie: {when}",
-	"contests_stageClosesIn": "zamknięcie za {days} dni",
+	"contests_stageClosesIn": [
+		{
+			"declarations": ["input days", "local daysPlural = days: plural"],
+			"selectors": ["daysPlural"],
+			"match": {
+				"daysPlural=one": "zamknięcie za {days} dzień",
+				"daysPlural=few": "zamknięcie za {days} dni",
+				"daysPlural=many": "zamknięcie za {days} dni",
+				"daysPlural=*": "zamknięcie za {days} dni"
+			}
+		}
+	],
 	"contests_stageClosesOn": "zamknięcie {date}",
 	"contests_stageCounts": "zadania: {problems}, oddane prace: {submissions}, punkty do zdobycia: {points}",
 	"contests_stageFinalNote": "ostatni",
@@ -4521,7 +4740,18 @@
 	"contests_stageOnsite": "Stacjonarny",
 	"contests_stageOnsiteNote": "Ten etap odbywa się na miejscu. Organizator może powiesić na nim wydarzenie — z miejscem, dokumentami, grafikiem wolontariuszy i szatnią — ze strony zarządzania konkursem.",
 	"contests_stageOpen": "Otwórz etap",
-	"contests_stageOpensIn": "otwarcie za {days} dni",
+	"contests_stageOpensIn": [
+		{
+			"declarations": ["input days", "local daysPlural = days: plural"],
+			"selectors": ["daysPlural"],
+			"match": {
+				"daysPlural=one": "otwarcie za {days} dzień",
+				"daysPlural=few": "otwarcie za {days} dni",
+				"daysPlural=many": "otwarcie za {days} dni",
+				"daysPlural=*": "otwarcie za {days} dni"
+			}
+		}
+	],
 	"contests_stageOpensOn": "Otwarcie {date}",
 	"contests_stagePageDescription": "Etap konkursu: zadania, miejsce na odpowiedzi i termin.",
 	"contests_stagePageTitle": "{title}",
@@ -5268,13 +5498,8 @@
 	"workStatus_event_going": "Bierzesz udział",
 	"workStatus_courseRequest_pending": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} prośba czeka",
 				"countPlural=few": "{count} prośby czekają",
@@ -5285,13 +5510,8 @@
 	],
 	"workStatus_proposal_pending": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} wersja do przejrzenia",
 				"countPlural=few": "{count} wersje do przejrzenia",
@@ -5304,13 +5524,8 @@
 	"workStatus_needApplication_pending": "Czeka na odpowiedź",
 	"workStatus_needDecision_pending": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} zgłoszenie czeka na decyzję",
 				"countPlural=few": "{count} zgłoszenia czekają na decyzję",
@@ -5324,13 +5539,8 @@
 	"workStatus_poll_open": "Czeka na Twój głos",
 	"workStatus_cardsDue_due": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} karta do powtórki",
 				"countPlural=few": "{count} karty do powtórki",
@@ -5345,13 +5555,8 @@
 	"workStatus_contestStage_open": "Otwarty — praca jeszcze nieoddana",
 	"workStatus_contestJudging_waiting": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} praca do oceny",
 				"countPlural=few": "{count} prace do oceny",
@@ -5412,5 +5617,65 @@
 	"ask_tagEmpty": "Nikt jeszcze nie zadał tu pytania. Pytanie zadane w tym tagu zobaczy każdy, kto go obserwuje.",
 	"ask_heroCta": "Zadaj pytanie",
 	"ask_navAdd": "Zadaj pytanie",
-	"ask_tagChipLink": "Pytania w tym tagu"
+	"ask_tagChipLink": "Pytania w tym tagu",
+	"wp14a_unpublished_waiting": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} wysłane zadanie czeka na moderatora.",
+				"countPlural=few": "{count} wysłane zadania czekają na moderatora.",
+				"countPlural=many": "{count} wysłanych zadań czeka na moderatora.",
+				"countPlural=*": "{count} wysłane zadania czekają na moderatora."
+			}
+		}
+	],
+	"wp14a_unpublished_notAccepted": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} wysłane zadanie nie zostało przyjęte.",
+				"countPlural=few": "{count} wysłane zadania nie zostały przyjęte.",
+				"countPlural=many": "{count} wysłanych zadań nie zostało przyjętych.",
+				"countPlural=*": "{count} wysłane zadania nie zostały przyjęte."
+			}
+		}
+	],
+	"wp14a_mine_heading": "Wysłane przez Ciebie zadania",
+	"wp14a_mine_back": "← Dodaj zadanie",
+	"wp14a_mine_login": "Zaloguj się, żeby zobaczyć wysłane przez siebie zadania.",
+	"wp14a_mine_intro": "Wszystko, co wysłano z Twojego konta przez formularz „Dodaj zadanie”, i co się z tym stało. Tę listę widzisz tylko Ty.",
+	"wp14a_mine_loadFailed": "Nie udało się wczytać tej listy. Spróbuj za chwilę.",
+	"wp14a_mine_empty": "Nie ma tu jeszcze żadnego wysłanego zadania.",
+	"wp14a_mine_addFirst": "Dodaj pierwsze →",
+	"wp14a_mine_summary": "Czeka: {pending} · Opublikowane: {approved} · Nieprzyjęte: {rejected}",
+	"wp14a_mine_status_pending": "Czeka na moderatora",
+	"wp14a_mine_status_approved": "Opublikowane",
+	"wp14a_mine_status_rejected": "Nieprzyjęte",
+	"wp14a_mine_meta": "{branch} · wysłane {date}",
+	"wp14a_mine_pendingBody": "Przejrzy je moderator. Dostaniesz powiadomienie, gdy zapadnie decyzja.",
+	"wp14a_mine_viewExercise": "Otwórz zadanie →",
+	"wp14a_mine_approvedGone": "Zostało opublikowane, ale później je zdjęto.",
+	"wp14a_mine_reasonLabel": "Powód podany przez moderatora:",
+	"wp14a_mine_noReason": "nie podano.",
+	"wp14a_mine_addAnother": "Dodaj kolejne zadanie →",
+	"wp14a_mine_materialsNote": "Wysłane materiały znajdziesz wśród swoich projektów.",
+	"wp14a_mine_materialsLink": "Twoje projekty →",
+	"wp14a_submit_mineLink": "Wysłane przez Ciebie zadania →",
+	"wp14a_submit_whereNext": "Jego los — i decyzję moderatora — zobaczysz na liście wysłanych zadań.",
+	"wp14a_submit_whereNextLink": "Otwórz listę →",
+	"wp14a_unpublished_seeSent": "Zobacz wysłane zadania i powody decyzji →",
+	"wp14a_unpublished_emptyPublished": "Żadne z opublikowanych przez Ciebie zadań nie zostało ukryte ani usunięte.",
+	"wp14a_reason_accountActive": "Konto aktywne. Adres e-mail nie jest jeszcze potwierdzony.",
+	"wp14a_reason_emailConfirmed": "Konto aktywne, adres e-mail potwierdzony.",
+	"wp14a_reason_declaredSchool": "Podano szkołę lub uczelnię: {school}. To Twoja własna deklaracja, więc liczy się tylko jako ten jeden stopień.",
+	"wp14a_reason_schoolEmail": "Logowanie adresem z domeny uczelni. To potwierdza adres, a nie to, że tam studiujesz.",
+	"wp14a_reason_usosVerified": "Studia potwierdzone w rejestrze uczelni — najmocniejsze potwierdzenie, jakie tu jest. Daje pełny udział, ale żadnej władzy nad cudzą pracą.",
+	"wp14a_grant_verifiedEnrolment": "Potwierdzone studia — z rejestru uczelni, a nie z tego, co wpiszesz.",
+	"wp14a_grant_ceilingS": "Poziom S: pełny udział od razu, bez czekania.",
+	"wp14a_grant_noModeration": "Żadnej władzy nad cudzą pracą. Bycie studentem mówi, kim jesteś, a nie jak trafnie oceniasz.",
+	"wp14a_grant_noVoteWeight": "Twoje głosy nie ważą więcej, dopóki nie zdobędziesz reputacji.",
+	"wp14a_grant_optionalTranscript": "Tylko jeśli poprosisz o to osobno: dyplom i oceny, dopasowane do przedmiotów w serwisie.",
+	"wp14a_provider_school": "konto uczelniane"
 }

@@ -774,7 +774,11 @@ def build_moderation_queue_payload(user=None, request=None) -> dict:
     # resolves `submission.branch.slug` per row; without this it's a real, measured N+1 (one query
     # per pending submission), the next-largest cost in this response once build_report_queue()'s
     # own, larger N+1 was fixed.
-    submissions = ExerciseSubmission.objects.filter(status='pending').select_related('branch')
+    submissions = (
+        ExerciseSubmission.objects.filter(status='pending')
+        .select_related('branch')
+        .prefetch_related('branch__translations')
+    )
     edits = EditSuggestion.objects.filter(status='pending')
     translations = ExerciseTranslation.objects.filter(status='pending')
     if branch_ids is not None:

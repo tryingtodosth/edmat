@@ -1,7 +1,9 @@
 <script lang="ts">
-	// "My schedule" — one page, three tabs, because they are three views of the same calendar rather
-	// than three features. Splitting them across routes would mean a tutor answering a request has to
-	// leave the page to check whether they had already blocked that afternoon.
+	// "My bookings" — one page, three tabs, because they are three views of the same calendar rather
+	// than three features. (It was "My schedule" / "Mój grafik" until WP14a: the booking panel's
+	// link said "your bookings", and "grafik" is also the volunteer rota's word.) Splitting them
+	// across routes would mean a tutor answering a request has to leave the page to check whether
+	// they had already blocked that afternoon.
 	//
 	//   Requests    — bookings made WITH you: what to answer, and what is coming up.
 	//   My bookings — bookings YOU made with somebody else.
@@ -10,6 +12,8 @@
 	// Most accounts here are both a tutor and a student (the same reasoning messaging's own single
 	// inbox already follows), so neither side is hidden behind a role the account has to hold.
 	import { resolve } from '$app/paths';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import type {
 		AvailabilityException,
 		AvailabilityRule,
@@ -73,7 +77,25 @@
 	} from '$lib/components/booking/calendar';
 
 	type Tab = 'incoming' | 'mine' | 'availability';
-	let tab = $state<Tab>('incoming');
+	const TABS: Tab[] = ['incoming', 'mine', 'availability'];
+	// The tab lives in the address (`?tab=mine`), the way `/material-projects` keeps its own: a
+	// link can then open the RIGHT one. The booking panel's "See your bookings" used to land a
+	// student who had just asked for an hour on the tutor's inbox, which said nobody had asked them
+	// for anything (first-visitor audit, finding 7). `incoming` stays the bare address's default.
+	let tab = $derived.by((): Tab => {
+		const asked = page.url.searchParams.get('tab');
+		return TABS.includes(asked as Tab) ? (asked as Tab) : 'incoming';
+	});
+
+	function selectTab(next: Tab) {
+		// Built from the live URL so any other parameter survives; `replaceState` so switching tabs
+		// does not stack one history entry per click on a page whose back button should leave it.
+		const url = new URL(page.url);
+		if (next === 'incoming') url.searchParams.delete('tab');
+		else url.searchParams.set('tab', next);
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- same page, one query parameter changed
+		goto(url, { keepFocus: true, noScroll: true, replaceState: true });
+	}
 
 	// Both booking lists read through `cachedList`. This is the surface where the "N new" count
 	// earns its keep most directly: a tutor opening this page wants to know whether anybody has
@@ -714,16 +736,16 @@
 		</p>
 	{:else}
 		<nav class="tabs" aria-label={m.booking_pageTitle()}>
-			<button type="button" class:active={tab === 'incoming'} onclick={() => (tab = 'incoming')}>
+			<button type="button" class:active={tab === 'incoming'} onclick={() => selectTab('incoming')}>
 				{m.booking_tab_incoming()}{pendingCount > 0 ? ` (${pendingCount})` : ''}
 			</button>
-			<button type="button" class:active={tab === 'mine'} onclick={() => (tab = 'mine')}>
+			<button type="button" class:active={tab === 'mine'} onclick={() => selectTab('mine')}>
 				{m.booking_tab_mine()}
 			</button>
 			<button
 				type="button"
 				class:active={tab === 'availability'}
-				onclick={() => (tab = 'availability')}
+				onclick={() => selectTab('availability')}
 			>
 				{m.booking_tab_availability()}
 			</button>

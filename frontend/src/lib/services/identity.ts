@@ -137,7 +137,11 @@ function mapSnapshot(raw: any): EducationSnapshot {
 		standing: {
 			tier: raw.standing.tier,
 			usosTier: raw.standing.usos_tier,
-			reasons: raw.standing.reasons,
+			reasons: (raw.standing.reasons ?? []).map((r: any) => ({
+				code: r.code,
+				tier: r.tier,
+				params: r.params ?? {}
+			})),
 			skillSeeds: (raw.standing.skill_seeds ?? []).map((s: any) => ({
 				branchSlug: s.branch_slug,
 				courseName: s.course_name,
@@ -147,7 +151,6 @@ function mapSnapshot(raw: any): EducationSnapshot {
 			average: raw.standing.average ?? null
 		},
 		usos: {
-			protocol: raw.usos.protocol,
 			isMock: raw.usos.is_mock,
 			configuredSchools: raw.usos.configured_schools,
 			baseScopes: raw.usos.base_scopes,

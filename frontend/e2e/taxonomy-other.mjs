@@ -88,7 +88,7 @@ await submit.click();
 await settle(2000);
 check(
 	'the submission succeeded (success notice shown)',
-	(await page.locator('p.notice').count()) === 1
+	(await page.locator('.submitted').count()) === 1
 );
 
 const disciplines = await (await fetch(`${API}/disciplines/`)).json();

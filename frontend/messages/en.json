@@ -129,7 +129,16 @@
 	"exercise_suggestEdit": "Suggest an edit",
 	"exercise_noAnswerNote": "No standalone answer for this exercise — see the solution.",
 	"review_heading": "Ratings & reviews",
-	"review_average": "{average} average · {count} reviews",
+	"review_average": [
+		{
+			"declarations": ["input average", "input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{average} average · {count} review",
+				"countPlural=*": "{average} average · {count} reviews"
+			}
+		}
+	],
 	"review_noReviews": "No reviews yet — be the first.",
 	"review_yourRating": "Your rating",
 	"review_commentPlaceholder": "What did you think? (optional)",
@@ -164,7 +173,16 @@
 	"myset_namePlaceholder": "e.g. Midterm 2 review",
 	"myset_saveButton": "Save set",
 	"myset_savedSets": "Your saved sets",
-	"myset_savedSetItemCount": "{count} exercises",
+	"myset_savedSetItemCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} exercise",
+				"countPlural=*": "{count} exercises"
+			}
+		}
+	],
 	"myset_loadSet": "Load",
 	"myset_printTitle": "My Set — EdMat",
 	"myset_share": "Share",
@@ -280,7 +298,16 @@
 	"submitMaterial_field_description": "Description",
 	"submitMaterial_field_file": "File",
 	"submitMaterial_multiFileHint": "Pick several at once and each becomes its own material, filed under everything you chose above.",
-	"submitMaterial_multiFileLegend": "Titles ({count} files)",
+	"submitMaterial_multiFileLegend": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Titles ({count} file)",
+				"countPlural=*": "Titles ({count} files)"
+			}
+		}
+	],
 	"submitMaterial_alsoMade": "And {count} more, filed the same way.",
 	"submitMaterial_partialFailure": "{done} of {total} were added; the next one was refused. The ones that got in are already filed — do not send them again.",
 	"submitMaterial_fileHint": "PDF, PNG, JPEG, .tex, .doc, .docx, or .odt.",
@@ -406,7 +433,16 @@
 	"coverage_depth_light": "Light coverage",
 	"coverage_depth_moderate": "Moderate coverage",
 	"coverage_depth_deep": "Deep coverage",
-	"coverage_commentCountTitle": "{count} discussion comments",
+	"coverage_commentCountTitle": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} discussion comment",
+				"countPlural=*": "{count} discussion comments"
+			}
+		}
+	],
 	"coverage_voteQuestion": "Is this level accurate?",
 	"coverage_agree": "Agree",
 	"coverage_disagree": "Disagree",
@@ -437,7 +473,16 @@
 	"comment_autoHiddenPlaceholder": "[This comment is hidden pending moderator review — it was reported by multiple viewers]",
 	"moderation_tab_reports": "Reports ({count})",
 	"moderation_alreadyHidden": "Already hidden",
-	"moderation_reportStats": "{count} reports · {percent}% of viewers",
+	"moderation_reportStats": [
+		{
+			"declarations": ["input percent", "input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} report · {percent}% of viewers",
+				"countPlural=*": "{count} reports · {percent}% of viewers"
+			}
+		}
+	],
 	"moderation_viewInContext": "View in context →",
 	"moderation_restore": "Restore",
 	"moderation_remove": "Remove",
@@ -527,7 +572,16 @@
 	"tag_notifyMe": "Notify me about new content",
 	"tag_loginToFollow": "Log in to follow tags",
 	"tag_saveForLater": "Save all for later",
-	"tag_savedCount": "Added {count} exercise(s) to your set.",
+	"tag_savedCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Added {count} exercise to your set.",
+				"countPlural=*": "Added {count} exercises to your set."
+			}
+		}
+	],
 	"tag_savedNone": "Already in your set.",
 	"tag_addToContent": "Add to different content…",
 	"tag_removeFromContent": "Remove this tag",
@@ -728,9 +782,8 @@
 	"education_factProgramme": "Programme",
 	"education_factStudentNumber": "Student number",
 	"education_factNothing": "Not set",
-	"education_emailEligibleNote": "Your address is on this institution's domain. It does not verify anything yet, because EdMat cannot confirm an address — a verification that can be earned by typing would be worth exactly as much to somebody lying.",
+	"education_emailEligibleNote": "Your address is on this institution's domain. That doesn't count as verification here yet — not even once the address is confirmed, because that step hasn't been built.",
 	"education_usosHeading": "USOS",
-	"education_usosProtocol": "{protocol}. Credentials are issued per university, by that university, after a request a person there approves.",
 	"education_usosMockNote": "This deployment is running the stand-in connector. It exercises the transfer and consent paths end to end, but talks to no university and verifies nobody.",
 	"education_usosPickSchoolFirst": "Pick your institution first — USOS is a per-university system, not one service.",
 	"education_usosNoInstallation": "{school} runs no USOS installation, so there is nothing to connect to.",
@@ -1099,10 +1152,10 @@
 	"notification_bookingConfirmed": "Your session was confirmed — “{title}”",
 	"notification_bookingDeclined": "Your session request was declined — “{title}”",
 	"notification_bookingCancelled": "{actor} cancelled a session — “{title}”",
-	"nav_bookings": "My schedule",
-	"booking_pageTitle": "My schedule",
+	"nav_bookings": "My bookings",
+	"booking_pageTitle": "My bookings",
 	"booking_heading": "Book a session",
-	"booking_loadFailed": "Couldn't load the schedule. Please try again.",
+	"booking_loadFailed": "Couldn't load your bookings. Please try again.",
 	"booking_actionFailed": "That didn't work. Please try again.",
 	"booking_noSchedule": "This tutor hasn't published any hours yet. Send them a message to arrange a time.",
 	"booking_messageTutor": "Message tutor",
@@ -1114,7 +1167,7 @@
 	"booking_nextWeek": "Later →",
 	"booking_noSlotsThisWeek": "Nothing free this week. Try a later one.",
 	"booking_ownListing": "This is your own listing.",
-	"booking_manageSchedule": "Manage your schedule →",
+	"booking_manageSchedule": "Manage your bookings and hours →",
 	"booking_loginToBook": "Log in to book a session.",
 	"booking_chosen": "Chosen: {time}",
 	"booking_noteLabel": "What would you like to work on?",
@@ -1131,7 +1184,7 @@
 	"booking_field_sessionMinutes": "How long is one session? (minutes)",
 	"booking_field_sessionMinutesHint": "This is what splits your published hours into bookable times. Between 15 minutes and 8 hours.",
 	"booking_tab_incoming": "Requests for me",
-	"booking_tab_mine": "My bookings",
+	"booking_tab_mine": "Booked by me",
 	"booking_tab_availability": "My availability",
 	"booking_noIncoming": "Nobody has asked to book a session with you yet.",
 	"booking_noneOfMine": "You haven't booked any sessions yet.",
@@ -1193,7 +1246,16 @@
 	"booking_calendar_legend": "Shaded bands are the hours you publish. Blocks on them are sessions — amber is waiting for your answer, green is confirmed, grey is done.",
 	"booking_calendar_emptyWeek": "Nothing on this week.",
 	"booking_calendar_dayFree": "{count} free",
-	"booking_calendar_daySessions": "{count} sessions",
+	"booking_calendar_daySessions": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} session",
+				"countPlural=*": "{count} sessions"
+			}
+		}
+	],
 	"booking_edit_start": "Edit hours",
 	"booking_edit_done": "Done editing",
 	"booking_edit_heading": "Editing your hours",
@@ -1226,7 +1288,16 @@
 	"booking_edit_saveTemplate": "Save this week",
 	"booking_edit_noTemplates": "You have not saved any weeks yet.",
 	"booking_edit_applyTemplate": "Apply",
-	"booking_edit_templateWindows": "{count} windows",
+	"booking_edit_templateWindows": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} window",
+				"countPlural=*": "{count} windows"
+			}
+		}
+	],
 	"booking_edit_saveFailed": "That change could not be saved. Your hours have been reloaded.",
 	"booking_edit_templateFailed": "That week could not be saved. Check the name is not one you have used already.",
 	"settings_datesHeading": "Dates and times",
@@ -1409,7 +1480,16 @@
 	"comment_deleteConfirm": "Delete this comment?",
 	"comment_deletedByAuthorPlaceholder": "The author deleted this comment.",
 	"review_reply": "Reply",
-	"review_replyCount": "{count} replies",
+	"review_replyCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} reply",
+				"countPlural=*": "{count} replies"
+			}
+		}
+	],
 	"notification_taxonomyApproved": "Your suggested \"{title}\" is now part of the taxonomy.",
 	"notification_taxonomyMerged": "Your suggested \"{title}\" already existed, so it was merged — everything filed under it moved too.",
 	"notification_taxonomyMoved": "Your suggested \"{title}\" was moved somewhere else in the taxonomy.",
@@ -1535,7 +1615,16 @@
 	"profile_activity_kind_savedSet": "Saved set",
 	"profile_activity_kind_serviceReview": "Tutoring review",
 	"profile_activity_setPrivate": "only you",
-	"profile_activity_setSize": "{count} exercises",
+	"profile_activity_setSize": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} exercise",
+				"countPlural=*": "{count} exercises"
+			}
+		}
+	],
 	"profile_certificateExpired": "Expired",
 	"profile_certificateExpires": "Valid until {date}",
 	"profile_certificateId": "No. {id}",
@@ -1587,6 +1676,62 @@
 	"profile_unpublished_empty": "Everything you contributed is published.",
 	"profile_unpublished_notYours": "Only the account holder can see their unpublished exercises.",
 	"profile_unpublished_back": "Back to profile",
+	"wp14a_unpublished_waiting": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} exercise you sent is waiting for a moderator.",
+				"countPlural=*": "{count} exercises you sent are waiting for a moderator."
+			}
+		}
+	],
+	"wp14a_unpublished_notAccepted": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} exercise you sent was not accepted.",
+				"countPlural=*": "{count} exercises you sent were not accepted."
+			}
+		}
+	],
+	"wp14a_mine_heading": "Exercises you've sent",
+	"wp14a_mine_back": "← Add an exercise",
+	"wp14a_mine_login": "Sign in to see the exercises you've sent.",
+	"wp14a_mine_intro": "Everything you've sent through “Add an exercise”, and what became of it. Only you see this list.",
+	"wp14a_mine_loadFailed": "This list couldn't be loaded. Try again in a moment.",
+	"wp14a_mine_empty": "You haven't sent any exercises yet.",
+	"wp14a_mine_addFirst": "Add one →",
+	"wp14a_mine_summary": "Waiting: {pending} · Published: {approved} · Not accepted: {rejected}",
+	"wp14a_mine_status_pending": "Waiting for review",
+	"wp14a_mine_status_approved": "Published",
+	"wp14a_mine_status_rejected": "Not accepted",
+	"wp14a_mine_meta": "{branch} · sent {date}",
+	"wp14a_mine_pendingBody": "A moderator will look at it. You'll get a notification when they decide.",
+	"wp14a_mine_viewExercise": "Open the exercise →",
+	"wp14a_mine_approvedGone": "It was published, and has since been taken down.",
+	"wp14a_mine_reasonLabel": "Moderator's reason:",
+	"wp14a_mine_noReason": "none given.",
+	"wp14a_mine_addAnother": "Add another exercise →",
+	"wp14a_mine_materialsNote": "Materials you've sent are listed with your projects.",
+	"wp14a_mine_materialsLink": "Your projects →",
+	"wp14a_submit_mineLink": "Exercises you've sent →",
+	"wp14a_submit_whereNext": "You can follow it, and see the moderator's decision, on the list of exercises you've sent.",
+	"wp14a_submit_whereNextLink": "Open the list →",
+	"wp14a_unpublished_seeSent": "See what you've sent, with the moderators' reasons →",
+	"wp14a_unpublished_emptyPublished": "Nothing you've published has been hidden or removed.",
+	"wp14a_reason_accountActive": "Active account. Your email address isn't confirmed yet.",
+	"wp14a_reason_emailConfirmed": "Active account, email address confirmed.",
+	"wp14a_reason_declaredSchool": "You declared {school}. That's your own declaration, so it counts for this one step and no more.",
+	"wp14a_reason_schoolEmail": "Signed in with an address on the institution's own domain. That proves the address, not that you study there.",
+	"wp14a_reason_usosVerified": "Enrolment confirmed by the university's own registry — the strongest proof there is here. It gives full participation, and no authority over other people's work.",
+	"wp14a_grant_verifiedEnrolment": "Verified enrolment — from the university's registry, not from anything you typed.",
+	"wp14a_grant_ceilingS": "Level S: full participation straight away, without waiting to earn it.",
+	"wp14a_grant_noModeration": "No authority over other people's work. Being a student says who you are, not how good your judgement is.",
+	"wp14a_grant_noVoteWeight": "No extra weight for your votes until you've earned a reputation.",
+	"wp14a_grant_optionalTranscript": "Only if you ask for it separately: your diploma and transcript, matched to subjects on this site.",
+	"wp14a_provider_school": "University account",
 	"nav_reportIssue": "Report issue",
 	"footer_issues": "Reported issues",
 	"footer_legal": "Legal & content notices",
@@ -1650,7 +1795,16 @@
 	"issues_includePrivate": "Include private reports (moderators only)",
 	"issues_empty": "Nothing here yet.",
 	"issues_private": "Private",
-	"issues_commentCount": "{count} comments",
+	"issues_commentCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} comment",
+				"countPlural=*": "{count} comments"
+			}
+		}
+	],
 	"issue_backToList": "All issues",
 	"issue_notFound": "This report does not exist, or is not public.",
 	"notification_legalNoticeDecided": "A legal notice you filed was decided.",
@@ -1903,7 +2057,16 @@
 	"activity_clearAnchor": "Clear filter: {anchor}",
 	"activity_emptyFollowed": "Nothing from what you follow yet — follow some tags or join a course, or switch to All.",
 	"activity_loadMore": "Load more",
-	"activity_burst": "{name} — {count} similar actions. Show them all",
+	"activity_burst": [
+		{
+			"declarations": ["input name", "input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{name} — {count} similar action. Show it",
+				"countPlural=*": "{name} — {count} similar actions. Show them all"
+			}
+		}
+	],
 	"post_open": "Open",
 	"post_removed": "This post was removed.",
 	"post_refExercise": "→ Exercise: {title}",
@@ -2010,7 +2173,16 @@
 	"events_sessionQA": "Questions",
 	"events_bookmark": "Add to my agenda",
 	"events_bookmarked": "On my agenda",
-	"events_addToSet": "Add {count} exercises to My Set",
+	"events_addToSet": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Add {count} exercise to My Set",
+				"countPlural=*": "Add {count} exercises to My Set"
+			}
+		}
+	],
 	"events_addedToSet": "Added {count} to My Set",
 	"events_joinOnline": "Join online",
 	"events_sessionRemoveConfirm": "Remove \"{title}\" from the programme?",
@@ -2170,7 +2342,16 @@
 	"events_registerChild": "Register a child",
 	"events_registerChildGoing": "They are coming",
 	"events_childRegistered": "Registered.",
-	"contentLocales_hidden": "{count} items in other languages are hidden.",
+	"contentLocales_hidden": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} item in another language is hidden.",
+				"countPlural=*": "{count} items in other languages are hidden."
+			}
+		}
+	],
 	"contentLocales_showThem": "Show them",
 	"contentLocales_detailOther": "This is in {lang}; you are reading the {ui} interface.",
 	"contentLocales_showLang": "Show {lang} content everywhere",
@@ -2607,7 +2788,16 @@
 	"concept_editor_queued": "Sent for review — somebody reads it before it goes live.",
 	"concept_editor_savedDraft": "Saved as a draft. Nobody else can see it yet.",
 	"concept_pages_label": "Versions of this concept",
-	"concept_pages_count": "{n} articles",
+	"concept_pages_count": [
+		{
+			"declarations": ["input n", "local nPlural = n: plural"],
+			"selectors": ["nPlural"],
+			"match": {
+				"nPlural=one": "{n} article",
+				"nPlural=*": "{n} articles"
+			}
+		}
+	],
 	"concept_pages_fallbackBoth": "Nothing is written for your readers in your language yet — this is the {audience} article in {locale}.",
 	"concept_pages_fallbackAudience": "Nothing is written for your readers yet — this is the {audience} article.",
 	"concept_pages_fallbackLocale": "This article is not in your language yet — this is the {locale} one.",
@@ -2637,7 +2827,16 @@
 	"concept_decision_rejected": "Rejected.",
 	"concept_decision_withdraw": "Withdraw",
 	"concept_decision_withdrawn": "Withdrawn.",
-	"concept_card_articles": "{n} articles",
+	"concept_card_articles": [
+		{
+			"declarations": ["input n", "local nPlural = n: plural"],
+			"selectors": ["nPlural"],
+			"match": {
+				"nPlural=one": "{n} article",
+				"nPlural=*": "{n} articles"
+			}
+		}
+	],
 	"concept_card_fallback": "Not written for your readers yet",
 	"concept_link_heading": "Link something to this concept",
 	"concept_link_kindExercise": "Exercise",
@@ -2747,7 +2946,16 @@
 	"cloakroom_create": "Open this desk",
 	"cloakroom_deskSelect": "Desk",
 	"cloakroom_counts": "{stored} on the racks · {returned} handed back · {free} hooks free",
-	"cloakroom_closedNotice": "This desk is closed. {count} items were left unclaimed.",
+	"cloakroom_closedNotice": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "This desk is closed. {count} item was left unclaimed.",
+				"countPlural=*": "This desk is closed. {count} items were left unclaimed."
+			}
+		}
+	],
 	"cloakroom_tabDeposit": "Take something in",
 	"cloakroom_tabReturn": "Hand something back",
 	"cloakroom_tabRacks": "The racks",
@@ -3184,8 +3392,26 @@
 	"tickets_neverSynced": "Nothing has been sent yet.",
 	"tickets_syncNow": "Send now",
 	"tickets_syncFailed": "Could not send. The scans are kept and will be sent again.",
-	"tickets_listLive": "List loaded: {count} people.",
-	"tickets_listCached": "Working from the copy saved at {when}: {count} people.",
+	"tickets_listLive": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "List loaded: {count} person.",
+				"countPlural=*": "List loaded: {count} people."
+			}
+		}
+	],
+	"tickets_listCached": [
+		{
+			"declarations": ["input when", "input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Working from the copy saved at {when}: {count} person.",
+				"countPlural=*": "Working from the copy saved at {when}: {count} people."
+			}
+		}
+	],
 	"tickets_listNotCached": "The list has not been saved on this device yet.",
 	"tickets_counts": "In: {entries} · out: {exits} · inside now: {inside}",
 	"tickets_result_admitted": "Come in",
@@ -3196,7 +3422,16 @@
 	"tickets_result_exited": "Recorded as leaving",
 	"tickets_result_collision": "This ticket already came in — it may have been passed back",
 	"tickets_badgesTitle": "Badge sheet",
-	"tickets_badgesCount": "{count} badges",
+	"tickets_badgesCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} badge",
+				"countPlural=*": "{count} badges"
+			}
+		}
+	],
 	"tickets_badgesPrint": "Print",
 	"tickets_badgesHint": "One badge per person coming. Print on A4 and cut along the dashed lines. A badge for somebody under 16 shows a first name and an initial only, with a coloured band.",
 	"tickets_badgesEmpty": "Nobody is coming yet.",
@@ -3813,7 +4048,16 @@
 	"school_revokedOn": "Withdrawn {date}",
 	"school_issuedBy": "Issued {date} by {issuer}",
 	"school_openCertificate": "Open the certificate",
-	"school_lessonsNow": "The course now has {count} lessons.",
+	"school_lessonsNow": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "The course now has {count} lesson.",
+				"countPlural=*": "The course now has {count} lessons."
+			}
+		}
+	],
 	"school_certificatePageTitle": "Certificate of completion",
 	"school_print": "Print",
 	"school_backToCourse": "Back to the course",
@@ -3846,7 +4090,16 @@
 	"record_tableAverage": "Average",
 	"record_tableCount": "Results",
 	"record_noAverage": "Mixed scales",
-	"record_resultCount": "{count} results",
+	"record_resultCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} result",
+				"countPlural=*": "{count} results"
+			}
+		}
+	],
 	"record_metric_sets": "Sets",
 	"record_metric_lessonsDone": "Lessons finished",
 	"record_metric_cardsReviewed": "Cards reviewed",
@@ -3879,7 +4132,16 @@
 	"decks_signInNote": "Sign in to keep decks and a review schedule.",
 	"decks_newNamePlaceholder": "Name of the new deck",
 	"decks_create": "Create deck",
-	"decks_cardCount": "{count} cards",
+	"decks_cardCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} card",
+				"countPlural=*": "{count} cards"
+			}
+		}
+	],
 	"decks_dueCount": "{count} to review",
 	"decks_dueNone": "Nothing to review",
 	"decks_dueSummary": "{cards} cards waiting across {decks} decks.",
@@ -3933,7 +4195,16 @@
 	"decks_error": "That did not work. Try again.",
 	"decks_makeFromSet": "Make a deck from this set",
 	"decks_madeFromSet": "Deck created.",
-	"decks_skipped": "{count} exercises were left out because they are no longer available.",
+	"decks_skipped": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} exercise was left out because it is no longer available.",
+				"countPlural=*": "{count} exercises were left out because they are no longer available."
+			}
+		}
+	],
 	"decks_openDeck": "Open the deck",
 	"decks_saveMenuHeading": "Decks",
 	"decks_addedToDeck": "Added to {name}",
@@ -3947,7 +4218,16 @@
 	"decks_grade_good": "Good",
 	"decks_grade_easy": "Easy",
 	"decks_reviewDone": "Session finished",
-	"decks_reviewDoneBody": "{count} cards reviewed.",
+	"decks_reviewDoneBody": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} card reviewed.",
+				"countPlural=*": "{count} cards reviewed."
+			}
+		}
+	],
 	"decks_reviewBack": "Back to the deck",
 	"decks_reviewMore": "Review the rest",
 	"decks_reviewEmpty": "Nothing to review in this deck right now.",
@@ -4081,7 +4361,16 @@
 	"language_fallback": "Shown in {shown}: nobody has written the {wanted} version yet.",
 	"language_gapMinutes": "{count} min",
 	"language_gapHours": "{count} h",
-	"language_gapDays": "{count} days",
+	"language_gapDays": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} day",
+				"countPlural=*": "{count} days"
+			}
+		}
+	],
 	"orgs_aboutActionsLabel": "Actions for this description",
 	"orgs_descriptionLabel": "What this organisation is",
 	"fold_expand": "Show",
@@ -4171,7 +4460,16 @@
 	"guideTry_whichScreen": "({step})",
 	"contestLabel_rowContest": "a contest",
 	"contests_accept": "Accept",
-	"contests_advancedCount": "{count} entrants went through.",
+	"contests_advancedCount": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} entrant went through.",
+				"countPlural=*": "{count} entrants went through."
+			}
+		}
+	],
 	"contests_advancement_all": "Everyone goes on",
 	"contests_advancement_final": "The last stage",
 	"contests_advancement_threshold": "Everyone above a points line goes on",
@@ -4232,7 +4530,16 @@
 	"contests_cancelNote": "A cancellation has to be announced in the same place the contest was announced, and it cannot take a prize away from somebody who has already earned it. So the page, the entries and the results stay: the contest is marked cancelled, not deleted.",
 	"contests_cancelYes": "Yes, cancel it",
 	"contests_cannotAnnounceYet": "This contest cannot be announced yet:",
-	"contests_cannotCloseWithComplaints": "{count} complaints are still waiting for an answer.",
+	"contests_cannotCloseWithComplaints": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} complaint is still waiting for an answer.",
+				"countPlural=*": "{count} complaints are still waiting for an answer."
+			}
+		}
+	],
 	"contests_certificateLink": "Certificate",
 	"contests_certificateNotFound": "This certificate is not available.",
 	"contests_certificatePageTitle": "Contest certificate",
@@ -4513,7 +4820,16 @@
 	"contests_stageAdvanced": "{count} advanced",
 	"contests_stageClose": "Close the stage",
 	"contests_stageClosesAt": "Closes {when}",
-	"contests_stageClosesIn": "closes in {days} days",
+	"contests_stageClosesIn": [
+		{
+			"declarations": ["input days", "local daysPlural = days: plural"],
+			"selectors": ["daysPlural"],
+			"match": {
+				"daysPlural=one": "closes in {days} day",
+				"daysPlural=*": "closes in {days} days"
+			}
+		}
+	],
 	"contests_stageClosesOn": "closes {date}",
 	"contests_stageCounts": "{problems} problems, {submissions} handed in, {points} points available",
 	"contests_stageFinalNote": "the last one",
@@ -4521,13 +4837,31 @@
 	"contests_stageOnsite": "In a room",
 	"contests_stageOnsiteNote": "This stage happens in a room. The organiser can hang an event off it — with a venue, documents, a volunteer rota and a cloakroom — from the contest's manage page.",
 	"contests_stageOpen": "Open the stage",
-	"contests_stageOpensIn": "opens in {days} days",
+	"contests_stageOpensIn": [
+		{
+			"declarations": ["input days", "local daysPlural = days: plural"],
+			"selectors": ["daysPlural"],
+			"match": {
+				"daysPlural=one": "opens in {days} day",
+				"daysPlural=*": "opens in {days} days"
+			}
+		}
+	],
 	"contests_stageOpensOn": "Opens {date}",
 	"contests_stagePageDescription": "A stage of a contest: its problems, the answer box and the deadline.",
 	"contests_stagePageTitle": "{title}",
 	"contests_stagePoints": "{points} points",
 	"contests_stagePreviewMeta": "day {day}, open for {days} days",
-	"contests_stageScoredNote": "Scored. {count} entrants went through.",
+	"contests_stageScoredNote": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Scored. {count} entrant went through.",
+				"countPlural=*": "Scored. {count} entrants went through."
+			}
+		}
+	],
 	"contests_stageStaffHeading": "Running this stage",
 	"contests_stageStatus_closed": "Closed — being scored",
 	"contests_stageStatus_open": "Open",
@@ -5268,13 +5602,8 @@
 	"workStatus_event_going": "You're going",
 	"workStatus_courseRequest_pending": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} request waiting",
 				"countPlural=*": "{count} requests waiting"
@@ -5283,13 +5612,8 @@
 	],
 	"workStatus_proposal_pending": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} version to review",
 				"countPlural=*": "{count} versions to review"
@@ -5300,13 +5624,8 @@
 	"workStatus_needApplication_pending": "Waiting for an answer",
 	"workStatus_needDecision_pending": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} application to decide",
 				"countPlural=*": "{count} applications to decide"
@@ -5318,13 +5637,8 @@
 	"workStatus_poll_open": "Waiting for your vote",
 	"workStatus_cardsDue_due": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} card to review",
 				"countPlural=*": "{count} cards to review"
@@ -5337,13 +5651,8 @@
 	"workStatus_contestStage_open": "Open — not handed in yet",
 	"workStatus_contestJudging_waiting": [
 		{
-			"declarations": [
-				"input count",
-				"local countPlural = count: plural"
-			],
-			"selectors": [
-				"countPlural"
-			],
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
 			"match": {
 				"countPlural=one": "{count} submission to score",
 				"countPlural=*": "{count} submissions to score"

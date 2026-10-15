@@ -6,7 +6,7 @@
 	import LicencePicker from '$lib/components/shared/LicencePicker.svelte';
 	import type { Licence } from '$lib/types/licence';
 	import type { Audience } from '$lib/types';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import type {
@@ -109,6 +109,10 @@
 	// the right outcome and a real link, instead of always implying "awaiting review" regardless of
 	// what actually happened.
 	let publishedExerciseId = $state<string | null>(null);
+	// The confirmation sits at the top of a very long form, and the person who just pressed Send is
+	// at the bottom of it — so it is scrolled to and focused, or it is a message nobody reads while
+	// the form they filled in empties itself in front of them (first-visitor audit, finding 5).
+	let submittedNotice = $state<HTMLElement | null>(null);
 
 	// `/submit?material=<id>` — "Add an exercise to this material" on a material page lands here.
 	// The chip is dismissible on purpose: arriving from a material is a strong hint, not a
@@ -290,6 +294,11 @@
 		selectedTopicIds = [];
 		requirements = [];
 		requirementDraft = '';
+		await tick();
+		submittedNotice?.scrollIntoView({ block: 'center' });
+		// `preventScroll`: the line above already placed it; a second, focus-driven jump would
+		// put it flush against the sticky header instead.
+		submittedNotice?.focus({ preventScroll: true });
 	}
 </script>
 
@@ -313,17 +322,32 @@
 				<a href={resolve('/login')}>{m.submit_loginRequired()}</a>
 			</p>
 		{:else}
+			<!-- Always on the page, not only after a submit: somebody who comes back to ask "what
+			     happened to the one I sent?" starts here, at the form they used. -->
+			<p class="mine-link">
+				<a href={resolve('/submit/mine')}>{m.wp14a_submit_mineLink()}</a>
+				<!-- "Exercises you've sent →" -->
+			</p>
+
 			{#if success}
-				<p class="notice">
+				<div class="submitted" role="status" tabindex="-1" bind:this={submittedNotice}>
 					{#if publishedExerciseId}
-						{m.submit_successPublished()}
-						<a href={resolve('/exercises/[id]', { id: publishedExerciseId })}
-							>{m.submit_viewExercise()}</a
-						>
+						<p>
+							{m.submit_successPublished()}
+							<a href={resolve('/exercises/[id]', { id: publishedExerciseId })}
+								>{m.submit_viewExercise()}</a
+							>
+						</p>
 					{:else}
-						{m.submit_success()}
+						<p>{m.submit_success()}</p>
+						<p>
+							{m.wp14a_submit_whereNext()}
+							<!-- "You can follow it, and see the moderator's decision, on the list of exercises you've sent." -->
+							<a href={resolve('/submit/mine')}>{m.wp14a_submit_whereNextLink()}</a>
+							<!-- "Open the list →" -->
+						</p>
 					{/if}
-				</p>
+				</div>
 			{/if}
 
 			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
@@ -655,9 +679,32 @@
 		color: var(--accent);
 		font-weight: 600;
 	}
-	.notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
-		align-self: flex-start;
+	.mine-link {
+		font-size: var(--font-size-sm);
+		a {
+			color: var(--accent);
+			font-weight: 600;
+		}
+	}
+	// A block, not a pill: it carries two sentences and a link, and a pill does not wrap (WP14a —
+	// the status-pill version cut the sentence off at the edge of a phone).
+	.submitted {
+		@include mix.focus-ring;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		padding: var(--space-3);
+		border: 1px solid var(--status-success);
+		border-radius: var(--radius-md);
+		background: var(--status-success-bg);
+		color: var(--text-primary);
+		font-size: var(--font-size-sm);
+		overflow-wrap: anywhere;
+		scroll-margin-top: var(--space-6);
+		a {
+			color: var(--accent);
+			font-weight: 600;
+		}
 	}
 	.submit-form {
 		display: flex;
@@ -685,10 +732,20 @@
 		justify-content: space-between;
 		gap: var(--space-1) var(--space-2);
 	}
+	// Four controls in a three-column grid of `1fr`s drew the fourth past the edge of a phone, and a
+	// `1fr` track grows to fit its widest select (WP14a, found looking at /submit at 390). Columns of
+	// at least 10rem that wrap, and tracks that may shrink below their content.
 	.field-row {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
 		gap: var(--space-2);
+		> :global(*) {
+			min-width: 0;
+		}
+		// :global because one of the four (AudienceSelect) is a component with its own select.
+		:global(select) {
+			width: 100%;
+		}
 	}
 	input,
 	select {
