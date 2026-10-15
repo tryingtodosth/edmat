@@ -16935,6 +16935,12 @@ catalogues merged as JSON three-way with no key changed on both sides (5280 = 52
   strings; `OrganizationPage` no longer asks with `organizations` off. Still open: the `/dziennik`
   demo's sample school name may match a real school (owner's call); a university version a school
   later runs is not refused; the 13 cards leave one alone on the last row at 1280.
+- WP12 closed school classes' remaining edges: the hub's "General courses" means a topic course with
+  no parent that no school runs (`courses/rules.py: general_courses`, mirrored row-level in
+  `labels.ts: isGeneralCourse`); a school may not take on a version or a course that has versions
+  (`school_run_block_reason`: `course_is_version`, `course_has_versions`, asked at the `runs` link AND
+  at an organisation's change of kind to school, the second way in); `school-mode.mjs` passes again
+  (65/65) without weakening an assertion. **Full backend suite after WP12: 3428 tests OK.**
 - **A live bug found by WP11, not fixed — the owner's decision:** `settings.TIME_ZONE` is `UTC`, a
   tutor's weekly rule "14:00" becomes 14:00 UTC, and the browser draws it in its own zone — so every
   reader in Poland is offered slots two hours (summer) or one hour (winter) later than the tutor set.
