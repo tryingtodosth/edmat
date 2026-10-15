@@ -171,6 +171,10 @@
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-sm);
 		background: var(--bg-page);
+		// A select is as wide as its longest option unless told otherwise; the topic list's longest
+		// one is wider than a phone (first-visitor audit, 2026-10-15).
+		max-width: 100%;
+		min-width: 0;
 	}
 	.filters__footer {
 		display: flex;

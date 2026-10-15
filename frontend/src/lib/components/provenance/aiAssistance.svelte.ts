@@ -38,6 +38,13 @@ export interface AiAssistance {
 class AiAssistanceState implements AiAssistance {
 	private readings = $state<AssistanceReadings>({});
 	private pending = new Set<string>();
+	/** Every key already sent, answered or not. Plain, never reactive, and the reason this cannot
+	 *  loop: the endpoint leaves out a target the reader may not see (a tombstoned comment), so its
+	 *  key never lands in `readings` — and the chip's `$effect` reads `readings`, re-runs on every
+	 *  flush, registers the same key again, and the page asked ~12 times a second until the
+	 *  anonymous throttle locked the visitor out of the whole site for an hour (found by the
+	 *  first-visitor audit, 2026-10-15, on `/exercises/1`). A key is asked for once per page. */
+	private asked = new Set<string>();
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private disposed = false;
 
@@ -52,7 +59,7 @@ class AiAssistanceState implements AiAssistance {
 		if (!featureFlagsStore.isEnabled('ai_assisted')) return;
 		if (!id) return;
 		const key = assistanceKey(kind, id);
-		if (this.readings[key] || this.pending.has(key)) return;
+		if (this.asked.has(key) || this.readings[key] || this.pending.has(key)) return;
 		this.pending.add(key);
 		if (this.timer === null) this.timer = setTimeout(() => void this.flush(), COALESCE_MS);
 	}
@@ -65,6 +72,7 @@ class AiAssistanceState implements AiAssistance {
 		this.timer = null;
 		const asking = [...this.pending];
 		this.pending.clear();
+		for (const key of asking) this.asked.add(key);
 		if (asking.length === 0 || this.disposed) return;
 		const targets = asking.map((key) => {
 			const [kind, id] = key.split(':');

@@ -379,7 +379,10 @@
 	}
 	.layout {
 		display: grid;
-		grid-template-columns: 240px 1fr;
+		// `minmax(0, …)`, not a bare `1fr`: a bare `1fr` grows to its widest child's min-content,
+		// and the topic select's longest option pushed the column to 538px on a 390px phone, cutting
+		// the exercise cards off the screen (first-visitor audit, 2026-10-15).
+		grid-template-columns: 240px minmax(0, 1fr);
 		gap: var(--space-4);
 		align-items: start;
 	}
@@ -423,7 +426,7 @@
 
 	@media (max-width: 780px) {
 		.layout {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr);
 		}
 	}
 </style>
