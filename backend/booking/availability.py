@@ -19,16 +19,26 @@ and the past are applied identically to both. Two sources of hours must never me
 the arithmetic, or a term laid out week by week would start being offered on different rules from an
 ordinary one.
 
-**Times are interpreted in the project timezone** (`settings.TIME_ZONE`, UTC today). A rule saying
-14:00 means 14:00 there. This app has no per-tutor timezone field, so a tutor in another country
-would be publishing hours in the wrong one — a real limitation, named in CLAUDE.md rather than
-papered over with a guess based on the browser.
+**Times are interpreted in the project timezone** (`settings.TIME_ZONE`, `Europe/Warsaw` since
+2026-10-15 — owner: "stays poland"). A rule saying 14:00 means 14:00 Polish time, summer or winter,
+which is the clock time the tutor typed and the one their own rule list shows. Until that day the
+setting was UTC, and every reader in Poland was offered each slot one or two hours later than the
+tutor had set it (`HISTORY.md`). This app has no per-tutor timezone field, so a tutor in another
+country would be publishing hours in Polish time — a real limitation, named in CLAUDE.md rather
+than papered over with a guess based on the browser.
+
+**Every instant here is UTC once it leaves `_aware`.** A wall-clock time is turned into an instant
+exactly once, there, and all the arithmetic after it (slicing, merging, subtracting) runs on UTC
+datetimes. That is not style: Python adds a `timedelta` to an aware datetime on its WALL CLOCK and
+compares two datetimes sharing one tzinfo by wall clock too, ignoring the offset — so on the night
+the clocks change, a Warsaw-zoned cursor stepping through 01:00–04:00 would have offered two
+"sessions" at the same instant. In UTC an hour is an hour.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date as date_cls, datetime, time, timedelta
+from datetime import date as date_cls, datetime, time, timedelta, timezone as dt_timezone
 
 from django.db.models import Q
 from django.utils import timezone
@@ -72,7 +82,14 @@ class DaySlots:
 
 
 def _aware(day: date_cls, at: time) -> datetime:
-    return timezone.make_aware(datetime.combine(day, at), timezone.get_default_timezone())
+    """`at` on `day` in the project timezone, as a UTC instant (module docstring: why UTC).
+
+    A wall-clock time the clocks skip (02:30 on the last Sunday of March) lands on the instant an
+    hour later, and one they repeat (02:30 on the last Sunday of October) on its first occurrence —
+    `zoneinfo`'s `fold=0`. Midnight is neither in Poland, so day bounds are always exact.
+    """
+    local = timezone.make_aware(datetime.combine(day, at), timezone.get_default_timezone())
+    return local.astimezone(dt_timezone.utc)
 
 
 def _merge(intervals: list[Interval]) -> list[Interval]:

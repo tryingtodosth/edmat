@@ -11,15 +11,18 @@ works and not the dentist appointment they had that Thursday, and every target w
 stop following the pattern rather than merely agreeing with it for now.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone as dt_timezone
 
 from django.contrib.auth.models import User
+from django.test import override_settings
+from django.utils import timezone
 
 from moderation.models import FeatureFlag
 
 from .availability import base_windows_for_week, has_published_hours, slots_for_service
 from .models import (
     AvailabilityException,
+    Booking,
     WeekSchedule,
     WeekScheduleWindow,
     WeekTemplate,
@@ -63,7 +66,10 @@ class WeekScheduleFixtureMixin:
         """The starting hours a student is offered on one day — the thing every precedence test is
         really asking about, reduced to something a failure message can show."""
         days = slots_for_service(service, day, day)
-        return [slot.start.hour for slot in days[0].slots] if days else []
+        # Read on the project's clock (Polish time), which is the clock the rules are written in —
+        # the instants themselves are UTC (`availability._aware`), so `.hour` alone would be 12
+        # for a tutor's 14:00 in summer.
+        return [timezone.localtime(slot.start).hour for slot in days[0].slots] if days else []
 
 
 class PrecedenceTests(WeekScheduleFixtureMixin, ApiTestCase):
@@ -745,3 +751,101 @@ class BaseWindowsForWeekTests(WeekScheduleFixtureMixin, ApiTestCase):
             base_windows_for_week(self.tutor, self.monday + timedelta(days=4)),
             [(WEDNESDAY, time(8), time(10), None)],
         )
+
+
+def _utc(*args) -> datetime:
+    return datetime(*args, tzinfo=dt_timezone.utc)
+
+
+class TimeZoneTests(ApiTestCase):
+    """Which clock a rule's "14:00" is on (`settings.TIME_ZONE`, `Europe/Warsaw` since 2026-10-15).
+
+    The bug this pins was live: with the setting at UTC, a tutor's 14:00 became 14:00 UTC and every
+    browser in Poland drew it as 16:00 in summer and 15:00 in winter, while the tutor's own rule
+    list said 14:00. Fixed dates far ahead, with `now` injected, so the season is the test's choice
+    and not the calendar's. The two DST nights are the arithmetic half: `_aware` hands back UTC, so
+    a window that spans a clock change is sliced in real hours.
+    """
+
+    BEFORE = _utc(2026, 10, 1, 12)
+
+    def setUp(self):
+        super().setUp()
+        self.service = self.make_service()
+
+    def starts(self, day):
+        return [s.start for s in slots_for_service(self.service, day, day, now=self.BEFORE)[0].slots]
+
+    def test_the_project_clock_is_polish_time(self):
+        from django.conf import settings
+
+        self.assertEqual(settings.TIME_ZONE, 'Europe/Warsaw')
+
+    def test_a_summer_14_00_is_12_00_utc(self):
+        self.rule(TUESDAY, 14, 16)
+        self.assertEqual(
+            self.starts(date(2027, 7, 6)), [_utc(2027, 7, 6, 12), _utc(2027, 7, 6, 13)]
+        )
+
+    def test_a_winter_14_00_is_13_00_utc(self):
+        self.rule(TUESDAY, 14, 16)
+        self.assertEqual(
+            self.starts(date(2027, 1, 5)), [_utc(2027, 1, 5, 13), _utc(2027, 1, 5, 14)]
+        )
+
+    def test_the_night_the_clocks_go_forward_offers_only_real_hours(self):
+        """01:00–04:00 on 28 March 2027 is two real hours (02:00–03:00 never happens). Stepping a
+        Warsaw-zoned cursor on the wall clock offered three "sessions", two of them the same
+        instant."""
+        day = date(2027, 3, 28)
+        AvailabilityException.objects.create(
+            tutor=self.tutor, date=day, kind='open', start_time=time(1), end_time=time(4)
+        )
+        self.assertEqual(self.starts(day), [_utc(2027, 3, 28, 0), _utc(2027, 3, 28, 1)])
+
+    def test_the_night_the_clocks_go_back_offers_every_real_hour(self):
+        """01:00–04:00 on 31 October 2027 is four real hours (02:00–03:00 happens twice), and four
+        different instants are offered — never one instant twice."""
+        day = date(2027, 10, 31)
+        AvailabilityException.objects.create(
+            tutor=self.tutor, date=day, kind='open', start_time=time(1), end_time=time(4)
+        )
+        starts = self.starts(day)
+        self.assertEqual(
+            starts,
+            [_utc(2027, 10, 30, 23), _utc(2027, 10, 31, 0), _utc(2027, 10, 31, 1), _utc(2027, 10, 31, 2)],
+        )
+        self.assertEqual(len(set(starts)), 4)
+
+    def test_an_all_day_block_on_the_long_day_covers_all_25_hours(self):
+        day = date(2027, 10, 31)
+        AvailabilityException.objects.create(
+            tutor=self.tutor, date=day, kind='open', start_time=time(20), end_time=time(23)
+        )
+        AvailabilityException.objects.create(tutor=self.tutor, date=day, kind='block')
+        self.assertEqual(self.starts(day), [])
+
+    def test_the_endpoint_writes_the_tutors_own_hour(self):
+        """What the browser receives: 14:00 at the Polish offset, and requesting exactly that string
+        back is accepted — the round trip a student's click makes."""
+        tuesday = self.next_weekday(TUESDAY)
+        self.rule(TUESDAY, 14, 15)
+        body = self.client.get(
+            f'/api/services/{self.service.pk}/availability/',
+            {'from': tuesday.isoformat(), 'to': tuesday.isoformat()},
+        ).json()
+        start = body['days'][0]['slots'][0]['start']
+        self.assertRegex(start, rf'^{tuesday.isoformat()}T14:00:00\+0[12]:00$')
+        response = self.as_(self.student).post(
+            '/api/bookings/', {'service': self.service.pk, 'starts_at': start}, format='json'
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(timezone.localtime(Booking.objects.get().starts_at).hour, 14)
+
+    @override_settings(TIME_ZONE='UTC')
+    def test_the_rule_follows_the_setting_rather_than_a_hard_coded_zone(self):
+        """The one test here that IS about UTC: with the setting at UTC (what production ran until
+        2026-10-15) the same rule is 14:00 UTC — so the zone really comes from the setting, and
+        nothing in `availability.py` names Warsaw."""
+        self.rule(TUESDAY, 14, 15)
+        self.assertEqual(self.starts(date(2027, 7, 6)), [_utc(2027, 7, 6, 14)])

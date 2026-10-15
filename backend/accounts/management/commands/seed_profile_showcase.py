@@ -465,7 +465,7 @@ class Command(BaseCommand):
                 'status': 'open',
                 'enrollment_policy': 'open',
                 'discussion_mode': 'participants',
-                'starts_on': timezone.now().date() + timedelta(days=7),
+                'starts_on': timezone.localdate() + timedelta(days=7),
             },
         )
         self._fill_course(taught, TAUGHT_COURSE['lessons'])

@@ -25,6 +25,7 @@ from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Exists, F, OuterRef, Q
 from django.db.models.functions import TruncWeek
+from django.utils import timezone
 
 from .rollup import monday, without_staff
 
@@ -163,8 +164,11 @@ def _weekly(qs, field: str, start: dt.datetime, end: dt.datetime) -> dict[dt.dat
 
 
 def week_starts(start: dt.datetime, end: dt.datetime) -> list[dt.date]:
-    first = monday(start.date())
-    last = monday((end - dt.timedelta(seconds=1)).date())
+    # `localtime`, not `.date()`: the bounds are UTC instants (`rollup.day_bounds`), and Polish
+    # midnight on a Monday is 22:00 or 23:00 UTC on the Sunday before — `.date()` would answer
+    # Sunday and add a week nobody asked for. `TruncWeek` above already works in the same zone.
+    first = monday(timezone.localtime(start).date())
+    last = monday(timezone.localtime(end - dt.timedelta(seconds=1)).date())
     weeks = []
     week = first
     while week <= last:

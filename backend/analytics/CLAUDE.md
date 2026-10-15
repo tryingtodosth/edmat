@@ -78,7 +78,12 @@ the security log statistically.
   rollup (`--keep-months`). Raw rows: telemetry's 30 days full IP / 90 days row.
 - **Rollup BEFORE retention.** `deploy/cron/edmat-analytics` runs `rollup_analytics --days 3 &&
   enforce_log_retention` nightly. Until that file, nothing scheduled `enforce_log_retention` at all.
-- Days are UTC days (`settings.TIME_ZONE` is UTC).
+- Days are **Polish calendar days** (`settings.TIME_ZONE` is `Europe/Warsaw` since 2026-10-15):
+  `rollup.day_bounds` turns a date into its two local midnights as UTC instants, and every date in
+  this app — the rollup, `Period`, the browser-error counts, the cohorts' Mondays, `TruncWeek` and `week_starts` in
+  `live.py` — goes through the same zone. A day is 23 hours in March and 25 in October. Never
+  build a bound with `tzinfo=dt.timezone.utc` again; that is what the code did while the setting
+  was UTC, and it would now disagree with `TruncWeek` by an hour or two at every edge.
 
 ## Extending
 

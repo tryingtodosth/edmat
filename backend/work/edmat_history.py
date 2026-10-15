@@ -149,6 +149,9 @@ SUBPROJECT_BY_REF = {
     '17CN': 'interface',
     # 17CO is "pytaj" given a destination: a question posted into a tag, and the tag's own page.
     '17CO': 'community',
+    # 17CP is Polish time: `TIME_ZONE = 'Europe/Warsaw'`, which fixed tutors' slots being offered two
+    # hours late. It also touches shifts, flashcards and analytics, but the bug was tutoring's.
+    '17CP': 'tutoring',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

@@ -7,7 +7,8 @@
 //      across the row;
 //   3. the manual and the showcase print no Markdown asterisks (the four chapters and the one
 //      showcase page that had them, both languages) — `npm run check:plain` is the static guard;
-//   4. the tutoring showcase says what the clock really does (UTC hours, drawn in the reader's zone)
+//   4. the tutoring showcase says what the clock really does (Polish-time hours since 2026-10-15,
+//      drawn in the reader's zone; WP11 first wrote it as UTC, which was the bug)
 //      instead of "the server's time zone";
 //   5. `/about` with `organizations` OFF, for an anonymous reader: no request for the organisation,
 //      no console error, the page below still drawn. Flips that switch, so run it against a
@@ -305,7 +306,10 @@ try {
 		watch(page);
 		await open(page, '/about/tutoring');
 		const text = await page.locator('main').first().innerText();
-		check(`${locale}: names UTC`, text.includes('UTC'));
+		// Since 2026-10-15 (`ux/tz-warsaw`) the server reads the hours in Polish time and the page
+		// says so; the sentence WP11 wrote about the UTC bug must be gone, not kept beside it.
+		check(`${locale}: says the hours are Polish time`, /Polish time|czasie polskim/.test(text));
+		check(`${locale}: no longer describes the UTC bug`, !text.includes('UTC'));
 		check(
 			`${locale}: no longer claims the times are shown in the server's zone`,
 			!/server’s time zone|strefie czasowej serwera/.test(text)

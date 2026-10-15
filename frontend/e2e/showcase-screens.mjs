@@ -28,7 +28,8 @@
 //     `/dziennik` static build when DZIENNIK_DIR points at one). Neither writes a row. The school
 //     pages need `manage.py seed_school_demo` and a `school.teacher` token in E2E_TOKENS.
 //   - Run it with TZ=Europe/Warsaw: the browser draws times in its own zone, and this machine's is
-//     UTC, which put the rota and the ticket two hours early in the first set.
+//     UTC, which put the rota and the ticket two hours early in the first set. (The server reads
+//     wall-clock times in Polish time since 2026-10-15; the BROWSER's zone is still this machine's.)
 
 import { mkdirSync, readFileSync, statSync } from 'node:fs';
 import { englishContext } from './english.mjs';

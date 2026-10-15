@@ -505,15 +505,20 @@ Long-standing, still true. Feature-level gaps live in each `HISTORY.md` section'
 - **SQLite, single-writer.** Fine for this deployment, and the reason for several concurrency
   workarounds that PostgreSQL would not need. See `backend/CLAUDE.md`.
 - **No people search**, so granting a role or messaging someone new needs their numeric account id.
-- **No per-account timezone.** Availability is interpreted in `settings.TIME_ZONE`; the display
-  preferences (24h/12h, week start) say how a time is *drawn*, not which clock it is drawn from.
-  **And the two halves disagree today, for everybody in Poland** (WP11, 2026-10-15): `TIME_ZONE`
-  is `'UTC'`, so a weekly rule "14:00–17:00" is 14:00 UTC, while the browser draws slots and
-  bookings (ISO instants) in ITS zone — a Polish tutor's 14:00 is offered to a Polish student as
-  16:00 in summer, 15:00 in winter, and the tutor's own rule list still says 14:00. The manual and
-  `/about/tutoring` say so plainly; the fix (a `TIME_ZONE` of `Europe/Warsaw`, or rules carrying a
-  zone) is an owner decision, because `TIME_ZONE` also sets the flashcards' "day", the shifts'
-  night rule and the analytics days.
+- **No per-account timezone.** Every wall-clock value is read in `settings.TIME_ZONE`, which is
+  **`Europe/Warsaw`** (owner, 2026-10-15: "stays poland"); the display preferences (24h/12h, week
+  start) say how a time is *drawn*, not which clock it is drawn from. That one setting is a tutor's
+  weekly "14:00" (`booking/availability.py`), a minor's night 22:00–06:00 (`shifts/rules.py`), the
+  day a flashcard falls due (`flashcards/rules.py`), the day an analytics row counts under
+  (`analytics/rollup.py: day_bounds`) and the offset every API datetime is written with (DRF
+  answers `+02:00`/`+01:00`, no longer `Z`). The browser draws instants in ITS zone, so a reader in
+  Poland sees the tutor's own 14:00 and a reader in London sees 13:00 — the honest limit, said on
+  `/about/tutoring` and in the manual. Until that day the setting was `'UTC'` and every Polish
+  reader was offered each slot one or two hours later than the tutor set it (WP11 found it;
+  `HISTORY.md` §17CP fixed it). **Two traps if you touch time:** turn a wall-clock time into an
+  instant ONCE and do arithmetic in UTC (Python adds a `timedelta` to, and subtracts two datetimes
+  sharing, a zoneinfo tz on the WALL CLOCK — a 25-hour October day measures 24); and never build a
+  day bound with `tzinfo=dt.timezone.utc` — use the project zone's midnight.
 - **Accessibility is axe-only** (about a third of WCAG by axe's own account) — no screen-reader or
   keyboard-only walkthrough has been done.
 - **Locales beyond en/pl** are not a structural blocker: `locale` is a free string, not an enum tied

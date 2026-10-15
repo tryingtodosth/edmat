@@ -221,7 +221,7 @@ class ClientErrorGroup(models.Model):
 
 
 class DailyClientError(models.Model):
-    """How many reports of one group arrived on one UTC day, from one route template, build and
+    """How many reports of one group arrived on one (Polish) calendar day, from one route template, build and
     browser family. Kept 90 days. This count IS the record (the reports themselves are capped and
     expire after 30 days), so it is incremented on arrival with one WHERE-anchored `update()` —
     the one counter in this app that is not a recount, because there is nothing to recount it from."""

@@ -19,6 +19,7 @@ dispatching rather than `courses` being special-cased anywhere in `rules.py`.
 
 from datetime import timedelta
 
+from django.test import SimpleTestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -831,3 +832,29 @@ class ProviderTests(FlashcardsTestCase):
     def test_activity_by_branch_is_per_person(self):
         rules.apply_grade(self.owner, self.card_one, 3)
         self.assertEqual(record.activity_by_branch(self.outsider), {})
+
+
+class DueDayTests(SimpleTestCase):
+    """"Due today" ends at Polish midnight (`settings.TIME_ZONE`, since 2026-10-15). While the
+    setting was UTC a reader in Poland had their day turn over at 01:00 or 02:00."""
+
+    def end_of_day_at(self, now):
+        from unittest import mock
+
+        with mock.patch('django.utils.timezone.now', return_value=now):
+            return rules._today_end()
+
+    def test_half_past_midnight_in_warsaw_is_already_the_next_day(self):
+        from datetime import datetime, timezone as dt_timezone
+
+        utc = dt_timezone.utc
+        # 22:30 UTC on 14 October 2026 is 00:30 on the 15th in Warsaw (summer time, +02:00).
+        end = self.end_of_day_at(datetime(2026, 10, 14, 22, 30, tzinfo=utc))
+        self.assertEqual(end.astimezone(utc), datetime(2026, 10, 15, 21, 59, 59, 999999, tzinfo=utc))
+
+    def test_in_winter_the_day_ends_an_hour_later_in_utc(self):
+        from datetime import datetime, timezone as dt_timezone
+
+        utc = dt_timezone.utc
+        end = self.end_of_day_at(datetime(2027, 1, 5, 12, tzinfo=utc))
+        self.assertEqual(end.astimezone(utc), datetime(2027, 1, 5, 22, 59, 59, 999999, tzinfo=utc))

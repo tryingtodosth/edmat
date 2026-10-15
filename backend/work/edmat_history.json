@@ -1538,5 +1538,16 @@
   "summary": "The hero has said \"Ucz się, ćwicz i pytaj\" for weeks and nothing on the site answered the third verb — the first-visitor audit's finding 16 and its owner question 1. The owner's answer, verbatim: \"ask as ppl should be allowed to post in tags\". So asking is posting into a tag, and this is the smallest honest version of that.",
   "subproject": "community",
   "listed": true
+ },
+ {
+  "ref": "17CP",
+  "title": "Polish time: TIME_ZONE = 'Europe/Warsaw', and the code that had assumed UTC",
+  "heading": "17CP — Polish time: `TIME_ZONE = 'Europe/Warsaw'`, and the code that had assumed UTC (2026-10-15, `ux/tz-warsaw`)",
+  "line": 17037,
+  "date": "2026-10-15",
+  "date_source": "heading",
+  "summary": "Owner, 2026-10-15, on the WP11 bug above: \"stays poland\". The bug was live on edmat.net: with TIMEZONE = 'UTC', a tutor's weekly rule \"14:00\" became 14:00 UTC, and the browser drew the slot in Polish time — so every reader in Poland was offered 16:00 (summer) or 15:00 (winter) for hours the tutor's own list called 14:00. Goes into the 2026-10-15 deploy (deploy/UPDATE-2026-10-15.md, Polish time…",
+  "subproject": "tutoring",
+  "listed": true
  }
 ]

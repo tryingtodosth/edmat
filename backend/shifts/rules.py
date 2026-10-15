@@ -19,7 +19,7 @@ the analogy unsettled. The daily cap and the night window already carry the subs
 rather than left as a silence (house rule 14).
 """
 
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.db.models import Q
@@ -29,8 +29,9 @@ from accounts.minors import is_minor
 
 from .models import COMMITTED_STATUSES, HOLDING_STATUSES, Assignment, Shift, VolunteerRecord
 
-#: The night a minor may not be rostered into, in `settings.TIME_ZONE` (there is no per-account
-#: timezone in this project — a known gap, named in the root CLAUDE.md).
+#: The night a minor may not be rostered into, in `settings.TIME_ZONE` — Polish time, which is the
+#: clock the Kodeks pracy's night (art. 203: 22:00–06:00 for a young worker) is read on. There is
+#: no per-account timezone in this project (a known gap, named in the root CLAUDE.md).
 NIGHT_START = time(22, 0)
 NIGHT_END = time(6, 0)
 
@@ -93,6 +94,18 @@ def _committed_assignments(user, event=None):
     return qs
 
 
+def _at(day, at) -> datetime:
+    """`at` on `day` in `settings.TIME_ZONE`, as a UTC instant.
+
+    UTC so that subtracting two of these measures real time: Python subtracts two datetimes that
+    share one tzinfo on their WALL CLOCK, so a Warsaw midnight-to-midnight would be 24 hours on the
+    25-hour day in October. Midnight, 06:00 and 22:00 are never skipped or repeated in Poland.
+    """
+    return timezone.make_aware(datetime.combine(day, at), timezone.get_default_timezone()).astimezone(
+        dt_timezone.utc
+    )
+
+
 def touches_night(starts_at, ends_at) -> bool:
     """Does [starts_at, ends_at) overlap 22:00–06:00 on any day it spans?
 
@@ -105,23 +118,14 @@ def touches_night(starts_at, ends_at) -> bool:
     day = start.date()
     last = end.date()
     while day <= last:
-        night_from = timezone.make_aware(
-            datetime.combine(day, NIGHT_START), timezone.get_default_timezone()
-        )
-        night_to = timezone.make_aware(
-            datetime.combine(day + timedelta(days=1), NIGHT_END),
-            timezone.get_default_timezone(),
-        )
+        night_from = _at(day, NIGHT_START)
+        night_to = _at(day + timedelta(days=1), NIGHT_END)
         if starts_at < night_to and night_from < ends_at:
             return True
         # The other half of the same night: midnight to 06:00 of this day belongs to the previous
         # night, and a 05:00–08:00 breakfast-desk shift is caught here and nowhere else.
-        early_from = timezone.make_aware(
-            datetime.combine(day, time(0, 0)), timezone.get_default_timezone()
-        )
-        early_to = timezone.make_aware(
-            datetime.combine(day, NIGHT_END), timezone.get_default_timezone()
-        )
+        early_from = _at(day, time(0, 0))
+        early_to = _at(day, NIGHT_END)
         if starts_at < early_to and early_from < ends_at:
             return True
         day += timedelta(days=1)
@@ -134,10 +138,8 @@ def _hours_on_day(user, day, *, excluding=None) -> Decimal:
     Counted over the *overlap* with the day rather than the whole shift, so one shift crossing
     midnight does not spend its full length out of both days' budgets.
     """
-    day_start = timezone.make_aware(
-        datetime.combine(day, time(0, 0)), timezone.get_default_timezone()
-    )
-    day_end = day_start + timedelta(days=1)
+    day_start = _at(day, time(0, 0))
+    day_end = _at(day + timedelta(days=1), time(0, 0))
     total = Decimal('0')
     for assignment in _committed_assignments(user).filter(
         shift__starts_at__lt=day_end, shift__ends_at__gt=day_start
@@ -151,10 +153,8 @@ def _hours_on_day(user, day, *, excluding=None) -> Decimal:
 
 
 def _shift_hours_on_day(shift, day) -> Decimal:
-    day_start = timezone.make_aware(
-        datetime.combine(day, time(0, 0)), timezone.get_default_timezone()
-    )
-    day_end = day_start + timedelta(days=1)
+    day_start = _at(day, time(0, 0))
+    day_end = _at(day + timedelta(days=1), time(0, 0))
     start = max(shift.starts_at, day_start)
     end = min(shift.ends_at, day_end)
     if end <= start:

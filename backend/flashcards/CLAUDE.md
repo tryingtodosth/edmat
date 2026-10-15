@@ -76,8 +76,9 @@ Four grades (1 again, 2 hard, 3 good, 4 easy) mapped onto SM-2, with two deliber
 the paper, both in the module docstring: **a lapse is due again immediately** (interval 0,
 `due_at = now`), because a person pressing "again" means "show me again", not "tomorrow"; and the
 **ease factor is clamped to [1.3, 3.0]**, because a run of "easy" on an unclamped ease schedules a
-card years out, which is a deletion with extra steps. "Due" is read on the **server's day** — there
-is no per-account timezone on this site (root `CLAUDE.md`, known gaps).
+card years out, which is a deletion with extra steps. "Due" is read on the **server's day** — Polish
+calendar day (`settings.TIME_ZONE` = `Europe/Warsaw` since 2026-10-15); there is no per-account
+timezone on this site (root `CLAUDE.md`, known gaps).
 
 `rules.apply_grade` is the only writer: one `update_or_create` and one insert inside a short
 `atomic()`, and **no `select_for_update`** (`backend/CLAUDE.md` rule 1 — SQLite has no row locking).
@@ -176,6 +177,7 @@ Browser: `frontend/e2e/flashcards.mjs`.
 - **Concept and free-text cards contribute nothing to the learning record.** `Concept.branches` is a
   many-to-many, so one review would have to be counted once per branch or split between them, and
   neither is a number anybody asked for.
-- **No per-account timezone**, so "due" is the server's day for everybody (a site-wide gap).
+- **No per-account timezone**, so "due" is the server's day — the Polish one — for everybody,
+  including a reader abroad (a site-wide gap).
 - **Cards cannot be reordered through the UI.** `PATCH /api/cards/{id}/ {order}` exists and works;
   the deck page has no drag handle.

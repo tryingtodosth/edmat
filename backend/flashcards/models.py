@@ -230,8 +230,8 @@ class ReviewState(models.Model):
 
     `due_at` is a real timestamp, but "due" is read on the **server's day** (00-DESIGN.md §4.3):
     there is no per-account timezone on this site (root `CLAUDE.md`, known gaps), so a card
-    scheduled for tomorrow becomes due at the start of tomorrow in `settings.TIME_ZONE` and
-    pretending otherwise would be a lie dressed as precision.
+    scheduled for tomorrow becomes due at the start of tomorrow in `settings.TIME_ZONE` — Polish
+    midnight, since 2026-10-15 — and pretending otherwise would be a lie dressed as precision.
     """
 
     user = models.ForeignKey(

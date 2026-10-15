@@ -10,6 +10,7 @@ a happy path.
 from datetime import timedelta
 from decimal import Decimal
 
+from django.test import SimpleTestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -615,3 +616,36 @@ class OrganiserSelfClaimTests(RotaTestCase):
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class TimeZoneTests(SimpleTestCase):
+    """The minor's night and the daily cap are read on Polish time (`settings.TIME_ZONE`,
+    `Europe/Warsaw` since 2026-10-15) — the clock the Kodeks pracy's 22:00–06:00 means, and the one
+    the rota is drawn in for anybody in Poland. Pure functions; no request is made."""
+
+    @staticmethod
+    def utc(*args):
+        from datetime import datetime, timezone as dt_timezone
+
+        return datetime(*args, tzinfo=dt_timezone.utc)
+
+    def test_23_00_polish_time_in_summer_is_night(self):
+        # 21:00–21:30 UTC is 23:00–23:30 in Warsaw. On a UTC clock it was "21:00" and slipped by.
+        self.assertTrue(rules.touches_night(self.utc(2027, 7, 6, 21), self.utc(2027, 7, 6, 21, 30)))
+
+    def test_06_30_polish_time_in_summer_is_not_night(self):
+        # 04:30–05:00 UTC is 06:30–07:00 in Warsaw. On a UTC clock it was "04:30" and was refused.
+        self.assertFalse(rules.touches_night(self.utc(2027, 7, 6, 4, 30), self.utc(2027, 7, 6, 5)))
+
+    def test_21_00_polish_time_in_winter_is_not_night(self):
+        self.assertFalse(rules.touches_night(self.utc(2027, 1, 5, 20), self.utc(2027, 1, 5, 20, 59)))
+
+    def test_the_long_october_day_has_25_hours(self):
+        from datetime import date
+        from types import SimpleNamespace
+
+        # Polish midnight to Polish midnight on 31 October 2027, when the clocks go back.
+        whole_day = SimpleNamespace(
+            starts_at=self.utc(2027, 10, 30, 22), ends_at=self.utc(2027, 10, 31, 23)
+        )
+        self.assertEqual(rules._shift_hours_on_day(whole_day, date(2027, 10, 31)), Decimal(25))

@@ -97,10 +97,10 @@ DEMO_VENUE_SLUG = 'demo-pasteura-5'
 #: prefix is different on purpose, so neither command's `--reset` can delete the other's people.
 PREFIX = 'conf.'
 #: The building is in Warsaw, so the plan's hours are Warsaw hours: a browser in Warsaw draws
-#: "09:00 otwarcie" at 09:00. `settings.TIME_ZONE` is UTC and the rota's rules (the 22:00–06:00
-#: window, the daily cap) run in it, two hours earlier — every shift here sits well inside the day
-#: either way, so the rules and the page agree. This is the standing "no per-account timezone" gap
-#: (root CLAUDE.md), sidestepped for one demo rather than fixed.
+#: "09:00 otwarcie" at 09:00. Since 2026-10-15 that is also `settings.TIME_ZONE`, so the rota's rules
+#: (the 22:00–06:00 window, the daily cap) run on the same clock as the plan. Named here rather than
+#: read from the setting because the building does not move if the setting ever does; while the
+#: setting was UTC this constant was what kept the plan in Polish hours.
 DEMO_TZ = ZoneInfo('Europe/Warsaw')
 #: The seeded platform template (venues migration 0002) the checklist is cut from.
 TEMPLATE_NAME = 'Two-day multi-room academic conference'

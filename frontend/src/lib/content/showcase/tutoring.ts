@@ -8,10 +8,12 @@
  *   - no money passes through EdMat — a rate on a listing is a number a tutor typed, not a price;
  *   - an unanswered request is never declined for you: requests do not expire (a known cost,
  *     `booking/models.py`);
- *   - the times do not line up (WP11, 2026-10-15): a tutor's weekly hours are wall-clock strings
- *     the server reads in `settings.TIME_ZONE`, which is UTC, and the slots are drawn in the
- *     reader's own browser zone — so a Polish tutor's 14:00 is offered in Poland as 16:00 (summer)
- *     or 15:00 (winter). A known bug, said plainly here; there is no per-account time zone yet.
+ *   - which clock the hours are on: a tutor's weekly hours are wall-clock times the server reads
+ *     in `settings.TIME_ZONE`, which is `Europe/Warsaw` since 2026-10-15 (owner: "stays poland"),
+ *     and the slots are drawn in the reader's own browser zone — so 14:00 is 14:00 to anybody in
+ *     Poland, and a reader abroad sees it converted. Until that day the setting was UTC and a
+ *     Polish reader was offered 16:00 (summer) / 15:00 (winter); WP11 had said so here, and this
+ *     point now says the fixed state. There is still no per-account time zone.
  *
  * The listings and listing pictures are the manual's own (`static/guide/tutoring/`), checked
  * against today's screen before reuse; the tutor's side is new (`e2e/showcase-screens.mjs`). The
@@ -40,8 +42,8 @@ const EN: ShowcaseModuleDoc = {
 			body: 'Busy time is counted across all of a tutor’s listings, and an event the tutor is hosting takes those hours off the calendar too, so the same hour is not offered twice.'
 		},
 		{
-			heading: 'Times: a known mismatch, for now',
-			body: 'A tutor’s weekly hours are saved as plain clock times, which the server reads in UTC; the free slots and bookings are then shown in the time zone of the device you are reading on. So hours set as 14:00–17:00 are offered to a reader in Poland from 16:00 in summer and from 15:00 in winter. That is a known bug, written down here rather than hidden, and there is no per-account time zone yet.'
+			heading: 'The hours are Polish time',
+			body: 'A tutor’s weekly hours are plain clock times in Polish time, summer and winter alike: hours set as 14:00–17:00 are offered from 14:00 to anybody reading in Poland. Free slots and bookings are drawn in the time zone of the device you are reading on, so somebody reading from abroad sees the same hours on their own clock — from 13:00 in London, for example. There is no per-account time zone.'
 		}
 	],
 	tryIt: [
@@ -151,8 +153,8 @@ const PL: ShowcaseModuleDoc = {
 			body: 'Zajęty czas liczy się ze wszystkich ogłoszeń korepetytora, a wydarzenie, które prowadzi, też zdejmuje te godziny z kalendarza — więc ta sama godzina nie jest oferowana dwa razy.'
 		},
 		{
-			heading: 'Godziny: na razie znana rozbieżność',
-			body: 'Godziny tygodniowe korepetytora zapisują się jako zwykłe godziny zegarowe, które serwer czyta w UTC; wolne terminy i rezerwacje pokazują się potem w strefie czasowej urządzenia, na którym czytasz. Dlatego godziny ustawione jako 14:00–17:00 osoba w Polsce zobaczy od 16:00 latem i od 15:00 zimą. To znany błąd — opisany tutaj, a nie ukryty — a stref czasowych przypisanych do konta jeszcze nie ma.'
+			heading: 'Godziny są w czasie polskim',
+			body: 'Godziny tygodniowe korepetytora to zwykłe godziny zegarowe w czasie polskim, latem i zimą: godziny ustawione jako 14:00–17:00 każdy, kto czyta w Polsce, zobaczy od 14:00. Wolne terminy i rezerwacje pokazują się w strefie czasowej urządzenia, na którym czytasz, więc ktoś za granicą zobaczy te same godziny na swoim zegarze — na przykład w Londynie od 13:00. Stref czasowych przypisanych do konta nie ma.'
 		}
 	],
 	tryIt: [

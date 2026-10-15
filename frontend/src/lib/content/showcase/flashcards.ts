@@ -58,8 +58,8 @@ const EN: FlashcardsShowcase = {
 			body: 'Nothing you make is world-readable in this cycle. What a deck can do is sit on a course or an event — and then everybody who can see that course can study it, which is what makes “make a deck from this week” worth a teacher’s press.'
 		},
 		{
-			heading: 'Due is counted on the server’s day',
-			body: 'There are no per-account time zones here yet, so “due today” means today in UTC, the server’s clock — which in Poland turns over at 1 or 2 in the morning, not at midnight. Said rather than quietly rounded.'
+			heading: 'Due is counted on the Polish day',
+			body: '“Due today” means today in Polish time, so in Poland the day turns over at midnight, as you would expect. There are no per-account time zones, so somebody studying from abroad still has their day turn over at Polish midnight — said rather than quietly rounded.'
 		}
 	],
 	decksHeading: 'Three decks, as a reader’s own list shows them',
@@ -203,8 +203,8 @@ const PL: FlashcardsShowcase = {
 			body: 'Nic, co zrobisz, nie jest w tym etapie czytelne dla świata. Fiszki mogą natomiast leżeć na kursie albo na wydarzeniu — i wtedy każdy, kto widzi ten kurs, może się z nich uczyć. To właśnie czyni „zrób fiszki z tego tygodnia” wartym naciśnięcia przez prowadzącego.'
 		},
 		{
-			heading: '„Do powtórki dziś” liczy się według dnia serwera',
-			body: 'Nie ma tu jeszcze stref czasowych per konto, więc „dziś” to dzień według zegara serwera, czyli UTC — w Polsce zmienia się o 1 albo 2 w nocy, a nie o północy. Powiedziane, a nie cicho zaokrąglone.'
+			heading: '„Do powtórki dziś” liczy się według polskiego dnia',
+			body: '„Dziś” to dzień według czasu polskiego, więc w Polsce zmienia się o północy, tak jak można się spodziewać. Stref czasowych przypisanych do konta nie ma, więc komuś, kto uczy się za granicą, dzień też zmienia się o polskiej północy — powiedziane, a nie cicho zaokrąglone.'
 		}
 	],
 	decksHeading: 'Fiszki z trzech źródeł, tak jak pokazuje je własna lista',

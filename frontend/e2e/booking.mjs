@@ -312,6 +312,40 @@ await pageToSlots(studentPage);
 const slotCount = await studentPage.locator('.slot').count();
 check('the published window became three bookable hours', slotCount === 3, String(slotCount));
 
+// The clock (ux/tz-warsaw, 2026-10-15). Until then the server read the rule's "14:00" in UTC and the
+// browser drew the slot in ITS zone, so a reader in Poland was offered 16:00 (summer) or 15:00
+// (winter) for hours the tutor's own list called 14:00. Now the rule is Polish time: the API's slot
+// must say 14:00 at a +01:00/+02:00 offset, and a browser in Poland must draw exactly the hour the
+// rule list shows. A browser anywhere else draws the same instant on its own clock — checked too,
+// and printed, so a run under TZ=UTC says what a reader abroad gets.
+{
+	const availability = await (await fetch(`${API}/services/${derivedId}/availability/`)).json();
+	const firstSlot = availability.days.flatMap((day) => day.slots)[0];
+	check(
+		"the API's first slot is the rule's 14:00, in Polish time",
+		/T14:00:00\+0[12]:00$/.test(firstSlot?.start ?? ''),
+		JSON.stringify(firstSlot)
+	);
+	const zone = await studentPage.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+	const drawnHour = await studentPage.evaluate((iso) => new Date(iso).getHours(), firstSlot?.start);
+	const shown = (await studentPage.locator('.slot').first().innerText()).trim();
+	const h12 = `${drawnHour % 12 || 12}:00`;
+	const h24 = `${String(drawnHour).padStart(2, '0')}:00`;
+	console.log(`       browser zone ${zone}: the rule says 14:00, the first slot reads "${shown}"`);
+	check(
+		`the first slot is that instant on the browser's own clock (${zone})`,
+		shown.startsWith(h24) || shown.startsWith(h12),
+		`${shown} vs ${h24}`
+	);
+	if (zone === 'Europe/Warsaw') {
+		check(
+			'and in Poland that is the SAME hour the tutor typed — 14:00, not 16:00 or 15:00',
+			drawnHour === 14,
+			shown
+		);
+	}
+}
+
 const takenTime = await studentPage.locator('.slot').first().innerText();
 const STUDENT_NOTE = `Series convergence ${RUN}`;
 await studentPage.locator('.slot').first().click();

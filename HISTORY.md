@@ -17033,3 +17033,67 @@ languages, 390 and 1280, dark theme, a reply, the minor's hold, the switch). Scr
   package's (Header structure was out of scope).
 - A minor's held question is not visible to its author on the tag page (the list leaves held rows
   out for everybody); the `/ask` page says it was held, and that is the only place.
+
+## 17CP — Polish time: `TIME_ZONE = 'Europe/Warsaw'`, and the code that had assumed UTC (2026-10-15, `ux/tz-warsaw`)
+
+Owner, 2026-10-15, on the WP11 bug above: *"stays poland"*. The bug was live on edmat.net: with
+`TIME_ZONE = 'UTC'`, a tutor's weekly rule "14:00" became 14:00 UTC, and the browser drew the slot in
+Polish time — so every reader in Poland was offered 16:00 (summer) or 15:00 (winter) for hours the
+tutor's own list called 14:00. Goes into the 2026-10-15 deploy (`deploy/UPDATE-2026-10-15.md`,
+*Polish time*, says what moves on production and what does not).
+
+### What reads `TIME_ZONE`, and what each one now does
+
+- **Booking** (`booking/availability.py`). A rule's clock time is Polish time. `_aware` is the one place
+  a wall-clock time becomes an instant, and it now returns **UTC** — because Python adds a
+  `timedelta` to a zoneinfo-aware datetime on its wall clock, and compares/subtracts two datetimes that
+  share one tzinfo on the wall clock too. Left Warsaw-zoned, the slicing cursor would have offered two
+  "sessions" at one instant on the March night and lost an hour on the October one. The two
+  availability endpoints write instants back in Polish time (`views._local_iso`: `14:00+02:00`).
+- **Every API datetime** now leaves DRF at the Polish offset (`+02:00`/`+01:00`) instead of `Z`. Same
+  instants; the SPA's few `startsAt.slice(0, 10)` calls (the tutor calendar's day buckets, an event's
+  clash check) now get the POLISH date — which is what they had always meant, and what they got wrong
+  for a booking between midnight and 02:00.
+- **Shifts** (`shifts/rules.py`): a minor's night 22:00–06:00 (Kodeks pracy art. 203) and the daily cap
+  on the Polish clock; day and night bounds are UTC instants (`_at`), so a 25-hour October day
+  measures 25.
+- **Flashcards** (`flashcards/rules.py`): "due today" turns at Polish midnight, not 01:00/02:00.
+- **Analytics**: the code hard-coded UTC in eleven places (`tzinfo=dt.timezone.utc`, `.astimezone(dt.timezone.utc).date()`), so it would have kept
+  counting UTC days while `TruncWeek` (which follows the setting) moved — two zones in one dashboard.
+  Now `rollup.day_bounds` gives a date's two Polish midnights and the rollup, `Period`, the browser-error
+  counts, the cohorts and `live.week_starts` all use it (`week_starts` was a real catch: `.date()` of a
+  Monday's 22:00-UTC bound is Sunday).
+- **Seeds**: the persona sandbox now starts at 09:00 Polish time (it read 11:00 in a Warsaw browser);
+  the demo conference already used `DEMO_TZ = Europe/Warsaw` and does not move; `seed_edmat_project`'s
+  fixed deadlines become 23:59 Polish (were 01:59 the next day in Poland) on its next run.
+- `/about/tutoring`, the manual's tutoring chapter and `/about/flashcards` now say the fixed state in
+  both languages; `e2e/wp11-fixes.mjs` asserts the new sentence and the absence of "UTC".
+
+### Verified
+
+- New tests: `booking.test_week_schedules.TimeZoneTests` (summer 14:00 = 12:00 UTC, winter = 13:00, the
+  March night offers two real hours, the October night four distinct instants, an all-day block covers
+  all 25 hours, the endpoint's `14:00+0X:00` round-trips into a booking, and one test that IS about UTC:
+  under `override_settings(TIME_ZONE='UTC')` the same rule is 14:00 UTC, so nothing names Warsaw),
+  `shifts.tests.TimeZoneTests`, `analytics.tests.PolishDayTests`, `flashcards.tests.DueDayTests`.
+- `e2e/booking.mjs` gained the proof (and English contexts — it had been failing on the Polish default
+  since 2026-09-23): the API's first slot is `T14:00:00+02:00`, and a browser in `TZ=Europe/Warsaw` draws
+  it as **14:00**, the hour on the tutor's "Weekly hours" list — 54/54. Under `TZ=UTC`, 53/53 and the
+  slot reads **12:00**; in London it reads 13:00.
+
+### Left open
+
+- **Still no per-account time zone.** A reader abroad sees instants on their own clock, which is
+  right for a student booking from London; a TUTOR living abroad publishes hours in Polish time and sees
+  their own band drawn at their local equivalent beside a rule list that says 14:00 — the inverse of
+  the old bug, for a much smaller group.
+- Notification notes written before the switch keep their UTC clock time ("2026-10-20 14:00" meaning
+  14:00 UTC); model `__str__`s (admin titles) still format the stored UTC value.
+- About a dozen frontend sites sort API datetimes as STRINGS (`createdAt.localeCompare`, the rota's
+  `startsAt <`). With every string at one offset (`Z`) that was exact; with `+02:00`/`+01:00` it is
+  wall-clock order, which is wrong only inside the hour the October night repeats. Not worth a change
+  today; comparing `Date` values would close it.
+- Nobody tells tutors or students that the slots moved two hours earlier, or that requests made before
+  today were offered at the wrong hour. An owner decision whether to.
+- The manual's `04-requested.png` shows slots 18:00–20:00 from an unknown rule; it may have been shot
+  under the old clock. Re-shoot with the next manual pass.

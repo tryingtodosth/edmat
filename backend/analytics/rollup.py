@@ -12,7 +12,11 @@ FIRST and the retention command after it (`deploy/cron/edmat-analytics`). The ro
 last few days on every run (`--days 3` in the cron line), which absorbs a missed night; anything
 older than the retention window is simply final.
 
-Days are UTC days, because `settings.TIME_ZONE` is UTC and every timestamp in the log is too.
+Days are Polish calendar days (`settings.TIME_ZONE`, `Europe/Warsaw` since 2026-10-15): a day runs
+from local midnight to local midnight, so it is 23 hours long in March and 25 in October, and a
+request at 00:30 Polish time counts on the day a Polish reader would say it happened. The log's
+timestamps are UTC instants; `day_bounds` is the one place a date becomes a pair of them. Until
+that day the buckets were UTC days, one or two hours off at each end.
 
 **Who is never counted as an active account**: minors (`adult_accounts`), staff
 (`without_staff`, owner's decision 2026-10-14 — their REQUESTS still count as traffic), and — like every other
@@ -55,8 +59,13 @@ SKIPPED_METHODS = {'OPTIONS', 'HEAD'}
 
 
 def day_bounds(day: dt.date) -> tuple[dt.datetime, dt.datetime]:
-    start = dt.datetime.combine(day, dt.time.min, tzinfo=dt.timezone.utc)
-    return start, start + dt.timedelta(days=1)
+    """Local midnight of `day` and of the day after, as UTC instants (module docstring)."""
+    tz = timezone.get_default_timezone()
+
+    def midnight(d: dt.date) -> dt.datetime:
+        return dt.datetime.combine(d, dt.time.min, tzinfo=tz).astimezone(dt.timezone.utc)
+
+    return midnight(day), midnight(day + dt.timedelta(days=1))
 
 
 def monday(day: dt.date) -> dt.date:
@@ -262,7 +271,7 @@ def rollup_week(any_day: dt.date) -> int:
     scripting their own account is a person. Returns how many cohort rows were written."""
     week = monday(any_day)
     start, _ = day_bounds(week)
-    end = start + dt.timedelta(days=7)
+    end, _ = day_bounds(week + dt.timedelta(days=7))
     ids = _active_user_ids(start, end)
     cohorts: Counter = Counter()
     if ids:
@@ -271,7 +280,7 @@ def rollup_week(any_day: dt.date) -> int:
             'date_joined', flat=True
         )
         for when in joined:
-            cohort = monday(timezone.localtime(when, dt.timezone.utc).date())
+            cohort = monday(timezone.localtime(when).date())
             if cohort <= week:
                 cohorts[cohort] += 1
     ids.clear()

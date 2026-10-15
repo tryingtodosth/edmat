@@ -159,12 +159,11 @@ def make_personas(password: str = DEFAULT_PASSWORD) -> dict:
     }
     people['child'] = _child(people['guardian'], password)
 
-    # `localtime` rather than `now()`, so the hour means 09:00 in `settings.TIME_ZONE` rather than
-    # 09:00 UTC. Today those are the same thing (TIME_ZONE is 'UTC'), and the day that changes this
-    # line is what keeps the sandbox starting in the morning. What it does NOT fix, and cannot: the
-    # page draws the instant in the READER's browser timezone, so this conference reads 11:00 to a
-    # browser in Warsaw. That is the standing "no per-account timezone" gap in the root CLAUDE.md,
-    # noticed here by looking at the rendered page beside the command's own output.
+    # `localtime` rather than `now()`, so the hour means 09:00 in `settings.TIME_ZONE` — Polish
+    # time since 2026-10-15 — rather than 09:00 UTC. While the setting was UTC this conference read
+    # 11:00 to a browser in Warsaw (noticed by looking at the rendered page beside the command's
+    # own output); it now reads 09:00 there. A browser in another zone still draws the instant in
+    # ITS zone — the standing "no per-account timezone" gap in the root CLAUDE.md.
     starts = (timezone.localtime(timezone.now()) + timedelta(days=14)).replace(
         hour=9, minute=0, second=0, microsecond=0
     )

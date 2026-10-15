@@ -16,6 +16,7 @@ once its date is set, the two research accounts and the Gemini Deep Research thr
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
 
 from work.edmat_project import ORGANIZATION_SLUG, build_edmat_project
 
@@ -60,7 +61,7 @@ class Command(BaseCommand):
             done = plan.steps.filter(status='done').count()
             self.stdout.write(f'  plan /plans/{plan.pk}   [{plan.status}]   {done}/{steps} steps   {plan.title}')
         for task in built['tasks']:
-            due = task.due_at.date().isoformat() if task.due_at else '—'
+            due = timezone.localtime(task.due_at).date().isoformat() if task.due_at else '—'
             self.stdout.write(f'  task /tasks/{task.pk}   [{task.status}]   due {due}   {task.title}')
         for need in built['needs']:
             self.stdout.write(f'  need /needs/{need.pk}   [{need.status}]   {need.title}')

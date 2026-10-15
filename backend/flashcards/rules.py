@@ -317,8 +317,10 @@ def visible_cards(deck: Deck, user):
 def _today_end():
     """"Due" is read on the **server's day** (00-DESIGN.md §4.3): a card scheduled for today is due
     all of today, not from the minute it was graded a day ago. There is no per-account timezone on
-    this site (root `CLAUDE.md`, known gaps), so this is `settings.TIME_ZONE`'s end of day and
-    saying anything more precise would be a lie dressed as rigour."""
+    this site (root `CLAUDE.md`, known gaps), so this is `settings.TIME_ZONE`'s end of day — Polish
+    midnight, so a reader in Poland sees the day turn over when theirs does — and saying anything
+    more precise would be a lie dressed as rigour. (While the setting was UTC, it turned at 01:00
+    or 02:00 Polish time.)"""
     now = timezone.localtime(timezone.now())
     return now.replace(hour=23, minute=59, second=59, microsecond=999999)
 

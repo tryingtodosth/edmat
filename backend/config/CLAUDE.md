@@ -10,8 +10,10 @@ translated serializer; define fallback ONCE, here), `dbsearch.py` (+ its own tes
   (separate-origin SPA) — `run.sh` passes the chosen origin through; a hand-changed port
   silently breaks the site with "Something went wrong".
 - `EMAIL_BACKEND` = console. No real mail anywhere; password reset is an honest always-200 stub.
-- `TIME_ZONE='UTC'`, and **no per-user timezone exists anywhere** — `Profile.time_format`/
-  `week_starts_on` are display preferences only.
+- `TIME_ZONE='Europe/Warsaw'` (owner, 2026-10-15; it was `'UTC'` until then — root `CLAUDE.md`,
+  known gaps, lists what reads it), and **no per-user timezone exists anywhere** —
+  `Profile.time_format`/`week_starts_on` are display preferences only. Stored datetimes are UTC
+  regardless (`USE_TZ`); DRF writes them out at the Polish offset.
 - `DEFAULT_PAGINATION_CLASS` deliberately unset (every list bounded by construction).
 - `DATABASE_ROUTERS = ['telemetry.routers.LogShardRouter']` — log shards, see telemetry app.
 - SQLite `OPTIONS['timeout']=20` is a real fix for concurrent-writer contention, not a guess.

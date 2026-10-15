@@ -4,9 +4,10 @@
 403 for a signed-in account that is not staff. A node governor is not staff and is refused too —
 the numbers are platform-wide.
 
-Every endpoint takes `?days=` (7, 30, 90 or 365; default 30) and answers for the UTC days ending
-today. Counts that describe PEOPLE go through `privacy.k` / `privacy.k_rate` on the way out: a
-`null` there means "between 1 and 9" (k = 10) and is drawn as "<10". Counts about content are not suppressed.
+Every endpoint takes `?days=` (7, 30, 90 or 365; default 30) and answers for the Polish calendar
+days ending today (`rollup.day_bounds`). Counts that describe PEOPLE go through `privacy.k` /
+`privacy.k_rate` on the way out: a `null` there means "between 1 and 9" (k = 10) and is drawn as
+"<10". Counts about content are not suppressed.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ from .models import (
     WeeklyCohort,
 )
 from .privacy import K_ANONYMITY, k, k_rate
-from .rollup import counted_people, monday, percentile, rollup_range
+from .rollup import counted_people, day_bounds, monday, percentile, rollup_range
 
 ALLOWED_DAYS = (7, 30, 90, 365)
 DEFAULT_DAYS = 30
@@ -50,20 +51,19 @@ class IsStaff(permissions.BasePermission):
 
 
 class Period:
-    """`days` UTC days ending today (inclusive), and the same length immediately before it."""
+    """`days` calendar days ending today (inclusive), and the same length immediately before it —
+    Polish days, the same ones the rollup buckets by (`rollup.day_bounds`)."""
 
     def __init__(self, days: int):
         self.days = days
-        today = timezone.now().astimezone(dt.timezone.utc).date()
+        today = timezone.localdate()
         self.last = today
         self.first = today - dt.timedelta(days=days - 1)
-        self.start = dt.datetime.combine(self.first, dt.time.min, tzinfo=dt.timezone.utc)
-        self.end = dt.datetime.combine(
-            today + dt.timedelta(days=1), dt.time.min, tzinfo=dt.timezone.utc
-        )
+        self.start, _ = day_bounds(self.first)
+        _, self.end = day_bounds(today)
         self.prev_first = self.first - dt.timedelta(days=days)
         self.prev_last = self.first - dt.timedelta(days=1)
-        self.prev_start = self.start - dt.timedelta(days=days)
+        self.prev_start, _ = day_bounds(self.prev_first)
 
     def dates(self) -> list[dt.date]:
         return [self.first + dt.timedelta(days=i) for i in range(self.days)]
@@ -609,8 +609,7 @@ class RecomputeView(APIView):
     permission_classes = [IsStaff]
 
     def post(self, request):
-        today = timezone.now().astimezone(dt.timezone.utc).date()
-        summaries = rollup_range(today, 2)
+        summaries = rollup_range(timezone.localdate(), 2)
         return Response({'days': summaries})
 
 

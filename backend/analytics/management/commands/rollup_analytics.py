@@ -25,7 +25,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             '--date',
-            help='The LAST day to roll up (YYYY-MM-DD, UTC). Default: today.',
+            help='The LAST day to roll up (YYYY-MM-DD, a Polish calendar day). Default: today.',
         )
         parser.add_argument(
             '--days',
@@ -49,13 +49,13 @@ class Command(BaseCommand):
             except ValueError as exc:
                 raise CommandError(f'--date must be YYYY-MM-DD, got {options["date"]!r}') from exc
         else:
-            last = timezone.now().astimezone(dt.timezone.utc).date()
+            last = timezone.localdate()
         days = options['days']
         if days < 1 or days > 400:
             raise CommandError('--days must be between 1 and 400')
 
         summaries = rollup_range(last, days)
-        today = timezone.now().astimezone(dt.timezone.utc).date()
+        today = timezone.localdate()
         purged = purge_aggregates(today, options['keep_months'])
         purged_errors = purge_client_errors()
         for s in summaries:

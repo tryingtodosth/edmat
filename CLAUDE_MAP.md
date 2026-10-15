@@ -60,7 +60,7 @@ still exists on disk; the live app is `courses`. Docs, tests and several e2e scr
   write-side sanitizer, `config/sanitize.py`), `django-postman` (the messaging substrate — drags in `django.contrib.sites` as a
   hard import-time dependency), `PyYAML` (corpus importer), `redis` (optional, only via `EDMAT_REDIS_URL`).
 - **`config/settings.py` highlights:** `SECRET_KEY`/`DEBUG`/`ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS` env-driven; `EMAIL_BACKEND` is
-  the **console** backend (no real mail, §7); `TIME_ZONE = 'UTC'` and **no per-user timezone anywhere**;
+  the **console** backend (no real mail, §7); `TIME_ZONE = 'Europe/Warsaw'` (since 2026-10-15) and **no per-user timezone anywhere**;
   `DATABASE_ROUTERS = ['telemetry.routers.LogShardRouter']`; `MATERIAL_SCAN_REQUIRED = False` + `CLAMD_*` (§2.5);
   `EDMAT_OAUTH_CLIENTS`/`EDMAT_USOS_CREDENTIALS` empty dicts, which is what makes the identity providers report themselves as
   drafts; `EDMAT_REDIS_URL` (§2.6); `EDMAT_LOG_SHARD_*`; `EDMAT_USOS_MOCK`; `EDMAT_REPOSITORY_URL`.
@@ -914,7 +914,7 @@ event updates, week-by-week schedule editing, the staged navbar collapse, and Re
   any "notify me by email" preference.
 - **No CI.** Nothing runs the ~1145 backend tests or the ~21 e2e scripts automatically, and nothing exercises a clean-clone
   install — which is exactly how the requirements files drifted unnoticed.
-- **No per-user timezone.** Everything is `TIME_ZONE` (UTC); `time_format`/`week_starts_on` say how a time is *drawn*, not which
+- **No per-user timezone.** Everything is `TIME_ZONE` (`Europe/Warsaw` since 2026-10-15; UTC before); `time_format`/`week_starts_on` say how a time is *drawn*, not which
   clock it comes from.
 - **No failed-attempt lockout** (DRF throttles count requests, not outcomes), and **no shared cache unless Redis is configured**,
   so rates are per-worker without it.

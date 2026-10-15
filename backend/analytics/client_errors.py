@@ -46,6 +46,7 @@ from django.utils import timezone
 
 from . import classify
 from .models import ClientErrorGroup, ClientErrorReport, DailyClientError
+from .rollup import day_bounds
 
 MAX_BODY_BYTES = 8 * 1024
 MAX_MESSAGE = 500
@@ -189,7 +190,7 @@ def record(report: dict, user_agent: str) -> ClientErrorGroup:
     classified and forgotten — nothing below receives it."""
     browser, os_family, device = classify.classify_user_agent((user_agent or '')[:512])
     now = timezone.now()
-    today = now.astimezone(dt.timezone.utc).date()
+    today = timezone.localdate(now)
     signature, frame = signature_of(report)
 
     group = ClientErrorGroup.objects.filter(signature=signature).first()
@@ -223,7 +224,7 @@ def record(report: dict, user_agent: str) -> ClientErrorGroup:
         except IntegrityError:
             DailyClientError.objects.filter(**key).update(count=F('count') + 1)
 
-    start = dt.datetime.combine(today, dt.time.min, tzinfo=dt.timezone.utc)
+    start, _ = day_bounds(today)
     if (
         ClientErrorReport.objects.filter(group=group, received_at__gte=start).count()
         < SAMPLES_PER_GROUP_PER_DAY
@@ -247,7 +248,7 @@ def purge_client_errors(now: dt.datetime | None = None) -> int:
     count_cutoff = now - dt.timedelta(days=COUNT_RETENTION_DAYS)
     deleted = ClientErrorReport.objects.filter(received_at__lt=report_cutoff).delete()[0]
     deleted += DailyClientError.objects.filter(
-        date__lt=count_cutoff.astimezone(dt.timezone.utc).date()
+        date__lt=timezone.localdate(count_cutoff)
     ).delete()[0]
     deleted += ClientErrorGroup.objects.filter(last_seen__lt=count_cutoff).delete()[0]
     return deleted

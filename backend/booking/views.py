@@ -50,6 +50,11 @@ from .services import notify_cancelled, notify_confirmed, notify_declined, notif
 _TutoringFeatureGate = feature_gate('tutoring')
 
 
+def _local_iso(instant) -> str:
+    """An availability instant as ISO 8601 in `settings.TIME_ZONE` (Polish time)."""
+    return timezone.localtime(instant).isoformat()
+
+
 def _parse_day(raw, fallback: date_cls) -> date_cls:
     if not raw:
         return fallback
@@ -111,8 +116,11 @@ class ServiceAvailabilityView(APIView):
                 'days': [
                     {
                         'date': day.day.isoformat(),
+                        # Written in Polish time (`+02:00`/`+01:00`) rather than as the UTC the
+                        # arithmetic ran in, so the payload reads as the tutor's own "14:00". The
+                        # instant is the same either way; the browser draws it in its own zone.
                         'slots': [
-                            {'start': slot.start.isoformat(), 'end': slot.end.isoformat()}
+                            {'start': _local_iso(slot.start), 'end': _local_iso(slot.end)}
                             for slot in day.slots
                         ],
                     }
@@ -206,7 +214,7 @@ class MyScheduleView(APIView):
                     {
                         'date': day.isoformat(),
                         'windows': [
-                            {'start': window.start.isoformat(), 'end': window.end.isoformat()}
+                            {'start': _local_iso(window.start), 'end': _local_iso(window.end)}
                             for window in day_windows
                         ],
                     }

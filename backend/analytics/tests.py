@@ -30,7 +30,7 @@ from .models import (
     WeeklyCohort,
 )
 from .privacy import k, k_rate
-from .rollup import percentile, rollup_day, rollup_week
+from .rollup import day_bounds, percentile, rollup_day, rollup_week
 
 User = get_user_model()
 
@@ -69,7 +69,9 @@ DAY = dt.date(2026, 10, 7)  # a Wednesday
 
 
 def at(day: dt.date, hour: int = 12) -> dt.datetime:
-    return dt.datetime.combine(day, dt.time(hour), tzinfo=dt.timezone.utc)
+    """`hour` o'clock on `day` in Polish time — the clock the rollup's days are cut on
+    (`rollup.day_bounds`), so `at(DAY, 0)` is the first instant of DAY's bucket."""
+    return dt.datetime.combine(day, dt.time(hour), tzinfo=timezone.get_default_timezone())
 
 
 def log(*, user_id=None, path='/api/exercises/', method='GET', status=200, ms=10, ua=CHROME_WIN,
@@ -392,6 +394,47 @@ class RollupTests(TestCase):
         )
 
 
+class PolishDayTests(TestCase):
+    """A day is a Polish calendar day (`settings.TIME_ZONE`, since 2026-10-15): it starts at Polish
+    midnight, and is 23 or 25 hours long on the nights the clocks change."""
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def test_a_day_runs_from_polish_midnight_to_polish_midnight(self):
+        start, end = day_bounds(DAY)
+        utc = dt.timezone.utc
+        self.assertEqual(start, dt.datetime(2026, 10, 6, 22, tzinfo=utc))
+        self.assertEqual(end, dt.datetime(2026, 10, 7, 22, tzinfo=utc))
+
+    def test_the_days_the_clocks_change_are_23_and_25_hours(self):
+        def hours(day):
+            start, end = day_bounds(day)
+            return (end - start).total_seconds() / 3600
+
+        self.assertEqual(hours(dt.date(2027, 3, 28)), 23)
+        self.assertEqual(hours(dt.date(2026, 10, 25)), 25)
+        self.assertEqual(hours(DAY), 24)
+
+    def test_one_polish_week_is_one_week(self):
+        """Monday's bounds start at 22:00 UTC on the Sunday before; the week list must still be
+        that one Monday, not the Sunday's week as well."""
+        from .live import week_starts
+
+        monday = DAY - dt.timedelta(days=DAY.weekday())
+        start, _ = day_bounds(monday)
+        _, end = day_bounds(monday + dt.timedelta(days=6))
+        self.assertEqual(week_starts(start, end), [monday])
+
+    def test_a_request_after_polish_midnight_counts_on_the_polish_day(self):
+        """23:30 UTC on 6 October is 01:30 on 7 October in Warsaw: a reader in Poland did that on
+        the 7th, and so does the dashboard. A UTC bucket put it on the 6th."""
+        log(path='/api/exercises/12/', when=dt.datetime(2026, 10, 6, 23, 30, tzinfo=dt.timezone.utc))
+        log(path='/api/exercises/12/', when=dt.datetime(2026, 10, 7, 21, 30, tzinfo=dt.timezone.utc))
+        log(path='/api/exercises/12/', when=dt.datetime(2026, 10, 7, 22, 30, tzinfo=dt.timezone.utc))
+        rollup_day(DAY)
+        self.assertEqual(DailyContentView.objects.get(date=DAY).views, 2)
+
+
 class ApiTestCase(APITestCase):
     databases = set(all_log_shards()) | {'default'}
 
@@ -435,7 +478,7 @@ class PayloadTests(ApiTestCase):
     def setUp(self):
         self.staff = make_user('analyst', is_staff=True)
         self.client.force_authenticate(self.staff)
-        self.today = timezone.now().astimezone(dt.timezone.utc).date()
+        self.today = timezone.localdate()
 
     def test_people_counts_below_five_are_null_content_counts_are_not(self):
         for pk in (11, 12, 13):

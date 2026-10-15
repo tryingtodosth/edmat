@@ -391,7 +391,7 @@ class Command(BaseCommand):
                     'enrollment_policy': spec['policy'],
                     'capacity': spec['capacity'],
                     'discussion_mode': spec['discussion'],
-                    'starts_on': timezone.now().date() + timedelta(days=7),
+                    'starts_on': timezone.localdate() + timedelta(days=7),
                 },
             )
             subject = self._branch_for_skill(spec['title'].split()[0])

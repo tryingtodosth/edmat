@@ -579,7 +579,13 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Polish time, by owner decision (2026-10-15: "stays poland"). This is the clock every wall-clock
+# value on the site is read in: a tutor's weekly "14:00" (booking/availability.py), a minor's night
+# shift 22:00–06:00 (shifts/rules.py), the day a flashcard falls due (flashcards/rules.py), the day
+# an analytics row is counted under (analytics/rollup.py). Stored instants are UTC in the database
+# regardless — USE_TZ — so changing this moves no booking, event or shift. There is still no
+# per-account timezone: a reader abroad sees instants drawn in their own browser's zone.
+TIME_ZONE = 'Europe/Warsaw'
 
 USE_I18N = True
 
