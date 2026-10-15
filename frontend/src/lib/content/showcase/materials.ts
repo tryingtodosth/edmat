@@ -113,8 +113,8 @@ const EN: ShowcaseModuleDoc = {
 			key: 'licences',
 			heading: 'Licences',
 			body: [
-				'Every exercise, solution, material and concept article carries one of the licences below, and the page shows it in a line near the top. Something created on the site starts as “all rights reserved”; the author can change it, but only towards more open — never back — and every change is recorded with what it was before. A change is refused once other people’s versions are part of the item.',
-				'These are the options as they exist on the site. Which one suits a piece of work is the author’s decision, and this page does not suggest one.'
+				'Every exercise, solution, material and concept article carries one of the licences below, and the page shows it in a line near the top. Unless the author picks something else, what is created on the site is “EdMat only” (all rights reserved); the author can change it, but only towards more open — never back — and every change is recorded with what it was before. A change is refused once other people’s versions are part of the item.',
+				'For your own work — an exercise with no source, a material written here — EdMat suggests CC BY 4.0, and the form pre-selects it: others may build on it as long as they name you. The choice is still the author’s, and “Licences, and what EdMat counts” explains each option.'
 			],
 			facts: [
 				{ term: 'CC0 1.0', detail: 'Public domain dedication.' },
@@ -132,9 +132,9 @@ const EN: ShowcaseModuleDoc = {
 					detail: 'Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International.'
 				},
 				{
-					term: 'All rights reserved',
+					term: 'EdMat only (all rights reserved)',
 					detail:
-						'The author keeps every right; EdMat may show it under its terms of use, § 9. The default for anything created on the site.'
+						'The author keeps every right; EdMat may show it under its terms of use, § 9. What applies when nothing else is chosen.'
 				},
 				{
 					term: 'Rights not yet clarified',
@@ -240,8 +240,8 @@ const PL: ShowcaseModuleDoc = {
 			key: 'licences',
 			heading: 'Licencje',
 			body: [
-				'Każde zadanie, rozwiązanie, materiał i artykuł o pojęciu ma jedną z licencji poniżej, a strona pokazuje ją w linii u góry. To, co powstaje w serwisie, zaczyna jako „wszelkie prawa zastrzeżone”; autor może to zmienić, ale tylko na bardziej otwartą licencję — nigdy z powrotem — a każda zmiana jest zapisywana razem z tym, co było wcześniej. Zmiana jest odrzucana, gdy w danej rzeczy są już wersje innych osób.',
-				'To są opcje w takiej postaci, w jakiej istnieją w serwisie. Która pasuje do danej pracy, decyduje autor, a ta strona żadnej nie podpowiada.'
+				'Każde zadanie, rozwiązanie, materiał i artykuł o pojęciu ma jedną z licencji poniżej, a strona pokazuje ją w linii u góry. Jeśli autor nie wybierze inaczej, to, co powstaje w serwisie, jest „Tylko EdMat” (wszelkie prawa zastrzeżone); autor może to zmienić, ale tylko na bardziej otwartą licencję — nigdy z powrotem — a każda zmiana jest zapisywana razem z tym, co było wcześniej. Zmiana jest odrzucana, gdy w danej rzeczy są już wersje innych osób.',
+				'Dla własnej pracy — zadania bez źródła, materiału napisanego tutaj — EdMat proponuje CC BY 4.0 i formularz zaznacza ją z góry: inni mogą na niej budować, jeśli wskażą Cię jako autora. Wybór nadal należy do autora, a strona „Licencje i to, co EdMat liczy” opisuje każdą z opcji.'
 			],
 			facts: [
 				{ term: 'CC0 1.0', detail: 'Przekazanie do domeny publicznej.' },
@@ -261,9 +261,9 @@ const PL: ShowcaseModuleDoc = {
 						'Creative Commons Uznanie autorstwa – Użycie niekomercyjne – Na tych samych warunkach 4.0 Międzynarodowe.'
 				},
 				{
-					term: 'Wszelkie prawa zastrzeżone',
+					term: 'Tylko EdMat (wszelkie prawa zastrzeżone)',
 					detail:
-						'Autor zachowuje wszystkie prawa; EdMat może to pokazywać na podstawie regulaminu, § 9. Domyślna dla wszystkiego, co powstaje w serwisie.'
+						'Autor zachowuje wszystkie prawa; EdMat może to pokazywać na podstawie regulaminu, § 9. Obowiązuje, gdy nie wybrano nic innego.'
 				},
 				{
 					term: 'Prawa niewyjaśnione',
