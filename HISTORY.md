@@ -16949,7 +16949,22 @@ catalogues merged as JSON three-way with no key changed on both sides (5280 = 52
   the anonymous throttle then locked the visitor out of the WHOLE site for an hour (live since
   2026-10-08; measured 262 requests in 25 s before, 1 after) — and **the branch page wider than a
   phone** (a bare `1fr` grew to the topic select's longest option). Both fixed in `a8c58c0`.
-- **A live bug found by WP11, not fixed — the owner's decision:** `settings.TIME_ZONE` is `UTC`, a
+- **WP13–WP14, from the audit's list:** the Add… menu grouped like the account menu; `/about`'s card
+  grids always end on a full row (`balanced-card-grid`); every picture in one font (Noto). WP14a:
+  `/submit/mine` (what you sent and what became of it, with the moderator's reason), `/bookings?tab=`
+  and the page called "Moje rezerwacje", the save message that said the opposite, ~30 count strings
+  made real Polish plurals, the selected slot visible on touch, Settings' identity texts sent as codes
+  and worded in both languages. WP14b: a wrapping `status-message` mixin for the 68 sentences that were
+  styled as pills, concepts below the branch page's exercises, the statement first on a phone, "Program
+  kursu", one word for a deck in Polish ("fiszki"), a one-off welcome after sign-up, and an honest
+  empty profile. Plus: a post's gallery no longer answers 500 (`is_visible` → `is_visible_to_readers()`,
+  open since 2026-10-09), and the demo school renamed "Szkoła przykładowa 42 imienia Ludwika Pasteura"
+  (owner).
+- **Owner's answers, the morning of 2026-10-15:** *"stays poland"* (→ §17CP, Polish time), the school
+  name above, *"prepare deploy for today"* (the night's interface work ships with round three), and
+  *"ask as ppl should be allowed to post in tags"* (→ §17CO). **Final full suite on the merged tree:
+  3463 tests OK.**
+- **A live bug found by WP11 — fixed by §17CP:** `settings.TIME_ZONE` is `UTC`, a
   tutor's weekly rule "14:00" becomes 14:00 UTC, and the browser draws it in its own zone — so every
   reader in Poland is offered slots two hours (summer) or one hour (winter) later than the tutor set.
   The sentences on `/about/tutoring` and in the manual that claimed otherwise now say what is true;
