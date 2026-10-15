@@ -16868,6 +16868,14 @@ manual had none, and no manual step linked to the screen it described.
   account; a group whose items are all switched off disappears with its heading; "Help & manual" in the
   menu and the drawer; the popover gained the arrow/Home/End keys its `role="menu"` promised.
 
+- **The work dashboard in the reader's language** (WP9): `/work` printed raw codes (`todo`,
+  `sole_owner`) and English-only strings built on the server (`3 due`, `1 pending`). Every provider now
+  returns a status code and a separate `count`; `work/providers.py` declares each kind's codes
+  (`STATUS_CODES`) and `StatusVocabularyTests` fails on a provider that emits anything else; the
+  frontend translates with the repo's first Paraglide plural messages ("1 karta / 3 karty / 5 kart").
+  An unknown code reads "Status unknown", never the code. Also: `about-discussions.mjs` brought in line
+  with today's `/about`, and plan step rows whose status select fell onto its own line.
+
 ### Bugs found by doing this, and where they went
 
 - **`localizedPath()` wrote the prerenderer's origin into links**: `href="http://sveltekit-prerender/
@@ -16890,8 +16898,8 @@ manual had none, and no manual step linked to the screen it described.
 Per package, each in both locales against a copy of the dev database, screenshots looked at:
 `empty-states.mjs` 273/273, `home-start.mjs` 57/57 (+ `fcp.mjs` 11/11 on a static serve),
 `showcase.mjs` 426/426 after WP5, `guide-try-links.mjs` 94/94, `guide-screenshots.mjs ONLY=contests`
-19/19, `account-menu.mjs` 82/82, `navbar-stages.mjs` 65/65. After every merge: `npm run check` 0/0, the
-catalogues merged as JSON three-way with no key changed on both sides (5260 = 5260), and
+19/19, `account-menu.mjs` 82/82, `navbar-stages.mjs` 65/65, `work-labels.mjs` 15/15, `about-discussions.mjs` 51/51; backend after the WP9 merge 894 OK. After every merge: `npm run check` 0/0, the
+catalogues merged as JSON three-way with no key changed on both sides (5280 = 5280 at the end), and
 `PUBLIC_API_BASE_URL=/api npm run build` with zero `sveltekit-prerender` links.
 
 ### Left open
