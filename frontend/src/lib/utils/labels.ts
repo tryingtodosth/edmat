@@ -49,6 +49,7 @@ import type {
 // branches in parallel. Only the refusal words: the enum labels are step B's.
 import type { ContestBlockReason } from '$lib/types/contest';
 import type { TaskBlockReason, TaskPriority, TaskStatus } from '$lib/types/task';
+import type { WorkKind } from '$lib/types/work';
 import { m } from '$lib/paraglide/messages.js';
 
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
@@ -1053,8 +1054,9 @@ export function organizationBlockLabel(reason: string): string {
 	return (ORGANIZATION_BLOCK_LABELS[reason] ?? m.orgs_blocked_generic)(); // "That did not work."
 }
 
-// work — personal work dashboard (backend/work/builtin.py mirrors this, house rule 13)
-export const WORK_KIND_LABELS: Record<string, () => string> = {
+// work — personal work dashboard. The kinds are the providers' own (`backend/work/providers.py`,
+// house rule 13: that file names this one back).
+export const WORK_KIND_LABELS: Record<WorkKind, () => string> = {
 	task: m.work_kind_task, // "Task"
 	need_application: m.work_kind_needApplication, // "Help wanted application"
 	need_decision: m.work_kind_needDecision, // "Help wanted decision"
@@ -1065,11 +1067,142 @@ export const WORK_KIND_LABELS: Record<string, () => string> = {
 	course_request: m.work_kind_courseRequest, // "Course request"
 	proposal: m.work_kind_proposal, // "Material proposal"
 	shift: m.work_kind_shift, // "Shift"
-	booking: m.work_kind_booking // "Tutoring booking"
+	booking: m.work_kind_booking, // "Tutoring booking"
+	cards_due: m.work_kind_cardsDue, // "Flashcards"
+	organization: m.workStatus_kindOrganization, // "Organisation"
+	contest_registration: m.contestLabel_workKind_registration, // "Contest entry"
+	contest_judging: m.contestLabel_workKind_judging, // "Work to score"
+	contest_complaint: m.contestLabel_workKind_complaint, // "Complaint"
+	contest_stage: m.contestLabel_workKind_stage // "Contest stage"
 };
 
 export function workKindLabel(kind: string): () => string {
-	return WORK_KIND_LABELS[kind] ?? (() => kind);
+	return WORK_KIND_LABELS[kind as WorkKind] ?? (() => kind);
+}
+
+/**
+ * Every status code a work-dashboard provider may emit, per kind — a hand-maintained mirror of
+ * `backend/work/providers.py: STATUS_CODES`, which names this file back (house rule 13: say so in
+ * BOTH files). A provider that starts emitting a new code fails `StatusVocabularyTests` on the
+ * backend until it is declared there; declaring it there means adding it here, with words.
+ */
+export const WORK_STATUS_CODES: Record<WorkKind, readonly string[]> = {
+	event: ['hosting', 'staffing', 'going'],
+	course_request: ['pending'],
+	proposal: ['pending'],
+	shift: ['offered', 'claimed', 'confirmed'],
+	booking: ['requested', 'confirmed'],
+	task: ['todo', 'in_progress', 'review'],
+	need_application: ['pending'],
+	need_decision: ['pending'],
+	plan_step: ['pending', 'in_progress'],
+	plan_suggestion: ['pending'],
+	poll: ['open'],
+	cards_due: ['due'],
+	organization: ['sole_owner'],
+	contest_registration: ['requested', 'accepted'],
+	contest_stage: ['open'],
+	contest_judging: ['waiting'],
+	contest_complaint: ['open']
+};
+
+/** The kinds whose row stands for several things and carries an int `count` — the mirror of
+ *  `providers.py: COUNTED_KINDS`. Their words are a plural message taking `{ count }`. */
+export const WORK_COUNTED_KINDS: ReadonlySet<WorkKind> = new Set<WorkKind>([
+	'course_request',
+	'proposal',
+	'need_decision',
+	'cards_due',
+	'contest_judging'
+]);
+
+// The words for each (kind, status). Where an existing label already says the right thing to the
+// person reading their own dashboard it is reused (a task's status is the task's status); where
+// the dashboard's angle differs, the words are the dashboard's own — "Going" on an event page is
+// about somebody else, on `/work` it is about you.
+const WORK_STATUS_LABELS: Record<WorkKind, Record<string, () => string>> = {
+	event: {
+		hosting: m.workStatus_event_hosting, // "You're running it"
+		staffing: m.workStatus_event_staffing, // "You're on the team"
+		going: m.workStatus_event_going // "You're going"
+	},
+	course_request: {},
+	proposal: {},
+	shift: ASSIGNMENT_STATUS_LABELS,
+	booking: {
+		requested: m.workStatus_booking_requested, // "Waiting for your answer"
+		confirmed: m.booking_status_confirmed // "Confirmed"
+	},
+	task: TASK_STATUS_LABELS,
+	need_application: {
+		pending: m.workStatus_needApplication_pending // "Waiting for an answer"
+	},
+	need_decision: {},
+	plan_step: {
+		pending: m.workStatus_planStep_pending, // "Not started yet"
+		in_progress: m.plans_stepStatus_inProgress // "In progress"
+	},
+	plan_suggestion: {
+		pending: m.workStatus_planSuggestion_pending // "Yours to decide"
+	},
+	poll: {
+		open: m.workStatus_poll_open // "Waiting for your vote"
+	},
+	cards_due: {},
+	organization: {
+		sole_owner: m.workStatus_organization_soleOwner // "You're the only owner"
+	},
+	contest_registration: {
+		requested: m.workStatus_contestRegistration_requested, // "Waiting for the organisers"
+		accepted: m.workStatus_contestRegistration_accepted // "You're taking part"
+	},
+	contest_stage: {
+		open: m.workStatus_contestStage_open // "Open — not handed in yet"
+	},
+	contest_judging: {},
+	contest_complaint: {
+		open: m.workStatus_contestComplaint_open // "Waiting for your answer"
+	}
+};
+
+// The counted kinds: one plural message per kind, each its own (kind, status) pair — a request
+// "czeka", five requests "czeka", two "czekają", which only a per-message plural can get right.
+const WORK_COUNT_LABELS: Partial<Record<WorkKind, Record<string, (count: number) => string>>> = {
+	course_request: {
+		pending: (count) => m.workStatus_courseRequest_pending({ count }) // "{count} requests waiting"
+	},
+	proposal: {
+		pending: (count) => m.workStatus_proposal_pending({ count }) // "{count} versions to review"
+	},
+	need_decision: {
+		pending: (count) => m.workStatus_needDecision_pending({ count }) // "{count} applications to decide"
+	},
+	cards_due: {
+		due: (count) => m.workStatus_cardsDue_due({ count }) // "{count} cards to review"
+	},
+	contest_judging: {
+		waiting: (count) => m.workStatus_contestJudging_waiting({ count }) // "{count} submissions to score"
+	}
+};
+
+/**
+ * The words for one work row's status, in the reader's language.
+ *
+ * **An unknown code never prints raw.** A (kind, status) this file has no words for — a provider
+ * that grew a code before this mirror did, or a kind the frontend has never heard of — reads
+ * "Status unknown" rather than `in_review` or English. That is the honest answer (house rule 10:
+ * flag it, don't fake it): we do not know what it means, and guessing from the code would put
+ * English in front of a Polish reader again, which is the bug this replaced. A counted kind that
+ * arrives without its count falls back the same way rather than saying "null cards".
+ */
+export function workStatusLabel(kind: string, status: string, count: number | null): string {
+	const k = kind as WorkKind;
+	if (WORK_COUNTED_KINDS.has(k)) {
+		const counted = WORK_COUNT_LABELS[k]?.[status];
+		return counted && typeof count === 'number' ? counted(count) : m.workStatus_unknown(); // "Status unknown"
+	}
+	const label = WORK_STATUS_LABELS[k]?.[status];
+	return label ? label() : m.workStatus_unknown(); // "Status unknown"
 }
 
 // Poll enums — a hand-maintained mirror of `decisions/models.py` and the refusal words

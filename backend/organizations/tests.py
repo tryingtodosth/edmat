@@ -552,7 +552,7 @@ class WorkProviderTests(OrganizationTestCase):
     """`work_items(user)` in the §3.F shape — the integrator registers it; this proves its shape and
     that it stays quiet when there is nothing to say."""
 
-    ITEM_KEYS = {'kind', 'title', 'url', 'due_at', 'status', 'urgency', 'node'}
+    ITEM_KEYS = {'kind', 'title', 'url', 'due_at', 'status', 'count', 'urgency', 'node'}
 
     def setUp(self):
         self.owner = make_user('ola')
@@ -577,6 +577,7 @@ class WorkProviderTests(OrganizationTestCase):
         self.assertEqual(set(items[0]), self.ITEM_KEYS)
         self.assertEqual(items[0]['kind'], 'organization')
         self.assertEqual(items[0]['status'], 'sole_owner')
+        self.assertIsNone(items[0]['count'])
         self.assertEqual(items[0]['url'], f'/organizations/{self.org.slug}/manage')
         self.assertIsNone(items[0]['due_at'])
 

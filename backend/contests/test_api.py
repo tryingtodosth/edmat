@@ -837,8 +837,10 @@ class WorkAndRecordTests(ContestApiTestCase):
         )
         stage.status = 'closed'
         stage.save()
-        kinds = {row['kind'] for row in work.work_items(self.juror)}
-        self.assertEqual(kinds, {'contest_judging'})
+        rows = work.work_items(self.juror)
+        self.assertEqual({row['kind'] for row in rows}, {'contest_judging'})
+        # A code and a number, never the English sentence `'1 waiting'` (house rule 1).
+        self.assertEqual((rows[0]['status'], rows[0]['count']), ('waiting', 1))
         from contests.models import ContestComplaint
 
         contest.results_published_at = timezone.now()

@@ -4,7 +4,12 @@
 must not import `work/` either (CONTESTS-BRIEF.md §4 rule 13 — the brief's own rule 13); step B
 registers this function in `work/builtin.py` behind the `contests` flag, with a label for each of
 the four kinds. The dict shape is `work/providers.py: ITEM_KEYS` exactly:
-`('kind', 'title', 'url', 'due_at', 'status', 'urgency', 'node')`.
+`('kind', 'title', 'url', 'due_at', 'status', 'count', 'urgency', 'node')`.
+
+`status` is a CODE from `work/providers.py: STATUS_CODES` — a registration's own status
+(`requested`/`accepted`), `open` for a stage or a complaint, `waiting` for a juror's row, whose
+number of submissions left travels separately as `count` (the frontend says "5 to score" in the
+reader's language; this module used to send the English sentence `'5 waiting'`).
 
 Four kinds, each answering a different question for a different person:
 
@@ -51,13 +56,14 @@ def _urgency(due_at) -> int:
     return 0
 
 
-def _row(kind, title, url, due_at, status, urgency, node, user):
+def _row(kind, title, url, due_at, status, urgency, node, user, count=None):
     return {
         'kind': kind,
         'title': title,
         'url': url,
         'due_at': due_at.isoformat() if due_at else None,
         'status': status,
+        'count': count,
         'urgency': urgency,
         'node': node_seam.node_ref(node, user) if node is not None else None,
     }
@@ -139,7 +145,7 @@ def work_items(user) -> list[dict]:
         items.append(_row(
             'contest_judging', f'{stage.contest.title}: {stage.title}',
             f'/contests/{stage.contest.pk}/judge', stage.closes_at,
-            f'{waiting} waiting', max(_urgency(stage.closes_at), 2), stage.contest, user,
+            'waiting', max(_urgency(stage.closes_at), 2), stage.contest, user, count=waiting,
         ))
 
     # ---- an organiser or secretary: complaints owed an answer ----------------------------------

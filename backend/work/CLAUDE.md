@@ -5,16 +5,37 @@ from every module, showing the user everything waiting on them in one place.
 
 ## The provider contract
 
-A provider is a function `(user) → list[dict]`. Each dict carries exactly seven keys
+A provider is a function `(user) → list[dict]`. Each dict carries exactly eight keys
 (`providers.ITEM_KEYS`):
 
 - `kind`: a short word ('event', 'course_request', 'proposal', 'shift', 'booking', …)
 - `title`: human-readable label
 - `url`: a FRONTEND path (e.g., '/events/12')
 - `due_at`: ISO timestamp or None
-- `status`: the row's own word ('hosting', 'pending', 'going', etc.)
+- `status`: a **CODE** from `providers.STATUS_CODES[kind]` ('hosting', 'pending', 'todo', 'due', …)
+  — never a sentence and never English
+- `count`: an int ≥ 1 for the kinds in `providers.COUNTED_KINDS` (a row standing for several
+  things: requests waiting, versions to review, applications to decide, cards ready, submissions
+  to score), else None
 - `urgency`: 0–3 (0 = none, 1 = this month, 2 = this week, 3 = overdue/today)
 - `node`: the output of `config.nodes.node_ref(node, user)` or None
+
+**Why code + count (2026-10-15).** `/work` printed `item.status` verbatim and the providers sent a
+mix of codes (`in_progress`, `sole_owner`) and preformatted English (`'3 due'`, `'2 pending'`,
+`'5 waiting'`), so a Polish reader got raw words and English — house rule 1. Now the frontend owns
+the words: `frontend/src/lib/utils/labels.ts: WORK_STATUS_CODES` / `WORK_COUNTED_KINDS` mirror the
+two declarations (house rule 13, named in both files) and `workStatusLabel(kind, status, count)`
+draws them, the counted ones as Paraglide plural messages (`workStatus_*`, the repo's first plural
+keys — `one`/`few`/`many` in Polish). **An undeclared code reads "Status unknown"**, never raw.
+**Adding a code** means: add it to `STATUS_CODES` (or the kind to `COUNTED_KINDS`), add its words in
+`labels.ts` and both catalogues. `StatusVocabularyTests` fails on a provider that emits anything
+undeclared — it builds one world with a row of every kind and holds every row to
+`providers.item_problems` — and on a declared set drifting from the model enum it was copied from.
+
+**`organizations/work.py` is written but NOT registered** — nothing in `builtin.py` or
+`integrations.py` calls `register(...)` for it, so the sole-owner row never reaches `/work`. Its
+`sole_owner` code is declared and labelled anyway, and the vocabulary test calls it directly, so it
+is right on the day somebody registers it (and adds a `work_section_organization` label).
 
 To register a provider at integration:
 
@@ -23,7 +44,7 @@ To register a provider at integration:
 from work.providers import register
 
 def work_items(user):
-    # return list of dicts, each with the seven keys above
+    # return list of dicts, each with the eight keys above
     ...
 
 register('<section_key>', '<feature_flag_key>', work_items)
@@ -78,6 +99,7 @@ The page shows a quiet line for it.
           "url": "...",
           "due_at": "...",
           "status": "hosting",
+          "count": null,
           "urgency": 2,
           "node": {...}
         }
@@ -95,6 +117,7 @@ The page shows a quiet line for it.
 - A raising provider is isolated and named in `unavailable`
 - A provider behind an off flag is skipped silently
 - Each builtin provider returns sensible rows for small fixtures
+- `StatusVocabularyTests`: no provider emits a status outside its declared code set
 
 Run: `manage.py test work config` — 10/10 (`work`) + 45/45 (`work config`), `manage.py check`,
 `makemigrations --check --dry-run` all clean as of 2026-09-24.

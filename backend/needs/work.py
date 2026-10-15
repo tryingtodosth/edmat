@@ -8,6 +8,11 @@ Two rows per person, per MANAGEMENT-BRIEF.md §3.C: their own pending applicatio
 whichever needs they manage — one row per need that has pending applications waiting, carrying the
 count rather than one row per applicant (a manager with five open postings and fifteen applicants
 gets five rows to look at, not fifteen).
+
+The item shape is `work/providers.py: ITEM_KEYS`. `status` is the CODE `pending` on both kinds; a
+`need_decision` row's number of applicants waiting travels as the int `count` (it used to be baked
+into an English `'3 pending'`, which the dashboard then printed verbatim to a Polish reader), an
+application's `count` is None.
 """
 
 from django.utils import timezone
@@ -52,6 +57,7 @@ def work_items(user) -> list[dict]:
             'url': f'/needs/{need.pk}',
             'due_at': need.deadline.isoformat() if need.deadline else None,
             'status': application.status,
+            'count': None,
             'urgency': _urgency(need.deadline),
             'node': node_seam.node_ref(node, user) if node is not None else None,
         })
@@ -74,7 +80,8 @@ def work_items(user) -> list[dict]:
             'title': need.title,
             'url': f'/needs/{need.pk}',
             'due_at': need.deadline.isoformat() if need.deadline else None,
-            'status': f'{len(applications)} pending',
+            'status': 'pending',
+            'count': len(applications),
             'urgency': max(_urgency(need.deadline), 2 if applications else 0),
             'node': node_seam.node_ref(need.node, user),
         })

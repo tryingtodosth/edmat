@@ -14,6 +14,10 @@ things to look at, and "47 cards due in Analiza I" is one thing to look at.
 `urgency` is 1 or 2, never 3: cards being due is not a deadline anybody can miss. A card waiting a
 week is still the same card, so "overdue" (3) would be a word this feature has no honest use for —
 2 marks a deck with a real backlog (`_BACKLOG`), 1 a deck with a handful.
+
+`status` is the code `due` and `count` the number of cards ready (`work/providers.py:
+STATUS_CODES`); the dashboard pluralises "3 cards to review" in the reader's language. Until
+2026-10-14 this sent the English sentence `'3 due'` as the status.
 """
 
 from . import rules
@@ -38,7 +42,8 @@ def work_items(user) -> list[dict]:
                 'url': f'/flashcards/{deck.pk}/review',
                 # A review schedule has no deadline — see the module docstring.
                 'due_at': None,
-                'status': f'{due} due',
+                'status': 'due',
+                'count': due,
                 'urgency': 2 if due >= _BACKLOG else 1,
                 # A deck may sit on several nodes or on none; a work row names one thing, so the
                 # node is deliberately omitted rather than picking one of them arbitrarily. The

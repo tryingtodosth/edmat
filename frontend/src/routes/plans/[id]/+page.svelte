@@ -799,8 +799,20 @@
 		align-items: center;
 		flex-wrap: wrap;
 		gap: var(--space-2);
+		> select {
+			flex: 0 0 auto;
+		}
 	}
+	// The title shares the select's line and wraps its OWN text, rather than wrapping as a whole
+	// box. As a plain flex item its hypothetical size was the full unbroken title, so any title
+	// longer than the room left beside the select dropped to a line of its own and left the select
+	// alone above it — six of ten rows at 1280 and every row at 390 on a seeded EdMat goal
+	// (2026-10-15). A zero basis with a floor keeps it beside the select down to 390; the date and
+	// the editor's buttons still wrap below it when there is no room.
 	.step-title {
+		flex: 1 1 0;
+		min-width: 8rem;
+		overflow-wrap: anywhere;
 		font-weight: 600;
 		&.done {
 			text-decoration: line-through;

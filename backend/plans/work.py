@@ -12,6 +12,10 @@ organisation node kinds that cannot be expressed as one SQL join. Fine at this p
 (a few hundred plans at most); `backend/plans/CLAUDE.md` says so as the thing to revisit first if
 it ever needs to be someone's `work_items` that shows up slow in `manage.py measure_moderation_queue`-
 style profiling.
+
+The item shape is `work/providers.py: ITEM_KEYS` (copied below). `status` is the step's or the
+suggestion's own code — `pending`/`in_progress` for a step, `pending` for a suggestion
+(`STATUS_CODES` there) — and `count` is None.
 """
 
 from datetime import timedelta
@@ -25,7 +29,7 @@ from .models import PlanStep, PlanSuggestion
 
 SOON_DAYS = 14
 
-ITEM_KEYS = ('kind', 'title', 'url', 'due_at', 'status', 'urgency', 'node')
+ITEM_KEYS = ('kind', 'title', 'url', 'due_at', 'status', 'count', 'urgency', 'node')
 
 
 def _urgency(due_at, now) -> int:
@@ -69,6 +73,7 @@ def work_items(user) -> list[dict]:
             'url': f'/plans/{plan.pk}',
             'due_at': step.due_at.isoformat(),
             'status': step.status,
+            'count': None,
             'urgency': _urgency(step.due_at, now),
             'node': _node_ref(plan, user),
         })
@@ -88,6 +93,7 @@ def work_items(user) -> list[dict]:
             'url': f'/plans/{plan.pk}',
             'due_at': None,
             'status': suggestion.status,
+            'count': None,
             'urgency': 0,
             'node': _node_ref(plan, user),
         })

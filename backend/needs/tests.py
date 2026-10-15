@@ -363,7 +363,9 @@ class WorkItemsTests(NeedsBaseTestCase):
         rows = work_items(self.manager)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['kind'], 'need_decision')
-        self.assertEqual(rows[0]['status'], '1 pending')
+        # A code and a number, never the English sentence `'1 pending'` (house rule 1).
+        self.assertEqual(rows[0]['status'], 'pending')
+        self.assertEqual(rows[0]['count'], 1)
 
     def test_stranger_sees_nothing(self):
         from .work import work_items

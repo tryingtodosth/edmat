@@ -12,7 +12,8 @@ from .models import Ballot, Poll
 def work_items(user):
     """Open polls the user is eligible for and has not voted in, soonest closes_at first.
 
-    Each item is a dict with keys: kind, title, url, due_at, status, urgency, node.
+    Each item is a dict with `work/providers.py: ITEM_KEYS` — kind, title, url, due_at, status,
+    count, urgency, node. `status` is always the code `open`; `count` is None.
     """
     if not (user and getattr(user, 'is_authenticated', False)):
         return []
@@ -64,6 +65,7 @@ def work_items(user):
             'url': f'/polls/{poll.id}',
             'due_at': poll.closes_at.isoformat() if poll.closes_at else None,
             'status': 'open',
+            'count': None,
             'urgency': urgency,
             'node': node,
         })

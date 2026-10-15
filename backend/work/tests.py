@@ -376,6 +376,232 @@ class ManagementIntegrationTests(TestCase):
             self.assertNotIn(key, keys)
 
 
+class StatusVocabularyTests(TestCase):
+    """**No provider emits a status outside its declared code set** (`providers.STATUS_CODES`).
+
+    `/work` used to print `item.status` verbatim, and the providers sent a mix of codes and English
+    sentences (`'3 due'`, `'2 pending'`, `'5 waiting'`) — so a Polish reader got raw words and
+    English (house rule 1). Now a status is a code the frontend has words for
+    (`labels.ts: WORK_STATUS_CODES`, the mirror), and a number is a separate `count`. This class
+    builds ONE world in which every kind any provider can yield has at least one row, collects the
+    dashboard for everybody in it, and holds every row to `providers.item_problems` — and it fails
+    if a kind went unexercised, so it cannot pass by building less than it says.
+    """
+
+    databases = set(all_log_shards()) | {'default'}
+
+    #: Section keys whose rows are of a different `kind` than the key itself. Everything else
+    #: registered is filtered to `kind == key` (`integrations._only`, `builtin._of_kind`).
+    SECTION_KINDS = {'event_hosting': 'event', 'event_attendance': 'event'}
+
+    def test_every_registered_section_declares_the_codes_of_its_kind(self):
+        for key in providers._REGISTRY:
+            with self.subTest(section=key):
+                self.assertIn(self.SECTION_KINDS.get(key, key), providers.STATUS_CODES)
+        self.assertLessEqual(providers.COUNTED_KINDS, set(providers.STATUS_CODES))
+
+    def test_the_declared_sets_follow_the_model_enums_they_were_copied_from(self):
+        """A new status in one of these enums is the first place a code would go undeclared."""
+        from contests.models import PLACE_HOLDING_STATUSES
+        from plans.models import STEP_STATUS_CHOICES
+        from shifts.models import LIVE_STATUSES
+        from tasks.models import OPEN_STATUSES
+
+        codes = providers.STATUS_CODES
+        self.assertEqual(codes['task'], OPEN_STATUSES)
+        self.assertEqual(codes['shift'], frozenset(LIVE_STATUSES))
+        self.assertEqual(
+            codes['plan_step'],
+            frozenset(value for value, _ in STEP_STATUS_CHOICES) - {'done', 'skipped'},
+        )
+        self.assertEqual(codes['contest_registration'], PLACE_HOLDING_STATUSES)
+
+    def test_no_provider_emits_an_undeclared_status(self):
+        for key in {flag for flag, _ in providers._REGISTRY.values()}:
+            FeatureFlag.objects.update_or_create(key=key, defaults={'is_enabled': True})
+        world = _build_every_kind()
+        seen = {}
+        for phase, users in world['phases']:
+            phase()
+            for user in users:
+                rows = [item for s in providers.collect(user)['sections'] for item in s['items']]
+                # `organizations/work.py` is written but not registered (work/CLAUDE.md) — held to
+                # the same contract directly, so it is right on the day somebody registers it.
+                from organizations.work import work_items as organization_items
+
+                rows += organization_items(user)
+                for item in rows:
+                    seen.setdefault(item['kind'], set()).add(item['status'])
+                    with self.subTest(kind=item['kind'], status=item['status']):
+                        self.assertEqual(providers.item_problems(item), [])
+        self.assertEqual(set(seen), set(providers.STATUS_CODES), 'a kind went unexercised')
+        self.assertEqual(seen['event'], {'hosting', 'staffing', 'going'})
+
+
+def _build_every_kind():
+    """A world with at least one row of every kind, and the phases to look at it in.
+
+    Most rows exist at once; a contest needs three moments (a stage open for the entrant, the same
+    stage closed for the juror, results published for the secretary), so `phases` is a list of
+    (step, users to collect for) — each step moves the world on.
+    """
+    from booking.models import Booking
+    from coauthoring.models import MaterialProject, MaterialVersion
+    from contests import rules as contest_rules
+    from contests.models import (
+        Contest, ContestComplaint, ContestProblem, ContestRegistration, ContestRulesSection,
+        ContestStaff, ContestStage, ContestSubmission,
+    )
+    from courses.models import Course, Enrollment
+    from decisions.models import Poll, PollOption
+    from django.contrib.contenttypes.models import ContentType
+    from events.models import Event, EventAttendance, EventStaff
+    from exercises.models import ExerciseTranslation
+    from flashcards.models import Card, Deck
+    from needs.models import Need, NeedApplication
+    from organizations.models import OrganizationMember
+    from organizations.services import found
+    from plans.models import Plan, PlanStep, PlanSuggestion
+    from services.models import Service
+    from shifts.models import Assignment, Shift, Station
+    from tasks.models import Task, TaskAssignee
+    from testing.factories import make_exercise
+
+    now = timezone.now()
+    soon = now + timedelta(days=3)
+    me = make_user('vocab-me')
+    other = make_user('vocab-other')
+    student = make_user('vocab-student')
+
+    def event(host, title):
+        return Event.objects.create(
+            host=host, title=title, status='published', visibility='public',
+            starts_at=soon, duration_minutes=60,
+        )
+
+    # events: hosting, staffing, going
+    mine = event(me, 'Vocab hosted')
+    staffed = event(other, 'Vocab staffed')
+    EventStaff.objects.create(event=staffed, user=me, role='volunteer')
+    EventAttendance.objects.create(event=event(other, 'Vocab attended'), attendee=me)
+
+    # a course with a request waiting
+    course = Course.objects.create(title='Vocab course', instructor=me, visibility='public')
+    Enrollment.objects.create(course=course, participant=student, status='pending')
+
+    # a material proposal
+    branch = make_branch('vocab-branch')
+    project = MaterialProject.objects.create(branch=branch, created_by=me)
+    MaterialVersion.objects.create(
+        project=project, number=1, kind='body', body='x', title='Vocab version',
+        status='proposed', created_by=me,
+    )
+
+    # a shift and a booking
+    station = Station.objects.create(event=mine, name='Vocab desk')
+    shift = Shift.objects.create(station=station, starts_at=soon, ends_at=soon + timedelta(hours=1))
+    Assignment.objects.create(shift=shift, user=me, status='claimed')
+    service = Service.objects.create(provider=me, title='Vocab tutoring')
+    Booking.objects.create(
+        service=service, tutor=me, student=student, starts_at=soon,
+        ends_at=soon + timedelta(hours=1), status='requested',
+    )
+
+    # a task in each open status
+    event_ct = ContentType.objects.get_for_model(Event)
+    for task_status in ('todo', 'in_progress'):
+        task = Task.objects.create(
+            content_type=event_ct, object_id=mine.pk, title=f'Vocab {task_status}',
+            created_by=me, status=task_status,
+        )
+        TaskAssignee.objects.create(task=task, user=me, assigned_by=me)
+    EventStaff.objects.create(event=mine, user=other, role='volunteer')
+    in_review = Task.objects.create(
+        content_type=event_ct, object_id=mine.pk, title='Vocab review', created_by=me,
+        status='review',
+    )
+    TaskAssignee.objects.create(task=in_review, user=other, assigned_by=me)
+
+    # a need: the student applied (their row), I decide (mine)
+    course_ct = ContentType.objects.get_for_model(Course)
+    need = Need.objects.create(
+        content_type=course_ct, object_id=course.pk, title='Vocab need', created_by=me,
+    )
+    NeedApplication.objects.create(need=need, user=student)
+
+    # a plan with a due step and a suggestion
+    plan = Plan.objects.create(
+        content_type=course_ct, object_id=course.pk, title='Vocab plan', status='active',
+        created_by=me,
+    )
+    PlanStep.objects.create(plan=plan, title='Vocab step', due_at=soon, status='in_progress')
+    PlanSuggestion.objects.create(plan=plan, user=student, text='Vocab suggestion')
+
+    # an open poll for the course's staff
+    poll = Poll.objects.create(
+        content_type=course_ct, object_id=course.pk, question='Vocab poll?', status='open',
+        eligibility='staff', created_by=me,
+    )
+    PollOption.objects.create(poll=poll, text='Yes', order=0)
+
+    # cards ready in a deck of mine
+    deck = Deck.objects.create(owner=me, name='Vocab deck')
+    Card.objects.create(deck=deck, order=0, exercise=make_exercise(branch, 9901))
+
+    # an organisation of which I am the only owner, with somebody relying on me
+    organization = found(creator=me, name='Vocab society')
+    OrganizationMember.objects.create(organization=organization, user=other, role='member')
+
+    # a contest: the student enters, I judge, `other` is the secretary
+    organiser = make_user('vocab-organiser')
+    contest = Contest.objects.create(
+        title='Vocab contest', organiser=organiser, preset_key='school', allows_minors=True,
+        merit_criteria='5 pkt.', data_controller_name='Szkoła',
+        data_controller_contact='szkola@example.org', starts_at=now,
+        ends_at=now + timedelta(days=20),
+    )
+    ContestStaff.objects.create(contest=contest, user=me, role='jury')
+    ContestStaff.objects.create(contest=contest, user=other, role='secretary')
+    ContestRulesSection.objects.create(contest=contest, key='organiser', body='Organizator.')
+    contest_rules.publish_rules(contest, actor=organiser)
+    contest.refresh_from_db()
+    contest_rules.transition(contest, 'announced', actor=organiser)
+    contest_rules.transition(contest, 'registration_open', actor=organiser)
+    contest.refresh_from_db()
+    stage = ContestStage.objects.create(
+        contest=contest, order=0, key='round', title='Etap I', advancement='final',
+        opens_at=now, closes_at=now + timedelta(days=7), status='open',
+    )
+    exercise = make_exercise(branch, 9902)
+    ExerciseTranslation.objects.filter(exercise=exercise).update(status='published')
+    ContestProblem.objects.create(stage=stage, exercise=exercise, order=0, points=5)
+    registration = ContestRegistration.objects.create(
+        contest=contest, user=student, status='accepted'
+    )
+
+    def nothing():
+        pass
+
+    def close_the_stage():
+        ContestSubmission.objects.create(stage=stage, registration=registration, status='submitted')
+        stage.status = 'closed'
+        stage.save()
+
+    def publish_results():
+        contest.results_published_at = timezone.now()
+        contest.status = 'results_published'
+        contest.save()
+        ContestComplaint.objects.create(contest=contest, registration=registration, text='Uwaga.')
+
+    return {
+        'phases': [
+            (nothing, [me, other, student]),
+            (close_the_stage, [me]),
+            (publish_results, [other]),
+        ],
+    }
+
+
 class EdmatProjectSeedTests(APITestCase):
     """`seed_edmat_project` (work/edmat_project.py) — that it founds the body with its owner, the
     goals, the association's phases, the tasks, needs, polls, the two research accounts and the

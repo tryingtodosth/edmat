@@ -360,7 +360,16 @@ count. Tokens from `manage.py shell` (trap 30), falling back to the form. On `/a
 folded, so the script clicks `[data-task-row=<id>]` first and finds the discussion line inside
 `.modal-panel` — with `.first()`, because the card draws its subtasks as nested `article.task`s.
 
-**Browser: `frontend/e2e/about-discussions.mjs`** — 35 checks, zero console errors (31 until 2026-10-06; closing step E added the held-count link and the clean-up re-query, and made the count assertion exact).
+**Browser: `frontend/e2e/about-discussions.mjs`** — 51 checks, zero console errors (35 until 2026-10-15, when it was rewritten for what `/about` draws now; 31 until 2026-10-06; closing step E added the held-count link and the clean-up re-query, and made the count assertion exact).
+
+**Rewritten 2026-10-15 (WP9).** Since `/about` became the EdMat organisation's page it keeps ONE
+location of its own, `about#money-and-openness` (the research thread's), and the script had gone on
+driving the brochure's `mission`/`origin`/`features`/`closing` — "collapsed lines… found 2" and then
+a timeout. It now plays every policy on that one location in turn (`anyone` → `users` → `verified`
+→ switched off), reads the location's original policy first and **puts it back at the end, and on
+an abort**, and scopes its `/about` counts to `article.about` — the second collapsed line on the
+page is the organisation description's row discussion, which `management-discussions.mjs` owns. The
+four module showcase pages' checks run first, unchanged.
 
 ```bash
 cd backend && ../.venv/bin/python3 manage.py migrate   # trap 23: the tables are new
@@ -1950,6 +1959,22 @@ state instead. Zero console/page errors is part of the pass condition. Two scree
 ```sh
 cd backend && ../.venv/bin/python3 manage.py test work config
 cd frontend && E2E_BASE=http://localhost:5226 E2E_API=http://127.0.0.1:8126 node e2e/work.mjs
+```
+
+**`frontend/e2e/work-labels.mjs` (15 checks, 2026-10-15, WP9)** — `/work` speaks the reader's
+language. Against Kasia's real dashboard (`E2E_TOKEN` skips the throttled sign-in, trap 30): the API
+sends a status CODE and a separate int `count` (never `'3 due'`), and in BOTH locales every status
+pill is the catalogue's own words for its (kind, code, count) — the expected text is computed from
+`messages/<locale>.json` with `Intl.PluralRules`, so the Polish plural forms are checked, not just
+"non-empty"; an undeclared code and a count-less counted row (injected by intercepting `/api/work/`)
+read "Status unknown"/"Status nieznany", never raw; no horizontal scroll at 390. Screenshots
+`e2e/screens/work-labels-{pl,en}-{1280,390}.png`. The backend half is
+`work.tests.StatusVocabularyTests`: one world with a row of every one of the 17 kinds, every row held
+to `providers.item_problems` (declared code, count exactly where `COUNTED_KINDS` says), plus a drift
+check of the declared sets against the model enums they were copied from.
+
+```sh
+cd frontend && E2E_BASE=http://localhost:5206 E2E_API=http://127.0.0.1:8056 E2E_TOKEN=<kasia> node e2e/work-labels.mjs
 ```
 
 The per-SECTION empty state (`work_section_empty` in `+page.svelte`) is not exercised — the backend

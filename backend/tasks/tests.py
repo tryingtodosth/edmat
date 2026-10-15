@@ -458,8 +458,11 @@ class WorkProviderTests(TaskTestCase):
         items = work.work_items(self.helper)
         self.assertEqual(len(items), 1)
         self.assertEqual(
-            set(items[0]), {'kind', 'title', 'url', 'due_at', 'status', 'urgency', 'node'}
+            set(items[0]),
+            {'kind', 'title', 'url', 'due_at', 'status', 'count', 'urgency', 'node'},
         )
+        self.assertEqual(items[0]['status'], 'todo')
+        self.assertIsNone(items[0]['count'])
         self.assertEqual(items[0]['kind'], 'task')
         self.assertEqual(items[0]['url'], f'/tasks/{self.task.pk}')
         self.assertEqual(items[0]['node']['kind'], 'event')

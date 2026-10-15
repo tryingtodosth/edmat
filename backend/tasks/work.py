@@ -13,6 +13,9 @@ The node-staff check runs in Python over one account's own rows, for the reason 
 a `GenericForeignKey` across three rosters has no SQL join. A provider that raises is reported in
 the dashboard's `unavailable` rather than being fatal (§3.F), so this one being slow or wrong
 degrades one section of one page.
+
+The item shape is `work/providers.py: ITEM_KEYS`; `status` is the task's own code (one of
+`OPEN_STATUSES`, which `STATUS_CODES['task']` mirrors) and `count` is None.
 """
 
 from datetime import timedelta
@@ -52,6 +55,7 @@ def _item(task, user):
         'url': f'/tasks/{task.pk}',
         'due_at': task.due_at.isoformat() if task.due_at else None,
         'status': task.status,
+        'count': None,
         'urgency': urgency_of(task.due_at),
         'node': nodes.node_ref(node, user) if node is not None else None,
     }

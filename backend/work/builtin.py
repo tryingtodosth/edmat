@@ -12,6 +12,11 @@ and complaint models they are counted from, and the registration is here because
 import `work` (`prompts/README.md` §5 rule 13 — a step ships a module, the other side wires it).
 On B's own branch that function returns `[]`, which is the honest answer for a model with no
 registrations: the section simply never appears, because `collect()` drops an empty one.
+
+**Status is a code, count is separate** (2026-10-14): every row's `status` is one of
+`providers.STATUS_CODES[kind]` and a row standing for several things carries the number as an int
+`count` — `{'status': 'pending', 'count': 2}`, never the English `'2 pending'` these providers
+used to send and `/work` used to print verbatim to a Polish reader.
 """
 
 from django.utils import timezone
@@ -70,6 +75,7 @@ def _events_hosting_or_staffing(user):
             'url': f'/events/{event.pk}',
             'due_at': event.starts_at.isoformat() if event.starts_at else None,
             'status': status,
+            'count': None,
             'urgency': urgency,
             'node': node,
         })
@@ -105,6 +111,7 @@ def _events_attending(user):
             'url': f'/events/{event.pk}',
             'due_at': event.starts_at.isoformat() if event.starts_at else None,
             'status': 'going',
+            'count': None,
             'urgency': urgency,
             'node': node,
         })
@@ -141,7 +148,8 @@ def _course_requests_waiting(user):
                 'title': course.title,
                 'url': f'/courses/{course.pk}',
                 'due_at': None,
-                'status': f'{pending_count} pending',
+                'status': 'pending',
+                'count': pending_count,
                 'urgency': 1,  # This month
                 'node': node,
             })
@@ -183,7 +191,8 @@ def _coauth_pending_versions(user):
                 'title': title,
                 'url': f'/material-projects/{project.pk}',
                 'due_at': None,
-                'status': f'{pending_versions} pending',
+                'status': 'pending',
+                'count': pending_versions,
                 'urgency': 1,  # This month
                 'node': None,  # Projects don't map to a single node
             })
@@ -229,6 +238,7 @@ def _shifts_upcoming(user):
             'url': f'/events/{event.pk}' if event else '/',
             'due_at': shift.starts_at.isoformat() if shift.starts_at else None,
             'status': assignment.status,
+            'count': None,
             'urgency': urgency,
             'node': node,
         })
@@ -275,6 +285,7 @@ def _tutoring_bookings(user):
             'url': f'/bookings/{booking.pk}',
             'due_at': booking.starts_at.isoformat() if booking.starts_at else None,
             'status': booking.status,
+            'count': None,
             'urgency': urgency,
             'node': None,  # Tutoring is personal, not tied to a course/event
         })

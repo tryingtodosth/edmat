@@ -38,8 +38,16 @@ function mapNode(raw: any): NodeRef | null {
 	};
 }
 
+/** `status` stays a code (the page draws it through `workStatusLabel`); `count` is an int for a
+ *  row that stands for several things and null otherwise — coerced here so that a provider which
+ *  leaves it out reads as "no count" rather than `undefined` reaching a plural message. */
 function mapItem(raw: any): WorkItem {
-	return { ...raw, node: mapNode(raw.node) };
+	return {
+		...raw,
+		status: String(raw.status ?? ''),
+		count: typeof raw.count === 'number' ? raw.count : null,
+		node: mapNode(raw.node)
+	};
 }
 
 /**

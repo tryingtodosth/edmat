@@ -5258,5 +5258,70 @@
 	"startHere_tryLink": "Just try it: pick a discipline",
 	"startHere_hide": "Hide these suggestions",
 	"startHere_footerManual": "Manual",
-	"startHere_mySetLoading": "Loading the exercises in your set…"
+	"startHere_mySetLoading": "Loading the exercises in your set…",
+	"workStatus_unknown": "Status unknown",
+	"workStatus_kindOrganization": "Organisation",
+	"workStatus_event_hosting": "You're running it",
+	"workStatus_event_staffing": "You're on the team",
+	"workStatus_event_going": "You're going",
+	"workStatus_courseRequest_pending": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} request waiting",
+				"countPlural=*": "{count} requests waiting"
+			}
+		}
+	],
+	"workStatus_proposal_pending": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} version to review",
+				"countPlural=*": "{count} versions to review"
+			}
+		}
+	],
+	"workStatus_booking_requested": "Waiting for your answer",
+	"workStatus_needApplication_pending": "Waiting for an answer",
+	"workStatus_needDecision_pending": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} application to decide",
+				"countPlural=*": "{count} applications to decide"
+			}
+		}
+	],
+	"workStatus_planStep_pending": "Not started yet",
+	"workStatus_planSuggestion_pending": "Yours to decide",
+	"workStatus_poll_open": "Waiting for your vote",
+	"workStatus_cardsDue_due": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} card to review",
+				"countPlural=*": "{count} cards to review"
+			}
+		}
+	],
+	"workStatus_organization_soleOwner": "You're the only owner",
+	"workStatus_contestRegistration_requested": "Waiting for the organisers",
+	"workStatus_contestRegistration_accepted": "You're taking part",
+	"workStatus_contestStage_open": "Open — not handed in yet",
+	"workStatus_contestJudging_waiting": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} submission to score",
+				"countPlural=*": "{count} submissions to score"
+			}
+		}
+	],
+	"workStatus_contestComplaint_open": "Waiting for your answer"
 }

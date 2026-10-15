@@ -7,6 +7,7 @@
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import UrgencyDot from '$lib/components/UrgencyDot.svelte';
 	import { formatDateTime } from '$lib/utils/datetime';
+	import { workKindLabel, workStatusLabel } from '$lib/utils/labels';
 
 	// `NodeRef.kind` is the backend's short word (`config/nodes.py: NODE_KINDS` — 'course', 'event',
 	// 'material', 'organization'), singular; every one of their frontend routes is plural. Building
@@ -45,25 +46,10 @@
 		contest_stage: () => m.contestLabel_workSection_stage() // "Contest stages coming up"
 	};
 
-	// Map of kind to label functions
-	const kindLabels: Record<string, () => string> = {
-		task: () => m.work_kind_task(), // "Task"
-		need_application: () => m.work_kind_needApplication(), // "Help wanted application"
-		need_decision: () => m.work_kind_needDecision(), // "Help wanted decision"
-		plan_step: () => m.work_kind_planStep(), // "Plan step"
-		plan_suggestion: () => m.work_kind_planSuggestion(), // "Plan suggestion"
-		poll: () => m.work_kind_poll(), // "Poll"
-		event: () => m.work_kind_event(), // "Event"
-		course_request: () => m.work_kind_courseRequest(), // "Course request"
-		proposal: () => m.work_kind_proposal(), // "Material proposal"
-		shift: () => m.work_kind_shift(), // "Shift"
-		booking: () => m.work_kind_booking(), // "Tutoring booking"
-		cards_due: () => m.work_kind_cardsDue(), // "Flashcards"
-		contest_registration: () => m.contestLabel_workKind_registration(), // "Contest entry"
-		contest_judging: () => m.contestLabel_workKind_judging(), // "Work to score"
-		contest_complaint: () => m.contestLabel_workKind_complaint(), // "Complaint"
-		contest_stage: () => m.contestLabel_workKind_stage() // "Contest stage"
-	};
+	// The kind's and the status's words both live in `utils/labels.ts` (`WORK_KIND_LABELS`,
+	// `workStatusLabel`), beside the mirror of the backend's declared status codes. `item.status`
+	// is a CODE — never print it as-is: that put `in_progress` and the English `3 due` in front of
+	// Polish readers until 2026-10-14.
 
 	onMount(async () => {
 		try {
@@ -84,7 +70,7 @@
 	}
 
 	function getKindLabel(kind: string): string {
-		return kindLabels[kind]?.() || kind;
+		return workKindLabel(kind)();
 	}
 </script>
 
@@ -118,7 +104,7 @@
 						{:else}
 							<ul class="items">
 								<!-- Keyed by url AND title, not by url alone (2026-10-09). A work item has no id of
-								     its own — the §3.F shape is seven keys and none of them is one — and
+								     its own — the §3.F shape is eight keys and none of them is one — and
 								     several rows legitimately share a url: every due step of one plan links to
 								     `/plans/28`, which is `each_key_duplicate` and a page that renders nothing.
 								     It was always possible and the contests preset, whose plan has eleven dated
@@ -126,7 +112,7 @@
 								     a change to every provider; `todo.md` carries it. -->
 								{#each section.items as item (item.url + '|' + item.title)}
 									<li class="work-item">
-										<div class="item-card" data-urgency={item.urgency}>
+										<div class="item-card" data-urgency={item.urgency} data-kind={item.kind}>
 											<button
 												type="button"
 												class="item-button"
@@ -145,7 +131,9 @@
 														</span>
 													{/if}
 													{#if item.status}
-														<span class="item-status">{item.status}</span>
+														<span class="item-status" data-status={item.status}>
+															{workStatusLabel(item.kind, item.status, item.count)}
+														</span>
 													{/if}
 												</div>
 											</button>
@@ -174,7 +162,8 @@
 			{#if dashboard.unavailable.length > 0}
 				<div class="unavailable-notice">
 					<p>
-						{m.work_unavailable_notice()}: {dashboard.unavailable.join(', ')}
+						<!-- Section labels, not the raw provider keys this used to join. -->
+						{m.work_unavailable_notice()}: {dashboard.unavailable.map(getSectionLabel).join(', ')}
 					</p>
 				</div>
 			{/if}

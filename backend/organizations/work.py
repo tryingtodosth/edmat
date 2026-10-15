@@ -2,7 +2,10 @@
 
 One function, `work_items(user)`, returning a list of dicts in the `work/providers.py` shape:
 
-    ('kind', 'title', 'url', 'due_at', 'status', 'urgency', 'node')
+    ('kind', 'title', 'url', 'due_at', 'status', 'count', 'urgency', 'node')
+
+`status` is always the code `sole_owner` and `count` is always None (`work/providers.py:
+STATUS_CODES` declares both; the frontend owns the words).
 
 The integrator registers it — step F may not import this app and this app may not edit `work/`
 (§4 rule 13), so the two halves meet at this signature and nowhere else.
@@ -62,6 +65,7 @@ def work_items(user) -> list[dict]:
                 'url': f'/organizations/{organization.slug}/manage',
                 'due_at': None,
                 'status': 'sole_owner',
+                'count': None,
                 'urgency': 1,
                 'node': {
                     'kind': 'organization',

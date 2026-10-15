@@ -792,7 +792,9 @@ class ProviderTests(FlashcardsTestCase):
         items = work.work_items(self.owner)
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]['kind'], 'cards_due')
-        self.assertEqual(items[0]['status'], '2 due')
+        # A code and a number, never the English sentence `'2 due'` (house rule 1).
+        self.assertEqual(items[0]['status'], 'due')
+        self.assertEqual(items[0]['count'], 2)
         self.assertEqual(items[0]['url'], f'/flashcards/{self.deck.pk}/review')
         self.assertIsNone(items[0]['due_at'])
 

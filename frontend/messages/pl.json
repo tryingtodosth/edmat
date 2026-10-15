@@ -5258,5 +5258,80 @@
 	"startHere_tryLink": "Po prostu wybierz dziedzinę",
 	"startHere_hide": "Ukryj te podpowiedzi",
 	"startHere_footerManual": "Podręcznik",
-	"startHere_mySetLoading": "Wczytujemy zadania z Twojego zestawu…"
+	"startHere_mySetLoading": "Wczytujemy zadania z Twojego zestawu…",
+	"workStatus_unknown": "Status nieznany",
+	"workStatus_kindOrganization": "Organizacja",
+	"workStatus_event_hosting": "Prowadzisz",
+	"workStatus_event_staffing": "Jesteś w zespole",
+	"workStatus_event_going": "Bierzesz udział",
+	"workStatus_courseRequest_pending": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} prośba czeka",
+				"countPlural=few": "{count} prośby czekają",
+				"countPlural=many": "{count} próśb czeka",
+				"countPlural=*": "{count} prośby czekają"
+			}
+		}
+	],
+	"workStatus_proposal_pending": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} wersja do przejrzenia",
+				"countPlural=few": "{count} wersje do przejrzenia",
+				"countPlural=many": "{count} wersji do przejrzenia",
+				"countPlural=*": "{count} wersje do przejrzenia"
+			}
+		}
+	],
+	"workStatus_booking_requested": "Czeka na Twoją odpowiedź",
+	"workStatus_needApplication_pending": "Czeka na odpowiedź",
+	"workStatus_needDecision_pending": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} zgłoszenie czeka na decyzję",
+				"countPlural=few": "{count} zgłoszenia czekają na decyzję",
+				"countPlural=many": "{count} zgłoszeń czeka na decyzję",
+				"countPlural=*": "{count} zgłoszenia czekają na decyzję"
+			}
+		}
+	],
+	"workStatus_planStep_pending": "Jeszcze nierozpoczęty",
+	"workStatus_planSuggestion_pending": "Do Twojej decyzji",
+	"workStatus_poll_open": "Czeka na Twój głos",
+	"workStatus_cardsDue_due": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} karta do powtórki",
+				"countPlural=few": "{count} karty do powtórki",
+				"countPlural=many": "{count} kart do powtórki",
+				"countPlural=*": "{count} karty do powtórki"
+			}
+		}
+	],
+	"workStatus_organization_soleOwner": "Tylko Ty tu zarządzasz",
+	"workStatus_contestRegistration_requested": "Czeka na decyzję organizatorów",
+	"workStatus_contestRegistration_accepted": "Bierzesz udział",
+	"workStatus_contestStage_open": "Otwarty — praca jeszcze nieoddana",
+	"workStatus_contestJudging_waiting": [
+		{
+			"declarations": ["input count", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} praca do oceny",
+				"countPlural=few": "{count} prace do oceny",
+				"countPlural=many": "{count} prac do oceny",
+				"countPlural=*": "{count} prace do oceny"
+			}
+		}
+	],
+	"workStatus_contestComplaint_open": "Czeka na Twoją odpowiedź"
 }

@@ -16,16 +16,86 @@ from moderation.services import is_feature_enabled
 logger = logging.getLogger(__name__)
 
 # The keys a provider's dict must carry. Every item from every provider has the same shape.
-ITEM_KEYS = ('kind', 'title', 'url', 'due_at', 'status', 'urgency', 'node')
+ITEM_KEYS = ('kind', 'title', 'url', 'due_at', 'status', 'count', 'urgency', 'node')
 
 # kind: a short word the frontend has a label for
 # ('task', 'need_application', 'need_decision', 'plan_step', 'plan_suggestion', 'poll',
-#  'event', 'course_request', 'proposal', 'shift', 'booking')
+#  'event', 'course_request', 'proposal', 'shift', 'booking', 'cards_due', 'organization',
+#  'contest_registration', 'contest_stage', 'contest_judging', 'contest_complaint')
 #
 # url: a FRONTEND path ('/events/12'); due_at: ISO string or None
-# status: the row's own word ('going', 'pending', 'overdue', etc.)
+# status: a CODE from `STATUS_CODES[kind]` below — never a sentence, never English. The frontend
+#         turns (kind, status, count) into words in the reader's language.
+# count: an int where the row stands for several things ('3 cards due', '2 requests waiting'),
+#        else None. Only the kinds in `COUNTED_KINDS` carry one.
 # urgency: 0 none, 1 this month, 2 this week, 3 overdue/today
 # node: config.nodes.node_ref(...) or None
+
+
+#: Every status code a provider may emit, per kind. **Mirrored in
+#: `frontend/src/lib/utils/labels.ts: WORK_STATUS_CODES`** (house rule 13 — say so in both files),
+#: which is where each (kind, code) gets its words; a code missing there prints a neutral "status
+#: unknown" rather than the raw word, so the two drifting is ugly but never English-only.
+#: `StatusVocabularyTests` (work/tests.py) fails when a provider emits anything not listed here,
+#: and when a set below stops matching the model enum it was copied from.
+#:
+#: Where a set is a slice of a model's own enum the source is named, because that is where a new
+#: status would appear first:
+STATUS_CODES = {
+    # work/builtin.py
+    'event': frozenset({'hosting', 'staffing', 'going'}),
+    'course_request': frozenset({'pending'}),
+    'proposal': frozenset({'pending'}),
+    'shift': frozenset({'offered', 'claimed', 'confirmed'}),  # shifts.models.LIVE_STATUSES
+    'booking': frozenset({'requested', 'confirmed'}),  # builtin._tutoring_bookings' own filter
+    # tasks/work.py — tasks.models.OPEN_STATUSES
+    'task': frozenset({'todo', 'in_progress', 'review'}),
+    # needs/work.py
+    'need_application': frozenset({'pending'}),
+    'need_decision': frozenset({'pending'}),
+    # plans/work.py — STEP_STATUS_CHOICES minus the two finished ones it excludes
+    'plan_step': frozenset({'pending', 'in_progress'}),
+    'plan_suggestion': frozenset({'pending'}),
+    # decisions/work.py
+    'poll': frozenset({'open'}),
+    # flashcards/work.py
+    'cards_due': frozenset({'due'}),
+    # organizations/work.py (written, not registered — see work/CLAUDE.md)
+    'organization': frozenset({'sole_owner'}),
+    # contests/work.py — a registration is contests.models.PLACE_HOLDING_STATUSES
+    'contest_registration': frozenset({'requested', 'accepted'}),
+    'contest_stage': frozenset({'open'}),
+    'contest_judging': frozenset({'waiting'}),
+    'contest_complaint': frozenset({'open'}),
+}
+
+#: The kinds whose row stands for several things and so carries an int `count` (>= 1). Every other
+#: kind sends `count: None`. Mirrored in `labels.ts` alongside `WORK_STATUS_CODES`.
+COUNTED_KINDS = frozenset({'course_request', 'proposal', 'need_decision', 'cards_due', 'contest_judging'})
+
+
+def item_problems(item) -> list[str]:
+    """Everything wrong with one item's shape, as sentences — empty when it is well-formed.
+
+    The tests' single check, and a reader's: the item shape is a contract between eight apps and
+    one page, and this is the contract written as code.
+    """
+    problems = []
+    if set(item) != set(ITEM_KEYS):
+        problems.append(f'keys {sorted(item)} are not {sorted(ITEM_KEYS)}')
+    kind = item.get('kind')
+    codes = STATUS_CODES.get(kind)
+    if codes is None:
+        problems.append(f'kind {kind!r} declares no status codes')
+    elif item.get('status') not in codes:
+        problems.append(f'{kind}: status {item.get("status")!r} is not one of {sorted(codes)}')
+    count = item.get('count')
+    if kind in COUNTED_KINDS:
+        if not (isinstance(count, int) and not isinstance(count, bool) and count >= 1):
+            problems.append(f'{kind}: count {count!r} should be a positive int')
+    elif count is not None:
+        problems.append(f'{kind}: count {count!r} should be None')
+    return problems
 
 
 # Registry: key -> (flag_key, provider_function)

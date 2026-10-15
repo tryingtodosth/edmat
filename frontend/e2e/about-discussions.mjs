@@ -2,16 +2,26 @@
 //
 // Run: E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 node e2e/about-discussions.mjs
 //
-// What it drives, in the order a reader would meet it: the collapsed line is there and the thread
-// is NOT loaded until it is clicked (asserted on the network, not on the DOM); a signed-in comment
-// appears at once; a location set to `anyone` offers a visitor a composer and a name field and
-// holds what they write; a location set to `verified` shows a signed-in-but-unverified reader the
-// right sentence rather than a form; and the whole surface disappears when the flag goes off
-// (house rule 3).
+// **What `/about` draws now** (rewritten 2026-10-15). Since `/about` became the EdMat
+// organisation's page (owner, 2026-10-07/08) it keeps exactly ONE location of its own from the old
+// brochure: `about#money-and-openness`, the section the research thread is seeded under
+// (`work/edmat_research_thread.json`). The brochure's `mission` / `origin` / `features` / `closing`
+// keys are no longer drawn, and this script used to drive all four — it failed on "collapsed
+// lines… found 2" and then timed out waiting for a third. The second line it found is NOT an
+// `/about` location: it is the organisation description's own row discussion
+// (`OrganizationPage` → `RowDiscussion`), which `e2e/management-discussions.mjs` covers; the
+// `/about` checks below are scoped to `article.about` so they count the page's own sections only.
 //
-// It resets its own locations through the real API at the start, because `e2e/CLAUDE.md` trap 1
-// says a script that needs mutable state must — and it CLEARS UP AFTER ITSELF at the end, which
-// is what lets the collapsed line's count be asserted exactly rather than as ">= 1". The two
+// One location therefore plays every policy in turn, set through the real API between phases:
+// `anyone` (a visitor gets a composer and a name field, and what they write is held), `users` (a
+// signed-in comment appears, and the collapsed line carries the exact count), `verified` (a
+// signed-in-but-unverified reader gets the right sentence rather than a form), and switched off
+// (no affordance at all). Then the whole surface disappears when the flag goes off (house rule 3).
+//
+// The location's ORIGINAL policy is read first and put back at the end, even when a check throws
+// — it is the real research thread's location, not a scratch one (`e2e/CLAUDE.md` trap 1: a
+// script that needs mutable state sets it, and this one also restores it). It CLEARS UP AFTER
+// ITSELF too, which is what lets the count be asserted exactly rather than as ">= 1": the two
 // comments it writes are removed the two ways this platform actually has (house rule 12 forbids a
 // hard delete and no endpoint was added for one): the signed-in one by its own author
 // (`DELETE /api/comments/{id}/`, a tombstone), the anonymous one — which was HELD and so was never
@@ -83,72 +93,70 @@ async function setFlag(on) {
 }
 await setFlag(true);
 
-async function locationFor(page, section, settings) {
+console.log('\n== the one /about location, through the API ==');
+const SECTION = 'money-and-openness';
+const KEY = `about#${SECTION}`;
+
+async function findLocation() {
 	const existing = await api('/discussion-locations/', { tok: staffToken });
-	const row = (existing.body ?? []).find((r) => r.page === page && r.section === section);
-	if (row) {
-		return (
-			await api(`/discussion-locations/${row.id}/`, {
-				method: 'PATCH',
-				body: settings,
-				tok: staffToken
-			})
-		).body;
-	}
+	return (existing.body ?? []).find((r) => r.page === 'about' && r.section === SECTION) ?? null;
+}
+const original = await findLocation();
+check(
+	`${KEY} exists (the seed writes it — run seed_edmat_project if it does not)`,
+	original !== null,
+	'no such location'
+);
+if (!original) process.exit(1);
+const ORIGINAL_POLICY = {
+	audience: original.audience,
+	moderated: original.moderated,
+	is_enabled: original.is_enabled
+};
+console.log(`  (original policy: ${JSON.stringify(ORIGINAL_POLICY)})`);
+
+async function setPolicy(settings) {
 	return (
-		await api('/discussion-locations/', {
-			method: 'POST',
-			body: { page, section, ...settings },
+		await api(`/discussion-locations/${original.id}/`, {
+			method: 'PATCH',
+			body: settings,
 			tok: staffToken
 		})
 	).body;
 }
 
-console.log('\n== policies through the API ==');
-const open = await locationFor('about', 'mission', {
-	audience: 'users',
-	moderated: false,
-	is_enabled: true
+// A check that THROWS (a selector timing out, say) ends the script through an unhandled
+// rejection; the real location and the flag are put back on the way out rather than left as
+// whichever phase the run died in.
+process.on('unhandledRejection', async (err) => {
+	console.error('\nAborted:', err?.message ?? err);
+	await setPolicy(ORIGINAL_POLICY).catch(() => {});
+	await setFlag(true).catch(() => {});
+	process.exit(1);
 });
+
+const anyone = await setPolicy({ audience: 'anyone', moderated: false, is_enabled: true });
 check(
-	'a location can be created and read back',
-	open?.key === 'about#mission',
-	JSON.stringify(open)
+	'the location can be set to `anyone` and read back',
+	anyone?.key === KEY && anyone?.audience === 'anyone',
+	JSON.stringify(anyone)
 );
 
-const anon = await locationFor('about', 'origin', {
-	audience: 'anyone',
-	moderated: false,
-	is_enabled: true
-});
-check('a location can be set to `anyone`', anon?.audience === 'anyone', JSON.stringify(anon));
-
-const verified = await locationFor('about', 'features', { audience: 'verified', is_enabled: true });
-check(
-	'a location can be set to `verified`',
-	verified?.audience === 'verified',
-	JSON.stringify(verified)
-);
-
-const closed = await locationFor('about', 'closing', { is_enabled: false });
-check('a location can be switched off', closed?.is_enabled === false, JSON.stringify(closed));
-
-/** The number the collapsed line prints for one section of /about, read from the server.
+/** The number the collapsed line prints for the /about location, read from the server.
  *
  * Authenticated on purpose (`e2e/CLAUDE.md` trap 12): an anonymous GET can be answered from the
  * 60s read cache, and a count read through it would be the count before this script wrote
  * anything. `comment_count` is public comments only — not tombstones, not held ones — which is the
  * same rule all three places that print a number here follow. */
-async function publicCount(section) {
-	const res = await api(`/discussions/?page=about&sections=${section}`, { tok: staffToken });
-	const row = (res.body?.locations ?? []).find((l) => l.section === section);
+async function publicCount() {
+	const res = await api(`/discussions/?page=about&sections=${SECTION}`, { tok: staffToken });
+	const row = (res.body?.locations ?? []).find((l) => l.section === SECTION);
 	return row?.comment_count ?? 0;
 }
 // Read BEFORE anything is written, so the assertion further down is against a number this run
 // computed rather than against whatever previous runs left behind.
-const missionBefore = await publicCount('mission');
-const originBefore = await publicCount('origin');
-console.log(`  (before: about#mission ${missionBefore}, about#origin ${originBefore})`);
+const countBefore = await publicCount();
+console.log(`  (before: ${KEY} ${countBefore})`);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -184,9 +192,7 @@ page.on('request', (r) => {
 
 console.log('\n== the four module showcase pages (2026-10-14) ==');
 // Run FIRST, as the anonymous reader the context starts as, so that its result does not depend on
-// the `/about` checks below — which still look for the sections `/about` had before it became the
-// EdMat organisation's page (`about#mission`, `#origin`, `#features`), and fail on that, not on
-// anything here. Each draws one quiet discussion per section, asked for in ONE policy request under its own
+// the `/about` checks below. Each draws one quiet discussion per section, asked for in ONE policy request under its own
 // `about/<slug>` key (`ShowcasePage` → `providePageDiscussions`), and opening one asks for that
 // section's thread and nothing else. The section counts are the content files' own
 // (`lib/content/showcase/<slug>.ts: sections`).
@@ -241,94 +247,96 @@ await modulePage.screenshot({
 await moduleCtx.close();
 
 console.log('\n== an anonymous reader on /about ==');
+// The page's OWN locations live inside `article.about`; the organisation page above it draws a
+// row discussion of its own (see the header), which is not this script's to count.
+const ABOUT = 'article.about .section-discussion';
 await page.goto(`${BASE}/about`, { waitUntil: 'load' });
 // 60s, not 15: on a cold Vite dev server /about's module graph is compiled on this first request,
 // and on a loaded machine that is minutes rather than seconds. A production build is not this
 // slow; the timeout is about the dev server, not about the page.
-await page.waitForSelector('.section-discussion__toggle', { timeout: 60000 });
-const toggles = await page.locator('.section-discussion__toggle').count();
-check('collapsed lines are drawn, one per open section', toggles >= 3, `found ${toggles}`);
+await page.waitForSelector(`${ABOUT} .section-discussion__toggle`, { timeout: 60000 });
+const toggles = await page.locator(`${ABOUT} .section-discussion__toggle`).count();
+check('exactly one collapsed line of /about’s own', toggles === 1, `found ${toggles}`);
 check('no thread is fetched before a click', threadCalls.length === 0, threadCalls.join(' | '));
 
-// The switched-off location must draw nothing at all — not a disabled line (house rule 3).
-const closingToggle = page.locator('.section-discussion__toggle', {
-	hasText: /Closing|Na koniec|Zacznij/i
-});
-check('a switched-off location draws no affordance', (await closingToggle.count()) === 0);
-
-console.log('\n== opening a thread ==');
+console.log('\n== opening the thread as a visitor (`anyone`) ==');
 // Wait for the RESPONSE, not just for the panel: the panel appears instantly carrying
 // "Loading…", and asserting against it is how the first run of this script reported a missing
 // composer that was simply not drawn yet (e2e/CLAUDE.md trap 25 — waiting for an element proves
 // nothing about whether it is finished).
-const originToggle = page
-	.locator('.section-discussion')
-	.nth(1)
-	.locator('.section-discussion__toggle');
+const aboutDiscussion = page.locator(ABOUT).first();
 const threadLoaded = page.waitForResponse((r) => r.url().includes('/api/discussions/thread/'));
-await originToggle.click();
+await aboutDiscussion.locator('.section-discussion__toggle').click();
 await threadLoaded;
-await page.waitForSelector('.section-discussion__body', { timeout: 10000 });
-await page
+await aboutDiscussion.locator('.section-discussion__body').waitFor({ timeout: 10000 });
+await aboutDiscussion
 	.locator('.section-discussion__body')
-	.first()
 	.getByText(/Wczytywanie|Loading/)
 	.waitFor({ state: 'detached', timeout: 10000 })
 	.catch(() => {});
 check('one thread request after one click', threadCalls.length === 1, threadCalls.join(' | '));
+check(
+	`and it asks for ${KEY}`,
+	/[?&]page=about(&|$)/.test(threadCalls[0] ?? '') &&
+		(threadCalls[0] ?? '').includes(`section=${SECTION}`),
+	threadCalls[0] ?? 'none'
+);
 
 // Since 2026-10-09 the box is not on the page until somebody asks for it, and the visitor's name
 // field lives INSIDE it — so this is asserted first and then opened, and the two checks below read
 // the open composer.
 check(
 	'no input box until it is asked for',
-	(await page
+	(await aboutDiscussion
 		.locator('.section-discussion__body textarea, .section-discussion__body .ProseMirror')
 		.count()) === 0
 );
-await page.locator('.section-discussion__body .comment-form__open').first().click();
-
-// `about#origin` is `anyone`, so a visitor gets a composer AND the name field.
-const nameField = page.locator('.section-discussion__name input');
+await aboutDiscussion.locator('.section-discussion__body .comment-form__open').first().click();
 check(
 	'a visitor gets a name field where the audience is `anyone`',
-	(await nameField.count()) === 1
+	(await aboutDiscussion.locator('.section-discussion__name input').count()) === 1
 );
-const composer = page
-	.locator('.section-discussion__body')
-	.locator('button', { hasText: /Post|Opublikuj|Dodaj/i });
-check('a visitor gets a composer where the audience is `anyone`', (await composer.count()) >= 1);
-
+check(
+	'a visitor gets a composer where the audience is `anyone`',
+	(await aboutDiscussion
+		.locator('.section-discussion__body')
+		.locator('button', { hasText: /Post|Opublikuj|Dodaj/i })
+		.count()) >= 1
+);
+await aboutDiscussion.scrollIntoViewIfNeeded();
 await page.screenshot({ path: 'e2e/screens/about-discussions-1-anon-open.png', fullPage: false });
 
 console.log('\n== a visitor writes, and it is held ==');
+const VISITOR_TEXT = 'A question from a visitor (about-discussions.mjs).';
 const held = await api('/discussions/thread/', {
 	method: 'POST',
-	body: { page: 'about', section: 'origin', body: 'A question from a visitor.', anon_name: 'Kasia' }
+	body: { page: 'about', section: SECTION, body: VISITOR_TEXT, anon_name: 'Kasia' }
 });
 check('an anonymous comment is accepted', held.status === 201, `${held.status}`);
 check('and comes back marked held', held.body?.is_held === true, JSON.stringify(held.body));
-
-const publicThread = await api('/discussions/thread/?page=about&section=origin');
+const publicThread = await api(`/discussions/thread/?page=about&section=${SECTION}`);
 check(
 	'a held comment is invisible to everybody else',
-	(publicThread.body?.comments ?? []).every((c) => c.body !== 'A question from a visitor.'),
-	JSON.stringify(publicThread.body?.comments)
+	(publicThread.body?.comments ?? []).every((c) => String(c.id) !== String(held.body?.id)),
+	`${(publicThread.body?.comments ?? []).length} comments`
 );
-const staffThread = await api('/discussions/thread/?page=about&section=origin', {
+const staffThread = await api(`/discussions/thread/?page=about&section=${SECTION}`, {
 	tok: staffToken
 });
 check(
 	'and visible to staff, who have to decide about it',
-	(staffThread.body?.comments ?? []).length >= 1,
-	JSON.stringify(staffThread.body?.comments)
+	(staffThread.body?.comments ?? []).some((c) => String(c.id) === String(held.body?.id)),
+	`${(staffThread.body?.comments ?? []).length} comments`
 );
 
-console.log('\n== a signed-in reader ==');
+console.log('\n== a signed-in reader (`users`) ==');
+const users = await setPolicy({ audience: 'users', moderated: false, is_enabled: true });
+check('the location can be set to `users`', users?.audience === 'users', JSON.stringify(users));
 const plainToken = await token(PLAIN);
+const SIGNED_IN_TEXT = 'A real question about the research thread (about-discussions.mjs).';
 const posted = await api('/discussions/thread/', {
 	method: 'POST',
-	body: { page: 'about', section: 'mission', body: 'A real question about the mission.' },
+	body: { page: 'about', section: SECTION, body: SIGNED_IN_TEXT },
 	tok: plainToken
 });
 check('a signed-in comment is accepted', posted.status === 201, `${posted.status}`);
@@ -338,9 +346,51 @@ check(
 	JSON.stringify(posted.body)
 );
 
+// The rest of this section is about what a SIGNED-IN reader sees, so the browser has to be signed
+// in too. The token goes straight into the store's own key rather than driving the login form:
+// this script is not about signing in, and the form has its own script.
+await page.addInitScript((tok) => localStorage.setItem('edmat-auth-token', tok), plainToken);
+await page.goto(`${BASE}/about`, { waitUntil: 'load' });
+await page.waitForSelector(`${ABOUT} .section-discussion__toggle`, { timeout: 30000 });
+const signedInToggle = page.locator(ABOUT).first().locator('.section-discussion__toggle');
+const label = (await signedInToggle.textContent()) ?? '';
+// THE count, not a count. The script read `countBefore` from the server before it wrote anything
+// and has written exactly one public comment here since, and it removes that comment again at the
+// end — so this number is reproducible across runs.
+const shown = label.match(/\((\d+)\)/);
+const expectedCount = countBefore + 1;
+check(
+	`the collapsed line carries the exact count (${expectedCount})`,
+	shown !== null && Number(shown[1]) === expectedCount,
+	label.trim()
+);
+const signedInLoaded = page.waitForResponse((r) => r.url().includes('/api/discussions/thread/'));
+await signedInToggle.click();
+await signedInLoaded;
+await page
+	.locator(ABOUT)
+	.first()
+	.locator('.section-discussion__body')
+	.getByText(/Wczytywanie|Loading/)
+	.waitFor({ state: 'detached', timeout: 10000 })
+	.catch(() => {});
+const bodyText = (await page.locator(ABOUT).first().textContent()) ?? '';
+check(
+	'the comment is rendered in the thread',
+	bodyText.includes(SIGNED_IN_TEXT),
+	bodyText.slice(0, 160)
+);
+
+console.log('\n== a signed-in but unverified reader (`verified`) ==');
+const verified = await setPolicy({ audience: 'verified', is_enabled: true });
+check(
+	'the location can be set to `verified`',
+	verified?.audience === 'verified',
+	JSON.stringify(verified)
+);
 const refused = await api('/discussions/thread/', {
 	method: 'POST',
-	body: { page: 'about', section: 'features', body: 'Should be refused.' },
+	body: { page: 'about', section: SECTION, body: 'Should be refused.' },
 	tok: plainToken
 });
 check(
@@ -353,65 +403,44 @@ check(
 	refused.body?.detail === 'verification_required',
 	JSON.stringify(refused.body)
 );
-
-// The rest of this section is about what a SIGNED-IN, unverified reader sees, so the browser has
-// to be signed in too — an earlier version of this script checked it as a visitor and "failed" on
-// the anonymous sentence, which was the correct answer to a different question. The token goes
-// straight into the store's own key rather than driving the login form: this script is not about
-// signing in, and the form has its own script.
-await page.addInitScript((tok) => localStorage.setItem('edmat-auth-token', tok), plainToken);
 await page.goto(`${BASE}/about`, { waitUntil: 'load' });
-await page.waitForSelector('.section-discussion__toggle', { timeout: 30000 });
-const missionToggle = page
-	.locator('.section-discussion')
-	.first()
-	.locator('.section-discussion__toggle');
-const missionLabel = (await missionToggle.textContent()) ?? '';
-// THE count, not a count. The script read `missionBefore` from the server before it wrote
-// anything and has written exactly one public comment at this location since, and it removes that
-// comment again at the end — so this number is reproducible across runs.
-const shown = missionLabel.match(/\((\d+)\)/);
-const expectedMission = missionBefore + 1;
-check(
-	`the collapsed line carries the exact count (${expectedMission})`,
-	shown !== null && Number(shown[1]) === expectedMission,
-	missionLabel.trim()
-);
-const missionLoaded = page.waitForResponse((r) => r.url().includes('/api/discussions/thread/'));
-await missionToggle.click();
-await missionLoaded;
-await page
-	.locator('.section-discussion__body')
-	.first()
-	.getByText(/Wczytywanie|Loading/)
-	.waitFor({ state: 'detached', timeout: 10000 })
-	.catch(() => {});
-const bodyText = (await page.locator('.section-discussion__body').first().textContent()) ?? '';
-check(
-	'the comment is rendered in the thread',
-	bodyText.includes('A real question about the mission'),
-	bodyText.slice(0, 160)
-);
-
-const featuresDiscussion = page.locator('.section-discussion').nth(2);
-const featuresLoaded = page.waitForResponse((r) => r.url().includes('/api/discussions/thread/'));
-await featuresDiscussion.locator('.section-discussion__toggle').click();
-await featuresLoaded;
+await page.waitForSelector(`${ABOUT} .section-discussion__toggle`, { timeout: 30000 });
+const verifiedDiscussion = page.locator(ABOUT).first();
+const verifiedLoaded = page.waitForResponse((r) => r.url().includes('/api/discussions/thread/'));
+await verifiedDiscussion.locator('.section-discussion__toggle').click();
+await verifiedLoaded;
 await page.waitForTimeout(500);
-const refusalText = (await featuresDiscussion.textContent()) ?? '';
+const refusalText = (await verifiedDiscussion.textContent()) ?? '';
 check(
-	'a signed-in but unverified reader gets the verified-only sentence, not a composer',
-	/zweryfikowani|verified contributors/i.test(refusalText),
+	'they get the verified-only sentence, not a composer',
+	/zweryfikowan|verified contributors/i.test(refusalText),
 	refusalText.slice(0, 200)
 );
 check(
 	'and no composer is drawn for them',
-	(await featuresDiscussion.locator('.section-discussion__name input').count()) === 0
+	(await verifiedDiscussion
+		.locator('.comment-form__open, .section-discussion__name input')
+		.count()) === 0
 );
+await verifiedDiscussion.scrollIntoViewIfNeeded();
 await page.screenshot({
 	path: 'e2e/screens/about-discussions-2-thread-and-refusal.png',
 	fullPage: false
 });
+
+console.log('\n== a switched-off location ==');
+const off = await setPolicy({ is_enabled: false });
+check('the location can be switched off', off?.is_enabled === false, JSON.stringify(off));
+await page.goto(`${BASE}/about`, { waitUntil: 'load' });
+// The research heading is part of the static page, so its presence proves /about rendered and the
+// absence below is the location's doing, not a page that never painted.
+await page.locator('article.about h2').first().waitFor({ timeout: 30000 });
+await page.waitForTimeout(2500);
+check(
+	'a switched-off location draws no affordance — not a disabled line (house rule 3)',
+	(await page.locator(`${ABOUT} .section-discussion__toggle`).count()) === 0
+);
+await setPolicy({ is_enabled: true });
 
 console.log('\n== a manual chapter has one thread of its own ==');
 await page.goto(`${BASE}/about/guide/courses`, { waitUntil: 'load' });
@@ -424,26 +453,26 @@ check(
 console.log('\n== the kill switch ==');
 await setFlag(false);
 await page.goto(`${BASE}/about`, { waitUntil: 'load' });
+await page.locator('article.about h2').first().waitFor({ timeout: 30000 });
 await page.waitForTimeout(2500);
 check(
-	'with the flag off, no affordance anywhere on the page',
-	(await page.locator('.section-discussion__toggle').count()) === 0
+	'with the flag off, no affordance of /about’s own',
+	(await page.locator(`${ABOUT} .section-discussion__toggle`).count()) === 0
 );
+await page.screenshot({ path: 'e2e/screens/about-discussions-3-flag-off.png', fullPage: false });
 await page.goto(`${BASE}/about/conference`, { waitUntil: 'load' });
 await page.waitForTimeout(2500);
 check(
 	'with the flag off, none on a module showcase page either',
 	(await page.locator('.section-discussion__toggle').count()) === 0
 );
-const offPolicy = await api('/discussions/?page=about&sections=mission');
+const offPolicy = await api(`/discussions/?page=about&sections=${SECTION}`);
 check(
 	'and the policy endpoint still answers, saying it is off',
 	offPolicy.status === 200 && offPolicy.body?.locations?.every((l) => l.is_enabled === false),
 	JSON.stringify(offPolicy.body)
 );
 await setFlag(true);
-
-await page.screenshot({ path: 'e2e/screens/about-discussions-3-flag-off.png', fullPage: false });
 
 console.log('\n== the held count is a link into the queue ==');
 // A moderator who can see "Waiting: 1" has to be able to reach the one. The link is
@@ -454,9 +483,7 @@ const locationsLoaded = page.waitForResponse((r) => r.url().includes('/api/discu
 await page.goto(`${BASE}/moderation?tab=discussions`, { waitUntil: 'load' });
 await locationsLoaded;
 await page.waitForSelector('.location-row', { timeout: 20000 });
-const heldLink = page
-	.locator('.location-row', { hasText: 'about#origin' })
-	.locator('a.location-row__held');
+const heldLink = page.locator('.location-row', { hasText: KEY }).locator('a.location-row__held');
 check('the held count in the panel is a link', (await heldLink.count()) === 1);
 // Scrolled into view first: the panel sits under ten tab buttons and a form, and a screenshot of
 // the top of the page is a screenshot of something else (house rule 2 — look at it).
@@ -470,17 +497,16 @@ await heldLink.first().click();
 await page.waitForSelector('.location-filter', { timeout: 20000 });
 check(
 	'it lands on the Reports tab, filtered to that location',
-	page.url().includes('tab=reports') && page.url().includes('location=about%23origin'),
+	page.url().includes('tab=reports') && page.url().includes(`location=${encodeURIComponent(KEY)}`),
 	page.url()
 );
 const filterLine = (await page.locator('.location-filter').textContent()) ?? '';
-check('and the filter says so, visibly', /about#origin/.test(filterLine), filterLine.trim());
-// How many rows SHOULD be there, computed from the same queue the page fetched: earlier runs of
-// this script left held comments at this location before it learned to clear up, so "exactly one"
-// would be an assertion about the database rather than about the filter.
+check('and the filter says so, visibly', filterLine.includes(KEY), filterLine.trim());
+// How many rows SHOULD be there, computed from the same queue the page fetched, rather than
+// "exactly one", which would be an assertion about the database rather than about the filter.
 const queuePayload = await api('/moderation/queue/', { tok: staffToken });
 const allRows = queuePayload.body?.reports ?? [];
-const expectedRows = allRows.filter((r) => r.discussion_location === 'about#origin').length;
+const expectedRows = allRows.filter((r) => r.discussion_location === KEY).length;
 const queueText =
 	(await page
 		.locator('.queue')
@@ -488,13 +514,13 @@ const queueText =
 		.catch(() => '')) ?? '';
 const queued = await page.locator('.queue-item').count();
 check(
-	`report rows carry their location (${expectedRows} of ${allRows.length} at about#origin)`,
-	expectedRows >= 1 && expectedRows < allRows.length,
+	`report rows carry their location (${expectedRows} of ${allRows.length} at ${KEY})`,
+	expectedRows >= 1 && expectedRows <= allRows.length,
 	`${expectedRows}/${allRows.length}`
 );
 check(
 	`only that location’s held comments are listed (${expectedRows})`,
-	queued === expectedRows && queueText.includes('A question from a visitor'),
+	queued === expectedRows && queueText.includes(VISITOR_TEXT),
 	`${queued} row(s): ${queueText.slice(0, 160)}`
 );
 await page.screenshot({
@@ -529,33 +555,30 @@ check(
 
 // Re-queried AUTHENTICATED (trap 12), and as staff — who see held comments as well, so "nothing of
 // this script's is left" is checked against the widest view there is.
-const missionAfter = await publicCount('mission');
-check(
-	`about#mission is back to ${missionBefore}`,
-	missionAfter === missionBefore,
-	`${missionAfter}`
-);
-const originAfter = await publicCount('origin');
-check(`about#origin is back to ${originBefore}`, originAfter === originBefore, `${originAfter}`);
+const countAfter = await publicCount();
+check(`${KEY} is back to ${countBefore}`, countAfter === countBefore, `${countAfter}`);
 
-// By ID, not by text: runs from before this script learned to clear up left comments with the
-// same words at the same locations, and "did THIS run leave anything" is the question.
-const leftovers = [];
-for (const [section, id] of [
-	['mission', posted.body?.id],
-	['origin', held.body?.id]
-]) {
-	const after = await api(`/discussions/thread/?page=about&section=${section}`, {
-		tok: staffToken
-	});
-	const row = (after.body?.comments ?? []).find((c) => String(c.id) === String(id));
+// By ID, not by text: "did THIS run leave anything" is the question.
+const after = await api(`/discussions/thread/?page=about&section=${SECTION}`, { tok: staffToken });
+const leftovers = [posted.body?.id, held.body?.id]
+	.map((id) => (after.body?.comments ?? []).find((c) => String(c.id) === String(id)))
 	// Present is fine — a tombstone keeps a thread's shape (house rule 12). Readable is not.
-	if (row && (!row.is_removed || row.body)) leftovers.push(`${section}: ${id} still readable`);
-}
+	.filter((row) => row && (!row.is_removed || row.body))
+	.map((row) => `${row.id} still readable`);
 check(
 	'no visible comment of this run is left behind',
 	leftovers.length === 0,
 	leftovers.join(' | ')
+);
+
+// The real location goes back to exactly the policy it had — the research thread lives here.
+const restored = await setPolicy(ORIGINAL_POLICY);
+check(
+	`${KEY} is back to its original policy`,
+	restored?.audience === ORIGINAL_POLICY.audience &&
+		restored?.moderated === ORIGINAL_POLICY.moderated &&
+		restored?.is_enabled === ORIGINAL_POLICY.is_enabled,
+	JSON.stringify(restored)
 );
 
 console.log(
