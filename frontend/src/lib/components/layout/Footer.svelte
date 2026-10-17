@@ -27,7 +27,7 @@
 		     Found on a manual screenshot during the closing cycle. The tagline stands alone; the name
 		     in the header's brand mark is the one that is a separate string. -->
 		<p>{m.nav_tagline()}</p>
-		<!-- "EdMat — exercises, materials, courses and events for learners of every age" -->
+		<!-- "EdMat — an open place to work together on educational materials: exercises, materials, courses and events built by a community" -->
 		<p class="muted">{m.footer_sourceNote()}</p>
 		<p class="muted">{m.footer_phaseNote()}</p>
 		<!-- With no consent banner, this link is the site's standing disclosure — so it belongs

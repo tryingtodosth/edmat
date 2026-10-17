@@ -17220,3 +17220,52 @@ OK). On the dev copy 45 of 91 accounts are demonstration accounts.
   they are pinned and unreviewed, so the second clause still catches them.
 - The plans list still does a per-plan GenericRelation prefetch in Django (most of the remaining
   time); `/api/nodes/:kind/:pk/needs/` (98 ms median) was not looked at.
+
+## §17CR — The homepage follows the mission (2026-10-17)
+
+The owner: *"change our homepage to follow our mission statement of sth like 'let's cooperate on
+education materials'"*. The mission already had the owner's own words, written on 2026-10-14 for the
+organisation's page on `/about` (§17CJ-era, "The organisation's description is the owner's
+sentence"): *"EdMat.net to otwarte miejsce współpracy nad materiałami edukacyjnymi i oprogramowaniem:
+buduje je społeczność, każda zmiana jest widoczna, a każde rozwiązanie ma osobę, która za nie
+odpowiada."* The hero on `/` said something else — "Ucz się, ćwicz i pytaj — w każdym wieku" over a
+list of what there is to consume — so the front door described a catalogue and the organisation's page
+described a cooperative. Now they say the same thing.
+
+**What changed, all on `/` and in the two catalogues:**
+
+- **The heading is the mission's verb**: "Współpracujmy nad materiałami edukacyjnymi." / "Let's work
+  together on educational materials." The subtitle keeps the inventory (exercises with solutions,
+  materials, courses, events) and the audience clause the chips below answer, but says the
+  *community* builds them.
+- **A third door, in the mission's order — look, add, ask.** "Dodaj zadanie" → `/submit`, behind
+  `exercise_submissions` exactly as the header's Add… menu gates it (house rule 3); Browse and Ask
+  (WP15) stay. Signed out, `/submit` shows its own sign-in line, which is the honest answer.
+- **The three clauses as a static strip** under the doors, each linking to the page where the clause
+  is a FACT rather than a page that repeats it: "buduje je społeczność" → `/about` (where the sentence
+  lives), "każda zmiana jest widoczna" → `/activity` (public by construction, house rule 9), "każde
+  rozwiązanie ma osobę" → `/levels` (the trust system). Prerendered with the hero like `StartHere`:
+  no service, no flag, every target a standing page. Three cards on a wide screen; on a phone a
+  plain list with a thin accent rule, because the first screenshot had the cards pushing the tab
+  strip to 1337px on a 390×844 phone — the plain list brought it to 1130px (the audience chips and
+  the hidden-languages notice sit between either way; finding 19 of the first-visitor audit still
+  stands).
+- **`seo_home_description`** says the same thing to a search engine; it still described "a living
+  database of university exercises in maths, physics and computer science", which is where the
+  project started and not where it is.
+
+**The footer followed in the same commit** (owner: *"update the footer tagline too"*): `nav_tagline`
+on every page now reads "EdMat — otwarte miejsce współpracy nad materiałami edukacyjnymi: zadania,
+materiały, kursy i wydarzenia tworzone przez społeczność" / the English equivalent. It keeps the
+"EdMat — …" prefix the footer relies on (the comment there says why the name is not printed twice).
+
+**Not changed, deliberately:** the manual's and the showcase's real homepage screenshots (now stale on
+the hero; re-shot with the next screenshot pass), the `StartHere` band and the tabs.
+
+**Verified:** `npm run check` 0/0; eslint and prettier on the page clean; `en.json` = `pl.json` at
+5394 keys. A headless-Chromium run against both dev servers at 1280 (Polish light, English dark via
+`e2e/english.mjs`) and 390 (Polish): the h1, the three doors and the three strip links read from the
+catalogue, `/about` `/activity` `/levels` each answer 200, no page error, `scrollWidth` equals the
+viewport at both widths, and the screenshots were looked at — the dark cards carry their own
+`--bg-surface` ground on the wash's tail, the strip's long third title wraps to two lines without
+breaking the row. Committed on `fix/analytics-after-deploy`.

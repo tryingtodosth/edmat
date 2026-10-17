@@ -244,14 +244,21 @@
 
 <div class="page">
 	<section class="hero">
+		<!-- The hero is the mission (owner, 2026-10-17: "change our homepage to follow our mission
+		     statement of sth like 'let's cooperate on education materials'"), in the owner's own
+		     2026-10-14 words for the organisation's page: an open place to work together on educational
+		     materials — the community builds them, every change is visible, every solution has a person
+		     who stands behind it. Until then the heading said "Learn, practise, and ask", which described
+		     a catalogue to consume; this describes a thing to take part in. The three clauses are drawn
+		     below the doors as a static strip, each linking to the page where that clause is TRUE
+		     rather than to a page that merely repeats it. -->
 		<h1>{m.home_hero_title()}</h1>
+		<!-- "Let's work together on educational materials." -->
 		<p>{m.home_hero_subtitle()}</p>
-		<!-- The heading says "find the right exercise", and until now the only thing under it was a
-		     button to go and browse — so finding a named thing meant guessing which discipline held
-		     it first. On a database whose whole value is that somebody already solved the problem you
-		     are stuck on, the search belongs on the front door.
-		     Browse stays, as the answer to the other question ("I do not know what I am looking for
-		     yet"), but as a quiet link rather than the only way in. -->
+		<!-- Finding a named thing is still the first thing most visitors come for — on a database whose
+		     whole value is that somebody already solved the problem you are stuck on, the search belongs
+		     on the front door. Browse stays, as the answer to the other question ("I do not know what I
+		     am looking for yet"), as a quiet link rather than the only way in. -->
 		<div class="hero__search">
 			<SearchInput
 				label={m.search_heading()}
@@ -259,17 +266,51 @@
 				onsubmit={goToSearch}
 			/>
 		</div>
-		<!-- The heading says "pytaj", and until WP15 (2026-10-15) nothing on the site answered it —
-		     the first-visitor audit's finding 16. Asking is posting a question into a tag (the owner's
-		     decision), so the second door goes to /ask, behind the same `posts` switch as every other
-		     way in (house rule 3; the store fails open before the flags load, like every link). -->
+		<!-- Three doors, in the order the mission puts them: look, add, ask. "Add an exercise" is the
+		     mission's own verb and goes to /submit behind `exercise_submissions`, the same switch the
+		     header's Add… menu reads for it (house rule 3). Asking is posting a question into a tag
+		     (WP15, 2026-10-15), behind `posts` like every other way in. Both stores fail open before
+		     the flags load, like every gated link; a moderator keeps every door. -->
 		<p class="hero__links">
 			<a class="hero__browse" href={resolve('/disciplines')}>{m.home_hero_cta()}</a>
+			{#if featureFlagsStore.isEnabled('exercise_submissions') || authStore.isModerator}
+				<a class="hero__browse" href={resolve('/submit')}>{m.home_hero_contribute()}</a>
+				<!-- "Add an exercise" -->
+			{/if}
 			{#if featureFlagsStore.isEnabled('posts') || authStore.isModerator}
 				<a class="hero__browse" href={resolve('/ask')}>{m.ask_heroCta()}</a>
 				<!-- "Ask a question" -->
 			{/if}
 		</p>
+		<!-- The mission's three clauses. Static and prerendered with the hero, like `StartHere` below:
+		     every target is a standing page no kill switch removes — /about is the organisation's own
+		     page where the sentence was written, /activity is the public-by-construction log (house
+		     rule 9) that makes "every change is visible" a fact, /levels is the trust system that names
+		     who stands behind a solution. -->
+		<ul class="hero__mission" aria-label={m.home_mission_label()}>
+			<!-- "How EdMat works" -->
+			<li>
+				<a href={resolve('/about')} data-mission="community">
+					<strong>{m.home_mission_community_title()}</strong>
+					<!-- "The community builds it" -->
+					<span>{m.home_mission_community_text()}</span>
+				</a>
+			</li>
+			<li>
+				<a href={resolve('/activity')} data-mission="visible">
+					<strong>{m.home_mission_visible_title()}</strong>
+					<!-- "Every change is visible" -->
+					<span>{m.home_mission_visible_text()}</span>
+				</a>
+			</li>
+			<li>
+				<a href={resolve('/levels')} data-mission="owner">
+					<strong>{m.home_mission_owner_title()}</strong>
+					<!-- "Every solution has a person behind it" -->
+					<span>{m.home_mission_owner_text()}</span>
+				</a>
+			</li>
+		</ul>
 		<div class="hero__audience"><AudienceChips /></div>
 		<HiddenLanguagesNotice path="/exercises/" />
 	</section>
@@ -478,6 +519,63 @@
 		flex-wrap: wrap;
 		justify-content: center;
 		gap: var(--space-2) var(--space-4);
+	}
+
+	// The mission strip: three small cards on a wide screen, a plain stacked list on a phone — the
+	// hero is the first screen a visitor sees and the card chrome is what would push the tabs
+	// below the fold there. `--bg-surface` rather than the wash: the cards sit on the hero's
+	// transparent tail and need their own ground in dark mode.
+	.hero__mission {
+		list-style: none;
+		margin: var(--space-2) 0 0;
+		padding: 0;
+		width: min(100%, 52rem);
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: var(--space-3);
+		text-align: left;
+		@media (max-width: 720px) {
+			grid-template-columns: 1fr;
+			gap: var(--space-2);
+		}
+	}
+	.hero__mission a {
+		@include mix.focus-ring;
+		display: block;
+		height: 100%;
+		padding: var(--space-3);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-md);
+		background: var(--bg-surface);
+		color: inherit;
+		text-decoration: none;
+		&:hover {
+			border-color: var(--accent);
+		}
+		&:hover strong {
+			color: var(--accent);
+		}
+		// The plain list: no border, no ground, a thin accent rule on the left in place of the card, so
+		// three items cost three short paragraphs of height rather than three boxes.
+		@media (max-width: 720px) {
+			padding: 0 0 0 var(--space-3);
+			border: 0;
+			border-left: 2px solid var(--accent-soft);
+			border-radius: 0;
+			background: none;
+			&:hover {
+				border-left-color: var(--accent);
+			}
+		}
+	}
+	.hero__mission strong {
+		display: block;
+		font-size: var(--font-size-sm);
+		margin-bottom: var(--space-1);
+	}
+	.hero__mission span {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
 	}
 
 	.hero {
