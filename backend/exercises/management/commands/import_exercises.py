@@ -83,6 +83,7 @@ from ...models import (
     SolutionEntry,
     Tag,
 )
+from ...parts import MAX_PARTS
 from ...signals import recount_verified
 
 #: Polish is what the corpus and every real contributor writes; English is accepted so a batch
@@ -447,6 +448,12 @@ class Command(BaseCommand):
         ):
             errors.extend(check_math(label, body))
 
+        if len(raw_parts) > MAX_PARTS:
+            errors.append(
+                f'{len(raw_parts)} parts; the most is {MAX_PARTS} (`exercises/parts.py: MAX_PARTS`, '
+                'the same cap the edit form has) — a set with more items than the alphabet has '
+                'letters is a sheet, and is several exercises'
+            )
         seen_labels: set[str] = set()
         for label, part_sections in raw_parts:
             part = ParsedPart(

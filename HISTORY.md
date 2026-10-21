@@ -17720,3 +17720,62 @@ exercise's PATCH is byte-for-byte what it was (asserted). A refusal anywhere in 
   the prep's `recount_verified` without step A's parts clause, which A adds; nothing on this branch.
 - The Parts editor does not check duplicate labels before sending; the server's
   `part_label_duplicate` is said as a sentence instead.
+
+## 17CV — Sub-exercises: the integration (2026-10-21, `fix/analytics-after-deploy`)
+
+The three branches of `prompts/README.md` §12 came back the same afternoon and were merged in the
+order the plan named — A (`75fa99c` + `84a52b9`), B (`07f98b6`), C (`fb4e16e`) — with the only
+conflicts the expected "both appended" ones at the end of this file and of `test.md`. What the
+integration itself changed, beyond the merges:
+
+- **One cap, asked twice.** A put `MAX_PARTS = 26` in `exercises/parts.py` for the edit form; B's
+  importer had no cap. The importer now reads the same constant and refuses a file with more parts
+  in its usual sentence ("27 parts; the most is 26 …"); `test_import_parts.py` pins it (28 tests).
+- **The browser script runs against the real backend.** C's `e2e/exercise-parts.mjs` answered the
+  PATCH with `parts`, the suggestion POST with `part` and staff's ordinary PATCH with `page.route`
+  stand-ins, because A was being built at the same time. All three are gone. The script now captures
+  each request with `waitForResponse` registered before the click — a `page.on('response')` listener
+  missed the PATCH whose success navigates away, and the PATCH URL carries `?lang=`, so the match is on
+  the pathname — asserts the status, and reads back through the API what the backend holds: parts
+  `b1,a2,d3` after the save with (b) and (a) keeping their ids, (d)'s text landed, (c)'s hint and
+  solution gone with it, the set unverified while (d) has no solution; ola's suggestion listed as
+  pending for part (b); staff's ordinary exercise still without parts. Two consequences of making it
+  real: staff's edit is on a SECOND seeded exercise (a real PATCH on corpus row 1 would have been a
+  real write), and the queue check files a fresh pending hint for (a), because the seeded one for (c)
+  was deleted by the real cascade in step 4 — which is the behaviour the design asks for, seen end to
+  end. The duplicate-label refusal is provoked for real by renaming (d) to "b". **65/65**, zero
+  console errors, seven screenshots looked at: whole-exercise hints above the part blocks, the
+  whole answer below them, the delete confirm naming "Part c — hints: 1, solutions: 1", the queue
+  row reading "for part a".
+- **The verified question A left for the integrator** is answered by the same script: with (d) added
+  and unsolved, the API says `verified: false` on the real page's data.
+- **Formatting.** Twenty-seven analytics and contests files predating this work failed
+  `prettier --check`; a formatting-only commit (`965c907`) cleaned the tree so the next person's
+  Prettier run reports only their own files.
+
+**Verified after the merge, on the main checkout:** `manage.py test exercises moderation licensing
+provenance --parallel 4 --keepdb` **401 OK**; `check` 0 issues; `makemigrations --check` no changes;
+`check_databases_declared` 0; the dev database and the nine log shards migrated (0017, 0056 applied);
+catalogues 5502 = 5502; `npm run check` 0/0; eslint clean; `npm run build` green;
+`e2e/exercise-parts.mjs` 65/65 and `e2e/exercise-edit.mjs` 20/20 against `run.sh`'s servers (the
+latter needs an exercise with an approved submission row behind it, so the integration seeded one and
+removed it after); `dump_text_fields` + `check:katex` 2259 rows / 0 issues (parts included, A's item).
+**The paczka4 rehearsal** on a copy of the post-paczka3 database migrated through the merged code (the
+server's own path): algebra dry run and real run `0 created, 5 updated; parts: 17 created, 0 updated,
+0 removed; 5 pinned rows removed`, fale `0 created, 10 updated; parts: 26 created; 13 removed`, a
+second run of each all zeros, 15 exercises with 43 parts, all 15 still verified. The dry run prints
+the parts line before any import, which is what `apply-on-server.sh` step 10 greps for.
+
+**Shipped as `FUW/UPDATE-20261021-d.tar.gz`** (`deploy/UPDATE-2026-10-21.md`, the `-d` section):
+the two migrations, the rebuilt frontend, and the paczka4 kit behind step 10, which runs only after
+the code is deployed and migrated — the order the kit's own `PRODUCTION.md` insists on, because a
+parts backend under the old page would show 964 its lead sentence and nothing else. Nothing pushed.
+
+**Left open by the integration** (the three branches' own lists stand in §17CV.A–C and on the board):
+- `TranslateForm` has no part rows (A and C both named it); a part cannot be translated through the
+  form yet, only through a suggestion for a locale the exercise already has.
+- A part's edit suggestions go with the part (CASCADE); house rule 12 would want a tombstone.
+- The AI-assisted mark is still not in the import format; a kit written with an assistant is marked
+  after import with `declare_ai_assisted`.
+- The guidance for whoever writes the next kit — the rules this batch taught — is drafted beside the
+  skill as `.claude/skills/import-exercises/reference/writing-a-kit.md` and awaits the owner's word.

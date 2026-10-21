@@ -115,7 +115,8 @@ The rules:
 - **The label** is the free text after the keyword, trimmed, at most 20 characters, shown to readers
   as written (the page wraps it: "for (b)"). Use the labelling the sheet uses — `a`, `b`, `c` for a
   sheet's (a)–(c); `1`…`4` for unlabelled items that the solution numbered. Two parts in one file
-  may not share a label.
+  may not share a label, and a file has at most 26 parts (`exercises/parts.py: MAX_PARTS`, the
+  same cap the edit form has) — a set with more items than that is a sheet, and is several exercises.
 - **Order is the key.** Parts are stored by `(exercise, order)`, order = position in the file from 1.
   A re-run updates each part's label, text and entries in place and never duplicates one; reordering
   the parts in the file therefore rewrites them in their new places.

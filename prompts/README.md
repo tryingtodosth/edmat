@@ -267,6 +267,10 @@ stubs the prep wrote with the signature fixed: `personalize.apply_preset` (A cal
 
 ## 12. Sub-exercises (2026-10-21) — `SUBEXERCISES-BRIEF.md` and briefs 20–22
 
+**Integrated the same day** (`HISTORY.md` §17CV): A, B, C merged in that order onto
+`fix/analytics-after-deploy`, the stand-ins in `e2e/exercise-parts.mjs` replaced by the real round-trip
+(65/65), the importer given A's `MAX_PARTS`, paczka4 rehearsed and packed as `UPDATE-20261021-d`.
+
 The owner's yes of that afternoon: *"go ahead and build the sub-exercises. spawn opus agents to go
 through prompts dir"*. The design is `SUBEXERCISES-BRIEF.md` (written the same day, on the owner's
 "analyze exercises that are small sets of exercises — e.g. edmat.net/exercises/964"); its §6 build

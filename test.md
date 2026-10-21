@@ -3370,7 +3370,7 @@ locale), the queue showing `part_label`, and approval writing — or creating fr
 part's row. `licensing/test_parts.py` (2): the licence endpoint and `relicense_content` over exercises
 with parts. Run: `manage.py test exercises moderation licensing --parallel 4 --keepdb` (343, OK).
 
-**`exercises/test_import_parts.py` — the importer's part sections (27 tests, §17CV.B).** Plain
+**`exercises/test_import_parts.py` — the importer's part sections (28 tests, §17CV.B; the 28th, from the integration, is the `MAX_PARTS` cap shared with the edit form).** Plain
 `TestCase`s (no endpoint, so no log shards). The parser: labels kept as written, `Podpunkt`/`Part`
 in any case, and every refusal by its sentence — no label, a label over 20, a duplicate label, a part
 with no or an empty `## Treść`, a section named twice (the whole-exercise-section-after-the-parts
@@ -3395,11 +3395,15 @@ its own. michal: "For:" pre-set to (b) in (b)'s composer, the REAL entry POST ca
 hint under (b) only. ola: "Part b — statement" in Suggest an edit. michal's Parts editor: add a
 fourth part, reorder, remove one (Undo; the in-page confirm with entry counts), the PATCH payload
 `[{id?, label, statement, answer}]` in order, a refusal said as a sentence. kasia: an ordinary
-exercise's PATCH carries no `parts`; the moderation queue says "for part c". **The PATCH and the
-edit-suggestion POST are intercepted with `page.route`** (step A builds them on its own branch);
-remove both interceptions once A is merged. Screenshots in `e2e/screens/exercise-parts/`.
+exercise's PATCH carries no `parts`; the moderation queue says "for part a". **Every request is
+real since the integration (§17CV):** the PATCH, the suggestion POST and staff's PATCH are captured
+with `waitForResponse` registered before the click (matched on the pathname — the PATCH carries
+`?lang=`), their status asserted, and the script reads back through the API what the backend holds
+(parts `b1,a2,d3` with kept ids, (c)'s entries gone by cascade, the set unverified, the suggestion
+pending). Staff's edit is on a second seeded exercise, never a corpus row. **65 checks**, ~2 min.
+Screenshots in `e2e/screens/exercise-parts/`.
 
 ```bash
-E2E_BASE=http://127.0.0.1:5283 E2E_API=http://127.0.0.1:8183 \
+E2E_BASE=http://localhost:5173 E2E_API=http://127.0.0.1:8000/api \
   LD_LIBRARY_PATH=… CHROME=<chrome-headless-shell> node e2e/exercise-parts.mjs
 ```

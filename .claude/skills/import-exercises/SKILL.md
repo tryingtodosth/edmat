@@ -7,7 +7,10 @@ description: Import exercises (zadania) into EdMat in bulk — the file format, 
 
 You are putting exercises into a live database that readers browse. One exercise is **not one row**,
 `verified` is **not yours to set**, and the same import has to be runnable twice. This file is the
-whole procedure; the two files under `reference/` are the details.
+whole procedure; the files under `reference/` are the details — `format.md` (what a file may contain),
+`alternatives.md`, and `writing-a-kit.md` (the rules for whoever writes the next kit: decide each
+problem's shape from the sheet before writing it, labels as the sheet labels, nothing lost, `--author`
+on every run, the AI-assisted step — a draft awaiting the owner's word, 2026-10-21).
 
 Read `backend/exercises/CLAUDE.md` as well — it owns the invariants this import has to respect.
 

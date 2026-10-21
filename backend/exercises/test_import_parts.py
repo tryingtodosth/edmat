@@ -128,6 +128,11 @@ class PartParserTests(ImportPartsBase):
         report = self.refused(HEAD + part('a' * 21, 'x'))
         self.assertIn('is 21 characters', report)
 
+    def test_more_than_max_parts_is_refused_with_the_same_cap_as_the_edit_form(self):
+        from exercises.parts import MAX_PARTS
+        report = self.refused(HEAD + ''.join(part(f'p{i}', 'x') for i in range(MAX_PARTS + 1)))
+        self.assertIn(f'{MAX_PARTS + 1} parts; the most is {MAX_PARTS}', report)
+
     def test_two_parts_with_the_same_label_are_refused(self):
         report = self.refused(HEAD + part('a', 'x') + part('a', 'y'))
         self.assertIn('two parts are labelled "a"', report)

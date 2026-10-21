@@ -328,7 +328,7 @@ content.
 Because CommonMark treats `\[` and `\(` as *escaped punctuation* the moment that text is parsed as
 an ordinary paragraph, the obvious order silently strips the backslashes off display maths that is
 not wrapped in a literal `<p>` — which is a chunk of the real corpus. Extracting first makes the two
-cases identical. `npm run check:katex` re-runs the corpus-wide compatibility check (2241 rows, 0
+cases identical. `npm run check:katex` re-runs the corpus-wide compatibility check (2259 rows incl. part text, 0
 issues); run it after any bulk import or batch edit.
 
 A rich editor (Tiptap) exists as a **second input for the same field** — it emits HTML the sanitizer
@@ -372,6 +372,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/disciplines/ /api/branches/ /api/exercises/ /api/materials/     taxonomy + content
 /api/exercises/{id}/{translations,reviews,comments,claims}/          nested community surfaces
 /api/exercises/{id}/  (PATCH)                                          the author's or staff's in-place edit (`exercises/editing.py`); no PUT, no DELETE
+/api/exercises/{id}/  (PATCH `parts`) /api/exercises/{id}/entries/ (`part`)  a set-shaped exercise's parts (`exercises/parts.py`, SUBEXERCISES-BRIEF.md): the whole list in order; a hint or solution for one part
 /api/exercise-submissions/ /api/edit-suggestions/ /api/moderation/…  the queues
 /api/courses/ /api/events/ /api/services/ /api/bookings/             user-run surfaces
 /api/material-projects/ /api/material-versions/ /api/project-invites/ co-authoring (COAUTHORING-BRIEF.md)

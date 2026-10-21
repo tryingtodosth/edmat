@@ -93,6 +93,10 @@ Models: `Exercise` (structural only: branch, number, topics, difficulty, tags, `
 `submitted_by`), `ExerciseSource` + `ExerciseSourceTranslation` (the corpus `source:` block), `ExerciseTranslation` (**the** text
 table — title / statement / hint / answer / solution, `status`, `translated_by`, `reviewed_by`, `review_note`, one row per
 (exercise, locale, status) *including the original*), `Tag` + `TagFollow`, and `ExerciseRequirement` + `ExerciseRequirementVote`.
+**A set-shaped exercise has parts** (2026-10-21, `SUBEXERCISES-BRIEF.md`, §17CV): `ExercisePart` (order, label ≤ 20) with its text in
+`ExercisePartTranslation` (the same one-published-row-per-locale shape), `SolutionEntry.part` and `moderation.EditSuggestion.part`
+nullable (null = the whole exercise). `parts.py` is the one rule module (read, verified-by-parts, the PATCH apply, `MAX_PARTS`);
+the importer writes them from `## Podpunkt a` sections; the page draws one block per part with its own stages.
 
 The uniqueness rule has real history: it started as `unique_together('exercise','locale','status')`, which was *broader* than the
 Meta comment claimed and produced three deterministic 500s. It is now a **partial unique constraint** — at most one *published* row

@@ -15,12 +15,13 @@
 //   5. staff: an ordinary exercise's edit sends no `parts` at all; the moderation queue says which
 //      part a pending entry is for.
 //
-// INTERCEPTED, ON PURPOSE: `PATCH /api/exercises/{id}/` with `parts` and `POST /api/edit-suggestions/`
-// with `part` are built by step A (`parts/a-backend`) at the same time as this branch, so on
-// `parts/c-page` they may not exist yet. Those two requests are caught with `page.route`, their
-// payload asserted, and answered with a stand-in; nothing is written. The integrator removes the
-// two interceptions after the merge and runs the real round-trip (prompts/README.md §12). The
-// entry POST (step 2) is real — the prep built it.
+// EVERY REQUEST IS REAL. On `parts/c-page` the PATCH with `parts` and the suggestion `part` were
+// answered by route stand-ins, because step A (`parts/a-backend`) was built at the same time; the
+// integration (§17CV) removed them. The PATCH, the suggestion and the entry POST now land on the
+// merged backend and the script reads back what it wrote through the API — the parts after a
+// save, the suggestion row, the deleted part's entries — so a stand-in cannot hide a backend that
+// disagrees with the form. Staff's ordinary edit (step 5) is on a SECOND seeded exercise, never a
+// corpus row: a real PATCH is a real write.
 //
 // Tokens come from the database (trap 30), never the login form. Clear `backend/cachedata/*` with
 // the backend STOPPED first (trap 28).
@@ -78,10 +79,14 @@ from exercises.models import Exercise, ExerciseTranslation, ExercisePart, Exerci
 U = get_user_model()
 michal, ola, kasia = (U.objects.get(username=n) for n in ('u-michal', 'u-ola', 'u-kasia'))
 Exercise.objects.filter(translations__title__startswith='${MARK}').delete()
-plain = Exercise.objects.get(pk=1)
-branch = plain.branch
+branch = Exercise.objects.get(pk=1).branch
 number = (Exercise.objects.filter(branch=branch).aggregate(n=Max('number'))['n'] or 0) + 1
 ex = Exercise.objects.create(branch=branch, number=number, difficulty='easy', original_locale='pl', submitted_by=michal)
+# A second, ordinary exercise for staff's edit in step 5 — scratch, so the real PATCH never
+# touches a corpus row.
+plain = Exercise.objects.create(branch=branch, number=number + 1, difficulty='easy', original_locale='pl', submitted_by=michal)
+ExerciseTranslation.objects.create(exercise=plain, locale='pl', title='${MARK} plain ${STAMP}',
+    statement='Oblicz \\((1+i)(1-i)\\).', answer='\\(2\\)', status='published')
 ExerciseTranslation.objects.create(exercise=ex, locale='pl', title='${MARK} ${STAMP}',
     statement='Przedstaw w postaci \\\\(a+bi\\\\) następujące liczby zespolone:',
     answer='Wszystkie trzy wyniki leżą na okręgu \\\\(|z|=\\\\sqrt{2}\\\\) lub \\\\(|z|=1\\\\).', status='published')
@@ -329,36 +334,20 @@ try {
 		await ctx.close();
 	}
 
-	// ---- 3. ola suggests an edit to part (b)'s statement (INTERCEPTED) ----------------------
+	// ---- 3. ola suggests an edit to part (b)'s statement — the real POST -----------------------
 	{
 		const { ctx, page } = await contextFor(seeded.ola);
 		let suggestion = null;
-		await page.route(
-			(url) => url.pathname.endsWith('/api/edit-suggestions/'),
-			async (route) => {
-				if (route.request().method() !== 'POST') return route.continue();
-				suggestion = route.request().postDataJSON();
-				await route.fulfill({
-					status: 201,
-					contentType: 'application/json',
-					body: JSON.stringify({
-						id: 999999,
-						exercise: Number(EX),
-						locale: 'pl',
-						field: suggestion.field,
-						entry: null,
-						part: suggestion.part ?? null,
-						proposed_value: suggestion.proposed_value,
-						reason: suggestion.reason,
-						submitted_by: 4,
-						status: 'pending',
-						reviewed_by: null,
-						review_note: '',
-						created_at: new Date().toISOString()
-					})
-				});
+		let suggestionStatus = 0;
+		page.on('response', (r) => {
+			if (
+				r.request().method() === 'POST' &&
+				new URL(r.url()).pathname.endsWith('/api/edit-suggestions/')
+			) {
+				suggestion = r.request().postDataJSON();
+				suggestionStatus = r.status();
 			}
-		);
+		});
 		await openExercise(page);
 		await page.getByRole('button', { name: 'Suggest an edit' }).click();
 		const form = page.locator('form.edit-suggestion-form');
@@ -389,38 +378,37 @@ try {
 				suggestion?.exercise === Number(EX),
 			JSON.stringify(suggestion)
 		);
+		check(
+			'ola: and the backend accepted it (201)',
+			suggestionStatus === 201,
+			String(suggestionStatus)
+		);
+		const mine = (await api(seeded.ola, 'GET', `/edit-suggestions/?exercise=${EX}`)).data;
+		const row = Array.isArray(mine) ? mine.find((x) => x.part === Number(P.b)) : null;
+		check(
+			'the API agrees: a pending suggestion for part (b), statement, by ola',
+			row?.status === 'pending' && row?.field === 'statement' && row?.part_label === 'b',
+			JSON.stringify(mine).slice(0, 300)
+		);
 		await ctx.close();
 	}
 
-	// ---- 4. michal's Parts editor (the PATCH is INTERCEPTED) ----------------------------------
+	// ---- 4. michal's Parts editor — the real PATCH ----------------------------------------------
 	const current = (await api(seeded.michal, 'GET', `/exercises/${EX}/?lang=pl`)).data;
 	const patches = [];
-	let refuseNext = false;
-	async function interceptPatch(page) {
-		await page.route(
-			(url) => new RegExp(`/api/exercises/${EX}/$`).test(url.pathname),
-			async (route) => {
-				if (route.request().method() !== 'PATCH') return route.continue();
-				patches.push(route.request().postDataJSON());
-				if (refuseNext) {
-					refuseNext = false;
-					return route.fulfill({
-						status: 400,
-						contentType: 'application/json',
-						body: JSON.stringify({ parts: ['part_label_duplicate'] })
-					});
-				}
-				await route.fulfill({
-					status: 200,
-					contentType: 'application/json',
-					body: JSON.stringify(current)
-				});
-			}
-		);
+	const patchStatuses = [];
+	// Registered BEFORE the click that sends it (a `page.on('response')` listener missed the PATCH
+	// whose success navigates the page away a moment later).
+	const isPatch = (r) =>
+		r.request().method() === 'PATCH' &&
+		new RegExp(`/api/exercises/${EX}/$`).test(new URL(r.url()).pathname);
+	async function recordPatch(pending) {
+		const res = await pending;
+		patches.push(res.request().postDataJSON());
+		patchStatuses.push(res.status());
 	}
 	{
 		const { ctx, page } = await contextFor(seeded.michal);
-		await interceptPatch(page);
 		await page.goto(`${BASE}/exercises/${EX}/edit`);
 		const editor = page.locator('[data-parts-editor]');
 		await editor.waitFor();
@@ -469,7 +457,9 @@ try {
 		);
 		check('edit: nothing was sent before the answer', patches.length === 0);
 		await shot(page, '5-edit-confirm-drop');
+		const patched = page.waitForResponse(isPatch);
 		await confirm.locator('[data-parts-confirm-yes]').click();
+		await recordPatch(patched);
 		await page.waitForSelector('[data-saved]', { timeout: 15000 });
 		const sent = patches[0]?.parts;
 		check(
@@ -509,20 +499,60 @@ try {
 			patches[0].title === current.title && patches[0].difficulty === 'easy',
 			JSON.stringify(patches[0]).slice(0, 200)
 		);
+		check(
+			'edit: the backend accepted the PATCH (200)',
+			patchStatuses[0] === 200,
+			String(patchStatuses[0])
+		);
 		await ctx.close();
 	}
+	// What the backend now holds: b, a, d in that order; (c) gone with its hint and solution.
+	const after = (await api(seeded.michal, 'GET', `/exercises/${EX}/?lang=pl`)).data;
+	check(
+		'the API agrees: parts are b, a, d with orders 1, 2, 3',
+		after.parts.map((p) => `${p.label}${p.order}`).join() === 'b1,a2,d3',
+		JSON.stringify(after.parts.map((p) => [p.label, p.order]))
+	);
+	check(
+		'the API agrees: (b) and (a) kept their ids, (d) is new',
+		after.parts[0].id === Number(P.b) &&
+			after.parts[1].id === Number(P.a) &&
+			![P.a, P.b, P.c].map(Number).includes(after.parts[2].id),
+		JSON.stringify(after.parts.map((p) => p.id))
+	);
+	check(
+		"the API agrees: (d)'s statement and answer landed",
+		stripTags(after.parts[2].statement).includes(`Compute (2+i)(2-i). ${STAMP}`) &&
+			stripTags(after.parts[2].answer).includes('Five.'),
+		JSON.stringify(after.parts[2])
+	);
+	check(
+		"the API agrees: (c)'s hint and solution went with it, (a)'s and (b)'s entries stayed",
+		!after.entries.some((e) => e.part === Number(P.c)) &&
+			after.entries.some((e) => e.part === Number(P.a)) &&
+			after.entries.some((e) => e.part === Number(P.b)),
+		JSON.stringify(after.entries.map((e) => [e.kind, e.part]))
+	);
+	check(
+		'the API agrees: a set with an unsolved part is not verified',
+		after.verified === false,
+		String(after.verified)
+	);
+	P.d = String(after.parts[2].id);
 	{
-		// Undo: nothing dropped, no question asked; and a refusal is said in words.
+		// Undo: nothing dropped, no question asked; and a refusal is said in words — the real
+		// backend's `part_label_duplicate`, provoked by giving (d) the label "b".
 		const { ctx, page } = await contextFor(seeded.michal);
-		await interceptPatch(page);
 		await page.goto(`${BASE}/exercises/${EX}/edit`);
 		const editor = page.locator('[data-parts-editor]');
 		await editor.waitFor();
 		await editor.locator('[data-part-row]').nth(2).locator('[data-part-remove]').click();
-		await editor.locator(`[data-part-removed="${P.c}"] button`).click();
-		check('edit: Undo brings (c) back', (await editor.locator('[data-part-row]').count()) === 3);
-		refuseNext = true;
+		await editor.locator(`[data-part-removed="${P.d}"] button`).click();
+		check('edit: Undo brings (d) back', (await editor.locator('[data-part-row]').count()) === 3);
+		await editor.locator('[data-part-row]').nth(2).locator('input[type="text"]').fill('b');
+		const refused = page.waitForResponse(isPatch);
 		await page.locator('[data-exercise-edit] form button[type="submit"]').click();
+		await recordPatch(refused);
 		await page.locator('[data-exercise-edit] .error').waitFor({ timeout: 10000 });
 		check(
 			'edit: no confirm when nothing is dropped',
@@ -530,9 +560,10 @@ try {
 		);
 		check(
 			'edit: after Undo all three are sent, in order, with their ids',
-			patches[1]?.parts?.map((p) => p.id).join() === [P.a, P.b, P.c].map(Number).join(),
+			patches[1]?.parts?.map((p) => p.id).join() === [P.b, P.a, P.d].map(Number).join(),
 			JSON.stringify(patches[1]?.parts)
 		);
+		check('edit: the backend refused it (400)', patchStatuses[1] === 400, String(patchStatuses[1]));
 		const refusal = await page.locator('[data-exercise-edit] .error').innerText();
 		check(
 			'edit: part_label_duplicate is said as a sentence',
@@ -548,41 +579,60 @@ try {
 	{
 		const { ctx, page } = await contextFor(seeded.kasia);
 		let plainPatch = null;
-		const plainDetail = (await api(seeded.kasia, 'GET', `/exercises/${seeded.plain}/?lang=pl`))
-			.data;
-		await page.route(
-			(url) => new RegExp(`/api/exercises/${seeded.plain}/$`).test(url.pathname),
-			async (route) => {
-				if (route.request().method() !== 'PATCH') return route.continue();
-				plainPatch = route.request().postDataJSON();
-				await route.fulfill({
-					status: 200,
-					contentType: 'application/json',
-					body: JSON.stringify(plainDetail)
-				});
-			}
-		);
+		let plainStatus = 0;
 		await page.goto(`${BASE}/exercises/${seeded.plain}/edit`);
 		await page.locator('[data-parts-editor]').waitFor();
 		check(
 			'staff: an ordinary exercise says it has no parts',
 			(await page.locator('[data-parts-editor]').innerText()).includes('No parts')
 		);
+		const plainPatched = page.waitForResponse(
+			(r) =>
+				r.request().method() === 'PATCH' &&
+				new RegExp(`/api/exercises/${seeded.plain}/$`).test(new URL(r.url()).pathname)
+		);
 		await page.locator('[data-exercise-edit] form button[type="submit"]').click();
+		{
+			const res = await plainPatched;
+			plainPatch = res.request().postDataJSON();
+			plainStatus = res.status();
+		}
 		await page.waitForSelector('[data-saved]', { timeout: 15000 });
 		check(
 			'staff: and its PATCH carries no "parts" key at all',
 			plainPatch !== null && !('parts' in plainPatch),
 			JSON.stringify(plainPatch).slice(0, 200)
 		);
+		check('staff: the backend accepted it (200)', plainStatus === 200, String(plainStatus));
+		const plainAfter = (await api(seeded.kasia, 'GET', `/exercises/${seeded.plain}/?lang=pl`)).data;
+		check(
+			'staff: the ordinary exercise still has no parts',
+			Array.isArray(plainAfter.parts) && plainAfter.parts.length === 0,
+			JSON.stringify(plainAfter.parts)
+		);
+		// The seeded pending hint for (c) went with (c) in step 4 — the real cascade, not a
+		// stand-in — so ola files a fresh one for (a) through the API, and it is this one the
+		// queue has to name.
+		const pendingBody = `Czekająca wskazówka do a. [${STAMP}]`;
+		const filed = await api(seeded.ola, 'POST', `/exercises/${EX}/entries/`, {
+			kind: 'hint',
+			locale: 'pl',
+			body: pendingBody,
+			part: Number(P.a)
+		});
+		check(
+			"staff: ola's new hint for (a) waits for review",
+			filed.status === 201 && filed.data?.status === 'pending' && filed.data?.part === Number(P.a),
+			`${filed.status} ${JSON.stringify(filed.data).slice(0, 200)}`
+		);
 		await page.goto(`${BASE}/moderation`);
 		await page.locator('#mod-tab-entries').waitFor();
 		await page.locator('#mod-tab-entries').click();
-		const row = page.locator('li.queue-item', { hasText: 'Czekająca wskazówka do c.' });
+		const row = page.locator('li.queue-item', { hasText: pendingBody });
 		await row.waitFor({ timeout: 15000 });
 		check(
-			'staff: the queue says the pending hint is for part c',
-			(await row.locator('[data-part-label]').innerText()).trim() === 'for part c',
+			'staff: the queue says the pending hint is for part a',
+			(await row.locator('[data-part-label]').innerText()).trim() === 'for part a',
 			await row.innerText()
 		);
 		await row.scrollIntoViewIfNeeded();
