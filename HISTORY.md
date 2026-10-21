@@ -17394,3 +17394,22 @@ means. The role label `orgs_role_member` ("Osoba" / "Member") stays for the mana
 selects. Checked in a browser on a scratch organisation with all three roles (owner, admin, member
 in that order, the member with no badge) and on `/about`; `npm run check` 0/0.
 
+**The second bundle, `UPDATE-20261021-b`** (the same day; the owner had already sent
+`UPDATE-20261021` before the roster change: *"ive already pushed the previous bundle"*). Packed with
+`pack.sh --suffix b` from `095fe88` plus this commit, so the manifest names the deploy scripts it
+carries. It adds two things. The roster fix, in `frontend/build/`. And **`paczka3/`**: the two
+exercise sets the owner wrote beside the algebra and Fizyka III presentations (*"update the batch
+with algebra and physics … dont push the presentations themselves"*) — 23 for a **new branch
+`algebra`** (`create_algebra_branch.py`, five topics by `--create-topics`, tag `algebra-i-r`) and 41
+for the **existing empty `fale`** (eight topics, tag `fizyka-iii`, 29–41 also `zadania-treningowe`),
+author `todoonet`, licence `unknown`. The kit lives at
+`Database-of-Student-Exercise/paczka3/prepared/` beside `paczka2`, untracked like it, holding only
+the exercise files, the branch script, one merged `preflight.py` and the runbook — no PDF, no
+deck. `pack.sh` carries it under the same IMPORTED-marker rule as `paczka2`, and
+`apply-on-server.sh` gained **step 8**, step 7's shape: preflight, the branch, both dry runs, the
+real import only on exactly `23 created, 0 updated` and `41 created, 0 updated`. Rehearsed on a
+copy of the dev database with `fale` created as it is on production (fizyka, "Waves", empty):
+dry runs 23 + 41 created / 0 updated with 46 + 82 hint-and-solution rows and 5 + 8 topics; the real
+run the same; a second pass 0 created / 23 + 41 updated; every exercise `verified`; topics in
+`batch.yaml` order; `dump_text_fields` + `check:katex` 2450 rows, 0 issues. The dev database was
+not touched. Left to the owner on the server: whether `fale` should stop being called "Waves".
