@@ -72,9 +72,13 @@ async function go(p, url) {
 }
 async function sectionsLoaded(p) {
 	await p
-		.waitForFunction(() => document.querySelectorAll('section[aria-busy="true"]').length === 0, null, {
-			timeout: 30000
-		})
+		.waitForFunction(
+			() => document.querySelectorAll('section[aria-busy="true"]').length === 0,
+			null,
+			{
+				timeout: 30000
+			}
+		)
 		.catch(() => null);
 	await p.waitForTimeout(300);
 }
@@ -94,13 +98,30 @@ async function sectionsLoaded(p) {
 	check('the tab reads "Analytics"', (await tab.textContent())?.trim() === 'Analytics');
 	await tab.click();
 	await p.waitForURL('**/moderation/analytics', { timeout: 15000 }).catch(() => null);
-	check('clicking it lands on /moderation/analytics', p.url().endsWith('/moderation/analytics'), p.url());
+	check(
+		'clicking it lands on /moderation/analytics',
+		p.url().endsWith('/moderation/analytics'),
+		p.url()
+	);
 	await sectionsLoaded(p);
 
 	check('one <title>', (await p.locator('head title').count()) === 1);
 	const headings = await p.locator('main h2, .page h2').allTextContents();
-	for (const word of ['Traffic', 'Content', 'Community', 'Moderation', 'Retention', 'Clients', 'Health', 'does not know']) {
-		check(`a section about ${word}`, headings.some((h) => h.includes(word)), headings.join(' | '));
+	for (const word of [
+		'Traffic',
+		'Content',
+		'Community',
+		'Moderation',
+		'Retention',
+		'Clients',
+		'Health',
+		'does not know'
+	]) {
+		check(
+			`a section about ${word}`,
+			headings.some((h) => h.includes(word)),
+			headings.join(' | ')
+		);
 	}
 	const tiles = await p.locator('.tile').count();
 	check('KPI tiles are drawn', tiles >= 8, String(tiles));
@@ -112,19 +133,32 @@ async function sectionsLoaded(p) {
 		apiCalls.join(' ')
 	);
 	const privacy = (await p.locator('#an-privacy').locator('..').textContent()) ?? '';
-	check('the privacy panel links /privacy', (await p.locator('section a[href$="/privacy"]').count()) >= 1);
+	check(
+		'the privacy panel links /privacy',
+		(await p.locator('section a[href$="/privacy"]').count()) >= 1
+	);
 	check('the privacy panel names Global Privacy Control', /Global Privacy Control/i.test(privacy));
 	const suppressed = await p.locator('.hidden-count').count();
-	check('small groups of people are drawn as "<10"', suppressed === 0 || (await p.locator('.hidden-count').first().textContent())?.includes('<10'));
+	check(
+		'small groups of people are drawn as "<10"',
+		suppressed === 0 || (await p.locator('.hidden-count').first().textContent())?.includes('<10')
+	);
 	const bodyText = (await p.textContent('body')) ?? '';
-	check('no IP address appears anywhere on the dashboard', !/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/.test(bodyText));
+	check(
+		'no IP address appears anywhere on the dashboard',
+		!/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/.test(bodyText)
+	);
 
 	await p.screenshot({ path: `${SHOTS}/analytics-desktop.png`, fullPage: true });
 
 	apiCalls.length = 0;
 	await p.getByRole('button', { name: '7 days', exact: true }).click();
 	await sectionsLoaded(p);
-	check('the period switch reloads with ?days=7', apiCalls.some((u) => u.includes('days=7')), apiCalls.join(' '));
+	check(
+		'the period switch reloads with ?days=7',
+		apiCalls.some((u) => u.includes('days=7')),
+		apiCalls.join(' ')
+	);
 
 	const recompute = p.locator('button', { hasText: /Recompute/ });
 	check('a recompute button exists', (await recompute.count()) === 1);
@@ -160,12 +194,25 @@ async function sectionsLoaded(p) {
 	});
 	await go(p, `${BASE}/moderation`);
 	// Wait until the page has decided (the refusal is drawn), or "no tab" would be vacuous.
-	await p.getByText(/only available to moderators/i).waitFor({ timeout: 20000 }).catch(() => null);
-	check('a plain account sees no Analytics tab', (await p.locator('#mod-tab-analytics').count()) === 0);
+	await p
+		.getByText(/only available to moderators/i)
+		.waitFor({ timeout: 20000 })
+		.catch(() => null);
+	check(
+		'a plain account sees no Analytics tab',
+		(await p.locator('#mod-tab-analytics').count()) === 0
+	);
 	await go(p, `${BASE}/moderation/analytics`);
 	const text = (await p.textContent('body')) ?? '';
-	check('a plain account is refused at /moderation/analytics', /only available to moderators/i.test(text));
-	check('…and the page asked the API for nothing', analyticsResponses.length === 0, analyticsResponses.join(','));
+	check(
+		'a plain account is refused at /moderation/analytics',
+		/only available to moderators/i.test(text)
+	);
+	check(
+		'…and the page asked the API for nothing',
+		analyticsResponses.length === 0,
+		analyticsResponses.join(',')
+	);
 	await p.screenshot({ path: `${SHOTS}/analytics-refused.png` });
 	await c.close();
 }

@@ -174,7 +174,7 @@ but may never empty it** — an exercise already published in every offered lang
 get a select with no options, which is exactly what the first wiring of `TranslateForm` produced.
 
 **The default is the INTERFACE language, everywhere.** The composer used to seed itself from
-`contentLocale` — the language the exercise was being *read* in — so a Polish-interface reader
+`contentLocale` — the language the exercise was being _read_ in — so a Polish-interface reader
 looking at the English rendering got `en` pre-filled for the Polish solution they were typing. What
 somebody is about to write is better guessed by the language they are reading the site in, and it is
 a picker, so a wrong guess costs one click. The list is bounded **for now** by the owner's own word:

@@ -186,17 +186,29 @@ await organiser.page
 	.click();
 await organiser.page.screenshot({ path: `${OUT}/contests-wizard-1.png`, fullPage: false });
 
-await organiser.page.locator('button').filter({ hasText: /Dalej|Next/ }).first().click();
+await organiser.page
+	.locator('button')
+	.filter({ hasText: /Dalej|Next/ })
+	.first()
+	.click();
 await organiser.page.waitForSelector('.grid', { timeout: 20000 });
 // Scope every fill to its own label (e2e/CLAUDE.md trap 6): positional locators lie.
-await organiser.page.locator('.field', { hasText: /Tytuł|Title/ }).first().locator('input').fill(TITLE);
 await organiser.page
-	.locator('.field', { hasText: /Według czego ocenia jury i jakie są wagi|What the jury marks against, and the weights/ })
+	.locator('.field', { hasText: /Tytuł|Title/ })
+	.first()
+	.locator('input')
+	.fill(TITLE);
+await organiser.page
+	.locator('.field', {
+		hasText: /Według czego ocenia jury i jakie są wagi|What the jury marks against, and the weights/
+	})
 	.first()
 	.locator('textarea')
 	.fill('Po 5 punktów za zadanie: poprawność i uzasadnienie. Remisy rozstrzyga się merytorycznie.');
 await organiser.page
-	.locator('.field', { hasText: /Kto odpowiada za dane uczestników|Who is responsible for the entrants' data/ })
+	.locator('.field', {
+		hasText: /Kto odpowiada za dane uczestników|Who is responsible for the entrants' data/
+	})
 	.first()
 	.locator('input')
 	.fill('E2E Szkoła');
@@ -208,7 +220,11 @@ await organiser.page
 // Deliberately NO claim deadline: check 3 is that announcing is refused for exactly that.
 await organiser.page.screenshot({ path: `${OUT}/contests-wizard-2.png`, fullPage: false });
 
-await organiser.page.locator('button').filter({ hasText: /Dalej|Next/ }).first().click();
+await organiser.page
+	.locator('button')
+	.filter({ hasText: /Dalej|Next/ })
+	.first()
+	.click();
 await organiser.page.waitForSelector('.pickers', { timeout: 20000 });
 const suggestions = organiser.page.locator('.suggestions label');
 const suggestionCount = await suggestions.count();
@@ -230,7 +246,11 @@ if (suggestionCount > 0) {
 }
 await organiser.page.screenshot({ path: `${OUT}/contests-wizard-3-people.png`, fullPage: false });
 
-await organiser.page.locator('button').filter({ hasText: /Dalej|Next/ }).first().click();
+await organiser.page
+	.locator('button')
+	.filter({ hasText: /Dalej|Next/ })
+	.first()
+	.click();
 await organiser.page.waitForSelector('.checklist', { timeout: 20000 });
 check(
 	'the legal checklist is previewed before anything is created',
@@ -261,7 +281,9 @@ check('the wizard created the contest and went to its page', Boolean(contestId))
 await organiser.page.waitForSelector('.hero', { timeout: 30000 });
 check(
 	'the organiser is the FIRST thing on the contest page',
-	/Organizuje|Organised by/.test(await organiser.page.locator('.hero .organiser').first().innerText())
+	/Organizuje|Organised by/.test(
+		await organiser.page.locator('.hero .organiser').first().innerText()
+	)
 );
 check(
 	'and the page says EdMat is only the medium',
@@ -321,19 +343,33 @@ await api(ORGANISER, 'POST', `/contests/${contestId}/transition/`, { status: 're
 
 // ---- 4. a minor registers only with a guardian's consent ----------------------------------------
 const bare = await api(ENTRANT, 'POST', `/contests/${contestId}/registrations/`, {});
-check('an adult entrant registers with no guardian block', bare.status === 201, `status ${bare.status}`);
+check(
+	'an adult entrant registers with no guardian block',
+	bare.status === 201,
+	`status ${bare.status}`
+);
 const registrationId = bare.body?.id;
 check('and `publish_name` defaults to FALSE', bare.body?.publish_name === false);
-const consentPatch = await api(ENTRANT, 'PATCH', `/contest-registrations/${registrationId}/publish-name/`, {
-	publish_name: true
-});
+const consentPatch = await api(
+	ENTRANT,
+	'PATCH',
+	`/contest-registrations/${registrationId}/publish-name/`,
+	{
+		publish_name: true
+	}
+);
 check(
 	'the name consent is its own, separate PATCH',
 	consentPatch.status === 200 && consentPatch.body?.publish_name === true
 );
-const revoked = await api(ENTRANT, 'PATCH', `/contest-registrations/${registrationId}/publish-name/`, {
-	publish_name: false
-});
+const revoked = await api(
+	ENTRANT,
+	'PATCH',
+	`/contest-registrations/${registrationId}/publish-name/`,
+	{
+		publish_name: false
+	}
+);
 check('and it is revocable', revoked.status === 200 && revoked.body?.publish_name === false);
 const organiserCannotRevoke = await api(
 	ORGANISER,
@@ -398,14 +434,23 @@ check(
 	'and the page carries no hint and no solution for it',
 	!/data-hint|solution-entry|SolutionEntry/.test(problemHtml)
 );
-await entrant.page.locator('.answer textarea').first().fill(
-	'Z definicji granicy: dla każdego \\( \\varepsilon > 0 \\) istnieje \\( N \\)…'
-);
+await entrant.page
+	.locator('.answer textarea')
+	.first()
+	.fill('Z definicji granicy: dla każdego \\( \\varepsilon > 0 \\) istnieje \\( N \\)…');
 await entrant.page.waitForTimeout(2200); // the autosave debounce
 await entrant.page.screenshot({ path: `${OUT}/contests-stage-answer.png`, fullPage: false });
-await entrant.page.locator('button').filter({ hasText: /Oddaj pracę|Hand it in/ }).first().click();
+await entrant.page
+	.locator('button')
+	.filter({ hasText: /Oddaj pracę|Hand it in/ })
+	.first()
+	.click();
 await entrant.page.waitForTimeout(400);
-await entrant.page.locator('button').filter({ hasText: /Tak, oddaję|Yes, hand it in/ }).first().click();
+await entrant.page
+	.locator('button')
+	.filter({ hasText: /Tak, oddaję|Yes, hand it in/ })
+	.first()
+	.click();
 await entrant.page.waitForTimeout(2000);
 check(
 	'handing in says so and cannot be undone',
@@ -454,7 +499,11 @@ const marksSaved = juror.page.waitForResponse(
 	(r) => r.url().includes('/scores/') && r.request().method() === 'POST',
 	{ timeout: 30000 }
 );
-await juror.page.locator('button').filter({ hasText: /Zapisz moje oceny|Save my marks/ }).first().click();
+await juror.page
+	.locator('button')
+	.filter({ hasText: /Zapisz moje oceny|Save my marks/ })
+	.first()
+	.click();
 await marksSaved;
 await juror.page.waitForTimeout(500);
 await juror.page.screenshot({ path: `${OUT}/contests-judge-matrix.png`, fullPage: false });
@@ -469,7 +518,11 @@ check(
 await api(ORGANISER, 'POST', `/contest-stages/${stageId}/advance/`);
 await api(ORGANISER, 'POST', `/contests/${contestId}/transition/`, { status: 'judging' });
 const published = await api(ORGANISER, 'POST', `/contests/${contestId}/publish-results/`);
-check('the results publish', published.status === 200, JSON.stringify(published.body?.detail ?? ''));
+check(
+	'the results publish',
+	published.status === 200,
+	JSON.stringify(published.body?.detail ?? '')
+);
 
 await organiser.page.goto(`${BASE}/contests/${contestId}/results`, { waitUntil: 'load' });
 await organiser.page.waitForSelector('.ranking tbody tr', { timeout: 60000 });
@@ -492,7 +545,9 @@ const lodged = await api(ENTRANT, 'POST', `/contests/${contestId}/complaints/`, 
 	text: 'Uważam, że zadanie 1 oceniono za nisko — uzasadnienie było pełne.'
 });
 check('an entrant lodges a complaint', lodged.status === 201, `status ${lodged.status}`);
-const twice = await api(ENTRANT, 'POST', `/contests/${contestId}/complaints/`, { text: 'Jeszcze raz.' });
+const twice = await api(ENTRANT, 'POST', `/contests/${contestId}/complaints/`, {
+	text: 'Jeszcze raz.'
+});
 check('and cannot lodge a second one while the first waits', twice.status === 409);
 const notAParticipant = await api(JUROR, 'POST', `/contests/${contestId}/complaints/`, {
 	text: 'Ja też.'
@@ -508,10 +563,17 @@ await organiser.page.waitForSelector('.block', { timeout: 60000 });
 await organiser.page.waitForTimeout(1500);
 const inbox = organiser.page.locator('.list li').filter({ hasText: 'zadanie 1' }).first();
 check('the complaint is in the organiser s inbox', (await inbox.count()) === 1);
-await inbox.locator('textarea').first().fill(
-	'Komisja ponownie przeczytała pracę. Zgodnie z §6 regulaminu za uzasadnienie przyznaje się do 3 punktów; brakowało przejścia granicznego. Ocena bez zmian. Droga sądowa pozostaje otwarta.'
-);
-await inbox.locator('button').filter({ hasText: /Wyślij odpowiedź|Send the answer/ }).first().click();
+await inbox
+	.locator('textarea')
+	.first()
+	.fill(
+		'Komisja ponownie przeczytała pracę. Zgodnie z §6 regulaminu za uzasadnienie przyznaje się do 3 punktów; brakowało przejścia granicznego. Ocena bez zmian. Droga sądowa pozostaje otwarta.'
+	);
+await inbox
+	.locator('button')
+	.filter({ hasText: /Wyślij odpowiedź|Send the answer/ })
+	.first()
+	.click();
 await organiser.page.waitForTimeout(2000);
 const answered = await api(ORGANISER, 'GET', `/contests/${contestId}/complaints/`);
 check(
@@ -536,7 +598,8 @@ check(
 );
 check(
 	'and the tax block shows the 2 000 zł line, never the mass-media limb',
-	/2 ?000/.test(panelText) && !/masowego przekazu|mass media/.test(panelText.replace(/celowo nie proponuje[^.]*\./, '')),
+	/2 ?000/.test(panelText) &&
+		!/masowego przekazu|mass media/.test(panelText.replace(/celowo nie proponuje[^.]*\./, '')),
 	'the mass-media limb must only ever appear as the thing EdMat does NOT offer'
 );
 await organiser.page.screenshot({ path: `${OUT}/contests-manage.png`, fullPage: true });
@@ -601,5 +664,7 @@ if (ignored > 0) {
 }
 await browser.close();
 console.log(`\n${passed} passed, ${failed} failed`);
-console.log(`Scratch contest ${contestId} ("${TITLE}") is left CANCELLED on purpose — see the header.`);
+console.log(
+	`Scratch contest ${contestId} ("${TITLE}") is left CANCELLED on purpose — see the header.`
+);
 process.exit(failed === 0 ? 0 : 1);

@@ -183,7 +183,7 @@ cache; cache.clear()"`, through the API and never by deleting `cachedata/` (trap
     answer.** The request-logging middleware writes to the telemetry shards (`logs_0…7`,
     `logs_anon`), which are separate SQLite FILES under `backend/logdata/` that a worktree does not
     get by copying `db.sqlite3`. Without them every request ends in `no such table:
-    telemetry_requestlog` in the server log (3 772 of them in one e2e run), responses still say 200,
+telemetry_requestlog` in the server log (3 772 of them in one e2e run), responses still say 200,
     and yet `contests.mjs` found the hub's second list request simply never reaching the backend —
     0 cards, "Loading…" for 60 s, 57/58. Copy `backend/logdata/*.sqlite3` from the main checkout
     (or `migrate --database` each shard) before the first browser run in a new worktree; the same

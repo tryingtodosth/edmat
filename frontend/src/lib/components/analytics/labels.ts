@@ -34,7 +34,7 @@ const KIND: Labels = {
 	organization: m.analytics_kind_organization, // "Organisations"
 	material_project: m.analytics_kind_material_project, // "Material projects"
 	branch: m.analytics_kind_branch, // "Branches"
-	discipline: m.analytics_kind_discipline, // "Disciplines"
+	discipline: m.analytics_kind_discipline // "Disciplines"
 };
 
 export const kindLabel = (key: string): string => pick(KIND, key);
@@ -47,7 +47,7 @@ const QUEUE: Labels = {
 	reports: m.analytics_queue_reports, // "Reports"
 	material_versions: m.analytics_queue_material_versions, // "Material versions"
 	concept_revisions: m.analytics_queue_concept_revisions, // "Concept revisions"
-	governor_applications: m.analytics_queue_governor_applications, // "Governor applications"
+	governor_applications: m.analytics_queue_governor_applications // "Governor applications"
 };
 
 export const queueLabel = (key: string): string => pick(QUEUE, key);
@@ -60,7 +60,7 @@ const ACTIVITY: Labels = {
 	exercise_claims: m.analytics_activity_exercise_claims, // "Exercise coverage claims"
 	material_claims: m.analytics_activity_material_claims, // "Material coverage claims"
 	course_claims: m.analytics_activity_course_claims, // "Course coverage claims"
-	material_reviews: m.analytics_activity_material_reviews, // "Material reviews"
+	material_reviews: m.analytics_activity_material_reviews // "Material reviews"
 };
 
 export const activityLabel = (key: string): string => pick(ACTIVITY, key);
@@ -87,7 +87,7 @@ const FEATURE: Labels = {
 	goals: m.analytics_feature_goals, // "Goals"
 	polls: m.analytics_feature_polls, // "Polls"
 	organizations: m.analytics_feature_organizations, // "Organisations"
-	attachments: m.analytics_feature_attachments, // "Attachments"
+	attachments: m.analytics_feature_attachments // "Attachments"
 };
 
 export const featureLabel = (key: string): string => pick(FEATURE, key);
@@ -100,7 +100,7 @@ const BROWSER: Labels = {
 	opera: m.analytics_browser_opera, // "Opera"
 	samsung: m.analytics_browser_samsung, // "Samsung Internet"
 	other: m.analytics_browser_other, // "Other"
-	bot: m.analytics_browser_bot, // "Bots"
+	bot: m.analytics_browser_bot // "Bots"
 };
 
 export const browserLabel = (key: string): string => pick(BROWSER, key);
@@ -113,7 +113,7 @@ const OS: Labels = {
 	ios: m.analytics_os_ios, // "iOS"
 	chromeos: m.analytics_os_chromeos, // "ChromeOS"
 	other: m.analytics_os_other, // "Other"
-	bot: m.analytics_os_bot, // "Bots"
+	bot: m.analytics_os_bot // "Bots"
 };
 
 export const osLabel = (key: string): string => pick(OS, key);
@@ -122,7 +122,7 @@ const DEVICE: Labels = {
 	desktop: m.analytics_device_desktop, // "Desktop"
 	mobile: m.analytics_device_mobile, // "Phone"
 	tablet: m.analytics_device_tablet, // "Tablet"
-	bot: m.analytics_device_bot, // "Bots"
+	bot: m.analytics_device_bot // "Bots"
 };
 
 export const deviceLabel = (key: string): string => pick(DEVICE, key);
@@ -132,7 +132,7 @@ const STATUS: Labels = {
 	'3xx': m.analytics_status_3xx, // "Redirects (3xx)"
 	'4xx': m.analytics_status_4xx, // "Client errors (4xx)"
 	'5xx': m.analytics_status_5xx, // "Server errors (5xx)"
-	throttled: m.analytics_status_throttled, // "Throttled (429)"
+	throttled: m.analytics_status_throttled // "Throttled (429)"
 };
 
 export const statusLabel = (key: string): string => pick(STATUS, key);

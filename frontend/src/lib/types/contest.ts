@@ -54,11 +54,7 @@ export type StageMode = 'online' | 'onsite';
 export type StageStatus = 'scheduled' | 'open' | 'closed' | 'scored';
 
 export type RegistrationStatus =
-	| 'requested'
-	| 'accepted'
-	| 'declined'
-	| 'withdrawn'
-	| 'disqualified';
+	'requested' | 'accepted' | 'declined' | 'withdrawn' | 'disqualified';
 
 export type SubmissionStatus = 'draft' | 'submitted' | 'scored';
 

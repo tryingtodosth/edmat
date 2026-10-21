@@ -33,14 +33,18 @@
 							<th scope="col" class="num">{m.analytics_col_withSolution()}</th>
 							<th scope="col" class="num">{m.analytics_col_verified()}</th><!-- "Verified" -->
 							{#each c.locales as loc (loc)}
-								<th scope="col" class="num">{m.analytics_col_translated({ locale: loc.toUpperCase() })}</th><!-- "Translated ({locale})" -->
+								<th scope="col" class="num"
+									>{m.analytics_col_translated({ locale: loc.toUpperCase() })}</th
+								><!-- "Translated ({locale})" -->
 							{/each}
 						</tr>
 					</thead>
 					<tbody>
 						{#each d.branches as b (b.slug)}
 							<tr>
-								<th scope="row"><a href={resolve('/branches/[branch]', { branch: b.slug })}>{b.name}</a></th>
+								<th scope="row"
+									><a href={resolve('/branches/[branch]', { branch: b.slug })}>{b.name}</a></th
+								>
 								<td class="num">{formatCount(b.exercises)}</td>
 								<td class="num">{formatCount(b.withHint)}</td>
 								<td class="num">{formatCount(b.withSolution)}</td>

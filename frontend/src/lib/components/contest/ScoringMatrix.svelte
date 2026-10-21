@@ -142,7 +142,7 @@
 					<tbody>
 						{#each view.problems as problem, index (problem.id)}
 							{@const answer = submission.answers.find((a) => a.problemId === problem.id)}
-							{@const myCell = drafts[submission.id ?? ""]?.[problem.id]}
+							{@const myCell = drafts[submission.id ?? '']?.[problem.id]}
 							<tr>
 								<th scope="row">
 									{index + 1}

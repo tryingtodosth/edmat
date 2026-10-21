@@ -142,8 +142,7 @@
 					Zaświadczenie wystawia <strong>organizator konkursu</strong> wskazany powyżej. Serwis
 					EdMat jest wyłącznie narzędziem, przy pomocy którego konkurs został przeprowadzony: nie
 					jest organizatorem, nie ocenia prac i nie potwierdza niczyich kwalifikacji.
-					<strong>Dokument niepodpisany</strong> — o podpisany egzemplarz należy zwrócić się do
-					organizatora.
+					<strong>Dokument niepodpisany</strong> — o podpisany egzemplarz należy zwrócić się do organizatora.
 				</p>
 				<p class="issued">
 					This certificate is issued by the <strong>contest organiser</strong> named above. EdMat is
@@ -154,9 +153,9 @@
 				<p class="issued issued--small">
 					Uprawnienia wynikające z tytułu laureata lub finalisty zależą wyłącznie od przepisów
 					dotyczących danego konkursu i od tego, czy konkurs znajduje się w wykazie ministra. Ten
-					dokument niczego takiego nie przyznaje. / Whatever rights a laureate's or finalist's
-					title carries depend entirely on the rules governing that particular contest and on
-					whether it is on the minister's list. This document grants none of them.
+					dokument niczego takiego nie przyznaje. / Whatever rights a laureate's or finalist's title
+					carries depend entirely on the rules governing that particular contest and on whether it
+					is on the minister's list. This document grants none of them.
 				</p>
 			</article>
 		{/if}

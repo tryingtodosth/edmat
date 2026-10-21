@@ -50,18 +50,9 @@
 		withdrawRegistration
 	} from '$lib/services/contests';
 	import { contestRefusalMessage } from '$lib/utils/labels';
-	import {
-		contestStaffRoleLabel,
-		organiserKindLabel,
-		prizeRegimeLabel
-	} from '$lib/utils/labels';
+	import { contestStaffRoleLabel, organiserKindLabel, prizeRegimeLabel } from '$lib/utils/labels';
 	import { formatDate } from '$lib/utils/datetime';
-	import type {
-		CompliancePayload,
-		Contest,
-		ContestStage,
-		LawCitation
-	} from '$lib/types/contest';
+	import type { CompliancePayload, Contest, ContestStage, LawCitation } from '$lib/types/contest';
 
 	let contest = $state<Contest | null>(null);
 
@@ -292,11 +283,7 @@
 			<section class="block">
 				<h2>{m.contests_stagesHeading()}</h2>
 				<!-- "The stages" -->
-				<StageLadder
-					contestId={contest.id}
-					{stages}
-					isStaff={contest.myRole !== null}
-				/>
+				<StageLadder contestId={contest.id} {stages} isStaff={contest.myRole !== null} />
 			</section>
 
 			<nav class="links" aria-label={m.contests_linksLabel()}>

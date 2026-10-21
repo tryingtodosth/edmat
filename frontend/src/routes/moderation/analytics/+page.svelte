@@ -34,20 +34,30 @@
 <!-- "Usage analytics" / "Staff-only usage statistics for EdMat." -->
 
 <div class="page">
-	<p class="back"><a href={resolve('/moderation')}>{m.analytics_back()}</a></p><!-- "← Moderation" -->
-	<h1>{m.analytics_heading()}</h1><!-- "Usage analytics" -->
+	<p class="back"><a href={resolve('/moderation')}>{m.analytics_back()}</a></p>
+	<!-- "← Moderation" -->
+	<h1>{m.analytics_heading()}</h1>
+	<!-- "Usage analytics" -->
 
 	{#if !authStore.ready || authStore.restoring}
-		<p class="muted">{m.common_loading()}</p><!-- "Loading…" -->
+		<p class="muted">{m.common_loading()}</p>
+		<!-- "Loading…" -->
 	{:else if !authStore.isModerator}
-		<p class="muted">{m.moderation_accessDenied()}</p><!-- "This page is only available to moderators." -->
+		<p class="muted">{m.moderation_accessDenied()}</p>
+		<!-- "This page is only available to moderators." -->
 	{:else}
-		<p class="muted">{m.analytics_subtitle()}</p><!-- "Aggregate numbers counted on the server. Nothing is collected in the visitor's browser." -->
+		<p class="muted">{m.analytics_subtitle()}</p>
+		<!-- "Aggregate numbers counted on the server. Nothing is collected in the visitor's browser." -->
 
 		<div class="period" role="group" aria-label={m.analytics_period_label()}>
 			<!-- "Period" -->
 			{#each ANALYTICS_DAYS as d (d)}
-				<button type="button" class:active={days === d} aria-pressed={days === d} onclick={() => (days = d)}>
+				<button
+					type="button"
+					class:active={days === d}
+					aria-pressed={days === d}
+					onclick={() => (days = d)}
+				>
 					{m.analytics_period_days({ days: d })}<!-- "{days} days" -->
 				</button>
 			{/each}

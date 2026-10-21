@@ -54,7 +54,8 @@
 	{#if error}
 		<p class="error" role="alert">
 			{m.analytics_loadFailed({ error })}<!-- "Could not load this section: {error}" -->
-			<button type="button" class="retry" onclick={run}>{m.analytics_retry()}</button><!-- "Try again" -->
+			<button type="button" class="retry" onclick={run}>{m.analytics_retry()}</button
+			><!-- "Try again" -->
 		</p>
 	{/if}
 	{#if data !== null}
@@ -62,7 +63,8 @@
 			{@render children(data as T)}
 		</div>
 	{:else if loading}
-		<p class="loading">{m.common_loading()}</p><!-- "Loading…" -->
+		<p class="loading">{m.common_loading()}</p>
+		<!-- "Loading…" -->
 	{/if}
 </section>
 

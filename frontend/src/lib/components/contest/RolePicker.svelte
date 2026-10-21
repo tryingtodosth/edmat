@@ -61,7 +61,9 @@
 			}
 		});
 		const extra = via.length - parts.length;
-		return extra > 0 ? `${parts.join('; ')} ${m.contests_viaMore({ count: extra })}` : parts.join('; '); // "and {count} more"
+		return extra > 0
+			? `${parts.join('; ')} ${m.contests_viaMore({ count: extra })}`
+			: parts.join('; '); // "and {count} more"
 	}
 
 	function toggle(id: string) {

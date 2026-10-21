@@ -56,16 +56,18 @@
 
 	async function save() {
 		await onsave(
-			sections.map((s, index) => ({ key: s.key, order: s.order ?? index, body: bodies[s.key] ?? '' }))
+			sections.map((s, index) => ({
+				key: s.key,
+				order: s.order ?? index,
+				body: bodies[s.key] ?? ''
+			}))
 		);
 	}
 </script>
 
 <div class="editor">
 	<p class="state">
-		{version > 0
-			? m.contests_rulesVersionNow({ version })
-			: m.contests_rulesNeverPublished()}
+		{version > 0 ? m.contests_rulesVersionNow({ version }) : m.contests_rulesNeverPublished()}
 		<!-- "Published version: {version}" / "This regulamin has never been published, so the contest cannot be announced." -->
 		{#if emptyRequired > 0}
 			· {m.contests_rulesEmptyRequired({ count: emptyRequired })}

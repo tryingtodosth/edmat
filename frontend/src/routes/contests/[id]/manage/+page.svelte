@@ -396,12 +396,7 @@
 							{/each}
 						</select>
 					</label>
-					<RolePicker
-						role={newRole}
-						{people}
-						loading={peopleLoading}
-						bind:chosen={newPeople}
-					/>
+					<RolePicker role={newRole} {people} loading={peopleLoading} bind:chosen={newPeople} />
 					<button
 						type="button"
 						class="primary"
@@ -465,11 +460,7 @@
 
 			<!-- ---- the panel, at full size ---------------------------------------------------- -->
 			{#if compliance}
-				<CompliancePanel
-					report={compliance}
-					{law}
-					checklist={contest.preset?.checklist ?? []}
-				/>
+				<CompliancePanel report={compliance} {law} checklist={contest.preset?.checklist ?? []} />
 			{/if}
 
 			<!-- ---- the danger zone ------------------------------------------------------------- -->

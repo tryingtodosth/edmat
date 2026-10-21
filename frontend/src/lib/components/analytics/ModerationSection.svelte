@@ -12,7 +12,12 @@
 	let { days, reloadKey }: { days: AnalyticsDays; reloadKey: number } = $props();
 </script>
 
-<Section id="moderation" title={m.analytics_moderation_title()} deps={`${days}:${reloadKey}`} load={() => getModeration(days)}>
+<Section
+	id="moderation"
+	title={m.analytics_moderation_title()}
+	deps={`${days}:${reloadKey}`}
+	load={() => getModeration(days)}
+>
 	<!-- "Moderation queues" -->
 	{#snippet children(d)}
 		<div class="table-wrap">
@@ -25,7 +30,8 @@
 						<th scope="col" class="num">{m.analytics_col_submitted()}</th><!-- "Submitted" -->
 						<th scope="col" class="num">{m.analytics_col_decided()}</th><!-- "Decided" -->
 						<th scope="col" class="num">{m.analytics_col_accepted()}</th><!-- "Accepted" -->
-						<th scope="col" class="num">{m.analytics_col_median()}</th><!-- "Median time to decision" -->
+						<th scope="col" class="num">{m.analytics_col_median()}</th
+						><!-- "Median time to decision" -->
 					</tr>
 				</thead>
 				<tbody>
@@ -45,11 +51,15 @@
 							<td class="num">{q.accepted === null ? '—' : formatCount(q.accepted)}</td>
 							<td class="num">
 								{#if !q.timingRecorded}
-									<span class="norec" title={m.analytics_notRecorded_hint()}>{m.analytics_notRecorded()}</span><!-- "not recorded" / "This queue never stored when an item was decided, so a time to decision cannot be computed." -->
+									<span class="norec" title={m.analytics_notRecorded_hint()}
+										>{m.analytics_notRecorded()}</span
+									><!-- "not recorded" / "This queue never stored when an item was decided, so a time to decision cannot be computed." -->
 								{:else if q.medianHoursToDecision === null}
 									—
 								{:else}
-									{m.analytics_hours({ n: Math.round(q.medianHoursToDecision * 10) / 10 })}<!-- "{n} h" -->
+									{m.analytics_hours({
+										n: Math.round(q.medianHoursToDecision * 10) / 10
+									})}<!-- "{n} h" -->
 								{/if}
 							</td>
 						</tr>
@@ -57,7 +67,8 @@
 				</tbody>
 			</table>
 		</div>
-		<p class="note">{m.analytics_moderation_note()}</p><!-- "Two ways of counting “decided”: where a queue records when it decided something, decisions made in the period are counted; where it does not, the count is of the decisions among what was submitted in the period. “Not recorded” means the queue never stored when an item was decided." -->
+		<p class="note">{m.analytics_moderation_note()}</p>
+		<!-- "Two ways of counting “decided”: where a queue records when it decided something, decisions made in the period are counted; where it does not, the count is of the decisions among what was submitted in the period. “Not recorded” means the queue never stored when an item was decided." -->
 	{/snippet}
 </Section>
 

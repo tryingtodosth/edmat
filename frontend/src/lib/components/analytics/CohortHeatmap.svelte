@@ -19,12 +19,15 @@
 
 <div class="table-wrap">
 	<table class="atable heat">
-		<caption class="sr">{m.analytics_cohorts_caption()}</caption><!-- "Share of each signup week's accounts that were active, by weeks since signup" -->
+		<caption class="sr">{m.analytics_cohorts_caption()}</caption
+		><!-- "Share of each signup week's accounts that were active, by weeks since signup" -->
 		<thead>
 			<tr>
 				<th scope="col">{m.analytics_cohorts_signupWeek()}</th><!-- "Signed up (week of)" -->
 				<th scope="col" class="num">{m.analytics_cohorts_size()}</th><!-- "Accounts" -->
-				{#each offsets as o (o)}<th scope="col" class="num">{m.analytics_cohorts_weekN({ n: o })}</th>{/each}<!-- "W{n}" -->
+				{#each offsets as o (o)}<th scope="col" class="num"
+						>{m.analytics_cohorts_weekN({ n: o })}</th
+					>{/each}<!-- "W{n}" -->
 			</tr>
 		</thead>
 		<tbody>
@@ -43,7 +46,9 @@
 									? m.analytics_people_hidden({ k: PRIVACY_K })
 									: m.analytics_cohorts_noCohort()}
 							>
-								{cell.users === null ? `<${PRIVACY_K}` : '–'}<!-- "fewer than {k} — hidden to protect privacy" / "No accounts in this cohort" -->
+								{cell.users === null
+									? `<${PRIVACY_K}`
+									: '–'}<!-- "fewer than {k} — hidden to protect privacy" / "No accounts in this cohort" -->
 							</td>
 						{:else}
 							<td

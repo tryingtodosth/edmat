@@ -118,7 +118,11 @@
 		const ms = new Date(stage.closesAt).getTime() - now;
 		if (ms <= 0) return null;
 		const minutes = Math.floor(ms / 60_000);
-		return { days: Math.floor(minutes / 1440), hours: Math.floor((minutes % 1440) / 60), minutes: minutes % 60 };
+		return {
+			days: Math.floor(minutes / 1440),
+			hours: Math.floor((minutes % 1440) / 60),
+			minutes: minutes % 60
+		};
 	});
 
 	let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -341,8 +345,7 @@
 										rows="6"
 										disabled={!canAnswer}
 										bind:value={answers[problem.id]}
-										oninput={onAnswerInput}
-									></textarea>
+										oninput={onAnswerInput}></textarea>
 									<small>{m.contests_answerFormatHint()}</small>
 									<!-- "Markdown, and LaTeX between \( … \) or \[ … \] — the same as everywhere else here." -->
 								</label>

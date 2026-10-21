@@ -15,35 +15,58 @@
 	let { days, reloadKey }: { days: AnalyticsDays; reloadKey: number } = $props();
 </script>
 
-<Section id="community" title={m.analytics_community_title()} deps={`${days}:${reloadKey}`} load={() => getCommunity(days)}>
+<Section
+	id="community"
+	title={m.analytics_community_title()}
+	deps={`${days}:${reloadKey}`}
+	load={() => getCommunity(days)}
+>
 	<!-- "Community" -->
 	{#snippet children(c)}
 		<SeriesTable
 			caption={m.analytics_community_activity()}
-			rows={Object.entries(c.activity).map(([key, series]) => ({ key, label: activityLabel(key), series }))}
+			rows={Object.entries(c.activity).map(([key, series]) => ({
+				key,
+				label: activityLabel(key),
+				series
+			}))}
 		/><!-- "Activity by week" -->
-		<h3>{m.analytics_community_accounts()}</h3><!-- "Accounts" -->
+		<h3>{m.analytics_community_accounts()}</h3>
+		<!-- "Accounts" -->
 		<div class="grid2">
 			<div>
-				<p class="note">{m.analytics_community_registrationsPerWeek()}</p><!-- "Registrations per week" -->
+				<p class="note">{m.analytics_community_registrationsPerWeek()}</p>
+				<!-- "Registrations per week" -->
 				<BarList
 					people
-					items={c.accounts.weekly.map((w) => ({ key: w.week, label: shortDate(w.week), value: w.count }))}
+					items={c.accounts.weekly.map((w) => ({
+						key: w.week,
+						label: shortDate(w.week),
+						value: w.count
+					}))}
 				/>
 			</div>
 			<dl class="facts">
-				<dt>{m.analytics_community_registered()}</dt><!-- "Registered in this period" -->
+				<dt>{m.analytics_community_registered()}</dt>
+				<!-- "Registered in this period" -->
 				<dd><People value={c.accounts.registered} /></dd>
-				<dt>{m.analytics_community_total()}</dt><!-- "Accounts in total" -->
+				<dt>{m.analytics_community_total()}</dt>
+				<!-- "Accounts in total" -->
 				<dd><People value={c.accounts.totalAccounts} /></dd>
-				<dt>{m.analytics_community_confirmation()}</dt><!-- "Email confirmation rate" -->
-				<dd>{c.accounts.confirmationRate === null ? '—' : formatPercent(c.accounts.confirmationRate)}</dd>
-				<dt>{m.analytics_community_guardian()}</dt><!-- "Created by a guardian" -->
+				<dt>{m.analytics_community_confirmation()}</dt>
+				<!-- "Email confirmation rate" -->
+				<dd>
+					{c.accounts.confirmationRate === null ? '—' : formatPercent(c.accounts.confirmationRate)}
+				</dd>
+				<dt>{m.analytics_community_guardian()}</dt>
+				<!-- "Created by a guardian" -->
 				<dd><People value={c.accounts.guardianCreated} /></dd>
 			</dl>
 		</div>
-		<h3>{m.analytics_community_funnel()}</h3><!-- "Contribution funnel" -->
-		<p class="note">{m.analytics_community_funnel_note()}</p><!-- "Of the accounts registered in this period: how many submitted something, and how many had something accepted." -->
+		<h3>{m.analytics_community_funnel()}</h3>
+		<!-- "Contribution funnel" -->
+		<p class="note">{m.analytics_community_funnel_note()}</p>
+		<!-- "Of the accounts registered in this period: how many submitted something, and how many had something accepted." -->
 		<BarList
 			people
 			items={[
@@ -55,7 +78,11 @@
 		<!-- The table's own caption is the heading here; an <h3> above it printed the title twice. -->
 		<SeriesTable
 			caption={m.analytics_community_features()}
-			rows={Object.entries(c.features).map(([key, series]) => ({ key, label: featureLabel(key), series }))}
+			rows={Object.entries(c.features).map(([key, series]) => ({
+				key,
+				label: featureLabel(key),
+				series
+			}))}
 		/>
 	{/snippet}
 </Section>

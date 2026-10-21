@@ -23,11 +23,20 @@
 >
 	<!-- "Health (last 7 days)" / "Always the last 7 days, whatever period is selected above." -->
 	{#snippet children(h)}
-		<h3>{m.analytics_health_statuses()}</h3><!-- "Responses by class" -->
-		<BarList items={Object.entries(h.statuses).map(([k, v]) => ({ key: k, label: statusLabel(k), value: v }))} />
-		<h3>{m.analytics_health_errors()}</h3><!-- "Routes that returned a 5xx" -->
+		<h3>{m.analytics_health_statuses()}</h3>
+		<!-- "Responses by class" -->
+		<BarList
+			items={Object.entries(h.statuses).map(([k, v]) => ({
+				key: k,
+				label: statusLabel(k),
+				value: v
+			}))}
+		/>
+		<h3>{m.analytics_health_errors()}</h3>
+		<!-- "Routes that returned a 5xx" -->
 		{#if h.errors.length === 0}
-			<p class="note">{m.analytics_health_noErrors()}</p><!-- "No server errors in this window." -->
+			<p class="note">{m.analytics_health_noErrors()}</p>
+			<!-- "No server errors in this window." -->
 		{:else}
 			<div class="table-wrap">
 				<table class="atable">
@@ -52,7 +61,8 @@
 							     table five times taller than its content and off a phone screen. -->
 							<tr class="ids-row">
 								<td colspan="4">
-									<span class="ids-label">{m.analytics_col_requestIds()}:</span><!-- "Request ids" -->
+									<span class="ids-label">{m.analytics_col_requestIds()}:</span
+									><!-- "Request ids" -->
 									<ul class="ids">
 										{#each e.requestIds.slice(0, 5) as id (id)}<li><CopyId value={id} /></li>{/each}
 									</ul>
@@ -63,7 +73,8 @@
 				</table>
 			</div>
 		{/if}
-		<h3>{m.analytics_health_slowest()}</h3><!-- "Slowest routes" -->
+		<h3>{m.analytics_health_slowest()}</h3>
+		<!-- "Slowest routes" -->
 		<div class="table-wrap">
 			<table class="atable">
 				<caption class="sr">{m.analytics_health_slowest()}</caption>

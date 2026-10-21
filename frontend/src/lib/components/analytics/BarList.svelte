@@ -39,7 +39,9 @@
 					<span class="label">{item.label}</span>
 				{/if}
 				<span class="value">
-					{#if item.display}{item.display}{:else if people}<People value={item.value} />{:else}{formatCount(item.value ?? 0)}{/if}
+					{#if item.display}{item.display}{:else if people}<People
+							value={item.value}
+						/>{:else}{formatCount(item.value ?? 0)}{/if}
 				</span>
 			</div>
 			<div class="track" aria-hidden="true">

@@ -25,21 +25,34 @@
 >
 	<!-- "Content" -->
 	{#snippet children(c)}
-		<h3>{m.analytics_content_perDay()}</h3><!-- "Content views per day" -->
+		<h3>{m.analytics_content_perDay()}</h3>
+		<!-- "Content views per day" -->
 		<TimeSeriesChart
 			dates={c.daily.map((d) => d.date)}
 			title={m.analytics_content_perDay_summary({ days: c.period.days })}
-			series={[{ key: 'views', label: m.analytics_content_views(), values: c.daily.map((d) => d.views), color: 'var(--accent)' }]}
+			series={[
+				{
+					key: 'views',
+					label: m.analytics_content_views(),
+					values: c.daily.map((d) => d.views),
+					color: 'var(--accent)'
+				}
+			]}
 		/><!-- "Daily content views over the last {days} days" / "Views" -->
 		<div class="grid2">
 			<div>
-				<h3>{m.analytics_content_byKind()}</h3><!-- "Views by kind of page" -->
-				<BarList items={c.byKind.map((k) => ({ key: k.kind, label: kindLabel(k.kind), value: k.views }))} />
+				<h3>{m.analytics_content_byKind()}</h3>
+				<!-- "Views by kind of page" -->
+				<BarList
+					items={c.byKind.map((k) => ({ key: k.kind, label: kindLabel(k.kind), value: k.views }))}
+				/>
 			</div>
 			<div>
-				<h3>{m.analytics_content_topExercises()}</h3><!-- "Most viewed exercises" -->
+				<h3>{m.analytics_content_topExercises()}</h3>
+				<!-- "Most viewed exercises" -->
 				{#if c.topExercises.length === 0}
-					<p class="note">{m.analytics_empty()}</p><!-- "Nothing to show for this period." -->
+					<p class="note">{m.analytics_empty()}</p>
+					<!-- "Nothing to show for this period." -->
 				{:else}
 					<BarList
 						items={c.topExercises.map((e) => ({
@@ -53,7 +66,8 @@
 				{/if}
 			</div>
 			<div>
-				<h3>{m.analytics_content_topMaterials()}</h3><!-- "Most viewed materials" -->
+				<h3>{m.analytics_content_topMaterials()}</h3>
+				<!-- "Most viewed materials" -->
 				{#if c.topMaterials.length === 0}
 					<p class="note">{m.analytics_empty()}</p>
 				{:else}
@@ -68,7 +82,8 @@
 				{/if}
 			</div>
 		</div>
-		<h3>{m.analytics_content_leastCovered()}</h3><!-- "Branches with the least solved material" -->
+		<h3>{m.analytics_content_leastCovered()}</h3>
+		<!-- "Branches with the least solved material" -->
 		<div class="table-wrap">
 			<table class="atable">
 				<caption class="sr">{m.analytics_content_leastCovered()}</caption>
@@ -77,14 +92,18 @@
 						<th scope="col">{m.analytics_col_branch()}</th><!-- "Branch" -->
 						<th scope="col">{m.analytics_col_discipline()}</th><!-- "Discipline" -->
 						<th scope="col" class="num">{m.analytics_col_exercises()}</th><!-- "Exercises" -->
-						<th scope="col" class="num">{m.analytics_col_withSolution()}</th><!-- "With solution" -->
-						<th scope="col" class="num">{m.analytics_col_solutionShare()}</th><!-- "Solved share" -->
+						<th scope="col" class="num">{m.analytics_col_withSolution()}</th
+						><!-- "With solution" -->
+						<th scope="col" class="num">{m.analytics_col_solutionShare()}</th
+						><!-- "Solved share" -->
 					</tr>
 				</thead>
 				<tbody>
 					{#each c.leastCovered as b (b.slug)}
 						<tr>
-							<th scope="row"><a href={resolve('/branches/[branch]', { branch: b.slug })}>{b.name}</a></th>
+							<th scope="row"
+								><a href={resolve('/branches/[branch]', { branch: b.slug })}>{b.name}</a></th
+							>
 							<td>{b.discipline}</td>
 							<td class="num">{formatCount(b.exercises)}</td>
 							<td class="num">{formatCount(b.withSolution)}</td>

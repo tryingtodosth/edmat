@@ -24,7 +24,8 @@ export const ANALYTICS_DAYS: AnalyticsDays[] = [7, 30, 90, 365];
 // their keys are kept as the server sent them, only the values inside are converted.
 const DATA_KEYED = new Set(['activity', 'features', 'translated', 'statuses']);
 
-const toCamel = (key: string): string => key.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+const toCamel = (key: string): string =>
+	key.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 
 /** snake_case → camelCase, recursively, leaving the keys of `DATA_KEYED` maps alone. The payloads
  *  are plain JSON trees with no ids to stringify (every id the dashboard links to already arrives

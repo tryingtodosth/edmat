@@ -416,9 +416,9 @@ export async function getContestPresets(): Promise<PresetsPayload> {
 }
 
 export async function getPeopleSuggestions(): Promise<SuggestedPerson[]> {
-	const raw = await apiClient.get<{ people: { id: number; display_name: string; via: string[] }[] }>(
-		'/contests/people-suggestions/'
-	);
+	const raw = await apiClient.get<{
+		people: { id: number; display_name: string; via: string[] }[];
+	}>('/contests/people-suggestions/');
 	return (raw.people ?? []).map((row) => ({
 		id: String(row.id),
 		displayName: row.display_name ?? '',
@@ -577,7 +577,9 @@ export async function closeStage(stageId: string): Promise<ContestStage> {
 	return mapStage(await apiClient.post(`/contest-stages/${stageId}/close/`));
 }
 
-export async function advanceStage(stageId: string): Promise<{ advanced: number; stage: ContestStage }> {
+export async function advanceStage(
+	stageId: string
+): Promise<{ advanced: number; stage: ContestStage }> {
 	const raw = await apiClient.post<{ advanced: number; stage: unknown }>(
 		`/contest-stages/${stageId}/advance/`
 	);
@@ -652,8 +654,12 @@ export async function decideRegistration(
 	);
 }
 
-export async function withdrawRegistration(registrationId: string): Promise<ContestRegistrationRow> {
-	return mapRegistration(await apiClient.post(`/contest-registrations/${registrationId}/withdraw/`));
+export async function withdrawRegistration(
+	registrationId: string
+): Promise<ContestRegistrationRow> {
+	return mapRegistration(
+		await apiClient.post(`/contest-registrations/${registrationId}/withdraw/`)
+	);
 }
 
 export async function disqualifyRegistration(
@@ -727,7 +733,11 @@ export async function saveScores(
 ): Promise<ContestSubmission & { scores: { problem: string; points: number; note: string }[] }> {
 	/* eslint-disable @typescript-eslint/no-explicit-any */
 	const raw = await apiClient.post<any>(`/contest-submissions/${submissionId}/scores/`, {
-		scores: scores.map((s) => ({ problem: Number(s.problem), points: s.points, note: s.note ?? '' }))
+		scores: scores.map((s) => ({
+			problem: Number(s.problem),
+			points: s.points,
+			note: s.note ?? ''
+		}))
 	});
 	return {
 		...mapSubmission(raw),
@@ -790,7 +800,9 @@ export async function answerComplaint(
 	complaintId: string,
 	answer: string
 ): Promise<ContestComplaint> {
-	return mapComplaint(await apiClient.post(`/contest-complaints/${complaintId}/answer/`, { answer }));
+	return mapComplaint(
+		await apiClient.post(`/contest-complaints/${complaintId}/answer/`, { answer })
+	);
 }
 
 export async function withdrawComplaint(complaintId: string): Promise<ContestComplaint> {

@@ -35,12 +35,7 @@
 	} from '$lib/services/contests';
 	import { contestRefusalMessage } from '$lib/utils/labels';
 	import { formatDate } from '$lib/utils/datetime';
-	import type {
-		Contest,
-		LawCitation,
-		RulesPayload,
-		RulesVersionRow
-	} from '$lib/types/contest';
+	import type { Contest, LawCitation, RulesPayload, RulesVersionRow } from '$lib/types/contest';
 
 	let contest = $state<Contest | null>(null);
 	let rules = $state<RulesPayload | null>(null);

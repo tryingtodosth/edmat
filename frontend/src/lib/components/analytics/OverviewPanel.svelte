@@ -65,12 +65,12 @@
 		!d.compared
 			? m.analytics_cmp_none() // "No comparison available"
 			: d.previous === null && d.value !== null
-			? m.analytics_cmp_previous({ days, previous: peopleText(null) })
-			: d.value === null && d.previous !== null
-				? m.analytics_cmp_previous({ days, previous: peopleText(d.previous) })
-				: d.value === null
-					? ''
-					: compare(d, formatCount, true);
+				? m.analytics_cmp_previous({ days, previous: peopleText(null) })
+				: d.value === null && d.previous !== null
+					? m.analytics_cmp_previous({ days, previous: peopleText(d.previous) })
+					: d.value === null
+						? ''
+						: compare(d, formatCount, true);
 </script>
 
 <Section
@@ -82,27 +82,44 @@
 	{#snippet children(o)}
 		<p class="fresh">
 			{#if o.freshness.lastRollupAt === null}
-				<strong>{m.analytics_fresh_never()}</strong><!-- "Nothing has been rolled up yet. The zeros below mean "not counted", not "no visitors"." -->
+				<strong>{m.analytics_fresh_never()}</strong
+				><!-- "Nothing has been rolled up yet. The zeros below mean "not counted", not "no visitors"." -->
 			{:else}
-				{m.analytics_fresh_last({ when: formatDateTime(o.freshness.lastRollupAt) })}<!-- "Last rollup: {when}." -->
+				{m.analytics_fresh_last({
+					when: formatDateTime(o.freshness.lastRollupAt)
+				})}<!-- "Last rollup: {when}." -->
 			{/if}
 			{#if o.freshness.daysMissing.length > 0}
-				{m.analytics_fresh_missing({ count: o.freshness.daysMissing.length, days: o.period.days })}<!-- "{count} of these {days} days are not rolled up yet and show zero." -->
+				{m.analytics_fresh_missing({
+					count: o.freshness.daysMissing.length,
+					days: o.period.days
+				})}<!-- "{count} of these {days} days are not rolled up yet and show zero." -->
 			{/if}
-			{m.analytics_fresh_excluded({ count: formatCount(o.freshness.excludedByObjection) })}<!-- "{count} requests were left out because the browser sent Global Privacy Control or Do Not Track." -->
+			{m.analytics_fresh_excluded({
+				count: formatCount(o.freshness.excludedByObjection)
+			})}<!-- "{count} requests were left out because the browser sent Global Privacy Control or Do Not Track." -->
 		</p>
 		<p class="actions">
 			<button type="button" onclick={recompute} disabled={running}>
-				{running ? m.analytics_recompute_running() : m.analytics_recompute()}<!-- "Recounting…" / "Recompute today and yesterday" -->
+				{running
+					? m.analytics_recompute_running()
+					: m.analytics_recompute()}<!-- "Recounting…" / "Recompute today and yesterday" -->
 			</button>
 			{#if result}<span class:bad={failed} role="status">{result}</span>{/if}
 		</p>
 		{@const k = o.kpis}
 		<div class="kpis">
-			<KpiTile label={m.analytics_kpi_humanRequests()} comparison={compare(k.humanRequests, formatCount)} hint={m.analytics_kpi_humanRequests_hint()}>
+			<KpiTile
+				label={m.analytics_kpi_humanRequests()}
+				comparison={compare(k.humanRequests, formatCount)}
+				hint={m.analytics_kpi_humanRequests_hint()}
+			>
 				{#snippet value()}{formatCount(k.humanRequests.value)}{/snippet}
 			</KpiTile><!-- "Human requests" / "API requests from browsers, bots not included" -->
-			<KpiTile label={m.analytics_kpi_contentViews()} comparison={compare(k.contentViews, formatCount)}>
+			<KpiTile
+				label={m.analytics_kpi_contentViews()}
+				comparison={compare(k.contentViews, formatCount)}
+			>
 				{#snippet value()}{formatCount(k.contentViews.value)}{/snippet}
 			</KpiTile><!-- "Content views" -->
 			<KpiTile label={m.analytics_kpi_avgActive()} comparison={cmpPeople(k.avgDailyActiveUsers)}>
@@ -114,7 +131,10 @@
 			<KpiTile label={m.analytics_kpi_registrations()} comparison={cmpPeople(k.registrations)}>
 				{#snippet value()}<People value={k.registrations.value} />{/snippet}
 			</KpiTile><!-- "Registrations" -->
-			<KpiTile label={m.analytics_kpi_submissions()} comparison={compare(k.submissions, formatCount)}>
+			<KpiTile
+				label={m.analytics_kpi_submissions()}
+				comparison={compare(k.submissions, formatCount)}
+			>
 				{#snippet value()}{formatCount(k.submissions.value)}{/snippet}
 			</KpiTile><!-- "Submissions" -->
 			<KpiTile label={m.analytics_kpi_comments()} comparison={compare(k.comments, formatCount)}>
@@ -123,10 +143,20 @@
 			<KpiTile label={m.analytics_kpi_searches()} comparison={compare(k.searches, formatCount)}>
 				{#snippet value()}{formatCount(k.searches.value)}{/snippet}
 			</KpiTile><!-- "Searches" -->
-			<KpiTile label={m.analytics_kpi_errorRate()} comparison={compare(k.errorRate, (v) => formatPercent(v, 2), true)} hint={m.analytics_kpi_errorRate_hint()}>
-				{#snippet value()}{k.errorRate.value === null ? '—' : formatPercent(k.errorRate.value, 2)}{/snippet}
+			<KpiTile
+				label={m.analytics_kpi_errorRate()}
+				comparison={compare(k.errorRate, (v) => formatPercent(v, 2), true)}
+				hint={m.analytics_kpi_errorRate_hint()}
+			>
+				{#snippet value()}{k.errorRate.value === null
+						? '—'
+						: formatPercent(k.errorRate.value, 2)}{/snippet}
 			</KpiTile><!-- "Server error rate (5xx)" / "Share of all requests answered with a 5xx" -->
-			<KpiTile label={m.analytics_kpi_pending()} comparison={compare(k.pendingInQueues, formatCount)} hint={m.analytics_kpi_pending_hint()}>
+			<KpiTile
+				label={m.analytics_kpi_pending()}
+				comparison={compare(k.pendingInQueues, formatCount)}
+				hint={m.analytics_kpi_pending_hint()}
+			>
 				{#snippet value()}{formatCount(k.pendingInQueues.value)}{/snippet}
 			</KpiTile><!-- "Waiting in moderation queues" / "Right now, not over the period" -->
 		</div>
