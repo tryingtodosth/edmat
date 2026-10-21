@@ -60,6 +60,7 @@ function base(): Omit<
 		locale: 'pl',
 		isOriginal: true,
 		entries: [],
+		parts: [],
 		availableLocales: ['pl', 'en'],
 		requirements: [],
 		contributors: []

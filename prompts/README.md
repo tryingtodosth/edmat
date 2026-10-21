@@ -264,3 +264,35 @@ Ports 8171/5271 (A) and 8172/5272 (B). Each agent may spawn **one Haiku** for a 
 and must re-run whatever it reports — §2's rule about Haiku stands. The two cross-branch seams are
 stubs the prep wrote with the signature fixed: `personalize.apply_preset` (A calls, B writes),
 `work.work_items` and `record.placements_for` (A writes, B registers).
+
+## 12. Sub-exercises (2026-10-21) — `SUBEXERCISES-BRIEF.md` and briefs 20–22
+
+The owner's yes of that afternoon: *"go ahead and build the sub-exercises. spawn opus agents to go
+through prompts dir"*. The design is `SUBEXERCISES-BRIEF.md` (written the same day, on the owner's
+"analyze exercises that are small sets of exercises — e.g. edmat.net/exercises/964"); its §6 build
+order became one prep commit and three branches at once, on **this** machine
+(`/home/piotr/Projects/edmat`, not the VM the older sections name — Node is at
+`~/.local/opt/node-v24.22.0-linux-x64/bin`, Chromium needs the `LD_LIBRARY_PATH` line in each brief,
+and the venv is the repo's `.venv`).
+
+| Step | Brief | Branch | Ports | Owns |
+|---|---|---|---|---|
+| prep | this section | `fix/analytics-after-deploy` (the orchestrating session, Fable 5.1) | — | `ExercisePart`, `ExercisePartTranslation`, `SolutionEntry.part`, `EditSuggestion.part`, the two migrations, `exercises/parts.py`, `parts` on the detail, `part` on entries (read and POST), the frontend types/mappers/service, two tests |
+| A backend | `20-parts-a-backend.md` | `parts/a-backend` | 8181 / 5281 | every backend file in `exercises/`, `moderation/`, `licensing/` EXCEPT the importer and its test |
+| B import | `21-parts-b-import.md` | `parts/b-import` | 8182 / 5282 | `exercises/management/commands/import_exercises.py`, `exercises/test_import_parts.py`, `.claude/skills/import-exercises/**`, `Database-of-Student-Exercise/paczka4/`, the presentations repo's `edmat/` files |
+| C page | `22-parts-c-page.md` | `parts/c-page` | 8183 / 5283 | everything under `frontend/` |
+| integration | §12 below | the orchestrating session | — | merge A, B, C; migrate; the real PATCH round-trip; `pack.sh` paczka4 section; `CLAUDE.md`, `CLAUDE_MAP.md`, `test.md`; HISTORY §17CV preamble; the kit |
+
+Every step on Opus (the owner's words), no Haiku. Shared files: `HISTORY.md` (each appends
+`## 17CV.<letter>` at the very end), `test.md` (one paragraph each at the end), the boards. The one
+cross-branch seam is C's edit form against A's `PATCH parts` — C verifies the payload with a
+`page.route` interception and says so; the integrator runs the real round-trip after the merge
+(the §9 pattern: "verify against a mocked POST, say so"). B's importer needs A's `verified` clause
+to be right for a set, but calls the same `recount_verified` it always did, so nothing in B waits.
+
+Integration order: A, then B, then C (B's kit rehearsal and C's real round-trip both need A's
+rules). After the merge: migrate the main DB and the nine log shards, run
+`manage.py test exercises moderation licensing`, `check_databases_declared`, `npm run check`,
+lint, build, `e2e/exercise-parts.mjs` with the interception removed, `e2e/exercise-edit.mjs`
+(must still pass), `check:katex`, then the paczka4 rehearsal on a DB copy, `pack.sh` with a
+paczka4 section and apply-on-server step 10, `UPDATE-2026-10-21.md` `-d`.

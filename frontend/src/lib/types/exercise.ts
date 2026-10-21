@@ -88,9 +88,32 @@ export interface SolutionEntryAttachment {
 	sizeBytes: number;
 }
 
+/** One part of a set-shaped exercise — "(a)", "(b)", "1." — with its own sub-statement and answer;
+ * its hints and solutions are the pool entries whose `partId` is this part's
+ * (`SUBEXERCISES-BRIEF.md`). Text is resolved for the content locale like the statement. */
+export interface ExercisePart {
+	id: string;
+	label: string;
+	order: number;
+	statement: string;
+	answer: string;
+	resolvedLocale: string;
+}
+
+/** What `PATCH /api/exercises/{id}/` takes under `parts`: a missing id creates, a known id updates,
+ * a known part left out of the list is deleted together with its entries. */
+export interface ExercisePartEdit {
+	id?: string;
+	label: string;
+	statement: string;
+	answer: string;
+}
+
 export interface SolutionEntry {
 	id: string;
 	exerciseId: string;
+	/** The part this hint/solution is for; absent = the whole exercise. */
+	partId?: string;
 	kind: SolutionEntryKind;
 	locale: string;
 	/** Its own licence — a solution is its author's work, not a derivative of the statement. */
@@ -151,6 +174,8 @@ export interface ResolvedExercise extends Exercise {
 	/** The whole visible solution/hint pool, every locale, pinned-first then by net vote score —
 	 * the page groups by its current content locale itself. Empty on list-shaped results. */
 	entries: SolutionEntry[];
+	/** The parts of a set-shaped exercise, in order; `[]` for an ordinary exercise and on list shapes. */
+	parts: ExercisePart[];
 	translatedByUserId?: string;
 	availableLocales: string[]; // every locale with at least one PUBLISHED translation, original first
 	requirements: ExerciseRequirement[];
@@ -173,4 +198,5 @@ export interface ExerciseEdit {
 	topicIds?: string[];
 	tags?: string[];
 	source?: ExerciseSource;
+	parts?: ExercisePartEdit[];
 }

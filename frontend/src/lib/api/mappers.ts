@@ -50,6 +50,7 @@ import type {
 	ScheduleEvent,
 	Service,
 	SolutionEntry,
+	ExercisePart,
 	SolutionEntryAttachment,
 	ServiceAvailability,
 	ServiceReview,
@@ -223,9 +224,19 @@ export interface RawExerciseCommon {
 /** Detail-only fields — resolving these needs a full per-locale translation walk, so the List
  * shape (used for branch/top-rated/recent listings, where nothing reads them) skips them entirely
  * rather than paying that cost for every exercise in a 383-item branch listing. */
+export interface RawExercisePart {
+	id: number;
+	label: string;
+	order: number;
+	statement: string;
+	answer: string;
+	resolved_locale: string;
+}
+
 export interface RawExerciseDetail extends RawExerciseCommon {
 	statement: string;
 	answer: string;
+	parts?: RawExercisePart[];
 	entries: RawSolutionEntry[];
 	translated_by: number | null;
 	available_locales: string[];
@@ -238,6 +249,7 @@ export interface RawExerciseDetail extends RawExerciseCommon {
 export interface RawSolutionEntry {
 	id: number;
 	exercise: number;
+	part?: number | null;
 	kind: 'hint' | 'solution';
 	locale: string;
 	body: string;
@@ -276,10 +288,22 @@ export function mapSolutionEntryAttachment(
 	};
 }
 
+export function mapExercisePart(json: RawExercisePart): ExercisePart {
+	return {
+		id: String(json.id),
+		label: json.label,
+		order: json.order,
+		statement: json.statement,
+		answer: json.answer,
+		resolvedLocale: json.resolved_locale
+	};
+}
+
 export function mapSolutionEntry(json: RawSolutionEntry): SolutionEntry {
 	return {
 		id: String(json.id),
 		exerciseId: String(json.exercise),
+		partId: idOrUndefined(json.part ?? null),
 		kind: json.kind,
 		locale: json.locale,
 		body: json.body,
@@ -361,6 +385,7 @@ export function mapResolvedExerciseList(json: RawExerciseCommon): ResolvedExerci
 		statement: '',
 		answer: '',
 		entries: [],
+		parts: [],
 		translatedByUserId: undefined,
 		availableLocales: [],
 		// Empty on the list shape for the same reason `requirements` is: a card never credits anybody,
@@ -382,6 +407,7 @@ export function mapResolvedExerciseDetail(json: RawExerciseDetail): ResolvedExer
 		statement: json.statement,
 		answer: json.answer,
 		entries: (json.entries ?? []).map(mapSolutionEntry),
+		parts: (json.parts ?? []).map(mapExercisePart),
 		translatedByUserId: idOrUndefined(json.translated_by),
 		availableLocales: json.available_locales,
 		requirements: (json.requirements ?? []).map(mapExerciseRequirement),

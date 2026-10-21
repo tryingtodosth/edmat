@@ -534,7 +534,8 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             )
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
-        serializer = SolutionEntryCreateSerializer(data=request.data)
+        # `context['exercise']` is what `validate_part` checks a part against (exercises/parts.py).
+        serializer = SolutionEntryCreateSerializer(data=request.data, context={'exercise': exercise})
         serializer.is_valid(raise_exception=True)
         entry = serializer.save(
             exercise=exercise,

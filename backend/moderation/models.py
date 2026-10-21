@@ -70,6 +70,17 @@ class EditSuggestion(models.Model):
         related_name='edit_suggestions',
         on_delete=models.CASCADE,
     )
+    # Set when the suggestion targets one PART's `statement` or `answer` (`exercises.ExercisePart`,
+    # 2026-10-21) rather than the shared statement; `field` stays 'statement' | 'answer', and
+    # applying it writes the part's own translation row for `locale`. Never set together with
+    # `entry`. `SUBEXERCISES-BRIEF.md` §2.
+    part = models.ForeignKey(
+        'exercises.ExercisePart',
+        null=True,
+        blank=True,
+        related_name='edit_suggestions',
+        on_delete=models.CASCADE,
+    )
     proposed_value = models.TextField()
     reason = models.TextField(blank=True)
     submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

@@ -21,6 +21,7 @@ from .models import (
     DIFFICULTY_CHOICES,
     SOURCE_TYPE_CHOICES,
     Exercise,
+    ExercisePart,
     ExerciseRequirement,
     ExerciseSource,
     ExerciseSourceTranslation,
@@ -98,6 +99,7 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'exercise',
+            'part',
             'kind',
             'locale',
             'body',
@@ -117,6 +119,9 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'exercise',
+            # Chosen at creation (`SolutionEntryCreateSerializer.part`); an entry does not move
+            # between parts afterwards.
+            'part',
             'author',
             'status',
             'pinned',
@@ -157,11 +162,29 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
 
 
 class SolutionEntryCreateSerializer(serializers.ModelSerializer):
+    # Which part of a set-shaped exercise the entry is for; absent or null = the whole exercise
+    # (`exercises/parts.py`). The exercise it must belong to comes from `context['exercise']` on a
+    # POST, or from the row itself on a PATCH. `part_not_of_exercise` otherwise.
+    part = serializers.PrimaryKeyRelatedField(
+        queryset=ExercisePart.objects.all(), required=False, allow_null=True
+    )
+
     class Meta:
         model = SolutionEntry
         # `licence` optional: absent is the model default `edmat-only`, which opens nothing.
-        fields = ['kind', 'locale', 'body', 'licence']
+        fields = ['kind', 'locale', 'body', 'licence', 'part']
         extra_kwargs = {'licence': {'required': False}}
+
+    def validate_part(self, value):
+        from .parts import part_refusal
+
+        exercise = self.context.get('exercise') or (self.instance.exercise if self.instance else None)
+        if exercise is None and value is not None:
+            raise serializers.ValidationError('part_not_of_exercise')
+        reason = part_refusal(exercise, value) if exercise is not None else None
+        if reason:
+            raise serializers.ValidationError(reason)
+        return value
 
     def validate_licence(self, value):
         from licensing.licences import licence_validation_error
@@ -299,9 +322,42 @@ class ExerciseListSerializer(serializers.ModelSerializer):
         return t.locale if t else obj.original_locale
 
 
+class ExercisePartSerializer(serializers.ModelSerializer):
+    """One part of a set-shaped exercise, its text resolved for `?lang=` exactly as the statement
+    is (`exercises/parts.py: part_text`). `[]` on an exercise without parts."""
+
+    statement = serializers.SerializerMethodField()
+    answer = serializers.SerializerMethodField()
+    resolved_locale = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExercisePart
+        fields = ['id', 'label', 'order', 'statement', 'answer', 'resolved_locale']
+
+    def _text(self, obj):
+        from .parts import part_text
+
+        return part_text(obj, request_locale(self.context))
+
+    def get_statement(self, obj):
+        t = self._text(obj)
+        return t.statement if t else ''
+
+    def get_answer(self, obj):
+        t = self._text(obj)
+        return t.answer if t else ''
+
+    def get_resolved_locale(self, obj):
+        t = self._text(obj)
+        return t.locale if t else obj.exercise.original_locale
+
+
 class ExerciseDetailSerializer(ExerciseListSerializer):
     statement = serializers.SerializerMethodField()
     answer = serializers.SerializerMethodField()
+    # The parts of a set-shaped exercise (`SUBEXERCISES-BRIEF.md`), in order; entries carry
+    # `part` so the page can group each part's hints, answer and solutions under its label.
+    parts = serializers.SerializerMethodField()
     # The solution/hint pool, replacing the old per-translation `hint`/`solution` text fields —
     # ALL locales, sorted pinned-first then net vote score, visibility resolved per caller
     # (a pending entry is included for its own author and for reviewers; see
@@ -323,6 +379,7 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
         fields = ExerciseListSerializer.Meta.fields + [
             'statement',
             'answer',
+            'parts',
             'entries',
             'text_licence',
             'translated_by',
@@ -348,6 +405,11 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     def get_answer(self, obj):
         t = self._translation(obj)
         return t.answer if t else ''
+
+    def get_parts(self, obj):
+        from .parts import parts_of
+
+        return ExercisePartSerializer(parts_of(obj), many=True, context=self.context).data
 
     def get_entries(self, obj):
         from .entries import sort_entries, visible_entries

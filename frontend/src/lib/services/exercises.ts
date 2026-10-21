@@ -343,15 +343,18 @@ export type SolutionEntryDraft = {
 	body: string;
 	/** Its own licence (backend licensing/); absent means `edmat-only`. */
 	licence?: Licence;
+	/** The part of a set-shaped exercise this is for; absent = the whole exercise. */
+	partId?: string;
 };
 
 export async function submitSolutionEntry(
 	exerciseId: string,
 	draft: SolutionEntryDraft
 ): Promise<SolutionEntry> {
+	const { partId, ...rest } = draft;
 	const raw = await apiClient.post<RawSolutionEntry>(
 		`/exercises/${encodeURIComponent(exerciseId)}/entries/`,
-		draft
+		{ ...rest, part: partId === undefined ? null : Number(partId) }
 	);
 	return mapSolutionEntry(raw);
 }

@@ -320,6 +320,72 @@ class ExerciseTranslation(models.Model):
         super().save(*args, **kwargs)
 
 
+class ExercisePart(models.Model):
+    """One PART of an exercise that is really a small set — "(a)", "(b)", "1.", "ii" — with its own
+    sub-statement and answer, and its own hints and solutions in the pool (`SolutionEntry.part`).
+    `SUBEXERCISES-BRIEF.md` (2026-10-21), owner: *"one Statement, and multiple examples split into
+    subsets each with own sub-statement, solution, and hints, so hints can be both statement- or
+    sub-statement-specific"*.
+
+    A part is ADDITIVE: the shared statement stays on `ExerciseTranslation`, an exercise with no
+    parts is exactly what it was, and a part is never a thing on its own outside its exercise's
+    page (no licence of its own — it is the exercise's own text and moves with it, no difficulty,
+    no topics). `label` is free text shown as written; `order` is what sorts and what the importer
+    keys on (`(exercise, order)` unique), so a re-run updates a part's text and never duplicates it.
+    """
+
+    exercise = models.ForeignKey(Exercise, related_name='parts', on_delete=models.CASCADE)
+    order = models.PositiveSmallIntegerField()
+    label = models.CharField(max_length=20)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('exercise', 'order')]
+        ordering = ['exercise', 'order']
+
+    def __str__(self) -> str:
+        return f'{self.exercise} ({self.label})'
+
+
+class ExercisePartTranslation(models.Model):
+    """A part's text in one language, including the original — the same shape as
+    `ExerciseTranslation` (root CLAUDE.md, "Text lives in a translation table, including the
+    original"), with the same partial unique constraint: exactly one `published` row per (part,
+    locale), any number pending or rejected. Resolved for the reader's `?lang=` and falling back
+    to the exercise's `original_locale` exactly as the statement does (`exercises/parts.py`)."""
+
+    part = models.ForeignKey(ExercisePart, related_name='translations', on_delete=models.CASCADE)
+    locale = models.CharField(max_length=8)
+    statement = models.TextField()
+    answer = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=TRANSLATION_STATUS_CHOICES, default='published')
+    translated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['part', 'locale'],
+                condition=models.Q(status='published'),
+                name='one_published_part_translation_per_locale',
+            )
+        ]
+        ordering = ['part', 'locale']
+
+    def __str__(self) -> str:
+        return f'{self.part} [{self.locale}/{self.status}]'
+
+    def save(self, *args, **kwargs):
+        # The same one choke point every ExerciseTranslation write gets.
+        from config.sanitize import sanitize_content
+
+        self.statement = sanitize_content(self.statement)
+        self.answer = sanitize_content(self.answer)
+        super().save(*args, **kwargs)
+
+
 ENTRY_KIND_CHOICES = [
     ('hint', 'Hint'),
     ('solution', 'Solution'),
@@ -359,6 +425,12 @@ class SolutionEntry(models.Model):
     """
 
     exercise = models.ForeignKey(Exercise, related_name='entries', on_delete=models.CASCADE)
+    # Which PART of a set-shaped exercise this is for; null = the whole exercise. A whole-exercise
+    # hint ("use the conjugate") and a part hint ("for (b), square first") are the same row with a
+    # different `part` — every pool rule in `entries.py` is untouched by it. `SUBEXERCISES-BRIEF.md`.
+    part = models.ForeignKey(
+        ExercisePart, null=True, blank=True, related_name='entries', on_delete=models.CASCADE
+    )
     kind = models.CharField(max_length=10, choices=ENTRY_KIND_CHOICES)
     locale = models.CharField(max_length=8)
     body = models.TextField()
