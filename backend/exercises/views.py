@@ -417,6 +417,31 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     """
 
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    # No PUT, no DELETE: until 2026-10-21 this ModelViewSet exposed both to any signed-in account
+    # with no guard at all (`exercises/editing.py` says how that was found). PATCH stays and asks
+    # the rule; the @actions are POSTs.
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+
+    def partial_update(self, request, *args, **kwargs):
+        """`PATCH /api/exercises/{id}/` — the author's (or staff's) in-place edit
+        (`exercises/editing.py`, `ExerciseEditSerializer`). A stranger gets 403 with the reason:
+        they can see the exercise, so 404 would be a lie, and the suggestion path is theirs."""
+        from .editing import edit_block_reason
+        from .serializers import ExerciseEditSerializer
+
+        exercise = self.get_object()
+        reason = edit_block_reason(request.user, exercise)
+        if reason == 'exercise_not_signed_in':
+            return Response({'detail': reason}, status=status.HTTP_401_UNAUTHORIZED)
+        if reason:
+            return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
+        serializer = ExerciseEditSerializer(
+            data=request.data, context={'exercise': exercise, 'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.apply(exercise, request.user)
+        exercise = self.get_queryset().get(pk=exercise.pk)
+        return Response(ExerciseDetailSerializer(exercise, context=self.get_serializer_context()).data)
 
     def get_queryset(self):
         params = self.request.query_params

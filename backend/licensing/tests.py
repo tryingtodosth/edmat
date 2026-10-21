@@ -463,3 +463,80 @@ class MaterialSubmitLicenceTests(SubmitPathBase):
         response = self.submit(file=None, kind='body', body='Written here from scratch.')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(response.json()['licence'], 'edmat-only')
+
+
+class RelicenseCommandTests(TestCase):
+    """`manage.py relicense_content` (2026-10-21): the bulk move goes through the rules and adds no
+    authority of its own — `unknown` moves (the staff exception), the caller's own content moves,
+    another person's `edmat-only` is refused and listed, what is already as open stays, nothing
+    unpublished is touched, and a dry run changes nothing."""
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        self.branch = make_branch('rel-branch')
+        self.staff = make_user('rel-staff', is_staff=True)
+        self.author = make_user('rel-author')
+        self.corpus = make_exercise(self.branch, 1)  # unknown, nobody's
+        Exercise.objects.filter(pk=self.corpus.pk).update(licence='unknown')
+        ExerciseTranslation.objects.filter(exercise=self.corpus).update(licence='unknown')
+        self.entry = SolutionEntry.objects.create(
+            exercise=self.corpus, kind='solution', body='x', status='published', licence='unknown'
+        )
+        self.theirs = make_exercise(self.branch, 2)  # a person's edmat-only
+        Exercise.objects.filter(pk=self.theirs.pk).update(submitted_by=self.author)
+        self.mine = make_exercise(self.branch, 3)  # the staff caller's own edmat-only
+        Exercise.objects.filter(pk=self.mine.pk).update(submitted_by=self.staff)
+        self.wider = make_exercise(self.branch, 4)
+        Exercise.objects.filter(pk=self.wider.pk).update(licence='cc-by-4.0')
+        self.hidden = make_exercise(self.branch, 5)
+        Exercise.objects.filter(pk=self.hidden.pk).update(licence='unknown', published=False)
+
+    def run_it(self, **kwargs):
+        out = StringIO()
+        call_command('relicense_content', to='cc-by-sa-4.0', by='rel-staff', note='Cleared with the faculty', stdout=out, **kwargs)
+        return out.getvalue()
+
+    def licences(self):
+        return {
+            e.number: e.licence for e in Exercise.objects.filter(branch=self.branch).order_by('number')
+        }
+
+    def test_a_dry_run_reports_and_changes_nothing(self):
+        out = self.run_it(dry_run=True)
+        self.assertIn('rolling the transaction back', out)
+        self.assertIn('exercise: 2 changed (1 from edmat-only, 1 from unknown); 1 already as open or more; 1 refused', out)
+        self.assertIn(f'licence_other_contributors (1): {self.theirs.pk}', out)
+        self.assertEqual(self.licences(), {1: 'unknown', 2: 'edmat-only', 3: 'edmat-only', 4: 'cc-by-4.0', 5: 'unknown'})
+        self.assertEqual(LicenceChange.objects.count(), 0)
+
+    def test_the_real_run_moves_what_the_rules_allow_and_records_every_change(self):
+        out = self.run_it()
+        self.assertIn('solution_entry: 1 changed (1 from unknown)', out)
+        self.assertIn('3 changed to cc-by-sa-4.0', out)
+        self.assertEqual(self.licences(), {1: 'cc-by-sa-4.0', 2: 'edmat-only', 3: 'cc-by-sa-4.0', 4: 'cc-by-4.0', 5: 'unknown'})
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.licence, 'cc-by-sa-4.0')
+        # the corpus exercise's own-language text follows it (rules._carry_to_own_text)
+        self.assertEqual(ExerciseTranslation.objects.get(exercise=self.corpus).licence, 'cc-by-sa-4.0')
+        rows = LicenceChange.objects.order_by('id')
+        self.assertEqual(rows.count(), 3)
+        self.assertTrue(all(r.note == 'Cleared with the faculty' and r.changed_by == self.staff for r in rows))
+        self.assertEqual({r.as_staff for r in rows.filter(object_id__in=[self.corpus.pk, self.entry.pk])}, {True})
+        own = rows.get(content_type__model='exercise', object_id=self.mine.pk)
+        self.assertFalse(own.as_staff)
+        # a second run finds nothing left to move and refuses the same item again
+        again = self.run_it()
+        self.assertIn('0 changed to cc-by-sa-4.0', again)
+        self.assertEqual(LicenceChange.objects.count(), 3)
+
+    def test_it_refuses_a_narrowing_target_a_missing_note_and_a_non_staff_caller(self):
+        with self.assertRaises(CommandError):
+            call_command('relicense_content', to='unknown', by='rel-staff', note='x', stdout=StringIO())
+        with self.assertRaises(CommandError):
+            call_command('relicense_content', to='edmat-only', by='rel-staff', note='x', stdout=StringIO())
+        with self.assertRaises(CommandError):
+            call_command('relicense_content', to='cc-by-sa-4.0', by='rel-staff', stdout=StringIO())
+        with self.assertRaises(CommandError):
+            call_command('relicense_content', to='cc-by-sa-4.0', by='rel-author', note='x', stdout=StringIO())
+        self.assertEqual(LicenceChange.objects.count(), 0)

@@ -17413,3 +17413,61 @@ dry runs 23 + 41 created / 0 updated with 46 + 82 hint-and-solution rows and 5 +
 run the same; a second pass 0 created / 23 + 41 updated; every exercise `verified`; topics in
 `batch.yaml` order; `dump_text_fields` + `check:katex` 2450 rows, 0 issues. The dev database was
 not touched. Left to the owner on the server: whether `fale` should stop being called "Waves".
+
+## §17CU — Four things the owner asked for in one afternoon (2026-10-21, after the second bundle)
+
+**1. CC BY-SA 4.0 on everything posted** (*"i want to add CC BY-SA 4.0 to all currently posted
+content"*). `manage.py relicense_content --to cc-by-sa-4.0 --by <staff> --note "<basis>"`
+(`licensing/management/commands/`) walks every posted exercise, hint/solution, material and concept
+article and calls `rules.change_licence` on each — the same function the item page's control
+calls, so it adds no authority. On a copy of the dev database: 742 exercises, 1483 entries and 7
+materials moved out of `unknown`; 4 exercises already CC BY left alone; 4 exercises, 15 materials
+and 15 concept articles REFUSED with `licence_other_contributors`, because they are other people's
+`edmat-only` work and `/terms` § 9 point 2 never gave the operator the right to grant the world a
+licence on them — those authors widen it themselves, or a CLA comes first (LEGAL.md §2, §3 item 4).
+The one thing the command cannot do is make the corpus's rights clear: moving it out of `unknown` is
+a statement that they were, and the `--note` on every `LicenceChange` row is where the basis is
+written. The owner runs it on the server with their own note (bundle `-c`, step 9). 3 tests.
+
+**2. An Edit option for the author and staff** (*"even though im a superadmin and author of a
+specific exercise, there's no edit option based on submit subpage: and there should"*). Until now
+the only change path for a published exercise was a suggestion into the moderation queue — right
+for a stranger, absurd for the author. `exercises/editing.py` is the rule (author or staff;
+`exercise_not_editor` otherwise), `PATCH /api/exercises/{id}/` the write: title/statement/answer
+onto the original-locale translation with each text change recorded as an APPROVED `EditSuggestion`
+by the editor (so the history reads the same whichever path a change took), difficulty, audience,
+topics (branch-checked), tags and the source straight onto the row. The detail carries `can_edit`.
+Frontend: `/exercises/[id]/edit` mirrors the submit form field for field (rich editors with the
+insert strips, topic chips, source fields), the exercise page shows **Edit** instead of "Suggest an
+edit" to an editor, and `/submit/mine` offers Edit on every approved row — the "submit subpage" the
+owner named. Found on the way and closed in the same change: `ExerciseViewSet` was a `ModelViewSet`
+with `IsAuthenticatedOrReadOnly` and no write guard, so **any signed-in account could PATCH
+`difficulty` (or `published`) on any exercise** — confirmed with a stranger's token against the dev
+server before the fix (200, and the row changed). PUT and DELETE are gone, PATCH asks the rule.
+5 backend tests; `e2e/exercise-edit.mjs` 20/20 with screenshots looked at.
+
+**3. AI-assisted, and not verified** (*"as for the content created by me (user todoonet) mark it
+as ai assisted and remove the verified solution"*). Two pieces. `manage.py declare_ai_assisted
+--author todoonet` makes the author's own `AuthorMark` on every exercise and every hint/solution
+that account wrote, through the same table the page's control writes. And one rule change in
+`recount_verified`: a solution its author declared AI-assisted no longer makes the exercise
+verified on the strength of a pin or the author's contributor tier — only a reviewer's accept does.
+A pin and a tier both say "a person stands behind this"; the disclosure says they do not fully.
+`provenance/signals.py` recounts on every mark. On the server (bundle `-c`, step 9) the 64 imported
+exercises lose their "verified solution" chip the moment the marks land. 2 tests.
+
+**4. Sub-exercises** (*"analyze exercises that are small sets of exercises … let's design a way"*).
+Designed, not built: `SUBEXERCISES-BRIEF.md` — `ExercisePart` + a translation table for its text,
+`SolutionEntry.part` (null = the whole exercise, which is how a hint can be statement- or
+part-specific), `verified` covering the whole OR every part, labelled sections in the import
+format, a Parts editor on the new edit page, and 964's siblings regenerated from their sources
+rather than cut by a regex. The build order is in the brief.
+
+### Left open
+
+- The author's own unpublished exercise is still edited through the queue (`PATCH` 404s on the
+  public queryset).
+- `relicense_content` does not touch a translation somebody else wrote (by design) and does not
+  notify the refused authors that they could widen their own — a notification type is its own change.
+- The AI-assisted mark is not in the import format; a `paczka` written with an assistant has to be
+  marked after import with the command.

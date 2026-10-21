@@ -17,7 +17,8 @@ suggestion deciding circle, per-caller visibility, ordering) — and is the seam
 SKILL expert tier. One review path only: `POST /solution-entries/{id}/review/` (one accept
 publishes; a deny REQUIRES a note; WHERE-anchored claim → 409) — the moderation queue's tab calls
 this same endpoint, deliberately not a `_KIND_MODELS` kind. **`Exercise.verified` is DERIVED**
-(signals.recount_verified — a published solution that is pinned/reviewed/verified-authored);
+(signals.recount_verified — a published solution that is pinned/reviewed/verified-authored, EXCEPT a
+solution its author marked AI-assisted, which counts only once reviewed — `provenance/`, 2026-10-21);
 never hand-toggle it, and call the recount after any queryset-`update()` on entries.
 `EditSuggestion.entry` (moderation app) targets a row; its deciders are author+staff+governors.
 
@@ -51,6 +52,16 @@ never hand-toggle it, and call the recount after any queryset-`update()` on entr
 
 `ExerciseViewSet`: list filters `?topic=&difficulty=&source_type=&q=&tag=&sort=&lang=`, plus
 `random/`, `bulk/`, `translations/`, `reviews/`, `comments/`, `requirements/`.
+**`PATCH /api/exercises/{id}/` is the author's (or staff's) in-place edit** (`editing.py`,
+`ExerciseEditSerializer`, 2026-10-21): title/statement/answer onto the original-locale
+translation, each text change recorded as an APPROVED `moderation.EditSuggestion` by the editor;
+difficulty, audience, topics (of the branch only — `topics_not_in_branch`), tags and the source
+straight onto the row. A stranger gets 403 `exercise_not_editor` and keeps "Suggest an edit". The
+detail serializer's `can_edit` is the same rule asked once. **No PUT, no DELETE**
+(`http_method_names`): until that day the ModelViewSet exposed both to any signed-in account with
+no guard, so anybody could PATCH `difficulty` on anything — found by trying it. Left open: the
+author's own UNPUBLISHED exercise is a 404 to PATCH (the public queryset), so a held submission is
+still edited through the queue.
 `TagViewSet.apply/` (POST attach / DELETE-with-body remove, any authenticated user — additive,
 reversible metadata, deliberately not moderation-gated).
 

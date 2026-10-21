@@ -79,6 +79,22 @@ Still open, and deliberately parked as named constants in `rules.py` rather than
    a channel that says exactly what they mean, and letting them also move the community's number
    would let one person speak twice in two voices. A test got this wrong once and quietly counted 2.
 
+## An AI-assisted solution is not a verified one (2026-10-21)
+
+Owner, about the 64 exercises imported as `todoonet`: *"mark it as ai assisted … and remove the
+verified solution"*. Two things, one rule:
+
+- **`exercises/signals.py: recount_verified` excludes a solution carrying an `AuthorMark`
+  with `assisted=True` unless `reviewed_by` is set.** A pin and the author's verified-contributor
+  tier both say "a person stands behind this"; an author disclosing AI assistance says exactly
+  that they do not fully. A reviewer's accept restores it. `signals.py` here recounts on every
+  mark save/delete whose target is a `SolutionEntry`, so the badge follows the mark.
+- **`manage.py declare_ai_assisted --author <username> [--note …] [--by <staff>] [--kinds …]
+  [--dry-run]`** makes the author's mark on everything that account wrote — exercises and
+  hints/solutions by default, comments and reviews on request — through the same table the page's
+  control writes, `declared_by` the author unless `--by` names a staff member. Idempotent;
+  reports marked / re-marked / already marked per kind.
+
 ## Left open, not built
 
 - **No list filter.** The owner's task asks for "hide above X" / "only above X" on the lists with an

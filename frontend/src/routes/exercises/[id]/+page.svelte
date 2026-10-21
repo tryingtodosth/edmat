@@ -67,7 +67,9 @@
 	let showReviews = $state(false);
 	let showEditForm = $state(false);
 	let showTranslateForm = $state(false);
-	let submissionNotice = $state<'review' | 'comment' | 'edit' | 'translation' | null>(null);
+	let submissionNotice = $state<'review' | 'comment' | 'edit' | 'translation' | 'saved' | null>(
+		null
+	);
 
 	let averageRating = $derived(
 		reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0
@@ -116,6 +118,8 @@
 		// but the page should never have presented it as an endless load in the first place.
 		try {
 			await loadAllInner(id);
+			// Back from the edit page: one notice, read once from the address it arrived with.
+			if (page.url.searchParams.get('saved') === '1') submissionNotice = 'saved';
 		} catch {
 			loadFailed = true;
 		} finally {
@@ -541,10 +545,21 @@
 			<ExerciseMaterials exerciseId={exercise.id} />
 
 			<section class="actions no-print">
-				{#if authStore.isAuthenticated}
+				{#if exercise.canEdit}
+					<a
+						class="link-button"
+						href={resolve('/exercises/[id]/edit', { id: exercise.id })}
+						data-edit-exercise
+					>
+						{m.exercise_edit()}
+					</a>
+					<!-- "Edit" — the author or staff change it in place (exercises/editing.py) -->
+				{:else if authStore.isAuthenticated}
 					<button type="button" class="link-button" onclick={() => (showEditForm = !showEditForm)}>
 						{m.exercise_suggestEdit()}
 					</button>
+				{/if}
+				{#if authStore.isAuthenticated}
 					<button
 						type="button"
 						class="link-button"
@@ -560,6 +575,10 @@
 
 			{#if submissionNotice === 'edit'}
 				<p class="notice">{m.editSuggestion_success()}</p>
+			{/if}
+			{#if submissionNotice === 'saved'}
+				<p class="notice" data-saved>{m.exercise_edit_saved()}</p>
+				<!-- "Saved." -->
 			{/if}
 			{#if submissionNotice === 'translation'}
 				<p class="notice">{m.translate_success()}</p>
@@ -805,7 +824,11 @@
 	}
 	.actions {
 		display: flex;
+		align-items: baseline;
 		gap: var(--space-4);
+	}
+	a.link-button {
+		text-decoration: none;
 	}
 	.link-button {
 		background: none;

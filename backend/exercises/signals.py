@@ -34,6 +34,17 @@ def recount_verified(exercise_id) -> None:
 
     if exercise_id is None:
         return
+    # A solution its author declared AI-assisted (`provenance.AuthorMark`, 2026-10-21, owner:
+    # "mark it as ai assisted … and remove the verified solution") counts only once a REVIEWER
+    # accepted it: neither a pin nor the author's contributor tier stands in for a human having
+    # checked machine-written work. The mark's own signals (`provenance/signals.py`) recount.
+    from django.contrib.contenttypes.models import ContentType
+
+    from provenance.models import AuthorMark
+
+    assisted = AuthorMark.objects.filter(
+        content_type=ContentType.objects.get_for_model(SolutionEntry), assisted=True
+    ).values('object_id')
     passed = (
         SolutionEntry.objects.filter(
             exercise_id=exercise_id,
@@ -47,6 +58,7 @@ def recount_verified(exercise_id) -> None:
             | Q(reviewed_by__isnull=False)
             | Q(author__profile__is_verified_contributor=True)
         )
+        .exclude(Q(pk__in=assisted) & Q(reviewed_by__isnull=True))
         .exists()
     )
     # update(), not save(): no signal recursion, and no other column is touched.

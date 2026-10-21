@@ -48,6 +48,7 @@ function base(): Omit<
 		topicIds: ['limits'],
 		audience: 'university',
 		licence: 'cc-by-sa-4.0',
+		canEdit: false,
 		textLicence: 'cc-by-sa-4.0',
 		source: { type: 'midterm', name: '' },
 		tags: [],

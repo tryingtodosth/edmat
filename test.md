@@ -3221,6 +3221,34 @@ EDMAT_CACHE_DIR=<copy>/cache`. Pass the same prefix up to and including `manage.
 deleted child keeps its username for 14 days) and step 5 asserts the pending state.
 
 
+## The in-place exercise edit, the AI-assisted mark on `verified`, the bulk relicence (2026-10-21)
+
+**`manage.py test exercises.test_editing` — 5 tests.** A stranger's PATCH is 403
+`exercise_not_editor` and changes nothing (the write hole this closed), anonymous 401, PUT and
+DELETE 405; the author edits text and structure in one PATCH and each text change is an approved
+`EditSuggestion` row (an unchanged field records nothing); staff edit; `can_edit` on the detail per
+caller; a topic of another branch and a bad difficulty refused.
+**`manage.py test provenance` — 30 tests** (+2): a verified contributor's pinned solution makes
+the exercise verified until the author's AI-assisted mark lands, a reviewer's accept gives it back,
+deleting the mark gives it back; `declare_ai_assisted` dry-run marks nothing, the real run marks the
+statement, the hint and the solution with the note and the author as `declared_by`, and a second
+run says "already marked".
+**`manage.py test licensing` — 35 tests** (+3): `relicense_content` dry run reports and changes
+nothing; the real run moves `unknown` and the caller's own `edmat-only`, refuses another person's
+`edmat-only` by id, leaves CC BY alone, carries the note on every row, and a second run moves
+nothing; `--to unknown`, `--to edmat-only`, a missing note and a non-staff caller are refused.
+
+**Browser, `e2e/exercise-edit.mjs` — 20 checks, zero page errors.** `E2E_EXERCISE` names an
+exercise the `E2E_TOKEN` account wrote (the run that wrote this made one through the ORM). The
+author sees Edit and no "Suggest an edit", the form is prefilled, a title/difficulty/tag edit lands
+and the page comes back with "Saved."; the title change is an approved row in the history;
+`/submit/mine` offers Edit on the approved row; a stranger sees "Suggest an edit", gets 403 from
+PATCH and a refusal sentence at the edit address with no form; staff see Edit and the staff lead;
+PUT and DELETE are 405; cleanup restores the exercise through the same PATCH. Screenshots under
+`e2e/screens/exercise-edit/`. Note: the script needs the dev server to have been restarted after
+the catalogue keys were added — a running Vite served the stale `_index.js` and the page threw
+`m.exercise_edit is not a function`.
+
 ## Per-item content licences (`licensing/`, 2026-10-14)
 
 **`manage.py test licensing` — 31 tests.** The registry (what a person may pick, `unknown` never;

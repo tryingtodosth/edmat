@@ -17,6 +17,9 @@ from rest_framework import serializers
 from config.i18n_utils import request_locale
 
 from .models import (
+    AUDIENCE_CHOICES,
+    DIFFICULTY_CHOICES,
+    SOURCE_TYPE_CHOICES,
     Exercise,
     ExerciseRequirement,
     ExerciseSource,
@@ -306,6 +309,7 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     entries = serializers.SerializerMethodField()
     translated_by = serializers.SerializerMethodField()
     available_locales = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
     # Detail-only, matching this class's own established "Card is lightweight, Detail resolves the
     # rest" split (module doc comment above) — a course listing has no reason to pay for resolving
     # every exercise's own requirement rows when nothing in that view ever reads them.
@@ -325,7 +329,17 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
             'available_locales',
             'requirements',
             'contributors',
+            'can_edit',
         ]
+
+    def get_can_edit(self, obj) -> bool:
+        """Whether the caller may edit this exercise in place (`exercises/editing.py`) — the one
+        question the page's "Edit" link asks, answered by the rule rather than re-derived from
+        `submitted_by` in the browser."""
+        from .editing import can_edit
+
+        request = self.context.get('request')
+        return can_edit(getattr(request, 'user', None), obj)
 
     def get_statement(self, obj):
         t = self._translation(obj)
@@ -573,3 +587,102 @@ class ExerciseMaterialLinkWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExerciseMaterialLink
         fields = ['role', 'locator']
+
+
+class ExerciseSourceEditSerializer(serializers.Serializer):
+    type = serializers.ChoiceField(choices=SOURCE_TYPE_CHOICES)
+    name = serializers.CharField(max_length=300, required=False, allow_blank=True, default='')
+    collection = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
+    original_problem_number = serializers.IntegerField(required=False, allow_null=True, min_value=1, default=None)
+    pages = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
+    chapter = serializers.IntegerField(required=False, allow_null=True, min_value=1, default=None)
+
+
+class ExerciseEditSerializer(serializers.Serializer):
+    """`PATCH /api/exercises/{id}/` by the author or staff (`exercises/editing.py`). Every field
+    is optional; what arrives is what changes. Text goes onto the original-locale translation and
+    is recorded as an approved `EditSuggestion`; the rest goes onto the row."""
+
+    title = serializers.CharField(max_length=300, required=False)
+    statement = serializers.CharField(required=False)
+    answer = serializers.CharField(required=False, allow_blank=True)
+    difficulty = serializers.ChoiceField(choices=DIFFICULTY_CHOICES, required=False)
+    audience = serializers.ChoiceField(choices=AUDIENCE_CHOICES, required=False)
+    topic_ids = serializers.ListField(child=serializers.IntegerField(), required=False)
+    tags = serializers.ListField(child=serializers.CharField(max_length=80, allow_blank=True), required=False)
+    source = ExerciseSourceEditSerializer(required=False)
+
+    TEXT_FIELDS = ('title', 'statement', 'answer')
+
+    def validate_topic_ids(self, value):
+        exercise = self.context['exercise']
+        wanted = set(value)
+        known = set(exercise.branch.topics.filter(pk__in=wanted).values_list('pk', flat=True))
+        if wanted - known:
+            raise serializers.ValidationError('topics_not_in_branch')
+        return sorted(wanted)
+
+    def validate_tags(self, value):
+        from .tags import clean_name, fold, matching_tag
+
+        slugs, out = set(), []
+        for raw in value:
+            name = clean_name(raw)
+            if not name:
+                continue
+            existing = matching_tag(name)
+            if existing is not None and existing.is_removed:
+                raise serializers.ValidationError('tag_removed')
+            slug = existing.slug if existing is not None else fold(name)[:50].strip('-')
+            if slug and slug not in slugs:
+                slugs.add(slug)
+                out.append(slug)
+        return out
+
+    def apply(self, exercise, user):
+        from django.db import transaction
+
+        from moderation.models import EditSuggestion
+        from notifications.services import notify_tag_followers
+
+        data = self.validated_data
+        with transaction.atomic():
+            text = {f: data[f] for f in self.TEXT_FIELDS if f in data}
+            if text:
+                translation, _ = ExerciseTranslation.objects.get_or_create(
+                    exercise=exercise, locale=exercise.original_locale, status='published',
+                    defaults={'title': ''},
+                )
+                changed = [f for f, v in text.items() if getattr(translation, f) != v]
+                for f in changed:
+                    setattr(translation, f, text[f])
+                if changed:
+                    translation.save(update_fields=changed)
+                    for f in changed:
+                        EditSuggestion.objects.create(
+                            exercise=exercise, locale=exercise.original_locale, field=f,
+                            proposed_value=getattr(translation, f), reason='', submitted_by=user,
+                            status='approved', reviewed_by=user,
+                        )
+            structural = [f for f in ('difficulty', 'audience') if f in data]
+            for f in structural:
+                setattr(exercise, f, data[f])
+            if structural:
+                exercise.save(update_fields=structural)
+            if 'topic_ids' in data:
+                exercise.topics.set(data['topic_ids'])
+            if 'tags' in data:
+                before = set(exercise.tags.values_list('slug', flat=True))
+                tags = [Tag.objects.get_or_create(slug=slug)[0] for slug in data['tags']]
+                exercise.tags.set(tags)
+                for tag in tags:
+                    if tag.slug not in before:
+                        notify_tag_followers(tag, actor=user, exercise=exercise)
+            if 'source' in data:
+                src = dict(data['source'])
+                name = src.pop('name', '')
+                source, _ = ExerciseSource.objects.update_or_create(exercise=exercise, defaults=src)
+                ExerciseSourceTranslation.objects.update_or_create(
+                    source=source, locale=exercise.original_locale, defaults={'name': name}
+                )
+        return exercise

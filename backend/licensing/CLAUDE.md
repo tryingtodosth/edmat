@@ -63,6 +63,19 @@ in `_submission_licence`; the founding hint/solution get the same); `POST /exerc
 `--licence`, default `unknown`, a re-run only widens and records). The Django admin shows `licence`
 read-only on every licensed model — the admin must not be a way around "only widen, and record it".
 
+## The bulk move — `manage.py relicense_content` (2026-10-21)
+
+Owner: *"i want to add CC BY-SA 4.0 to all currently posted content"*. `relicense_content --to
+<key> --by <staff> --note "<basis>" [--kinds …] [--dry-run]` walks every POSTED item of the four
+kinds and calls `rules.change_licence` on each — it adds **no authority** of its own. So it moves
+`unknown` content (the staff exception; the note says on what basis the rights were cleared and
+rides on every `LicenceChange` row) and the caller's own content, leaves alone what is already at
+least as open, and **refuses another person's `edmat-only` content** (`licence_other_contributors`,
+listed by id): `/terms` § 9 point 2 gave the operator an operating licence, not the right to grant
+the world one — those authors widen it themselves from the item page, or a CLA (LEGAL.md §3 item 4)
+is written first. Unpublished, removed and auto-hidden items are not posted and keep what they have.
+A dry run does the walk in a transaction and rolls it back.
+
 ## Data migration (2026-10-14)
 
 `exercises 0015`, `materials 0019`, `coauthoring 0004`, `concepts 0002` — classification and counts

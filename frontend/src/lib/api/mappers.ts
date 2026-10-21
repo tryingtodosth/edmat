@@ -232,6 +232,7 @@ export interface RawExerciseDetail extends RawExerciseCommon {
 	requirements: RawExerciseRequirement[];
 	contributors: RawExerciseContributor[];
 	text_licence?: string;
+	can_edit?: boolean;
 }
 
 export interface RawSolutionEntry {
@@ -367,7 +368,8 @@ export function mapResolvedExerciseList(json: RawExerciseCommon): ResolvedExerci
 		// nothing. Empty here means "not asked for", not "nobody worked on it".
 		requirements: [],
 		contributors: [],
-		textLicence: mapLicence(json.licence)
+		textLicence: mapLicence(json.licence),
+		canEdit: false
 	};
 }
 
@@ -391,7 +393,8 @@ export function mapResolvedExerciseDetail(json: RawExerciseDetail): ResolvedExer
 			role: c.role,
 			locale: c.locale ?? undefined
 		})),
-		textLicence: mapLicence(json.text_licence ?? json.licence)
+		textLicence: mapLicence(json.text_licence ?? json.licence),
+		canEdit: Boolean(json.can_edit)
 	};
 }
 

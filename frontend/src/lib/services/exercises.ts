@@ -1,6 +1,7 @@
 import type {
 	CoverageVoteValue,
 	Difficulty,
+	ExerciseEdit,
 	ExerciseRequirement,
 	ResolvedExercise,
 	SolutionEntry,
@@ -92,6 +93,37 @@ export async function getExerciseById(
 		if (e instanceof ApiError && e.status === 404) return undefined;
 		throw e;
 	}
+}
+
+/** The author's (or staff's) in-place edit — `PATCH /api/exercises/{id}/`. The answer is the
+ * exercise as the page would load it, in `locale`. A stranger gets 403 `exercise_not_editor`. */
+export async function updateExercise(
+	id: string,
+	edit: ExerciseEdit,
+	locale: string
+): Promise<ResolvedExercise> {
+	const body: Record<string, unknown> = {};
+	if (edit.title !== undefined) body.title = edit.title;
+	if (edit.statement !== undefined) body.statement = edit.statement;
+	if (edit.answer !== undefined) body.answer = edit.answer;
+	if (edit.difficulty !== undefined) body.difficulty = edit.difficulty;
+	if (edit.audience !== undefined) body.audience = edit.audience;
+	if (edit.topicIds !== undefined) body.topic_ids = edit.topicIds.map(Number);
+	if (edit.tags !== undefined) body.tags = edit.tags;
+	if (edit.source !== undefined)
+		body.source = {
+			type: edit.source.type,
+			name: edit.source.name ?? '',
+			collection: edit.source.collection ?? '',
+			original_problem_number: edit.source.originalProblemNumber ?? null,
+			pages: edit.source.pages ?? '',
+			chapter: edit.source.chapter ?? null
+		};
+	const raw = await apiClient.patch<RawExerciseDetail>(
+		`/exercises/${encodeURIComponent(id)}/${toQueryString({ lang: locale })}`,
+		body
+	);
+	return mapResolvedExerciseDetail(raw);
 }
 
 // ✅ Phase 4 — real, load-tested bulk resolve, one GET /api/exercises/bulk/?ids=... request instead

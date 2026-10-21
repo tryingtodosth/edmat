@@ -17,7 +17,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from community.models import Comment, Review
-from exercises.models import SolutionEntry
+from exercises.models import Exercise, SolutionEntry
 from moderation.models import FeatureFlag, NodeGovernor
 from telemetry.routers import all_log_shards
 from testing.factories import make_branch, make_exercise, make_user
@@ -407,3 +407,67 @@ class ProvenanceTestCase(APITestCase):
             len(_parse_targets(','.join(f'exercise:{n}' for n in range(MAX_BATCH_TARGETS + 50)))),
             MAX_BATCH_TARGETS,
         )
+
+
+class AiAssistedVerifiedTests(APITestCase):
+    """2026-10-21: a solution its author declared AI-assisted does not make its exercise
+    `verified` on the strength of a pin or the author's contributor tier — only a reviewer's
+    accept does; and `declare_ai_assisted` marks everything one account wrote."""
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        self.call_command, self.StringIO = call_command, StringIO
+        self.branch = make_branch('ai-branch')
+        self.author = make_user('ai-author', is_verified_contributor=True)
+        self.exercise = make_exercise(self.branch, 1)
+        self.exercise.submitted_by = self.author
+        self.exercise.save()
+        self.solution = SolutionEntry.objects.create(
+            exercise=self.exercise, kind='solution', locale='pl', body='x', author=self.author,
+            status='published', pinned=True,
+        )
+        self.hint = SolutionEntry.objects.create(
+            exercise=self.exercise, kind='hint', locale='pl', body='h', author=self.author, status='published',
+        )
+
+    def verified(self):
+        return Exercise.objects.get(pk=self.exercise.pk).verified
+
+    def run_command(self, **kwargs):
+        out = self.StringIO()
+        self.call_command('declare_ai_assisted', author='ai-author', stdout=out, **kwargs)
+        return out.getvalue()
+
+    def test_the_mark_takes_verified_away_and_a_review_gives_it_back(self):
+        self.assertTrue(self.verified())
+        ct = ContentType.objects.get_for_model(SolutionEntry)
+        mark = AuthorMark.objects.create(content_type=ct, object_id=self.solution.pk, assisted=True, declared_by=self.author)
+        self.assertFalse(self.verified())
+        reviewer = make_user('ai-reviewer', is_staff=True)
+        SolutionEntry.objects.filter(pk=self.solution.pk).update(reviewed_by=reviewer)
+        from exercises.signals import recount_verified
+
+        recount_verified(self.exercise.pk)
+        self.assertTrue(self.verified())
+        SolutionEntry.objects.filter(pk=self.solution.pk).update(reviewed_by=None)
+        mark.delete()
+        self.assertTrue(self.verified())
+
+    def test_the_command_marks_statement_hint_and_solution_and_is_idempotent(self):
+        out = self.run_command(dry_run=True)
+        self.assertIn('rolling the transaction back', out)
+        self.assertEqual(AuthorMark.objects.count(), 0)
+        self.assertTrue(self.verified())
+        out = self.run_command(note='Written with an AI assistant')
+        self.assertIn('exercise: 1 by ai-author; 1 marked', out)
+        self.assertIn('solution_entry: 2 by ai-author; 2 marked', out)
+        marks = AuthorMark.objects.all()
+        self.assertEqual(marks.count(), 3)
+        self.assertTrue(all(m.assisted and m.declared_by == self.author and m.note == 'Written with an AI assistant' for m in marks))
+        self.assertFalse(self.verified())
+        again = self.run_command(note='Written with an AI assistant')
+        self.assertIn('0 marked, 0 re-marked, 3 already marked', again)

@@ -126,6 +126,15 @@ content is on the service plus what legal obligations require; the per-item choi
 derivatives and "more open only" (point 5); third-party material and the "rights not yet clarified"
 mark (point 8).
 
+**The bulk move (2026-10-21).** The owner asked for CC BY-SA 4.0 on *"all currently posted
+content"*. `manage.py relicense_content` (`licensing/CLAUDE.md`) does it through the same rules as
+the item page: it moves the corpus and every import out of `unknown` on staff authority, with a
+recorded note saying on what basis, and the operator's own content; it does NOT touch another
+person's `edmat-only` content, because § 9 point 2 never granted that right — those authors widen
+it themselves, or a CLA comes first. **Moving the corpus out of `unknown` is a statement that the
+rights were cleared** (§3: UW owns the staff-authored sheets), and the note on each row is where
+that basis is written down; the command cannot make it true.
+
 **What this does NOT settle.** The research below (§3) recommended a single CC BY-SA 4.0 plus a
 CLA; the owner chose per-item choice instead, so there is no CLA and no single licence to rely on
 when remixing across items — a reuser must check each item. A lawyer has still not read any of it.

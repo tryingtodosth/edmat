@@ -140,6 +140,12 @@
 										>{m.wp14a_mine_viewExercise()}</a
 									>
 									<!-- "Open the exercise →" -->
+									<a
+										class="row__link"
+										href={resolve('/exercises/[id]/edit', { id: submission.resultingExerciseId })}
+										data-edit-exercise>{m.wp14a_mine_editExercise()}</a
+									>
+									<!-- "Edit" — the submitter is the author, who edits in place -->
 								{:else}
 									<p class="row__body">{m.wp14a_mine_approvedGone()}</p>
 									<!-- "It was published, and has since been removed." -->

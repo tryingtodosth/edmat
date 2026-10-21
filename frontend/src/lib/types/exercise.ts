@@ -158,4 +158,19 @@ export interface ResolvedExercise extends Exercise {
 	/** The licence of the TEXT shown — differs from `licence` only for somebody else's
 	 * translation, which keeps the licence it was contributed under. */
 	textLicence: Licence;
+	/** Whether the reader may edit this exercise in place — the author or staff
+	 * (`backend/exercises/editing.py`), answered by the API rather than re-derived here. */
+	canEdit: boolean;
+}
+
+/** What `PATCH /api/exercises/{id}/` takes: every field optional, what arrives is what changes. */
+export interface ExerciseEdit {
+	title?: string;
+	statement?: string;
+	answer?: string;
+	difficulty?: Difficulty;
+	audience?: Audience;
+	topicIds?: string[];
+	tags?: string[];
+	source?: ExerciseSource;
 }
