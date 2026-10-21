@@ -3369,3 +3369,18 @@ edit suggestion's refusals (`part_and_entry`, `part_not_of_exercise`, `part_fiel
 locale), the queue showing `part_label`, and approval writing — or creating from the fallback — the
 part's row. `licensing/test_parts.py` (2): the licence endpoint and `relicense_content` over exercises
 with parts. Run: `manage.py test exercises moderation licensing --parallel 4 --keepdb` (343, OK).
+
+**`exercises/test_import_parts.py` — the importer's part sections (27 tests, §17CV.B).** Plain
+`TestCase`s (no endpoint, so no log shards). The parser: labels kept as written, `Podpunkt`/`Part`
+in any case, and every refusal by its sentence — no label, a label over 20, a duplicate label, a part
+with no or an empty `## Treść`, a section named twice (the whole-exercise-section-after-the-parts
+case), text straight under a part heading, unbalanced maths in a part, the shared statement still
+required. The apply: create with pinned entries carrying `part`; an unchanged re-run prints `parts: 0
+created, 0 updated, 0 removed.` and does not re-save an entry (`updated_at` unchanged); an edit
+updates in place; a part beyond the file's count goes with its entries; the whole exercise's solution
+coexists with the parts' (the pinned key has `part` — removing it fails this test); `--dry-run` writes
+nothing, also when it would remove; a file without parts leaves parts alone; splitting a
+one-solution file removes the old whole entries but not one somebody else pinned, nor one with a
+comment or a vote; `--licence` moves part entries; and the worked example in
+`.claude/skills/import-exercises/reference/format.md` is extracted and imported, so the doc cannot rot.
+`../.venv/bin/python3 manage.py test exercises.test_import_parts --keepdb` (~3 s with a kept DB).

@@ -17550,3 +17550,89 @@ importer is B's file, so it is not wired here).
 - Deleting a part deletes its edit suggestions (the model's CASCADE, the brief's choice): those
   decision records go with it, against house rule 12. A tombstone for a part would keep them.
 - `EditSuggestionViewSet` has no `?part=` filter; nothing asks for one yet.
+
+## 17CV.B — The importer's part sections, and paczka4: fifteen paczka3 sets rewritten with parts (2026-10-21, `parts/b-import`)
+
+Step B of `SUBEXERCISES-BRIEF.md` §6 (brief `prompts/21-parts-b-import.md`). Two halves: the import
+format learns parts, and the set-shaped files of `paczka3` are rewritten by hand with them.
+
+**The format.** `## Podpunkt <label>` / `## Part <label>` (any case; the label is the trimmed free
+text after the keyword, ≤ 20 characters, shown as written) opens a part, and every section after it
+— `## Treść` (required), `## Wskazówka`, `## Odpowiedź`, `## Rozwiązanie` — belongs to that part
+until the next part heading. Whole-exercise sections come first; the shared `## Treść` is still
+required. Refused, each with its reason and filename: no label, a label over 20, two parts with one
+label, a part without a statement (or an empty one), unbalanced maths in any part text, text straight
+under a part heading (it would have been dropped), and **a section named twice in one scope** — which
+is how "a whole-exercise section after the parts" shows up once every section after a part heading
+is that part's; none of the 1,974 corpus files names a section twice, so that refuses nothing that
+used to import.
+
+**The apply.** Parts by `(exercise, order)`; the text as the published `ExercisePartTranslation` in
+the file's locale; each part's hint and solution as pinned published entries with `part=`. The whole
+exercise's own pinned upsert gained `part=None` in its key — without it a part's pinned solution is
+indistinguishable from the whole's and gets overwritten (or, with two parts solved, the second run
+raises `MultipleObjectsReturned`); a test removes `part=None` and fails. For a file WITH parts the
+file is the truth: parts beyond its count are deleted with their entries (named per file), and — a
+rule the brief did not have, found by rehearsing 964 — a pinned entry an earlier import wrote with
+the same `--author` for a section the file no longer has (the whole exercise's or a part's) is
+deleted too. Without it, re-importing 964 with parts left the old one-solution-for-all-four standing
+beside the four new part solutions, and the old combined hint beside the split ones. It touches
+nothing somebody else wrote (staff may pin a reader's solution) and nothing readers have commented
+on or voted on (house rule 12) — both are left with a warning. A file without parts leaves parts
+alone. `parts: N created, M updated, K removed.` is printed on every run and counts CHANGES (compared
+against the sanitized file text), so an unchanged re-run prints zeros and does not even re-save an
+entry. `_relicense` already moved every pinned entry; a test pins that part entries move with it.
+
+**paczka4.** Read all 64 files: **15 are set-shaped**, not the 23 the design guessed — algebra 0005
+(964), 0006, 0011, 0022, 0023; fale 0001, 0004, 0005, 0006, 0009, 0019, 0026, 0029, 0031, 0034 (43
+parts). Labels follow the sheets: `1`–`4` for algebra s1/5 and s1/6 (unlabelled on the sheet; the
+solutions numbered them), `a`–`d` everywhere else (the sheets' (a)/a)). Not rewritten on purpose:
+algebra s2/4a–4j and 1a–2b, which paczka3 had already made separate exercises, and physics problems
+that ask several things in one sentence without an enumeration. Each file rewritten by reading it:
+the shared statement keeps the lead sentence, hints go to the part they are about (964: "square
+first" → 2, the conjugate → 3 and 4), a derivation every part stands on stays the whole exercise's
+solution (fale 0001, 0019, 0026; algebra 0022), a one-line convention ("Oś y w dół…") is repeated in
+each part that uses it rather than becoming a fake whole-exercise "solution". Every math segment and
+prose fragment of each old file was searched for in the new one; the only misses are combined
+displays cut into parts and sentences split per part. What was ADDED is listed in the kit README
+(one lead sentence for fale 0005, whose sheet has none; short "(podpunkt a)" cross-references).
+The same 15 files are written into the owner's presentations repo
+(`presentations/algebra/edmat/algebra/zadania/`, `presentations/fizyka_3/edmat/fale/zadania/`; that
+directory is not a git repository, nothing else there touched). `preflight.py` now checks the
+exercises EXIST with the same titles and that the API has `parts`; `PRODUCTION.md` is the same
+command as paczka3 and says the kit must land AFTER A and C are deployed — with the backend but not
+the page, 964 would show only "Przedstawić w postaci a+bi następujące liczby zespolone:".
+
+### Verified
+
+- `manage.py test exercises.test_import_parts` — **27 tests OK** (13 parser, 14 apply), and with the
+  existing `ImportExercisesCommandTests` 40 OK; the mutation (drop `part=None` from the key) fails one.
+- `manage.py test exercises --parallel 4 --keepdb` — **182 tests OK** (30 s of tests; ~10 min with the ten in-memory DBs built).
+- `manage.py check` clean; `makemigrations --check --dry-run` "No changes detected";
+  `testing/check_databases_declared.py` 0.
+- Rehearsal on a COPY of the worktree database, rebuilt as production is (fale "Waves", `algebra` via
+  `create_algebra_branch.py`, `todoonet`, paczka3 imported: 23/46/5 and 41/82/8 as on the server):
+  `--dry-run` and the real run both **algebra 0 created, 5 updated, 26 hint/solution; parts 17
+  created, 0 updated, 0 removed; 5 stale pinned removed — fale 0 created, 10 updated, 48; parts 26
+  created; 13 stale removed**; the second run **parts: 0 created, 0 updated, 0 removed** for both;
+  the kit files byte-identical after (no write-back); 64/64 verified.
+- `dump_text_fields` on the copy + the 43 part rows appended (see Left open) + `npm run check:katex`:
+  **2537 rows, 0 issues** (2494 without the part rows).
+- `preflight.py` against the copy's API before (15/15 exist, 0 parts, clear) and after (parts =
+  file counts). The copy's `/exercises/<algebra #5>` and `/exercises/<fale #19>` on 8182/5282:
+  render, zero console errors, screenshots looked at — the flat pool shows the part entries until C's
+  page lands; the API's `parts` array for algebra #5 is the four expressions with their answers.
+
+### Left open
+
+- **`dump_text_fields` does not dump `ExercisePartTranslation`** (step A's file, not mine): the KaTeX
+  sweep misses part statements and answers unless they are appended, as the rehearsal did by hand.
+  One loop in that command; on the board for the integrator/A.
+- No refusal for more than 26 parts in a file, though A's edit form refuses `parts_too_many` above
+  26: an import could create a set the form will not save. The rule should live in `exercises/parts.py`
+  for both to ask (boundary #2); not added here so as not to fork it.
+- The AI-assisted mark is still not in the file format (unchanged — `declare_ai_assisted` after).
+- `split_exercise_parts` (guess parts from bold numerals in a stored solution) is NOT built, on
+  purpose (`SUBEXERCISES-BRIEF.md` §4): a wrong cut in a solution is worse than none.
+- The kit directory `Database-of-Student-Exercise/paczka4/` is untracked, like paczka3; it ships
+  through `deploy/fuw/pack.sh`, which the integrator extends.
