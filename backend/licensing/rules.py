@@ -115,7 +115,16 @@ def _carry_to_own_text(obj, old: str, new: str) -> None:
     """An exercise's text in its ORIGINAL language, and any translation its own author wrote, are
     the author's work and move with the exercise. A translation somebody else wrote keeps the
     licence it was contributed under (`ExerciseTranslation.licence`) — relicensing it is that
-    translator's decision, not this author's."""
+    translator's decision, not this author's.
+
+    The PARTS of a set-shaped exercise (`exercises.ExercisePart` and its translation rows,
+    2026-10-21) have no licence column, by design: a part is the exercise's own text, so it is
+    covered by `Exercise.licence` and moves the moment that does — nothing to carry. A part's text
+    in another language written through an edit suggestion is a contribution INTO the exercise
+    under the licence it showed (the Wikipedia shape `MaterialVersion` has), not a separate work.
+    `licensing/test_parts.py` pins that a change and the bulk command run over an exercise with
+    parts. A translation FORM for parts (left open) would be the day a part translation by
+    somebody else needs `ExerciseTranslation`'s stamped licence — not before."""
     if kind_name_of(obj) != 'exercise':
         return
     from django.db.models import Q

@@ -779,7 +779,8 @@ def build_moderation_queue_payload(user=None, request=None) -> dict:
         .select_related('branch')
         .prefetch_related('branch__translations')
     )
-    edits = EditSuggestion.objects.filter(status='pending')
+    # select_related('part'): the serializer's `part_label` reads it per row.
+    edits = EditSuggestion.objects.filter(status='pending').select_related('part')
     translations = ExerciseTranslation.objects.filter(status='pending')
     if branch_ids is not None:
         submissions = submissions.filter(branch_id__in=branch_ids)

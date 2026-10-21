@@ -178,6 +178,13 @@ class SolutionEntryCreateSerializer(serializers.ModelSerializer):
     def validate_part(self, value):
         from .parts import part_refusal
 
+        # On a PATCH an entry does not MOVE between parts (`part_immutable`, 400): a hint written
+        # for (b) under (c) would be wrong, and its votes and review were for (b). Sending the part
+        # it already has is not a move, and is accepted as a no-op.
+        if self.instance is not None:
+            if (value.pk if value is not None else None) != self.instance.part_id:
+                raise serializers.ValidationError('part_immutable')
+            return value
         exercise = self.context.get('exercise') or (self.instance.exercise if self.instance else None)
         if exercise is None and value is not None:
             raise serializers.ValidationError('part_not_of_exercise')
@@ -407,8 +414,14 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
         return t.answer if t else ''
 
     def get_parts(self, obj):
+        from django.db.models import prefetch_related_objects
+
         from .parts import parts_of
 
+        # Two queries for every part and its text, rather than one per part — unless the caller's
+        # queryset already prefetched them.
+        if 'parts' not in getattr(obj, '_prefetched_objects_cache', {}):
+            prefetch_related_objects([obj], 'parts__translations')
         return ExercisePartSerializer(parts_of(obj), many=True, context=self.context).data
 
     def get_entries(self, obj):
@@ -660,6 +673,17 @@ class ExerciseSourceEditSerializer(serializers.Serializer):
     chapter = serializers.IntegerField(required=False, allow_null=True, min_value=1, default=None)
 
 
+class ExercisePartEditSerializer(serializers.Serializer):
+    """One item of `PATCH /api/exercises/{id}/`'s `parts` list: a missing `id` creates the part, a
+    known one updates it (`exercises/parts.py: apply_parts`). `label` and `statement` required,
+    `answer` may be blank; the list's position is the part's order."""
+
+    id = serializers.IntegerField(required=False, allow_null=True)
+    label = serializers.CharField(max_length=20)
+    statement = serializers.CharField()
+    answer = serializers.CharField(required=False, allow_blank=True, default='')
+
+
 class ExerciseEditSerializer(serializers.Serializer):
     """`PATCH /api/exercises/{id}/` by the author or staff (`exercises/editing.py`). Every field
     is optional; what arrives is what changes. Text goes onto the original-locale translation and
@@ -673,8 +697,20 @@ class ExerciseEditSerializer(serializers.Serializer):
     topic_ids = serializers.ListField(child=serializers.IntegerField(), required=False)
     tags = serializers.ListField(child=serializers.CharField(max_length=80, allow_blank=True), required=False)
     source = ExerciseSourceEditSerializer(required=False)
+    # The WHOLE list of parts as the form now has them (`SUBEXERCISES-BRIEF.md` §4): absent leaves
+    # the parts alone; `[]` deletes every one. Refusal words: `exercises/parts.py:
+    # parts_payload_refusal` (`parts_too_many`, `part_not_of_exercise`, `part_label_duplicate`).
+    parts = ExercisePartEditSerializer(many=True, required=False)
 
     TEXT_FIELDS = ('title', 'statement', 'answer')
+
+    def validate_parts(self, value):
+        from .parts import parts_payload_refusal
+
+        reason = parts_payload_refusal(self.context['exercise'], value)
+        if reason:
+            raise serializers.ValidationError(reason)
+        return value
 
     def validate_topic_ids(self, value):
         exercise = self.context['exercise']
@@ -747,4 +783,8 @@ class ExerciseEditSerializer(serializers.Serializer):
                 ExerciseSourceTranslation.objects.update_or_create(
                     source=source, locale=exercise.original_locale, defaults={'name': name}
                 )
+            if 'parts' in data:
+                from .parts import apply_parts
+
+                apply_parts(exercise, data['parts'], user)
         return exercise

@@ -37,6 +37,23 @@ class Command(BaseCommand):
                     'answer': t.answer,
                 }
             )
+        # A part's sub-statement and answer (`ExercisePartTranslation`, §17CV) are rendered by the
+        # same pipeline, so they are swept too — as `exercise` rows, which the sweep already reads.
+        from exercises.models import ExercisePartTranslation
+
+        for t in ExercisePartTranslation.objects.select_related('part__exercise').all():
+            fields.append(
+                {
+                    'kind': 'exercise',
+                    'id': t.part.exercise_id,
+                    'locale': t.locale,
+                    'status': t.status,
+                    'ref': str(t.part),
+                    'title': '',
+                    'statement': t.statement,
+                    'answer': t.answer,
+                }
+            )
         from exercises.models import SolutionEntry
 
         for e in SolutionEntry.objects.select_related('exercise').all():

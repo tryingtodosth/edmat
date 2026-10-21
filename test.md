@@ -3356,3 +3356,16 @@ Polish as the default). It writes nothing to the backend.
 E2E_BASE=http://localhost:5201 E2E_API=http://127.0.0.1:8051 E2E_TOKEN=<kasia's token> \
   CHROME=<chrome-headless-shell> node e2e/home-start.mjs
 ```
+
+**Sub-exercises, step A (§17CV.A, 2026-10-21).** `exercises/test_parts.py` (21) pins the parts rules:
+the read shape and the entry POST (from the prep), the derived `verified` for a set (whole solved /
+every part solved / one part short, a part added or deleted recounts, AI-assisted only once reviewed),
+`PATCH /api/exercises/{id}/` `parts` (every refusal word — `part_not_of_exercise`,
+`part_label_duplicate`, `part_id_duplicate`, `parts_too_many` — with nothing written; create, update,
+reorder, delete-with-entries, `[]`, the approved `EditSuggestion` records, sanitizing, verified
+following the edit), an entry's `part` refused on PATCH (`part_immutable`) with the pool's visibility
+and order unchanged, and the admin pages opening. `moderation/test_part_suggestions.py` (7): a part
+edit suggestion's refusals (`part_and_entry`, `part_not_of_exercise`, `part_field_invalid`, an unknown
+locale), the queue showing `part_label`, and approval writing — or creating from the fallback — the
+part's row. `licensing/test_parts.py` (2): the licence endpoint and `relicense_content` over exercises
+with parts. Run: `manage.py test exercises moderation licensing --parallel 4 --keepdb` (343, OK).

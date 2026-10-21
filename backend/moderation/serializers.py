@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from config.i18n_utils import request_locale, resolve_translation
 from exercises.links import submission_material_id
-from exercises.models import SolutionEntry
+from exercises.models import ExercisePart, SolutionEntry
 from materials.services import clean_requirement_labels, find_duplicate_requirement_label
 from taxonomy.models import Branch
 
@@ -160,6 +160,15 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    # Which PART's statement/answer this edits, when it edits one (`exercises.ExercisePart`,
+    # 2026-10-21) — never together with `entry`. `part_label` is what lets a moderator read
+    # "(b) statement" rather than "statement" in the queue.
+    part = serializers.PrimaryKeyRelatedField(
+        queryset=ExercisePart.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    part_label = serializers.SerializerMethodField()
 
     class Meta:
         model = EditSuggestion
@@ -169,6 +178,8 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
             'locale',
             'field',
             'entry',
+            'part',
+            'part_label',
             'proposed_value',
             'reason',
             'submitted_by',
@@ -186,8 +197,15 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
             'field': {'required': False, 'allow_blank': True},
         }
 
+    def get_part_label(self, obj):
+        return obj.part.label if obj.part_id is not None else None
+
     def validate(self, attrs):
         entry = attrs.get('entry') or getattr(self.instance, 'entry', None)
+        part = attrs.get('part') or getattr(self.instance, 'part', None)
+        if entry is not None and part is not None:
+            # An entry is already for one part (or the whole); a suggestion edits ONE thing.
+            raise serializers.ValidationError({'part': ['part_and_entry']})
         if entry is not None:
             # An entry-targeted suggestion: everything positional comes from the entry itself.
             if not entry.is_visible_to_readers():
@@ -209,6 +227,16 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
         # Hints/solutions are no longer translation fields — a suggestion against one must name
         # the entry it edits (see `entry` above); accepting the old field names here would produce
         # a suggestion `_apply_edit_suggestion` can never apply.
+        if part is not None:
+            # A part suggestion: the part must be this exercise's, and only its statement or
+            # answer exist to edit — a part has no title (`exercises/parts.py`).
+            from exercises.parts import part_refusal
+
+            reason = part_refusal(exercise, part)
+            if reason:
+                raise serializers.ValidationError({'part': [reason]})
+            if field not in ('statement', 'answer'):
+                raise serializers.ValidationError({'field': ['part_field_invalid']})
         if field not in ('title', 'statement', 'answer'):
             raise serializers.ValidationError(
                 {'field': ["Must be one of 'title', 'statement', 'answer' — a hint/solution edit names its entry instead."]}

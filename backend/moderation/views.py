@@ -462,13 +462,21 @@ def _apply_submission(submission, reviewer):
 def _apply_edit_suggestion(suggestion):
     """Applies a proposed change onto its target: a SolutionEntry's `body` when the suggestion
     carries an `entry` (hints/solutions left the translation table — see EditSuggestion.entry's
-    own comment), else onto the (exercise, locale) translation it targets. The translation field
+    own comment), a part's own translation row when it carries a `part` (2026-10-21), else onto
+    the (exercise, locale) translation it targets. The translation field
     set is title/statement/answer only now; 'hint'/'solution' can no longer arrive from the
     serializer and the two historical values would target columns that no longer exist."""
     if suggestion.entry_id is not None:
         entry = suggestion.entry
         entry.body = suggestion.proposed_value
         entry.save(update_fields=['body'])
+        return
+    if suggestion.part_id is not None:
+        # A part's statement/answer: its own translation row for `locale`, published, created if
+        # missing (`exercises/parts.py: write_part_text` says what a created row starts from).
+        from exercises.parts import write_part_text
+
+        write_part_text(suggestion.part, suggestion.locale, suggestion.field, suggestion.proposed_value)
         return
     translation, _created = ExerciseTranslation.objects.get_or_create(
         exercise=suggestion.exercise,

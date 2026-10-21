@@ -11,8 +11,9 @@ class ExerciseSubmissionAdmin(admin.ModelAdmin):
 
 @admin.register(EditSuggestion)
 class EditSuggestionAdmin(admin.ModelAdmin):
-    list_display = ['exercise', 'locale', 'field', 'submitted_by', 'status', 'created_at']
+    list_display = ['exercise', 'part', 'locale', 'field', 'submitted_by', 'status', 'created_at']
     list_filter = ['status', 'field']
+    raw_id_fields = ['exercise', 'entry', 'part', 'submitted_by', 'reviewed_by']
 
 
 @admin.register(Report)

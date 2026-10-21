@@ -17471,3 +17471,82 @@ rather than cut by a regex. The build order is in the brief.
   notify the refused authors that they could widen their own — a notification type is its own change.
 - The AI-assisted mark is not in the import format; a `paczka` written with an assistant has to be
   marked after import with the command.
+
+## 17CV.A Sub-exercises, step A — the rules and the writes (2026-10-21, `parts/a-backend`)
+
+The prep commit made parts readable (`ExercisePart`, `ExercisePartTranslation`, `SolutionEntry.part`,
+`EditSuggestion.part`, `parts` on the detail, `part` on an entry POST). This step made them REAL on
+the write side and in every derived rule, so that C's page and B's importer have a backend that
+keeps its promises. Brief: `prompts/20-parts-a-backend.md`; design: `SUBEXERCISES-BRIEF.md`.
+
+**1. `verified` for a set.** `exercises/signals.py` now has `passed_solutions(exercise_id)` — the ONE
+definition of "passed" (pinned, reviewed or verified-authored; AI-assisted only once reviewed) — and
+`recount_verified` asks two questions of it: a passed solution with `part IS NULL`, or
+`parts.verified_by_parts` (the exercise has parts and EVERY one has a passed solution of its own).
+(a)–(c) solved and (d) not is unverified. `ExercisePart` post_save (on create) and post_delete
+recount: a part added to a verified set unverifies it until solved; deleting the unsolved part may
+verify it. For an exercise without parts nothing changed (a part-entry cannot exist without a part —
+CASCADE). `verified` is now also read-only in the Django admin (admin rule 1; it was editable).
+
+**2. Licence.** A part has no licence column, by design, and needs none: it is the exercise's text,
+covered by `Exercise.licence` the moment that moves. `_carry_to_own_text` carries nothing more; its
+docstring says why. `licensing/test_parts.py` runs the endpoint and `relicense_content` over
+exercises with parts. No column was added; the one day it would be needed is named below.
+
+**3. `PATCH /api/exercises/{id}/` takes `parts`.** `ExercisePartEditSerializer` (`id?`, `label` ≤ 20,
+`statement` required, `answer` may be blank) under `ExerciseEditSerializer.parts`; the rule is
+`parts.parts_payload_refusal` + `parts.apply_parts`, in the same transaction as the rest of the edit.
+The list is the whole set: absent leaves parts alone, no `id` creates, a known `id` updates label and
+text, a known part left out is deleted with its entries and edit suggestions (CASCADE), `[]` deletes
+all, `order` = position (1-based; survivors are parked above the highest order first so a swap never
+trips `(exercise, order)`). Text lands on the part's original-locale published row; each changed field
+(a new part's statement and non-blank answer included) is an approved `EditSuggestion` with `part`,
+by the editor. Resending the same list records nothing. Refusals: `part_not_of_exercise`,
+`part_label_duplicate`, `parts_too_many` (> 26), and one the brief did not name, `part_id_duplicate`
+(the same id twice — the form cannot send it, a hand-built body can, and no listed word was true of it).
+
+**4. `POST /api/edit-suggestions/` takes `part`.** `part_and_entry`, `part_not_of_exercise`,
+`part_field_invalid` (a part has no title); the locale must still be one the exercise speaks. Decided in
+the queue like a shared-statement suggestion (the entry decide path still refuses anything without an
+entry). Applying writes the part's row for `locale` through `parts.write_part_text`; a missing row is
+created as a COPY of the fallback text the reader already saw with the one field changed — otherwise
+a suggested English answer would leave an English reader an empty statement where a Polish one stood.
+The serializer shows `part` and `part_label`; the queue `select_related('part')`.
+
+**5. Entries.** An entry PATCH with a DIFFERENT `part` is **refused** 400 `part_immutable` (chosen over
+ignoring: a client that tries learns it failed); the part it already has is a no-op. Visibility and
+ordering (`entries.py`) untouched and tested.
+
+**6. Admin.** `ExercisePart` page with its translations inline; parts inline on the exercise;
+`SolutionEntry.part` and every `EditSuggestion` FK `raw_id_fields`. The detail now prefetches
+`parts__translations` (two queries, not one per part).
+
+**7. The KaTeX sweep sees parts** (B's board item): `dump_text_fields` emits every
+`ExercisePartTranslation` as an `exercise` row (empty title), so `npm run check:katex` covers part
+statements and answers without the hand-appending B's rehearsal needed. `parts.MAX_PARTS` (26) is
+where the importer can read the same limit the edit form is held to (B's other board item — the
+importer is B's file, so it is not wired here).
+
+### Verified
+- `dump_text_fields` on the DB copy with one part row added: 2259 rows, the part's row present;
+  `check_katex_compatibility.ts` over that file: 2259 checked, 0 issues (the row removed afterwards).
+- `manage.py test exercises moderation licensing --parallel 4 --keepdb`: **343 tests, OK** (78 s of
+  tests, 11 min wall with the clones). New: `exercises/test_parts.py` 21 (2 from the prep),
+  `moderation/test_part_suggestions.py` 7, `licensing/test_parts.py` 2.
+- `manage.py test provenance --parallel 4 --keepdb` (it calls `recount_verified`): 30, OK.
+- `manage.py check`: 0 issues. `makemigrations --check --dry-run`: no changes (no new migration).
+  `testing/check_databases_declared.py`: 0.
+- A live round-trip on the worktree's DB copy (runserver 8181, a superuser token): PATCH created two
+  parts, a swap + rename kept the ids and rewrote the orders, a duplicate label → 400
+  `part_label_duplicate`, another exercise's part → 400 `part_not_of_exercise`, a part suggestion for
+  `title` → 400 `part_field_invalid`, `parts: []` → `[]`. Cleaned up afterwards.
+
+### Left open
+- A part as a flashcard or a contest problem; per-part difficulty or topics (design §7).
+- Parts in the translation form (`TranslateForm`): not in this step (backend has no translation
+  endpoint for part rows; C's board entry says whether its page reached the form). The day it is
+  built, a part translation written by somebody other than the author is a derivative and would need
+  `ExerciseTranslation`'s stamped licence — the one case where a part row needs a licence column.
+- Deleting a part deletes its edit suggestions (the model's CASCADE, the brief's choice): those
+  decision records go with it, against house rule 12. A tombstone for a part would keep them.
+- `EditSuggestionViewSet` has no `?part=` filter; nothing asks for one yet.

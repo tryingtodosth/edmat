@@ -30,6 +30,24 @@ waits in this queue's `material_versions` section and is decided at
 - The ported tests are `coauthoring/test_submit_path.py` (the whole old suite, class for class) and
   `materials/test_validators.py` (the validator tests, which never needed a model).
 
+## `EditSuggestion.part` — a suggestion against one part (2026-10-21, §17CV.A)
+
+A reader may suggest an edit to one PART's `statement` or `answer` (`exercises.ExercisePart`,
+`exercises/CLAUDE.md` "Parts"): `POST /api/edit-suggestions/` with `part` beside the usual
+`exercise`/`locale`/`field`. Refused 400 with a word: `part_and_entry` (never together with
+`entry`), `part_not_of_exercise` (the part must be that exercise's), `part_field_invalid` (a part
+has no `title`); the locale must still be one the EXERCISE has a translation in (the existing
+plain-sentence refusal). It is decided where a shared-statement suggestion is — the queue's
+`/moderation/edit/{id}/approve|reject/`, moderators and branch governors — NOT the entry decide
+path, which still answers 400 for anything without an `entry`. Applying it
+(`_apply_edit_suggestion` → `exercises/parts.py: write_part_text`) writes the part's published row
+for `locale`; a missing row is created as a copy of the text that reader already saw (the
+fallback) with the one field changed, so an English answer never leaves an English reader with an
+empty statement. The serializer carries `part` and `part_label` so the queue reads "(b) statement";
+the queue query `select_related('part')`. Deleting the part deletes its suggestions (CASCADE — the
+brief's choice; house rule 12 loses those records, said in HISTORY §17CV.A). Pinned by
+`test_part_suggestions.py` (7).
+
 ## Roles
 
 - **Moderator** = `is_staff` (global). **Node governor** = a `NodeGovernor` row (GenericForeignKey

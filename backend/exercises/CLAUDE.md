@@ -18,8 +18,10 @@ SKILL expert tier. One review path only: `POST /solution-entries/{id}/review/` (
 publishes; a deny REQUIRES a note; WHERE-anchored claim → 409) — the moderation queue's tab calls
 this same endpoint, deliberately not a `_KIND_MODELS` kind. **`Exercise.verified` is DERIVED**
 (signals.recount_verified — a published solution that is pinned/reviewed/verified-authored, EXCEPT a
-solution its author marked AI-assisted, which counts only once reviewed — `provenance/`, 2026-10-21);
-never hand-toggle it, and call the recount after any queryset-`update()` on entries.
+solution its author marked AI-assisted, which counts only once reviewed — `provenance/`, 2026-10-21;
+for an exercise with parts, a passed solution for the WHOLE or one for EVERY part — "Parts" below);
+never hand-toggle it (it is read-only in the admin too), and call the recount after any
+queryset-`update()` on entries.
 `EditSuggestion.entry` (moderation app) targets a row; its deciders are author+staff+governors.
 
 ## Invariants (each one closed a real bug)
@@ -76,6 +78,63 @@ only while an exercise, material, concept or visible post uses it) and `merge_ta
 `created_at` (stamped on every new row by `save()`; null on the 1,022 that predate it) and
 `from_question` are migration 0016. The admin renames (folded, refused onto an existing name),
 removes, and merges ("merge into" moves every use and REMOVES the source). `test_tags.py` pins it.
+
+## Parts — a set-shaped exercise (`SUBEXERCISES-BRIEF.md`, §17CV, 2026-10-21)
+
+**The shape.** `ExercisePart` (`exercise`, `order`, `label` ≤ 20 chars, free text shown as
+written; `(exercise, order)` unique) with its text in `ExercisePartTranslation` — one row per
+(part, locale, status) including the original, the same partial unique constraint as
+`ExerciseTranslation`, sanitized in `save()`. `SolutionEntry.part` (null = the whole exercise) and
+`moderation.EditSuggestion.part` both CASCADE from the part. The shared statement stays on
+`ExerciseTranslation`; an exercise without parts is exactly what it was. A part has no licence, no
+difficulty, no topics — it is the exercise's own text (`licensing/rules.py: _carry_to_own_text`
+says why there is nothing to carry). **`parts.py` is the one rule module**: `parts_of`, `part_text`
+(reader's locale → original → any), `part_refusal`, `verified_by_parts`, `parts_payload_refusal`,
+`apply_parts`, `write_part_text`. The importer (`import_exercises`, step B) writes parts by `(exercise, order)` and calls `recount_verified` as it always did.
+
+**The read shape.** The detail's `parts: [{id, label, order, statement, answer, resolved_locale}]`
+(`[]` without parts; prefetched in two queries); every entry carries `part`.
+
+**Verified for a set.** `signals.passed_solutions` is the one definition of "passed" (pinned,
+reviewed or verified-authored; AI-assisted only once reviewed). `recount_verified` = a passed
+solution with `part IS NULL`, **or** `verified_by_parts` (the exercise has parts and every one has a
+passed solution of its own). (a)–(c) solved and (d) not is unverified. `ExercisePart` signals
+recount on create and delete (a new part unverifies a set until it is solved; deleting the unsolved
+one may verify it); a rename or reorder is an `update()` and changes nothing.
+
+**`PATCH /api/exercises/{id}/` with `parts: [{id?, label, statement, answer}]`** (author or staff,
+`editing.py` — a stranger is still 403 `exercise_not_editor`). The list is the WHOLE set: absent
+leaves the parts alone; a missing `id` creates; a known `id` updates label and text; a known part
+NOT in the list is deleted with its entries and its edit suggestions (CASCADE — the form warns);
+`[]` deletes every part; `order` is rewritten from the list position, 1-based (survivors are parked
+above the highest order first, so a swap never trips the unique pair). Text lands on the part's
+ORIGINAL-locale published row (created if missing), and each changed field — a new part's
+statement and non-blank answer included — is an APPROVED `EditSuggestion` with `part=<part>` by the
+editor. Resending the same list writes and records nothing. Same transaction as the rest of the edit.
+
+**An entry's part does not move.** `POST /exercises/{id}/entries/` takes `part`
+(`part_not_of_exercise`); `PATCH /solution-entries/{id}/` with a DIFFERENT `part` (or `null` on a
+part entry, or a part on a whole one) is **refused 400 `part_immutable`** — not ignored, so a
+client that tries learns it failed. The part it already has is accepted as a no-op. The pool's
+visibility and ordering (`entries.py`) do not look at `part` at all (`EntryPartTests` pins it).
+
+**Refusal words** (400, each under the field named; mirrored in the frontend's `labels.ts`):
+
+| Word | Field | Where |
+|---|---|---|
+| `part_not_of_exercise` | `part` / `parts` | an entry POST, an edit suggestion, or a PATCH item `id` that is not this exercise's part |
+| `part_label_duplicate` | `parts` | two PATCH items with the same (trimmed) label |
+| `parts_too_many` | `parts` | more than 26 PATCH items (`parts.MAX_PARTS`) |
+| `part_id_duplicate` | `parts` | the same `id` twice in one PATCH (the form cannot send it; a hand-built body can) |
+| `part_and_entry` | `part` | an edit suggestion naming both a part and an entry |
+| `part_field_invalid` | `field` | an edit suggestion for a part with a field other than `statement`/`answer` |
+| `part_immutable` | `part` | an entry PATCH that would move it to another part |
+
+**The admin.** `ExercisePart` has its own page with its translations inline; the parts are an
+inline (order, label, a change link) on the exercise page; `SolutionEntry.part` and every FK on
+`EditSuggestion` are `raw_id_fields`. `PartsAdminTests` opens them.
+
+Tests: `test_parts.py` (21), `moderation/test_part_suggestions.py` (7), `licensing/test_parts.py` (2).
 
 ## Covers / requires claims
 

@@ -7,6 +7,8 @@ from .models import (
     ExerciseClaimImportanceVote,
     ExerciseClaimVote,
     ExerciseMaterialLink,
+    ExercisePart,
+    ExercisePartTranslation,
     ExerciseRequirement,
     ExerciseRequirementVote,
     ExerciseSource,
@@ -26,6 +28,31 @@ class ExerciseTranslationInline(admin.TabularInline):
     fields = ['locale', 'title', 'status', 'translated_by', 'reviewed_by']
 
 
+class ExercisePartInline(admin.TabularInline):
+    """The parts of a set-shaped exercise (`SUBEXERCISES-BRIEF.md`), label and order only — a
+    part's TEXT is its translation rows, edited on the part's own page (the "edit" link)."""
+
+    model = ExercisePart
+    extra = 0
+    fields = ['order', 'label']
+    show_change_link = True
+
+
+class ExercisePartTranslationInline(admin.TabularInline):
+    model = ExercisePartTranslation
+    extra = 0
+    fields = ['locale', 'status', 'statement', 'answer', 'translated_by']
+    raw_id_fields = ['translated_by']
+
+
+@admin.register(ExercisePart)
+class ExercisePartAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'exercise', 'order', 'label', 'created_at']
+    search_fields = ['label', 'exercise__number']
+    raw_id_fields = ['exercise']
+    inlines = [ExercisePartTranslationInline]
+
+
 class ExerciseSourceInline(admin.StackedInline):
     model = ExerciseSource
     extra = 0
@@ -35,12 +62,14 @@ class ExerciseSourceInline(admin.StackedInline):
 class ExerciseAdmin(admin.ModelAdmin):
     # The licence changes only through licensing.rules.change_licence, which records the change and
     # only widens it (a Creative Commons grant is irrevocable) — the admin must not be a way around it.
-    readonly_fields = ('licence',)
+    # `verified` is DERIVED (`signals.recount_verified` — for a set, every part solved): admin
+    # rule 1 in backend/CLAUDE.md, the admin must not be the one surface that can set it by hand.
+    readonly_fields = ('licence', 'verified')
     list_display = ['__str__', 'branch', 'number', 'difficulty', 'published', 'verified', 'original_locale']
     list_filter = ['branch', 'difficulty', 'published', 'verified']
     search_fields = ['number']
     filter_horizontal = ['topics', 'tags']
-    inlines = [ExerciseSourceInline, ExerciseTranslationInline]
+    inlines = [ExerciseSourceInline, ExerciseTranslationInline, ExercisePartInline]
 
 
 @admin.register(ExerciseSource)
@@ -138,7 +167,7 @@ class SolutionEntryAdmin(admin.ModelAdmin):
     readonly_fields = ('licence',)
     list_display = ['__str__', 'kind', 'locale', 'status', 'pinned', 'author', 'created_at']
     list_filter = ['kind', 'status', 'pinned', 'locale']
-    raw_id_fields = ['exercise', 'author', 'reviewed_by']
+    raw_id_fields = ['exercise', 'part', 'author', 'reviewed_by']
 
 
 # ---- registered 2026-10-08 (owner: *"django admin lacks funcionalities"*) ----------------------

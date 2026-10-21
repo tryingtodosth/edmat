@@ -13,39 +13,28 @@ from django.dispatch import receiver
 
 from accounts.counters import recount_exercises
 
-from .models import Exercise, SolutionEntry
+from .models import Exercise, ExercisePart, SolutionEntry
 
 
-def recount_verified(exercise_id) -> None:
-    """Keeps the DERIVED `Exercise.verified` true — recomputed, never toggled by hand (an owner
-    decision, 2026-08-27, replacing the manual moderator flag): verified means "at least one
-    published, visible SOLUTION that passed review" — pinned (the corpus originals, or a
-    staff/governor pin), reviewed by someone, or written by a verified contributor. Recount-not-
-    increment, the same reasoning accounts/counters.py already writes down.
+def passed_solutions(exercise_id):
+    """Every SOLUTION on the exercise that counts as having passed review — the one definition the
+    verified flag reads, for the whole exercise and (`exercises/parts.py: verified_by_parts`) for
+    each part alike: published, visible, and pinned (the corpus originals, or a staff/governor pin),
+    reviewed by someone, or written by a verified contributor.
 
-    The verified-contributor clause is evaluated as of NOW — revoking somebody's contributor tier
-    does not sweep every exercise they ever touched, only ones whose entries change again. A full
-    sweep on tier changes would be the complete fix; flagged here rather than silently absent.
-
-    Called from the SolutionEntry signals below, and EXPLICITLY from any write that bypasses
-    save()/delete() — the review action's own WHERE-anchored claim `update()` fires no signal.
-    """
-    from django.db.models import Q
-
-    if exercise_id is None:
-        return
-    # A solution its author declared AI-assisted (`provenance.AuthorMark`, 2026-10-21, owner:
-    # "mark it as ai assisted … and remove the verified solution") counts only once a REVIEWER
-    # accepted it: neither a pin nor the author's contributor tier stands in for a human having
-    # checked machine-written work. The mark's own signals (`provenance/signals.py`) recount.
+    A solution its author declared AI-assisted (`provenance.AuthorMark`, 2026-10-21, owner:
+    "mark it as ai assisted … and remove the verified solution") counts only once a REVIEWER
+    accepted it: neither a pin nor the author's contributor tier stands in for a human having
+    checked machine-written work. The mark's own signals (`provenance/signals.py`) recount."""
     from django.contrib.contenttypes.models import ContentType
+    from django.db.models import Q
 
     from provenance.models import AuthorMark
 
     assisted = AuthorMark.objects.filter(
         content_type=ContentType.objects.get_for_model(SolutionEntry), assisted=True
     ).values('object_id')
-    passed = (
+    return (
         SolutionEntry.objects.filter(
             exercise_id=exercise_id,
             kind='solution',
@@ -59,10 +48,33 @@ def recount_verified(exercise_id) -> None:
             | Q(author__profile__is_verified_contributor=True)
         )
         .exclude(Q(pk__in=assisted) & Q(reviewed_by__isnull=True))
-        .exists()
     )
+
+
+def recount_verified(exercise_id) -> None:
+    """Keeps the DERIVED `Exercise.verified` true — recomputed, never toggled by hand (an owner
+    decision, 2026-08-27, replacing the manual moderator flag): verified means "a passed solution
+    (`passed_solutions`) for the WHOLE exercise" — or, for a set-shaped exercise with parts
+    (`SUBEXERCISES-BRIEF.md`, 2026-10-21), "a passed solution of its own for EVERY part"
+    (`exercises/parts.py: verified_by_parts`). A set with (a)–(c) solved and (d) not is honestly
+    unverified. Recount-not-increment, the same reasoning accounts/counters.py already writes down.
+
+    The verified-contributor clause is evaluated as of NOW — revoking somebody's contributor tier
+    does not sweep every exercise they ever touched, only ones whose entries change again. A full
+    sweep on tier changes would be the complete fix; flagged here rather than silently absent.
+
+    Called from the SolutionEntry and ExercisePart signals below, and EXPLICITLY from any write
+    that bypasses save()/delete() — the review action's own WHERE-anchored claim `update()` fires
+    no signal.
+    """
+    if exercise_id is None:
+        return
+    from .parts import verified_by_parts
+
+    passed = passed_solutions(exercise_id)
+    verified = passed.filter(part__isnull=True).exists() or verified_by_parts(exercise_id, passed)
     # update(), not save(): no signal recursion, and no other column is touched.
-    Exercise.objects.filter(pk=exercise_id).exclude(verified=passed).update(verified=passed)
+    Exercise.objects.filter(pk=exercise_id).exclude(verified=verified).update(verified=verified)
 
 
 @receiver(post_save, sender=SolutionEntry)
@@ -72,6 +84,22 @@ def recount_verified_after_entry_save(sender, instance, **kwargs):
 
 @receiver(post_delete, sender=SolutionEntry)
 def recount_verified_after_entry_delete(sender, instance, **kwargs):
+    recount_verified(instance.exercise_id)
+
+
+@receiver(post_save, sender=ExercisePart)
+def recount_verified_after_part_save(sender, instance, created, **kwargs):
+    # A part added to a verified set makes it unverified until that part is solved. A renamed or
+    # reordered part changes nothing — and `apply_parts` moves them with `update()`, no signal.
+    if created:
+        recount_verified(instance.exercise_id)
+
+
+@receiver(post_delete, sender=ExercisePart)
+def recount_verified_after_part_delete(sender, instance, **kwargs):
+    # The unsolved part going may leave every remaining one solved (or none, back to the whole).
+    # Its entries were deleted first by the CASCADE, each recounting while the part still stood;
+    # this is the recount that sees the set without it.
     recount_verified(instance.exercise_id)
 
 
