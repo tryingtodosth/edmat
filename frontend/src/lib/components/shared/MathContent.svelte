@@ -68,6 +68,27 @@
 			max-height: 360px;
 			vertical-align: middle;
 		}
+		// Inline SVG figures (2026-10-21, concept pages and exercises): `config/sanitize.py` allows a
+		// geometry subset but no `style` and no `fill` on `<text>`, so a label would fall back to the
+		// SVG default fill — black, invisible in the dark theme. Labels take the text colour and so
+		// read in both themes; a figure never overflows its column (the `img` rule above, for SVG).
+		// NOT KaTeX's own SVGs (`\sqrt`, stretchy arrows, `\overbrace`): those carry exact heights
+		// that `.katex svg` sets, and this rule, scoped one class deeper, would override them.
+		:global(svg:not(.katex svg)) {
+			max-width: 100%;
+			height: auto;
+		}
+		:global(svg:not(.katex svg) text) {
+			fill: currentColor;
+		}
+		:global(figure) {
+			margin: var(--space-3) 0;
+		}
+		:global(figcaption) {
+			font-size: 0.9em;
+			opacity: 0.8;
+			margin-top: var(--space-1);
+		}
 		:global(p:last-child) {
 			margin-bottom: 0;
 		}
