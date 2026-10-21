@@ -284,6 +284,16 @@ class ImportExercisesCommandTests(TestCase):
         \\[\\int_0^1 x^2\\,dx = \\tfrac13.\\]
         """
 
+    def test_a_kits_concept_pages_are_not_read_as_exercises(self):
+        # `<branch>/pojecia/` sits beside `<branch>/zadania/` in a kit (§17CW) and belongs to
+        # `import_concepts`; pointed at the branch directory, this command must not read it.
+        (self.dir / 'zadania').mkdir()
+        (self.dir / 'pojecia').mkdir()
+        self.write('zadania/0007.md', self.GOOD)
+        self.write('pojecia/granica.md', '---\nslug: granica\ntitle: Granica\n---\nTekst.\n')
+        self.run_import()
+        self.assertEqual(Exercise.objects.filter(branch=self.branch).count(), 1)
+
     def test_a_file_becomes_an_exercise_its_translation_and_its_pinned_entries(self):
         self.write('0007.md', self.GOOD)
         self.run_import()

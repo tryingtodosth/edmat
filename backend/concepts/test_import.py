@@ -15,6 +15,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
+from rest_framework.test import APIClient
 
 from activity.models import ActivityEvent
 from concepts.models import Concept, ConceptArticle, ConceptLink, ConceptRevision
@@ -403,6 +404,8 @@ class AiAssistedTests(ImportConceptsBase):
 class ProvenanceConceptKindTests(ImportConceptsBase):
     """The registry entry the import's `--ai-assisted` writes against, read back through the API."""
 
+    client_class = APIClient
+
     def test_summary_answers_for_a_published_article_and_hides_an_unpublished_one(self):
         from moderation.models import FeatureFlag
 
@@ -422,6 +425,43 @@ class ProvenanceConceptKindTests(ImportConceptsBase):
         self.assertTrue(rows[f'concept_article:{published.pk}']['author_marked'])
         # Waiting for review: for a stranger it does not exist (house rule 4), mark or no mark.
         self.assertNotIn(f'concept_article:{waiting.pk}', rows)
+
+    def test_the_concept_pages_menu_writes_through_the_same_endpoints(self):
+        # What the concept page's "Mark as AI-assisted…" item does (2026-10-21, the chip's frontend
+        # half): the author answers for their own article, a reader votes on it, nobody but staff
+        # may lock it (`branch_of` is None for a concept), and a waiting article 404s a stranger.
+        from moderation.models import FeatureFlag
+
+        FeatureFlag.objects.update_or_create(key='ai_assisted', defaults={'is_enabled': True})
+        self.sample()
+        self.run_import()
+        article = ConceptArticle.objects.get(concept__slug='granica')
+        base = f'/api/ai-assistance/concept_article/{article.pk}'
+        reader = make_user('czytelnik')
+
+        self.client.force_authenticate(reader)
+        refused = self.client.put(f'{base}/author-mark/', {'assisted': True}, format='json')
+        self.assertEqual(refused.status_code, 403, refused.content)
+        voted = self.client.put(f'{base}/vote/', {'confidence': 70}, format='json')
+        self.assertEqual(voted.status_code, 200, voted.content)
+        self.assertEqual(voted.json()['my_confidence'], 70)
+        self.assertFalse(voted.json()['can_lock'])
+        locked = self.client.put(f'{base}/lock/', {'value': 0, 'reason': 'x'}, format='json')
+        self.assertEqual(locked.status_code, 403, locked.content)
+
+        self.client.force_authenticate(self.author)
+        declared = self.client.put(f'{base}/author-mark/', {'assisted': True, 'note': 'Claude'}, format='json')
+        self.assertEqual(declared.status_code, 200, declared.content)
+        self.assertTrue(declared.json()['author_marked'])
+        self.assertEqual(declared.json()['score'], 100)
+        self.assertFalse(declared.json()['can_vote'])  # the author may not vote on their own work
+
+        _concept, waiting, _rev = create_concept(
+            self.author, title='Czeka', audience='university', locale='pl', blocks=[{'kind': 'markdown', 'body': 'x'}],
+        )
+        self.client.force_authenticate(reader)
+        hidden = self.client.put(f'/api/ai-assistance/concept_article/{waiting.pk}/vote/', {'confidence': 50}, format='json')
+        self.assertEqual(hidden.status_code, 404, hidden.content)
 
 
 class SweepTests(ImportConceptsBase):

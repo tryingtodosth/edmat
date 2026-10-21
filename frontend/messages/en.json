@@ -4349,6 +4349,7 @@
 	"content_actionsLabel_hint": "Actions for this hint",
 	"content_actionsLabel_solution": "Actions for this solution",
 	"content_actionsLabel_review": "Actions for this review",
+	"content_actionsLabel_conceptArticle": "Actions for this article",
 	"needs_rowActionsLabel": "Actions for this posting",
 	"polls_rowActionsLabel": "Actions for this poll",
 	"polls_deleteDraft": "Delete this draft",

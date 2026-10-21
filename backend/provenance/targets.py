@@ -37,8 +37,8 @@ from exercises.models import Exercise, SolutionEntry
 #: (`licensing/targets.py`), and a reader sees one article's head at a time — a per-revision mark
 #: would light or not depending on which version happened to be the head. Its visibility is not
 #: the generic `is_removed` / `published` / `status` shape, so `rules.is_readable` asks
-#: `concepts.access.can_view_article` for it by name. No frontend chip draws it yet
-#: (`provenance/CLAUDE.md` "Left open").
+#: `concepts.access.can_view_article` for it by name. The concept page draws its chip beside the
+#: byline and offers the mark in its "⋯" menu (`types/provenance.ts` lists the kind).
 PROVENANCE_KIND_MODELS = {
     'exercise': (Exercise, 'submitted_by'),
     'solution_entry': (SolutionEntry, 'author'),

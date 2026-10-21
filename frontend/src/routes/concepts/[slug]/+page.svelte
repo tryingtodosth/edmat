@@ -22,7 +22,7 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
-	import ReportButton from '$lib/components/shared/ReportButton.svelte';
+	import ContentActionsMenu from '$lib/components/shared/ContentActionsMenu.svelte';
 	import LicenceNotice from '$lib/components/shared/LicenceNotice.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
 	import ArticlePool from '$lib/components/concept/ArticlePool.svelte';
@@ -40,19 +40,24 @@
 	import { getUserById } from '$lib/services/users';
 	import type { Comment, CommentTargetType, ReportKind, TaggableKind, User } from '$lib/types';
 	import type { Concept, ConceptArticleSummary, ConceptLink } from '$lib/types/concept';
+	import type { AssistanceTargetKind } from '$lib/types/provenance';
+	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
 	import { provideAiAssistance } from '$lib/components/provenance/aiAssistance.svelte';
 
-	// The "AI-assisted" mark's page-level holder (provenance/, 2026-10-08). One line, because this
-	// page renders a comment thread and `community.Comment` is a target: without it
-	// `ContentActionsMenu` hides the item rather than opening a dialog nothing would answer. The
-	// holder batches every chip's reading into one request; `setContext` may only run during init.
+	// The "AI-assisted" mark's page-level holder (provenance/, 2026-10-08). The article itself is a
+	// target since 2026-10-21 (`import_concepts --ai-assisted` marks the pages it writes), and so is
+	// every comment in the thread below: without the holder `ContentActionsMenu` hides the item
+	// rather than opening a dialog nothing would answer. The holder batches every chip's reading
+	// into one request; `setContext` may only run during init.
 	provideAiAssistance();
 
 	// The three platform-wide unions this page is a member of, named once rather than spelled at
 	// each call site — `community/targets.py`, `moderation/services.py`'s REPORT_KIND_MODELS and
 	// `exercises/views.py`'s TagViewSet.apply are the backend halves.
 	const COMMENT_TARGET: CommentTargetType = 'conceptArticle';
-	const REPORT_KIND: ReportKind = 'concept_article';
+	// The article is in BOTH the report and the provenance registries under one name, which is what
+	// `ContentActionsMenu` needs; the intersection type makes the compiler check that it still is.
+	const ARTICLE_KIND: ReportKind & AssistanceTargetKind = 'concept_article';
 	const TAGGABLE_KIND: TaggableKind = 'concept';
 
 	let concept = $state<Concept | null>(null);
@@ -197,6 +202,13 @@
 							{#if head.publishedAt}
 								<span>{formatDate(head.publishedAt)}</span>
 							{/if}
+							<!-- Draws nothing until somebody has claimed something (AiAssistChip's own
+							     docstring) — an imported page carries its author's mark, so it shows here,
+							     beside the byline it qualifies. Keyed on the article: the pool's other
+							     pages are other targets. -->
+							{#key article.id}
+								<AiAssistChip kind={ARTICLE_KIND} id={article.id} />
+							{/key}
 						</p>
 						{#if head.summary}
 							<p class="summary">{head.summary}</p>
@@ -238,10 +250,20 @@
 							{m.concept_detail_history()}
 							<!-- "History" -->
 						</a>
-						<ReportButton kind={REPORT_KIND} objectId={article.id} />
 						<!-- "Make a deck from this concept" — behind `flashcards`, and gone when the
 						     concept has no exercises a deck could be made of. -->
 						<DeckFromConcept slug={concept.slug} conceptId={concept.id} title={head.title} />
+						<!-- Last in the row, where a "⋯" is looked for. Reply is the thread below, so the
+						     menu holds "mark as AI-assisted", report (not on your own article — the
+						     CommentNode precedent) and a moderator's remove. Never "restore": a removed
+						     article does not render here at all. -->
+						<ContentActionsMenu
+							kind={ARTICLE_KIND}
+							id={article.id}
+							label={m.content_actionsLabel_conceptArticle()}
+							reportable={article.createdByUserId !== authStore.user?.id}
+							onModerated={() => (loadedFor = null)}
+						/>
 					</div>
 				</article>
 

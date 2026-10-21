@@ -17820,8 +17820,7 @@ field `created_by`; no migration — the kind never reaches the database), with 
 asking `concepts.access.can_view_article` for it (an article whose only revision waits must not be
 answered for a stranger). `--ai-assisted "<note>"` upserts the author's `AuthorMark` on every
 article in the batch; `declare_ai_assisted --kinds concept_article` works through the same dict.
-**No chip draws it yet** — the frontend half is left open below; the pages' own footer line is the
-visible disclosure meanwhile.
+The chip on the concept page came in the follow-up at the end of this section.
 
 **The KaTeX sweep now sees concept pages**: `dump_text_fields` emits each published revision's
 markdown (and `latex` blocks wrapped as the page wraps them) under the checker's generic
@@ -17856,11 +17855,39 @@ unscoped rule (one class more specific) would have overridden them.
 
 ### Left open
 
-- **No AI chip on concept pages**: add `'concept_article'` to `AssistanceTargetKind`
-  (`types/provenance.ts`) and an `AiAssistChip` beside the article's licence line, browser-checked.
-- **Not looked at in a browser** (house rule 2): the imported pages were checked through the API and
-  the KaTeX sweep only; the SVG-in-dark-theme fix in particular wants a screenshot in both themes.
+- ~~No AI chip on concept pages~~ and ~~not looked at in a browser~~ — both closed in the
+  follow-up below.
 - The importer does not report what the sanitizer dropped from a body (as import_exercises).
 - `governor`-level lock of a concept article's AI reading: `provenance.rules.branch_of` answers None
   for it (several branches), so only staff can lock.
 - The boards (`edmat-boards/`) were not updated from this worktree; the orchestrator holds the task.
+
+### Follow-up: the AI chip on concept pages, and a browser pass (2026-10-21, same branch)
+
+The owner wants imported concept pages visibly marked like exercises are. `AssistanceTargetKind`
+gains `concept_article`; the concept page draws `AiAssistChip` in the article's byline line (author ·
+revision · date · chip, keyed on the article) and its bare `ReportButton` became `ContentActionsMenu`
+(last in the action row: "mark as AI-assisted…", report — not on your own article — and a
+moderator's remove; never "restore", since a removed article does not render). No serializer field:
+the chip reads the batched `/api/ai-assistance/` like every other chip (provenance trap 3), whose
+`is_readable` already asks `can_view_article`. Exercise cards carry no chip, so concept list rows
+don't either. New key `content_actionsLabel_conceptArticle` (en/pl).
+
+**Found in the rehearsal: `import_exercises <kit>/<branch>` read `pojecia/` too.** It must be
+pointed at the branch directory to see `batch.yaml`, and it reads recursively, so the concept pages
+beside `zadania/` refused the whole batch as exercises with no statement. `collect_files` now skips
+any `pojecia/` below the given directory (`CONCEPT_PAGES_DIR`); format.md says so; one test.
+
+Verified: `concepts.test_import` + `provenance` **62 OK** (one new: the menu's writes — author marks
+own article, a reader votes, no lock for non-staff, a waiting article 404s a stranger);
+`ImportExercisesCommandTests` + `test_import_parts` **42 OK**; `npm run check` 0/0, eslint and
+prettier clean on touched files. Browser (Playwright, a DB copy, branch `algebra` + `todoonet`,
+23 exercises + 24 concept pages imported `--ai-assisted`, exercises then `declare_ai_assisted`):
+the chip (lit author icon, "100%") on the concept page and the exercise page, light and dark; the
+menu and the dialog as the author; inline SVG labels/axes follow the text colour in both themes
+(computed `fill` rgb(26,28,38) / rgb(242,244,246)), the blue/red strokes read on dark, KaTeX `\sqrt`
+and `\Bigl` delimiters intact; no console errors. Nothing needed fixing for dark mode.
+
+Left open: `[[slug]]` links in the page bodies render their slug as words ("wzor de moivrea"), not
+the target's title (the algebra pages use bare `[[slug]]`; `[[slug|tekst]]` would fix it per link) — a
+content/renderer choice, not touched here.

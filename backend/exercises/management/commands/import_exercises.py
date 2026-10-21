@@ -290,6 +290,11 @@ def check_math(label: str, body: str) -> list[str]:
     return problems
 
 
+#: The concept importer's directory inside a kit (`import_concepts`, its reference/concepts.md).
+#: Skipped by `collect_files` at any depth below the directory given.
+CONCEPT_PAGES_DIR = 'pojecia'
+
+
 class Command(BaseCommand):
     help = 'Imports a directory of exercise Markdown files into a branch (idempotent).'
 
@@ -307,9 +312,14 @@ class Command(BaseCommand):
     # ---- reading ---------------------------------------------------------------------------
 
     def collect_files(self, directory: Path) -> list[Path]:
+        # A kit's `<branch>/pojecia/` holds CONCEPT pages for `import_concepts` (§17CW), beside
+        # `<branch>/zadania/` and the `batch.yaml` this command must be pointed at the branch
+        # directory to read — so without this skip a kit carrying both refuses here with every
+        # concept page "an exercise with no statement" (found 2026-10-21 on the algebra kit).
         files = [
             p for p in sorted(directory.rglob('*.md'))
             if not p.name.startswith('_') and p.name.lower() != 'readme.md'
+            and CONCEPT_PAGES_DIR not in p.relative_to(directory).parts[:-1]
         ]
         if not files:
             raise CommandError(f'No *.md exercise files under {directory}')

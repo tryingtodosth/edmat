@@ -5,7 +5,8 @@ One exercise is one `.md` file: YAML front matter, then `##` sections. It is the
 from there imports unchanged.
 
 `manage.py import_exercises <dir>` reads `<dir>` **recursively** (`*.md`), skipping `README.md` and
-anything whose name starts with `_` — so notes and drafts can live beside the batch.
+anything whose name starts with `_` — so notes and drafts can live beside the batch — and anything
+under a `pojecia/` directory, which holds a kit's concept pages for `import_concepts`.
 
 ## Minimal
 

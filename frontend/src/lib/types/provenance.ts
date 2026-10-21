@@ -10,12 +10,15 @@
 // THIS MIRRORS `backend/provenance/rules.py`'s own reading (`_blank` lists every field), and that
 // file says so from its side.
 
-/** The four things a mark may be attached to — mirrors `backend/provenance/targets.py`'s
+/** The five things a mark may be attached to — mirrors `backend/provenance/targets.py`'s
  *  `PROVENANCE_KIND_MODELS`, which is deliberately SHORTER than the report registry: everything
  *  here is a judgement about who wrote a piece of prose, so only things somebody wrote are in it.
  *  A hint and a solution are both `solution_entry` — they are one model that differs by its own
- *  `kind` field. */
-export type AssistanceTargetKind = 'exercise' | 'solution_entry' | 'comment' | 'review';
+ *  `kind` field. `concept_article` (2026-10-21) is the concept page's ARTICLE, not one revision of
+ *  it — the unit with one author, and what `import_concepts --ai-assisted` marks. Every kind here
+ *  is also a `ReportKind` under the same name, which `ContentActionsMenu` relies on. */
+export type AssistanceTargetKind =
+	'exercise' | 'solution_entry' | 'comment' | 'review' | 'concept_article';
 
 export interface AssistanceReading {
 	kind: AssistanceTargetKind;

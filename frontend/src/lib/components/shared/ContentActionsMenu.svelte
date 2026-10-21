@@ -43,9 +43,10 @@
 		hidden = false,
 		onModerated
 	}: {
-		/** The one string that is BOTH an `AssistanceTargetKind` and a `ReportKind` — the four kinds
-		 *  this menu serves are in both registries under the same name, which is why one prop does
-		 *  for both and why adding a fifth means checking both. */
+		/** The one string that is BOTH an `AssistanceTargetKind` and a `ReportKind` — the five kinds
+		 *  this menu serves (the concept article since 2026-10-21) are in both registries under the
+		 *  same name, which is why one prop does for both and why adding another means checking
+		 *  both. */
 		kind: AssistanceTargetKind;
 		id: string;
 		/** The trigger's accessible name — "Actions for this solution", not a bare "More". */
