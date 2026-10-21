@@ -119,6 +119,15 @@ export async function updateExercise(
 			pages: edit.source.pages ?? '',
 			chapter: edit.source.chapter ?? null
 		};
+	// The parts of a set-shaped exercise, the whole list in order: a missing id creates, a known id
+	// updates, a known part left out is deleted with its entries (`SUBEXERCISES-BRIEF.md` §4).
+	if (edit.parts !== undefined)
+		body.parts = edit.parts.map((p) => ({
+			...(p.id === undefined ? {} : { id: Number(p.id) }),
+			label: p.label,
+			statement: p.statement,
+			answer: p.answer
+		}));
 	const raw = await apiClient.patch<RawExerciseDetail>(
 		`/exercises/${encodeURIComponent(id)}/${toQueryString({ lang: locale })}`,
 		body

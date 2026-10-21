@@ -64,6 +64,9 @@
 	let loadFailed = $state(false);
 
 	let showAnswer = $state(false);
+	// Each part's own Answer reveal, by part id (`SUBEXERCISES-BRIEF.md` §3): revealing (b) shows
+	// (b)'s answer and nobody else's.
+	let shownPartAnswers = $state<Record<string, boolean>>({});
 	let showReviews = $state(false);
 	let showEditForm = $state(false);
 	let showTranslateForm = $state(false);
@@ -108,6 +111,7 @@
 		notFound = false;
 		loadFailed = false;
 		showAnswer = showReviews = showEditForm = showTranslateForm = false;
+		shownPartAnswers = {};
 		submissionNotice = null;
 		contentLocale = getLocale();
 
@@ -261,7 +265,8 @@
 	async function handleEditSuggestion(
 		field: 'title' | 'statement' | 'answer',
 		proposedValue: string,
-		reason: string
+		reason: string,
+		partId?: string
 	) {
 		if (!exercise || !authStore.user) return;
 		await submitEditSuggestion(
@@ -270,7 +275,8 @@
 			field,
 			proposedValue,
 			authStore.user.id,
-			reason
+			reason,
+			partId
 		);
 		showEditForm = false;
 		submissionNotice = 'edit';
@@ -448,16 +454,79 @@
 			<SolutionEntrySection
 				kind="hint"
 				exerciseId={exercise.id}
-				entries={exercise.entries.filter((e) => e.kind === 'hint')}
+				entries={exercise.entries.filter((e) => e.kind === 'hint' && !e.partId)}
 				{contentLocale}
 				onUpdated={entryUpdated}
 				onDeleted={entryDeleted}
 				onCreated={entryCreated}
+				parts={exercise.parts}
 			/>
+
+			<!-- The parts of a set-shaped exercise (`SUBEXERCISES-BRIEF.md` §3): after the shared
+			     statement and the whole-exercise hints, one block per part — its label and
+			     sub-statement, then its own Hints, Answer and Solutions, each listing only the entries
+			     written for that part. An exercise without parts draws nothing here. -->
+			{#each exercise.parts as part (part.id)}
+				<div class="part" data-part={part.id}>
+					<section class="content-section">
+						<h2 class="part__heading">{m.parts_blockHeading({ label: part.label })}</h2>
+						<!-- "Part {label}" -->
+						<MathContent source={part.statement} />
+					</section>
+					<div class="part__stages">
+						<SolutionEntrySection
+							kind="hint"
+							exerciseId={exercise.id}
+							entries={exercise.entries.filter((e) => e.kind === 'hint' && e.partId === part.id)}
+							{contentLocale}
+							onUpdated={entryUpdated}
+							onDeleted={entryDeleted}
+							onCreated={entryCreated}
+							parts={exercise.parts}
+							{part}
+						/>
+						{#if part.answer}
+							<section class="content-section content-section--stage" data-part-answer>
+								<h2>{m.exercise_answer()}</h2>
+								<!-- "Answer" -->
+								<button
+									type="button"
+									class="reveal-toggle"
+									onclick={() => (shownPartAnswers[part.id] = !shownPartAnswers[part.id])}
+								>
+									{shownPartAnswers[part.id] ? m.exercise_hideAnswer() : m.exercise_showAnswer()}
+								</button>
+								{#if shownPartAnswers[part.id]}
+									<MathContent source={part.answer} />
+								{/if}
+							</section>
+						{/if}
+						<SolutionEntrySection
+							kind="solution"
+							exerciseId={exercise.id}
+							entries={exercise.entries.filter(
+								(e) => e.kind === 'solution' && e.partId === part.id
+							)}
+							{contentLocale}
+							onUpdated={entryUpdated}
+							onDeleted={entryDeleted}
+							onCreated={entryCreated}
+							parts={exercise.parts}
+							{part}
+						/>
+					</div>
+				</div>
+			{/each}
 
 			{#if exercise.answer}
 				<section class="content-section content-section--stage">
-					<h2>{m.exercise_answer()}</h2>
+					<h2>
+						{m.exercise_answer()}
+						{#if exercise.parts.length > 0}
+							<span class="scope">{m.parts_forWhole()}</span>
+							<!-- "for the whole exercise" -->
+						{/if}
+					</h2>
 					<!-- "Odpowiedź" -->
 					<button type="button" class="reveal-toggle" onclick={() => (showAnswer = !showAnswer)}>
 						{showAnswer ? m.exercise_hideAnswer() : m.exercise_showAnswer()}
@@ -471,11 +540,12 @@
 			<SolutionEntrySection
 				kind="solution"
 				exerciseId={exercise.id}
-				entries={exercise.entries.filter((e) => e.kind === 'solution')}
+				entries={exercise.entries.filter((e) => e.kind === 'solution' && !e.partId)}
 				{contentLocale}
 				onUpdated={entryUpdated}
 				onDeleted={entryDeleted}
 				onCreated={entryCreated}
+				parts={exercise.parts}
 			/>
 
 			<!-- Filed under: topics, the covers/requires claims and the tags. Below the solutions,
@@ -591,6 +661,7 @@
 						statement: exercise.statement,
 						answer: exercise.answer
 					}}
+					parts={exercise.parts}
 					onSubmit={handleEditSuggestion}
 					onCancel={() => (showEditForm = false)}
 				/>
@@ -797,6 +868,35 @@
 		font-size: var(--font-size-sm);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
+		color: var(--text-secondary);
+	}
+	// One part of a set-shaped exercise: its own card (label + sub-statement), then its three
+	// stages set in a little, so the eye reads them as belonging to that part and not to the page.
+	.part {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.part__stages {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding-left: var(--space-4);
+		@media (max-width: 480px) {
+			padding-left: var(--space-2);
+		}
+	}
+	.content-section h2.part__heading {
+		font-size: var(--font-size-base);
+		text-transform: none;
+		letter-spacing: normal;
+		color: var(--text-primary);
+	}
+	.scope {
+		margin-left: var(--space-1);
+		text-transform: none;
+		letter-spacing: normal;
+		font-weight: 400;
 		color: var(--text-secondary);
 	}
 	.reveal-toggle {

@@ -838,6 +838,7 @@ export interface RawEditSuggestion {
 	locale: string;
 	field: EditSuggestion['field'];
 	entry: number | null;
+	part?: number | null;
 	proposed_value: string;
 	reason: string;
 	submitted_by: number;
@@ -854,6 +855,7 @@ export function mapEditSuggestion(json: RawEditSuggestion): EditSuggestion {
 		locale: json.locale,
 		field: json.field,
 		entryId: idOrUndefined(json.entry),
+		partId: idOrUndefined(json.part ?? null),
 		proposedValue: json.proposed_value,
 		reason: undefinedIfEmpty(json.reason),
 		submittedByUserId: String(json.submitted_by),

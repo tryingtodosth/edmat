@@ -3384,3 +3384,22 @@ one-solution file removes the old whole entries but not one somebody else pinned
 comment or a vote; `--licence` moves part entries; and the worked example in
 `.claude/skills/import-exercises/reference/format.md` is extracted and imported, so the doc cannot rot.
 `../.venv/bin/python3 manage.py test exercises.test_import_parts --keepdb` (~3 s with a kept DB).
+
+**`frontend/e2e/exercise-parts.mjs` — sub-exercises, the page and the editor (`parts/c-page`, 2026-10-21, 53 checks).**
+Seeds a three-part exercise owned by u-michal through `manage.py shell` on the checkout's own
+database (whole-exercise hint, a hint for (a), a solution for (c), a pending hint for (c) by ola),
+reads the three tokens from the same shell, and deletes the exercise at the end. A stranger: three
+`[data-part]` blocks in order with their labels, "for the whole exercise" on the whole stages, whole
+hints before the parts and the whole answer after, (b)'s answer revealing alone, each part's hints
+its own. michal: "For:" pre-set to (b) in (b)'s composer, the REAL entry POST carrying `part`, the
+hint under (b) only. ola: "Part b — statement" in Suggest an edit. michal's Parts editor: add a
+fourth part, reorder, remove one (Undo; the in-page confirm with entry counts), the PATCH payload
+`[{id?, label, statement, answer}]` in order, a refusal said as a sentence. kasia: an ordinary
+exercise's PATCH carries no `parts`; the moderation queue says "for part c". **The PATCH and the
+edit-suggestion POST are intercepted with `page.route`** (step A builds them on its own branch);
+remove both interceptions once A is merged. Screenshots in `e2e/screens/exercise-parts/`.
+
+```bash
+E2E_BASE=http://127.0.0.1:5283 E2E_API=http://127.0.0.1:8183 \
+  LD_LIBRARY_PATH=… CHROME=<chrome-headless-shell> node e2e/exercise-parts.mjs
+```

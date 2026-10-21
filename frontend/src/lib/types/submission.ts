@@ -68,6 +68,9 @@ export interface EditSuggestion {
 	locale: string;
 	field: EditableField;
 	entryId?: string;
+	/** The part of a set-shaped exercise whose statement/answer this changes; absent = the
+	 * exercise's own text (`SUBEXERCISES-BRIEF.md` §2). */
+	partId?: string;
 	proposedValue: string;
 	reason?: string;
 	submittedByUserId: string;

@@ -10,14 +10,18 @@ export async function submitEditSuggestion(
 	field: EditableField,
 	proposedValue: string,
 	_submittedByUserId: string,
-	reason?: string
+	reason?: string,
+	/** A part of a set-shaped exercise: the suggestion changes THAT part's statement or answer
+	 * (`part: <id>` on the wire; the backend refuses `title` with `part_field_invalid`). */
+	partId?: string
 ): Promise<EditSuggestion> {
 	const raw = await apiClient.post<RawEditSuggestion>('/edit-suggestions/', {
 		exercise: Number(exerciseId),
 		locale,
 		field,
 		proposed_value: proposedValue,
-		reason: reason?.trim() || ''
+		reason: reason?.trim() || '',
+		...(partId === undefined ? {} : { part: Number(partId) })
 	});
 	return mapEditSuggestion(raw);
 }

@@ -7,7 +7,7 @@
 <script lang="ts">
 	import RichEditor from '$lib/components/editor/RichEditor.svelte';
 	import InsertStrip from '$lib/components/editor/InsertStrip.svelte';
-	import type { SolutionEntry, SolutionEntryKind } from '$lib/types';
+	import type { ExercisePart, SolutionEntry, SolutionEntryKind } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { submitSolutionEntry, uploadEntryAttachment } from '$lib/services/exercises';
@@ -25,7 +25,9 @@
 		contentLocale,
 		onUpdated,
 		onDeleted,
-		onCreated
+		onCreated,
+		parts = [],
+		part = undefined
 	}: {
 		kind: SolutionEntryKind;
 		exerciseId: string;
@@ -34,6 +36,12 @@
 		onUpdated: (entry: SolutionEntry) => void;
 		onDeleted: (id: string) => void;
 		onCreated: (entry: SolutionEntry) => void;
+		/** Every part of a set-shaped exercise (`SUBEXERCISES-BRIEF.md` §3) — the composer's "For:"
+		 *  options. Empty for an ordinary exercise, and then nothing below changes. */
+		parts?: ExercisePart[];
+		/** The part block this section sits in; absent = the whole-exercise stage. Pre-selects the
+		 *  composer's "For:". */
+		part?: { id: string; label: string };
 	} = $props();
 
 	let revealed = $state(false);
@@ -47,6 +55,9 @@
 	let composerBusy = $state(false);
 	let composerError = $state<string | null>(null);
 	let composerNotice = $state<'published' | 'pending' | null>(null);
+	// Which part the new entry is for: '' = the whole exercise. Re-set from the block every time
+	// the composer opens, so "Add a hint" under (b) always starts at (b).
+	let composerPartId = $state('');
 	// The insert strip and the editor it inserts into. Everything the strip offers EXCEPT a PDF
 	// goes straight into the body — a picture through `/inline-images/`, a chemistry structure
 	// through `/chem-drawings/`, a sketch through `/sketches/`, LaTeX as a real maths node. A PDF
@@ -97,7 +108,8 @@
 				kind,
 				locale: (composerLocale || contentLocale).trim(),
 				body: composerBody,
-				licence: composerLicence
+				licence: composerLicence,
+				partId: composerPartId || undefined
 			});
 			// The files go up one at a time against the entry that now exists. A failed upload must
 			// NOT lose the entry — the words are the valuable part and they are already saved — so
@@ -128,8 +140,14 @@
 
 {#if entries.length > 0 || authStore.isAuthenticated}
 	<section class="content-section content-section--stage">
-		<h2>{kind === 'hint' ? m.entry_hintsHeading() : m.entry_solutionsHeading()}</h2>
-		<!-- "Hints" / "Solutions" -->
+		<h2>
+			{kind === 'hint' ? m.entry_hintsHeading() : m.entry_solutionsHeading()}
+			<!-- "Hints" / "Solutions" -->
+			{#if parts.length > 0 && !part}
+				<span class="scope">{m.parts_forWhole()}</span>
+				<!-- "for the whole exercise" — said only when there are parts to tell it from -->
+			{/if}
+		</h2>
 		<div class="section-head">
 			{#if entries.length > 0}
 				<button type="button" class="reveal-toggle" onclick={() => (revealed = !revealed)}>
@@ -143,6 +161,7 @@
 					onclick={() => {
 						showComposer = !showComposer;
 						composerNotice = null;
+						if (showComposer) composerPartId = part?.id ?? '';
 						// The INTERFACE language, not `contentLocale` (owner, 2026-10-08). The old
 						// default was the language the exercise happened to be being read in, so a
 						// reader with a Polish interface looking at the English rendering got `en`
@@ -169,6 +188,20 @@
 					<span>{m.entry_composerLanguage()}</span>
 					<ContentLocaleSelect bind:value={composerLocale} />
 				</label>
+				{#if parts.length > 0}
+					<label>
+						<span>{m.parts_composerFor()}</span>
+						<!-- "For:" -->
+						<select class="for-select" bind:value={composerPartId} data-entry-for>
+							<option value="">{m.parts_composerWhole()}</option>
+							<!-- "the whole exercise" -->
+							{#each parts as p (p.id)}
+								<option value={p.id}>{m.parts_composerPart({ label: p.label })}</option>
+								<!-- "part {label}" -->
+							{/each}
+						</select>
+					</label>
+				{/if}
 				<RichEditor
 					bind:this={editorRef}
 					bind:value={composerBody}
@@ -222,7 +255,15 @@
 		{#if revealed}
 			<div class="entry-list">
 				{#each shown as entry (entry.id)}
-					<SolutionEntryCard {entry} {canReview} {onUpdated} {onDeleted} />
+					<SolutionEntryCard
+						{entry}
+						{canReview}
+						{onUpdated}
+						{onDeleted}
+						partLabel={entry.partId && entry.partId !== part?.id
+							? parts.find((p) => p.id === entry.partId)?.label
+							: undefined}
+					/>
 				{/each}
 				{#if otherEntries.length > 0}
 					<button
@@ -274,6 +315,24 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--text-secondary);
+	}
+	// "for the whole exercise" beside the heading: a qualifier, not a second heading.
+	.scope {
+		margin-left: var(--space-1);
+		text-transform: none;
+		letter-spacing: normal;
+		font-weight: 400;
+		color: var(--text-secondary);
+	}
+	.for-select {
+		@include mix.focus-ring;
+		padding: var(--space-1) var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-page);
+		color: var(--text-primary);
+		font-family: inherit;
+		font-size: var(--font-size-xs);
 	}
 	.content-section--stage {
 		border-left: 3px solid var(--stage);

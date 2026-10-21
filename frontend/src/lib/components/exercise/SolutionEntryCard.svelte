@@ -34,12 +34,16 @@
 		entry,
 		canReview,
 		onUpdated,
-		onDeleted
+		onDeleted,
+		partLabel = undefined
 	}: {
 		entry: SolutionEntry;
 		canReview: boolean;
 		onUpdated: (entry: SolutionEntry) => void;
 		onDeleted: (id: string) => void;
+		/** The label of the part this entry is for, given ONLY when the card is drawn outside that
+		 *  part's own block (`SUBEXERCISES-BRIEF.md` §3) — inside it the block already says so. */
+		partLabel?: string;
 	} = $props();
 
 	let busy = $state(false);
@@ -311,6 +315,10 @@
 			{/if}
 			{#if entry.pinned}
 				<span class="meta-item badge--pinned">{m.entry_pinnedBadge()}</span>
+			{/if}
+			{#if partLabel}
+				<span class="meta-item" data-entry-part>{m.parts_entryFor({ label: partLabel })}</span>
+				<!-- "for part {label}" -->
 			{/if}
 			<span class="meta-item badge--lang">{entry.locale.toUpperCase()}</span>
 			<!-- Its own licence (backend licensing/): a solution is its author's work, not the

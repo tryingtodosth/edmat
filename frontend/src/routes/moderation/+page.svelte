@@ -185,6 +185,9 @@
 	let usersById = $state<Record<string, User>>({});
 	let coursesById = $state<Record<string, Branch>>({});
 	let exerciseTitles = $state<Record<string, string>>({});
+	// Part labels by part id, from the same bulk resolve as the titles: an entry or a suggestion
+	// for one part of a set-shaped exercise says which (`SUBEXERCISES-BRIEF.md` §3).
+	let partLabels = $state<Record<string, string>>({});
 	let notes = $state<Record<string, string>>({});
 	let loading = $state(true);
 
@@ -252,8 +255,13 @@
 		// requests here alone, ~10s of the page's own real load time — see CLAUDE.md's own writeup.
 		const exs = await getExercisesByIds(exerciseIds, 'pl');
 		const titles: Record<string, string> = {};
-		for (const e of exs) titles[e.id] = e.title;
+		const labels: Record<string, string> = {};
+		for (const e of exs) {
+			titles[e.id] = e.title;
+			for (const p of e.parts) labels[p.id] = p.label;
+		}
 		exerciseTitles = titles;
+		partLabels = labels;
 
 		// Node-governor data — `listNodeGovernors()` is ALREADY scoped to "my own grants" server-side
 		// for a non-staff user (moderation/views.py's NodeGovernorViewSet.get_queryset), so the same
@@ -1183,6 +1191,12 @@
 								<h3>
 									{e.field} — <MathTitle text={exerciseTitles[e.exerciseId] ?? e.exerciseId} />
 								</h3>
+								{#if e.partId}
+									<p class="meta" data-part-label>
+										{m.parts_entryFor({ label: partLabels[e.partId] ?? e.partId })}
+									</p>
+									<!-- "for part {label}" -->
+								{/if}
 								<p class="meta">
 									{m.moderation_submittedBy({
 										name: usersById[e.submittedByUserId]?.displayName ?? '—'
@@ -1253,6 +1267,12 @@
 										text={exerciseTitles[e.exerciseId] ?? e.exerciseId}
 									/>
 								</h3>
+								{#if e.partId}
+									<p class="meta" data-part-label>
+										{m.parts_entryFor({ label: partLabels[e.partId] ?? e.partId })}
+									</p>
+									<!-- "for part {label}" -->
+								{/if}
 								<p class="meta">
 									{m.moderation_submittedBy({
 										name: e.authorId ? (usersById[e.authorId]?.displayName ?? '—') : '—'

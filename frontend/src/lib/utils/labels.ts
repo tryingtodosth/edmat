@@ -2056,3 +2056,47 @@ export function tagRefusalMessage(err: unknown): string | null {
 	}
 	return null;
 }
+
+// ---- the parts of a set-shaped exercise (backend `exercises/parts.py` + the edit and suggestion
+// serializers, `SUBEXERCISES-BRIEF.md`, 2026-10-21, step C) ------------------------------------
+//
+// A hand-maintained mirror of the refusal words step A answers with — `PATCH /api/exercises/{id}/`
+// with `parts`, `POST /api/edit-suggestions/` with `part`, an entry PATCH that names a `part` —
+// each with its own sentence (house rule 6). `backend/exercises/CLAUDE.md` "Parts" lists the same
+// words; keep the two in step.
+export const PART_REFUSAL_LABELS: Record<string, () => string> = {
+	part_not_of_exercise: m.parts_refusal_notOfExercise, // "That part does not belong to this exercise."
+	part_label_duplicate: m.parts_refusal_labelDuplicate, // "Two parts have the same label — each part needs its own."
+	parts_too_many: m.parts_refusal_tooMany, // "An exercise can have at most 26 parts."
+	part_and_entry: m.parts_refusal_partAndEntry, // "A suggestion changes either a part or a hint or solution, not both at once."
+	part_field_invalid: m.parts_refusal_fieldInvalid, // "Only a part's statement or answer can be changed this way."
+	part_immutable: m.parts_refusal_immutable // "A hint or solution cannot be moved to another part."
+};
+
+/** The first refusal word anywhere in a DRF error body — a flat `{detail: '…'}`, a field list
+ * `{parts: ['…']}` or a nested per-item list `{parts: [{}, {label: ['…']}]}` all reach it. */
+export function firstRefusalWord(body: unknown): string {
+	if (typeof body === 'string') return body;
+	if (Array.isArray(body)) {
+		for (const item of body) {
+			const word = firstRefusalWord(item);
+			if (word) return word;
+		}
+		return '';
+	}
+	if (body && typeof body === 'object') {
+		for (const value of Object.values(body as Record<string, unknown>)) {
+			const word = firstRefusalWord(value);
+			if (word) return word;
+		}
+	}
+	return '';
+}
+
+/** The sentence for a part refusal on a failed request, or null when the failure was something
+ * else (the caller keeps its own message for those). */
+export function partRefusalMessage(err: unknown): string | null {
+	if (!(err instanceof ApiError)) return null;
+	const word = firstRefusalWord(err.body);
+	return Object.hasOwn(PART_REFUSAL_LABELS, word) ? PART_REFUSAL_LABELS[word]() : null;
+}

@@ -17636,3 +17636,87 @@ the page, 964 would show only "Przedstawić w postaci a+bi następujące liczby 
   purpose (`SUBEXERCISES-BRIEF.md` §4): a wrong cut in a solution is worse than none.
 - The kit directory `Database-of-Student-Exercise/paczka4/` is untracked, like paczka3; it ships
   through `deploy/fuw/pack.sh`, which the integrator extends.
+
+## 17CV.C — Sub-exercises, the page: part blocks, "For:" on the composer, the part on "Suggest an edit", the Parts editor (2026-10-21, `parts/c-page`)
+
+Step C of `SUBEXERCISES-BRIEF.md` (brief `prompts/22-parts-c-page.md`), on top of the prep's types,
+mappers and `submitSolutionEntry(…, {partId})`. Everything here is under `frontend/`.
+
+**The page** (`routes/exercises/[id]`). After the shared statement and the whole-exercise Hints,
+one `[data-part]` block per part in order: a card with "Part a" and its sub-statement, then its own
+Hints, Answer (its own reveal, keyed by part id, so (b)'s reveal shows (b)'s answer only) and
+Solutions, set in a little so they read as that part's. Then the whole-exercise Answer and
+Solutions. Each stage lists only `entry.partId === part.id`; the whole-exercise ones only entries
+with no part. "for the whole exercise" sits beside the whole-exercise Hints, Answer and Solutions
+headings **only when parts exist** — an ordinary exercise is pixel-identical to before (four
+full-page screenshots of exercise 1, anonymous and signed in, stages closed and opened, diffed
+against shots taken before the first edit: **0 differing pixels in all four**).
+
+**The composer** (`SolutionEntrySection`): two optional props, `parts` (the "For:" options) and
+`part` (the block it sits in). "For:" (`[data-entry-for]`) appears only when parts exist and is
+re-set from the block every time the composer opens, so "Add a hint" under (b) starts at (b). The
+card (`SolutionEntryCard`) takes `partLabel` and shows "for part b" in its meta line; the section
+passes it only for an entry that is NOT its own block's — which, since every block lists only its
+own, never happens on the exercise page. The surfaces that list entries outside their page are
+(checked): **the moderation queue's "Solutions & hints" tab** and its **"Edit suggestions" tab** —
+both now say "for part c" under the heading, the label read from the same bulk exercise resolve
+that already gave the titles. `/submit/mine` lists submissions, not entries; the activity feed and
+notifications name the exercise only and link to its page — unchanged.
+
+**Suggest an edit** (`EditSuggestionForm`): each part adds "Part b — statement" and "Part b —
+answer" to the field choice (named in full, not an optgroup: a closed select shows the option alone,
+and "Statement" under a "Part b" group read exactly like the shared statement in the first
+screenshot). The form now awaits `onSubmit` and shows a refusal sentence (or the generic error)
+instead of an unhandled rejection. `submitEditSuggestion(…, reason, partId)` sends `part: <number>`
+only when a part was chosen; `RawEditSuggestion.part` → `EditSuggestion.partId`.
+
+**The Parts editor** (`/exercises/[id]/edit`, `[data-parts-editor]`, between the answer and
+Details): a row per part (`[data-part-row]`) with a label input, a `RichEditor` + `InsertStrip` for
+the statement and another for the answer, Move up / Move down / Remove, and "Add a part". Removing a
+SAVED part leaves a dashed line "Part c will be deleted when you save, together with its hints and
+solutions" with Undo; a never-saved row just goes. Save with a known part dropped opens an in-page
+confirm (`[data-parts-confirm]`, `role="alertdialog"`) naming each part with its hint and solution
+counts — "Part c — hints: 1, solutions: 1" — and nothing is sent until "Delete and save".
+`updateExercise` passes `parts` through as `[{id?: number, label, statement, answer}]` in display
+order; the page sends `parts` **only when the exercise had parts or now has some**, so an ordinary
+exercise's PATCH is byte-for-byte what it was (asserted). A refusal anywhere in the body — flat,
+`{parts: ['…']}` or nested per item — is found by `labels.ts: firstRefusalWord` and said through
+`PART_REFUSAL_LABELS` (the six words step A answers with: `part_not_of_exercise`,
+`part_label_duplicate`, `parts_too_many`, `part_and_entry`, `part_field_invalid`, `part_immutable`).
+
+**Keys**: 32 `parts_*` in one block at the end of both catalogues (5502 = 5502, 0 missing either way).
+
+### Verified
+
+- `npm run check`: 0 errors, 0 warnings (8090 files). `npx eslint .`: clean. `npm run build`: green.
+- `npx prettier --check .`: the 28 files it flags are the same 28 before and after this change
+  (contests, analytics, …; listed by diffing the two runs) — none of them is touched here, and every
+  file this change touches is formatted. Left as found: reformatting 28 unrelated files on a branch
+  that merges beside two others is a conflict, not a fix.
+- `e2e/exercise-parts.mjs` on 8183/5283: **53 passed, 0 failed**, zero page/console errors. Seven
+  screenshots in `e2e/screens/exercise-parts/`, looked at: the three blocks and the labelled
+  whole-exercise stages (1), "For: part b" pre-set in (b)'s composer (2), the new hint under (b) only
+  (3), "Part b — statement" chosen in Suggest an edit (4; the first run showed a bare "Statement",
+  which is why the options are named in full), the confirm naming (c) (5), the refusal sentence (6),
+  "for part c" in the moderation queue (7).
+- **Two requests are intercepted, on purpose**: `PATCH /api/exercises/{id}/` with `parts` and
+  `POST /api/edit-suggestions/` with `part` are step A's, built at the same time, so the script
+  catches them with `page.route`, asserts the payload and answers with a stand-in (nothing written).
+  The entry POST with `part` is real. The integrator removes the two interceptions after the merge.
+- `e2e/exercise-edit.mjs` was NOT re-run: it needs an exercise u-michal wrote and this worktree's
+  database has none. `exercise-parts.mjs` step 5 covers the one thing it could have caught (an
+  ordinary exercise's PATCH carries no `parts`).
+
+### Left open
+
+- **Parts in `TranslateForm`**: a translation of a set-shaped exercise carries no part text yet;
+  the form translates title/statement/answer only, and a part with no row in the reader's language
+  falls back to the original.
+- A part as a flashcard or a contest problem (a different feature, by design).
+- The moderation queue says which part (above); the activity feed and notifications do not, and an
+  edit suggestion's diff view (there is none — the queue shows a 200-character excerpt) does not
+  show the part's current text beside the proposal.
+- The seeded three-part exercise showed the "Verified solution" chip with only (c) solved — that is
+  the prep's `recount_verified` without step A's parts clause, which A adds; nothing on this branch.
+- The Parts editor does not check duplicate labels before sending; the server's
+  `part_label_duplicate` is said as a sentence instead.

@@ -21,7 +21,12 @@
 	import { getTopicsForBranch } from '$lib/services/taxonomy';
 	import { authStore } from '$lib/state/auth.svelte';
 	import type { Audience, Difficulty, ResolvedExercise, SourceType, Topic } from '$lib/types';
-	import { DIFFICULTY_LABELS, SOURCE_TYPE_LABELS } from '$lib/utils/labels';
+	import {
+		DIFFICULTY_LABELS,
+		PART_REFUSAL_LABELS,
+		SOURCE_TYPE_LABELS,
+		firstRefusalWord
+	} from '$lib/utils/labels';
 	import { pageTitle } from '$lib/utils/pageTitle';
 
 	const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
@@ -54,6 +59,61 @@
 
 	let saving = $state(false);
 	let error = $state('');
+
+	// The Parts section (`SUBEXERCISES-BRIEF.md` §4). One row per part in display order; `key` is
+	// the row's own identity for the keyed list (a new row has no `id` yet), and a KNOWN part that
+	// is removed stays in the list as `removed` so the page can say what saving will delete and
+	// offer Undo — a part leaves only on save, with its hints and solutions.
+	type PartRow = {
+		key: string;
+		id?: string;
+		label: string;
+		statement: string;
+		answer: string;
+		removed: boolean;
+	};
+	let partRows = $state<PartRow[]>([]);
+	let hadParts = $state(false);
+	let nextRowKey = 0;
+	// Each row's two editors and their insert strips, by `<key>:statement` / `<key>:answer`.
+	let partEditors = $state<Record<string, RichEditor | null>>({});
+	let partStrips = $state<Record<string, InsertStrip | null>>({});
+	// The in-page "these parts go, with their entries" question — asked once per save attempt.
+	let confirmingDrop = $state(false);
+
+	let liveRows = $derived(partRows.filter((r) => !r.removed));
+	let droppedRows = $derived(partRows.filter((r) => r.removed && r.id !== undefined));
+
+	function addPart() {
+		partRows = [
+			...partRows,
+			{ key: `new-${nextRowKey++}`, label: '', statement: '', answer: '', removed: false }
+		];
+	}
+
+	function removePart(row: PartRow) {
+		confirmingDrop = false;
+		// A row that was never saved has nothing to lose: it simply goes.
+		if (row.id === undefined) partRows = partRows.filter((r) => r.key !== row.key);
+		else row.removed = true;
+	}
+
+	function movePart(row: PartRow, step: -1 | 1) {
+		// Moves among the LIVE rows; a removed row keeps its place, it is never sent.
+		const live = partRows.filter((r) => !r.removed);
+		const at = live.indexOf(row);
+		const to = at + step;
+		if (at < 0 || to < 0 || to >= live.length) return;
+		const a = partRows.indexOf(live[at]);
+		const b = partRows.indexOf(live[to]);
+		const next = [...partRows];
+		[next[a], next[b]] = [next[b], next[a]];
+		partRows = next;
+	}
+
+	function entryCount(partId: string, kind: 'hint' | 'solution'): number {
+		return exercise?.entries.filter((e) => e.partId === partId && e.kind === kind).length ?? 0;
+	}
 
 	// Trap 2: keyed on the id with a guard, so a re-fire with no navigation is a no-op; `untrack`
 	// on the guard so the effect does not depend on the state it writes (trap 4).
@@ -91,6 +151,15 @@
 			sourcePages = ex.source.pages ?? '';
 			sourceChapter = ex.source.chapter ? String(ex.source.chapter) : '';
 			sourceNumber = ex.source.originalProblemNumber ? String(ex.source.originalProblemNumber) : '';
+			partRows = ex.parts.map((p) => ({
+				key: `part-${p.id}`,
+				id: p.id,
+				label: p.label,
+				statement: p.statement,
+				answer: p.answer,
+				removed: false
+			}));
+			hadParts = ex.parts.length > 0;
 			topics = await getTopicsForBranch(ex.branchId);
 		} finally {
 			loading = false;
@@ -112,22 +181,30 @@
 			case 'exercise_not_editor':
 				return m.exercise_edit_refusal_exercise_not_editor(); // "Only the author or staff may edit this exercise."
 			default:
-				return detail;
+				return Object.hasOwn(PART_REFUSAL_LABELS, detail) ? PART_REFUSAL_LABELS[detail]() : detail;
 		}
 	}
 
+	// Walks nested bodies too: a refusal about one part arrives as `{parts: [{}, {label: [word]}]}`.
 	function firstDetail(body: unknown): string {
 		if (!body || typeof body !== 'object') return '';
-		for (const value of Object.values(body as Record<string, unknown>)) {
-			if (typeof value === 'string') return value;
-			if (Array.isArray(value) && value.length) return String(value[0]);
-		}
-		return '';
+		return firstRefusalWord(body);
 	}
 
-	async function save(event: SubmitEvent) {
+	function save(event: SubmitEvent) {
 		event.preventDefault();
 		if (!exercise || saving) return;
+		// Saving would delete known parts: say which, with what goes with them, and ask once.
+		if (droppedRows.length > 0 && !confirmingDrop) {
+			confirmingDrop = true;
+			return;
+		}
+		void doSave();
+	}
+
+	async function doSave() {
+		if (!exercise || saving) return;
+		confirmingDrop = false;
 		saving = true;
 		error = '';
 		const chapter = sourceChapter.trim() ? Number(sourceChapter.trim()) : undefined;
@@ -153,7 +230,19 @@
 						pages: sourcePages.trim(),
 						chapter: Number.isFinite(chapter) ? chapter : undefined,
 						originalProblemNumber: Number.isFinite(number) ? number : undefined
-					}
+					},
+					// Only when there are or were parts: an ordinary exercise's edit sends exactly
+					// what it sent before parts existed.
+					...(hadParts || liveRows.length > 0
+						? {
+								parts: liveRows.map((r) => ({
+									...(r.id === undefined ? {} : { id: r.id }),
+									label: r.label.trim(),
+									statement: r.statement,
+									answer: r.answer
+								}))
+							}
+						: {})
 				},
 				exercise.locale
 			);
@@ -226,6 +315,114 @@
 				/>
 			</label>
 			<InsertStrip bind:this={answerStrip} editor={answerEditor} allowFiles={false} />
+
+			<section class="parts" data-parts-editor>
+				<h2>{m.parts_editorHeading()}</h2>
+				<!-- "Parts" -->
+				<p class="muted">{m.parts_editorNote()}</p>
+				<!-- "Split a set-shaped exercise into parts, each with its own statement, answer, hints and solutions. …" -->
+				{#if partRows.length === 0}
+					<p class="muted">{m.parts_none()}</p>
+					<!-- "No parts — this exercise is one problem." -->
+				{/if}
+				{#each partRows as row (row.key)}
+					{#if row.removed}
+						<div class="part-row part-row--removed" data-part-removed={row.id}>
+							<p>{m.parts_removedRow({ label: row.label })}</p>
+							<!-- "Part {label} will be deleted when you save, together with its hints and solutions." -->
+							<button
+								type="button"
+								class="small"
+								onclick={() => {
+									row.removed = false;
+									confirmingDrop = false;
+								}}>{m.parts_undo()}</button
+							>
+							<!-- "Undo" -->
+						</div>
+					{:else}
+						{@const at = liveRows.indexOf(row)}
+						<div class="part-row" data-part-row data-part-id={row.id ?? ''}>
+							<div class="part-row__head">
+								<label class="field part-row__label">
+									<span>{m.parts_label()}</span>
+									<!-- "Label" -->
+									<input
+										type="text"
+										bind:value={row.label}
+										required
+										maxlength="20"
+										placeholder={m.parts_labelHint()}
+									/>
+									<!-- "As it should be shown: a, 1, ii …" -->
+								</label>
+								<div class="part-row__tools">
+									<button
+										type="button"
+										class="small"
+										disabled={at === 0}
+										onclick={() => movePart(row, -1)}
+										data-part-up>{m.parts_moveUp()}</button
+									>
+									<!-- "Move up" -->
+									<button
+										type="button"
+										class="small"
+										disabled={at === liveRows.length - 1}
+										onclick={() => movePart(row, 1)}
+										data-part-down>{m.parts_moveDown()}</button
+									>
+									<!-- "Move down" -->
+									<button
+										type="button"
+										class="small small--danger"
+										onclick={() => removePart(row)}
+										data-part-remove>{m.parts_remove()}</button
+									>
+									<!-- "Remove" -->
+								</div>
+							</div>
+							<label class="field">
+								<span>{m.parts_statement()}</span>
+								<!-- "Statement of this part" -->
+								<RichEditor
+									bind:this={partEditors[`${row.key}:statement`]}
+									bind:value={row.statement}
+									rows={3}
+									required={true}
+									onChemEdit={(id) => partStrips[`${row.key}:statement`]?.editChem(id)}
+									onSketchEdit={(id) => partStrips[`${row.key}:statement`]?.editSketch(id)}
+								/>
+							</label>
+							<InsertStrip
+								bind:this={partStrips[`${row.key}:statement`]}
+								editor={partEditors[`${row.key}:statement`] ?? null}
+								allowFiles={false}
+							/>
+							<label class="field">
+								<span>{m.parts_answer()} <em>({m.common_optional()})</em></span>
+								<!-- "Answer to this part" -->
+								<RichEditor
+									bind:this={partEditors[`${row.key}:answer`]}
+									bind:value={row.answer}
+									rows={2}
+									onChemEdit={(id) => partStrips[`${row.key}:answer`]?.editChem(id)}
+									onSketchEdit={(id) => partStrips[`${row.key}:answer`]?.editSketch(id)}
+								/>
+							</label>
+							<InsertStrip
+								bind:this={partStrips[`${row.key}:answer`]}
+								editor={partEditors[`${row.key}:answer`] ?? null}
+								allowFiles={false}
+							/>
+						</div>
+					{/if}
+				{/each}
+				<button type="button" class="add-part" onclick={addPart} data-part-add>
+					{m.parts_add()}
+				</button>
+				<!-- "Add a part" -->
+			</section>
 
 			<h2>{m.exercise_edit_sectionDetails()}</h2>
 			<!-- "Details" -->
@@ -302,6 +499,44 @@
 				</label>
 			</div>
 
+			{#if confirmingDrop}
+				<div
+					class="confirm"
+					role="alertdialog"
+					aria-labelledby="parts-confirm-heading"
+					data-parts-confirm
+				>
+					<h3 id="parts-confirm-heading">{m.parts_confirmHeading()}</h3>
+					<!-- "Delete parts?" -->
+					<p>{m.parts_confirmLead()}</p>
+					<!-- "Saving deletes these parts together with every hint and solution written for them. …" -->
+					<ul>
+						{#each droppedRows as row (row.key)}
+							<li>
+								{m.parts_confirmLine({
+									label: row.label,
+									hints: entryCount(row.id!, 'hint'),
+									solutions: entryCount(row.id!, 'solution')
+								})}
+								<!-- "Part {label} — hints: {hints}, solutions: {solutions}" -->
+							</li>
+						{/each}
+					</ul>
+					<div class="actions">
+						<button
+							type="button"
+							class="danger"
+							onclick={() => void doSave()}
+							data-parts-confirm-yes>{m.parts_confirmYes()}</button
+						>
+						<!-- "Delete and save" -->
+						<button type="button" class="small" onclick={() => (confirmingDrop = false)}
+							>{m.parts_confirmNo()}</button
+						>
+						<!-- "Go back" -->
+					</div>
+				</div>
+			{/if}
 			{#if error}
 				<p class="error" role="alert">{error}</p>
 			{/if}
@@ -427,5 +662,76 @@
 	}
 	.primary {
 		@include mix.button-primary;
+	}
+	.parts {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.part-row {
+		@include mix.card-surface;
+		padding: var(--space-3);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.part-row--removed {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
+		border-style: dashed;
+	}
+	.part-row__head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: var(--space-2);
+	}
+	.part-row__label input {
+		width: 10rem;
+	}
+	.part-row__tools {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+	}
+	.small {
+		@include mix.button-secondary;
+		font-size: var(--font-size-xs);
+		padding: var(--space-1) var(--space-2);
+	}
+	.small--danger {
+		color: var(--status-danger);
+	}
+	.add-part {
+		@include mix.button-secondary;
+		align-self: flex-start;
+	}
+	.confirm {
+		@include mix.status-message(warning);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		h3 {
+			font-size: var(--font-size-base);
+			margin: 0;
+		}
+		ul {
+			margin: 0;
+			padding-left: var(--space-4);
+		}
+	}
+	// The one destructive command on the page: the secondary shape in the danger hue, never a
+	// filled accent box (a filled accent box is the page's own Save).
+	.danger {
+		@include mix.button-secondary;
+		color: var(--status-danger);
+		border-color: var(--status-danger);
+		font-weight: 600;
 	}
 </style>
