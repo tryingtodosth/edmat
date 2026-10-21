@@ -6,7 +6,7 @@
 | **Branch** | `parts/c-page` |
 | **Worktree** | `/home/piotr/Projects/edmat/.claude/worktrees/parts-c-page/` |
 | **Ports** | API `8183`, Vite `5283` |
-| **Prep commit** | `39bbdef` on `fix/analytics-after-deploy` |
+| **Prep commit** | the tip of `fix/analytics-after-deploy` your branch was cut from — `git -C <worktree> log -2 --stat` shows it (the prep itself, then the hash-stamping commit) |
 | **Boards** | `/home/piotr/Projects/edmat-boards/` — your `doing.md` entry is already written |
 | **Node 24** | `export PATH=/home/piotr/.local/opt/node-v24.22.0-linux-x64/bin:$PATH` |
 | **Chromium** | `LD_LIBRARY_PATH=/home/piotr/syslibs/usr/lib/x86_64-linux-gnu CHROME=/home/piotr/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell node e2e/<script>.mjs` (no sudo on this machine; `frontend/e2e/CLAUDE.md`) |
@@ -16,7 +16,7 @@
 ## Read first
 `prompts/README.md` §4 and §5, `frontend/CLAUDE.md`, `frontend/e2e/CLAUDE.md` (every trap; this
 machine's Chromium line is above), then **`SUBEXERCISES-BRIEF.md`** (§3 is your step — what the
-reader sees — §4 the edit page, §5 the API). Then the prep commit (`git -C <worktree> show 39bbdef
+reader sees — §4 the edit page, §5 the API). Then the prep commit (`git -C <worktree> show HEAD~1
 -- frontend/`): `types/exercise.ts` (`ExercisePart`, `ExercisePartEdit`, `SolutionEntry.partId`,
 `ResolvedExercise.parts`, `ExerciseEdit.parts`), `api/mappers.ts`, `services/exercises.ts`
 (`submitSolutionEntry` sends `part`). Then the page `routes/exercises/[id]/+page.svelte` whole,

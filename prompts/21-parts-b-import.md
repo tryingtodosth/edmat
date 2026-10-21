@@ -6,7 +6,7 @@
 | **Branch** | `parts/b-import` |
 | **Worktree** | `/home/piotr/Projects/edmat/.claude/worktrees/parts-b-import/` |
 | **Ports** | API `8182`, Vite `5282` (only to LOOK at an imported set on the page; nothing you build is a page) |
-| **Prep commit** | `39bbdef` on `fix/analytics-after-deploy` |
+| **Prep commit** | the tip of `fix/analytics-after-deploy` your branch was cut from — `git -C <worktree> log -2 --stat` shows it (the prep itself, then the hash-stamping commit) |
 | **Boards** | `/home/piotr/Projects/edmat-boards/` — your `doing.md` entry is already written |
 | **Node 24** | `export PATH=/home/piotr/.local/opt/node-v24.22.0-linux-x64/bin:$PATH` |
 | **Python** | `/home/piotr/Projects/edmat/.venv/bin/python3` (symlinked into the worktree as `.venv`) |

@@ -6,7 +6,7 @@
 | **Branch** | `parts/a-backend` |
 | **Worktree** | `/home/piotr/Projects/edmat/.claude/worktrees/parts-a-backend/` |
 | **Ports** | API `8181`, Vite `5281` (you will rarely need Vite) |
-| **Prep commit** | `39bbdef` on `fix/analytics-after-deploy` |
+| **Prep commit** | the tip of `fix/analytics-after-deploy` your branch was cut from — `git -C <worktree> log -2 --stat` shows it (the prep itself, then the hash-stamping commit) |
 | **Boards** | `/home/piotr/Projects/edmat-boards/` — your `doing.md` entry is already written |
 | **Node 24** | `export PATH=/home/piotr/.local/opt/node-v24.22.0-linux-x64/bin:$PATH` |
 | **Python** | `/home/piotr/Projects/edmat/.venv/bin/python3` (symlinked into the worktree as `.venv`) |
@@ -15,7 +15,7 @@
 ## Read first
 `prompts/README.md` §4 (the always-list) and §5 (the rules), then **`SUBEXERCISES-BRIEF.md`
 whole** — it is the design; §2 is the shape, §5 the API, §6 your step 1. Then what the prep
-commit already did (`git -C <worktree> show 39bbdef --stat`): `exercises/models.py`
+commit already did (`git -C <worktree> log -2 --stat`): `exercises/models.py`
 (`ExercisePart`, `ExercisePartTranslation`, `SolutionEntry.part`), `moderation/models.py`
 (`EditSuggestion.part`), `exercises/parts.py` (the rule module you extend), `exercises/serializers.py`
 (`ExercisePartSerializer`, `parts` on the detail, `part` on entries and on the create serializer),
@@ -100,7 +100,7 @@ importer have a backend that keeps its promises:
 | Need | Where | Why |
 |---|---|---|
 | The design | `SUBEXERCISES-BRIEF.md` §2, §5, §6 | the shape you are completing |
-| What the prep fixed | `git show 39bbdef` | models, migrations, read serializers, the rule module stub, two tests |
+| What the prep fixed | `git -C <worktree> show HEAD~1` | models, migrations, read serializers, the rule module stub, two tests |
 | The edit path | `exercises/editing.py`, `ExerciseEditSerializer.apply` | `parts` goes in the same transaction, after the text |
 | The derived flag | `exercises/signals.py`, `provenance/signals.py` | every writer of `verified` already goes through `recount_verified` |
 | Edit suggestions | `moderation/serializers.py: EditSuggestionSerializer.validate`, `moderation/views.py: EditSuggestionViewSet.decide`, `_apply_*` | the entry-targeted case is the worked example for the part-targeted one |
