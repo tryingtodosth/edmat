@@ -17386,3 +17386,11 @@ state became a plain object, trap 7), prettier clean, catalogues equal at 5448 k
 10/10 with zero page errors; screenshots looked at — the suggestion line names a shared organisation,
 the match list marks the reader's own course, the picked course sits in the chapter. `manage.py test config.test_people` 2 OK, `manage.py check` clean. `e2e/subcourses-and-board.mjs` re-run against the changed forms: 27/27; `npm run build` green.
 
+**Roster order, the same evening** (owner, on `/about` in Polish: *"a person is listed 'Username
+Osoba' which is redundant: if a team member is just a member, lets position them at the bottom of
+the list without a badge"*): `OrganizationPage.svelte` draws owners, then administrators, then
+plain members, and only the first two carry a role badge — being on the list is what "member"
+means. The role label `orgs_role_member` ("Osoba" / "Member") stays for the manage page's role
+selects. Checked in a browser on a scratch organisation with all three roles (owner, admin, member
+in that order, the member with no badge) and on `/about`; `npm run check` 0/0.
+

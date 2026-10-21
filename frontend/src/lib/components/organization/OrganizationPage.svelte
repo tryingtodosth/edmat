@@ -57,6 +57,11 @@
 
 	let organization = $state<Organization | null>(null);
 	let members = $state<OrganizationMember[]>([]);
+	const ROLE_ORDER: Record<string, number> = { owner: 0, admin: 1, member: 2 };
+	// A stable sort — within a role the server's order (join order) stands.
+	let rosterInOrder = $derived(
+		[...members].sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9))
+	);
 	let links = $state<OrganizationLink[]>([]);
 	let loading = $state(true);
 	let missing = $state(false);
@@ -243,15 +248,20 @@
 						<p class="status">{m.orgs_rosterEmpty()}</p>
 						<!-- "Nobody is listed yet." -->
 					{:else}
+						<!-- Owners and administrators first, each with a role badge; plain members after
+						     them with none (owner, 2026-10-21: "Username Osoba" was a name followed by
+						     the word for a person — redundant). Being a member is the list itself. -->
 						<ul class="roster">
-							{#each members as member (member.id)}
+							{#each rosterInOrder as member (member.id)}
 								<li>
 									<a href={resolve('/users/[id]', { id: member.user.id })}>
 										{member.user.displayName}
 									</a>
-									<span class="role"
-										>{ORGANIZATION_ROLE_LABELS[member.role]?.() ?? member.role}</span
-									>
+									{#if member.role !== 'member'}
+										<span class="role"
+											>{ORGANIZATION_ROLE_LABELS[member.role]?.() ?? member.role}</span
+										>
+									{/if}
 								</li>
 							{/each}
 						</ul>
