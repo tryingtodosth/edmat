@@ -195,6 +195,13 @@ def is_readable(obj, user) -> bool:
     """
     if user is not None and getattr(user, 'is_authenticated', False) and user.is_staff:
         return True
+    if kind_of(obj) == 'concept_article':
+        # An article is hidden by having no published revision as well as by removal, which none of
+        # the generic attributes below can see — so the concepts app's own object-level check is
+        # asked (house rule 4: its twin `visible_articles` is what every concept list filters by).
+        from concepts.access import can_view_article
+
+        return can_view_article(obj, user)
     # Which branch applies to which model, checked rather than assumed (2026-10-08):
     #   `is_removed`     — SolutionEntry, Comment, Review (an Exercise has none)
     #   `auto_hidden_at` — all four

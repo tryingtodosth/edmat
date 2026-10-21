@@ -14,6 +14,9 @@ on every run, the AI-assisted step — a draft awaiting the owner's word, 2026-1
 
 Read `backend/exercises/CLAUDE.md` as well — it owns the invariants this import has to respect.
 
+**Concept (wiki) pages** have their own command, `manage.py import_concepts` (2026-10-21) — same
+CLI shape, same validate-everything-then-write discipline: `reference/concepts.md`.
+
 ## 1. What one exercise actually becomes
 
 ```

@@ -372,7 +372,7 @@ def submit_revision(revision, user, *, request=None) -> ConceptRevision:
     return revision
 
 
-def publish_revision(revision, actor, *, request=None) -> ConceptRevision:
+def publish_revision(revision, actor, *, request=None, announce: bool = True) -> ConceptRevision:
     """Make this revision the article's head.
 
     Supersede first, then ONE WHERE-anchored claim, then the side effects, with both writes reverted
@@ -382,6 +382,13 @@ def publish_revision(revision, actor, *, request=None) -> ConceptRevision:
     Accepts a `draft` (somebody publishing their own, having earned it) or a `pending` one (a
     reviewer accepting it): both are "this text should be the page now", and one function owns the
     sequence so the two paths cannot drift about what publishing means.
+
+    `announce=False` skips `_announce_publication` — the feed row and the "your article changed"
+    notifications — and nothing else: the supersede, the claim, the `updated_at` bump, the body-link
+    harvest and the audit call all still run. It exists for `manage.py import_concepts` (2026-10-21),
+    because an import is not something a person did in public (house rule 9) and notifies nobody,
+    which is the posture `import_exercises` takes by writing no feed row at all. Every request path
+    leaves it at the default.
     """
     if revision.status not in ('draft', 'pending'):
         raise Conflict('already_decided')
@@ -423,7 +430,8 @@ def publish_revision(revision, actor, *, request=None) -> ConceptRevision:
         _restore_superseded(superseded_pk)
         raise
 
-    _announce_publication(revision, first_ever=first_ever, publisher=actor)
+    if announce:
+        _announce_publication(revision, first_ever=first_ever, publisher=actor)
     _audit(
         request,
         action='content_edit',

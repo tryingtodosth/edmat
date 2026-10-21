@@ -3385,6 +3385,19 @@ comment or a vote; `--licence` moves part entries; and the worked example in
 `.claude/skills/import-exercises/reference/format.md` is extracted and imported, so the doc cannot rot.
 `../.venv/bin/python3 manage.py test exercises.test_import_parts --keepdb` (~3 s with a kept DB).
 
+**`concepts/test_import.py` — `manage.py import_concepts` (§17CW, 2026-10-21).** Create (concept,
+the author's article, a published revision, blocks split at `###`, the file's slug kept), links in a
+second pass whatever the file order, a prerequisite also mentioned as `[[slug]]` kept as a manual
+prerequisite, an exercise link; nothing in the feed or notifications; `batch.yaml` defaults incl.
+`branch:`; an unchanged re-run writes nothing; a changed file is revision 2 on the same article;
+tags added, branches replaced, links never removed; somebody else's article and concept untouched; a
+community head, an open draft and a removed article each skipped with its reason; the licence
+default/flag/file chain, widen-and-record, never narrow; every refusal by its sentence (and one bad
+file imports nothing); `--skip-missing-exercises`; `--dry-run` (also with `--ai-assisted`) leaves
+nothing; `--ai-assisted` and `declare_ai_assisted --kinds concept_article`; the provenance summary
+answers for a published article and not for a waiting one; `dump_text_fields` carries concept heads.
+`../.venv/bin/python3 manage.py test concepts.test_import`.
+
 **`frontend/e2e/exercise-parts.mjs` — sub-exercises, the page and the editor (`parts/c-page`, 2026-10-21, 53 checks).**
 Seeds a three-part exercise owned by u-michal through `manage.py shell` on the checkout's own
 database (whole-exercise hint, a hint for (a), a solution for (c), a pending hint for (c) by ola),

@@ -118,6 +118,24 @@ removing one — then answers **500 after creating the row**. The symptom is max
 data is right and the UI shows an error. `for a in logs_0 … logs_anon; do manage.py migrate
 --database=$a; done`.
 
+## Bulk import — `manage.py import_concepts` (2026-10-21)
+
+Concept pages from Markdown files, the `import_exercises` counterpart; the procedure and every
+refusal are in `.claude/skills/import-exercises/reference/concepts.md`. What it means for this app:
+
+- It writes ONLY through `services.py` (`create_concept` + a slug rename before the publish, the
+  `seed_concepts` precedent; `create_article`, `create_revision`, `publish_revision`, `add_link`,
+  `harvest_body_links`), so every invariant above holds for imported rows too.
+- **`publish_revision(..., announce=False)`** is the importer's: it skips `_announce_publication`
+  (feed + notifications) and nothing else. Every request path keeps the default `True`. An import
+  is not a public act (house rule 9), and `import_exercises` writes no feed row either.
+- Idempotent by `slug` + "the `--author`'s article for this `(audience, locale)`": an unchanged
+  file is compared in its STORED form (`import_concepts.stored_form` = the three calls `save()`
+  makes) and writes nothing; a changed one is a new revision on the same article. It never
+  publishes over a head somebody else wrote, never touches another person's article, never deletes.
+- A `body` link for a target the file calls a prerequisite is re-filed as `manual` +
+  `prerequisite` — one row per target means the harvested `related` row would otherwise win.
+
 ## Licence (2026-10-14, `licensing/CLAUDE.md`)
 
 This app's content carries a per-item `licence` (`licensing/licences.py`, default `edmat-only`, the

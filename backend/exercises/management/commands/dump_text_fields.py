@@ -79,6 +79,31 @@ class Command(BaseCommand):
                     'description': t.description,
                 }
             )
+        # Concept pages (2026-10-21, for `import_concepts`): the head of every article, its markdown
+        # blocks joined under `description` — the checker's generic branch renders that key through
+        # `renderContent`, which is what the concept page runs a markdown block through. A `latex`
+        # block is a bare formula the page wraps in `\[ … \]` itself; it is wrapped here the same
+        # way so KaTeX sees what a reader's page does.
+        from concepts.models import ConceptRevision
+
+        for r in ConceptRevision.objects.filter(status='published').select_related('article__concept'):
+            parts = []
+            for block in r.blocks or []:
+                if block.get('kind') == 'markdown':
+                    parts.append(block.get('body') or '')
+                elif block.get('kind') == 'latex':
+                    parts.append('\\[' + (block.get('source') or '') + '\\]')
+            fields.append(
+                {
+                    'kind': 'concept',
+                    'id': r.article_id,
+                    'locale': r.article.locale,
+                    'status': r.status,
+                    'ref': f'{r.article.concept.slug} [{r.article.audience}/{r.article.locale}] rev {r.number}',
+                    'title': r.title,
+                    'description': '\n\n'.join(parts),
+                }
+            )
         with open(options['out'], 'w', encoding='utf-8') as f:
             json.dump(fields, f)
         self.stdout.write(self.style.SUCCESS(f'Wrote {len(fields)} translation rows to {options["out"]}'))

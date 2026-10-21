@@ -20,7 +20,7 @@ out on 2026-09-19:
 | `test.md` | Every test suite and browser script: what it covers and how to run it | Before writing or running a test |
 | `QA.md` | A standing quality assessment of the codebase | You want the honest state of things |
 | `AUDIENCE-BRIEF.md` | The lifelong-learning widening (steps 1–10) | You pick up one of its remaining steps |
-| `.claude/skills/import-exercises/SKILL.md` | How to import a batch of exercises (*zadania*): the file format, `manage.py import_exercises`, what it refuses | You are adding exercises in bulk rather than through `/submit` |
+| `.claude/skills/import-exercises/SKILL.md` | How to import a batch of exercises (*zadania*): the file format, `manage.py import_exercises`, what it refuses; `reference/concepts.md` there for concept pages (`manage.py import_concepts`) | You are adding exercises in bulk rather than through `/submit` |
 | `backend/CLAUDE.md`, `frontend/CLAUDE.md`, `backend/<app>/CLAUDE.md`, `frontend/e2e/CLAUDE.md` | Scoped rules and traps for the half or app you are in | Always, for the part you are editing |
 
 When a scoped file and this one disagree, **the scoped file wins** — it is closer to the code.

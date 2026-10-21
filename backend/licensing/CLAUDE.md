@@ -60,7 +60,9 @@ exercise and material lists.
 in `_submission_licence`; the founding hint/solution get the same); `POST /exercises/{id}/entries/`;
 `POST /material-projects/` (+ PATCH while drafting); `POST /concepts/` and
 `/concepts/{slug}/articles/`; `manage.py import_exercises` (`licence:` per file / `batch.yaml` /
-`--licence`, default `unknown`, a re-run only widens and records). The Django admin shows `licence`
+`--licence`, default `unknown`, a re-run only widens and records); `manage.py import_concepts` (the same
+declaration chain onto `ConceptArticle.licence`; a re-run widens through `rules.change_licence` as the
+article's author, so it is refused once somebody else's revision is in the article). The Django admin shows `licence`
 read-only on every licensed model — the admin must not be a way around "only widen, and record it".
 
 ## The bulk move — `manage.py relicense_content` (2026-10-21)

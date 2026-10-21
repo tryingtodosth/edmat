@@ -17779,3 +17779,88 @@ parts backend under the old page would show 964 its lead sentence and nothing el
   after import with `declare_ai_assisted`.
 - The guidance for whoever writes the next kit — the rules this batch taught — is drafted beside the
   skill as `.claude/skills/import-exercises/reference/writing-a-kit.md` and awaits the owner's word.
+
+## 17CW — `manage.py import_concepts`: concept pages in bulk (2026-10-21, `feat/import-concepts`)
+
+The concept (wiki) counterpart of `import_exercises`, for the kit pages being written into
+`<kit>/<branch>/pojecia/` (format fixed by the orchestrator in advance; what the importer enforces
+beyond its text is listed in the procedure doc). Same CLI shape — `<dir>`, `--dry-run` (validate,
+write, roll back), `--author`, `--licence`, `--locale`, `--audience` — plus
+`--skip-missing-exercises` and `--ai-assisted [NOTE]`. Same discipline: every file is parsed and
+every reference checked before anything is written, so one bad file refuses the batch and the report
+names every problem in every file (the database checks run over the files the parser already
+refused, too, so a second run never reveals a second list).
+
+**Writes go through the app's services**, never by hand: `create_concept` (+ the `seed_concepts`
+slug rename before the publish), `create_article`, `create_revision`, `publish_revision`, `add_link`,
+`harvest_body_links`. Body → markdown blocks split at `### ` outside code fences; `#`/`##` refused.
+
+**Idempotent by slug + "the author's article for this `(audience, locale)`".** The unchanged test
+compares the file in its STORED form (the three calls `ConceptRevision.save()` makes — the sanitizer
+normalises `<line/>` to `<line></line>`, so comparing raw text would call every SVG page changed); an
+unchanged re-run writes nothing. A changed file is a new revision on the same article, the old head
+`superseded`. Never: publishing over a head somebody else wrote (named; merge by hand), touching
+another person's article (an existing concept by someone else gets the author's article as a peer,
+and the file's branches are only ADDED there), deleting anything. Branches are replaced on the
+author's own concept, tags and links only added (import_exercises' topics/tags rule). The licence
+only widens, through `licensing.rules.change_licence` as the author. An open draft or a hidden
+article is skipped with its reason.
+
+**Links**, a second pass after every concept exists (file order is irrelevant); one row per target,
+so an existing row is reconciled rather than duplicated. Found by rehearsing on the real kits: a
+prerequisite is usually ALSO mentioned as `[[slug]]` in the text, which harvested a `related` body
+row at publish time and would have silently won — such a row is re-filed as manual + prerequisite
+(17 of 64 pages). Prerequisite cycles are refused, counting prerequisites already in the database.
+
+**No feed, no mail.** `publish_revision` gained `announce: bool = True`; the importer passes
+`False`, which skips `_announce_publication` and nothing else. No request, so no audit row either.
+
+**AI provenance.** `concept_article` is now a `provenance` kind (`PROVENANCE_KIND_MODELS`, author
+field `created_by`; no migration — the kind never reaches the database), with `rules.is_readable`
+asking `concepts.access.can_view_article` for it (an article whose only revision waits must not be
+answered for a stranger). `--ai-assisted "<note>"` upserts the author's `AuthorMark` on every
+article in the batch; `declare_ai_assisted --kinds concept_article` works through the same dict.
+**No chip draws it yet** — the frontend half is left open below; the pages' own footer line is the
+visible disclosure meanwhile.
+
+**The KaTeX sweep now sees concept pages**: `dump_text_fields` emits each published revision's
+markdown (and `latex` blocks wrapped as the page wraps them) under the checker's generic
+`description` key, so `npm run check:katex` needed no change. A planted broken formula is flagged.
+
+**Inline SVG in rendered content (separate commit, the orchestrator's request).** The sanitizer
+allows a geometry subset but no `style` and no `fill` on `<text>`, so SVG labels fell back to black —
+invisible in the dark theme. `MathContent.svelte` (which concept markdown blocks render through, via
+`BlockRenderer`) now gives non-KaTeX `svg` `max-width: 100%; height: auto`, `svg text` `fill:
+currentColor`, and spacing for `figure`/`figcaption`. Scoped `svg:not(.katex svg)` deliberately:
+KaTeX draws `\sqrt` and stretchy arrows as SVGs with exact heights that `.katex svg` sets, and the
+unscoped rule (one class more specific) would have overridden them.
+
+### Verified
+
+- `manage.py test concepts.test_import` — **31 tests OK** (with `provenance`: 61 OK, re-run on the final code); `manage.py test concepts
+  exercises provenance licensing --parallel 4 --keepdb` — **410 tests OK** (161 s of tests).
+- `manage.py check` clean; `makemigrations --check --dry-run` "No changes detected";
+  `testing/check_databases_declared.py` 0.
+- Rehearsal on a copy of the main checkout's database (`--author piotrek`): a 3-file batch
+  (`norma`, `kula-jednostkowa` → prerequisite `norma` + exercises analiza-matematyczna/4, /5 + an
+  inline SVG, `rownowaznosc-norm` → `norma`, `kula-jednostkowa`, analiza-matematyczna/11):
+  dry run and real run `3 created … links: 6 added`; re-run `3 unchanged … links: 0 added`;
+  feed/notification counts identical before and after; one edited file → `revised (revision 2)`,
+  the old one superseded; the API answers the page, the prerequisite closure and the chip row on
+  exercise 4. Then the **64 in-progress kit pages** (algebra 24, fale 21, teoria-wzglednosci 19;
+  the three branches created in the copy, their exercises absent so `--skip-missing-exercises`):
+  `64 created … links: 150 added, 17 re-filed, 55 already there; AI-assisted: 64 marked`, re-run
+  `64 unchanged … 0 added`; `dump_text_fields` + `npm run check:katex`: **2340 rows, 0 issues**.
+- Frontend (the SVG commit): `npm run check` 0 errors 0 warnings, `eslint` and `prettier --check` on
+  the file clean; the compiled CSS keeps `svg:not(.katex svg)`.
+
+### Left open
+
+- **No AI chip on concept pages**: add `'concept_article'` to `AssistanceTargetKind`
+  (`types/provenance.ts`) and an `AiAssistChip` beside the article's licence line, browser-checked.
+- **Not looked at in a browser** (house rule 2): the imported pages were checked through the API and
+  the KaTeX sweep only; the SVG-in-dark-theme fix in particular wants a screenshot in both themes.
+- The importer does not report what the sanitizer dropped from a body (as import_exercises).
+- `governor`-level lock of a concept article's AI reading: `provenance.rules.branch_of` answers None
+  for it (several branches), so only staff can lock.
+- The boards (`edmat-boards/`) were not updated from this worktree; the orchestrator holds the task.

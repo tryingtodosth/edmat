@@ -43,6 +43,14 @@ Settled, and implemented here:
 - **The five surfaces** — the exercise statement, every hint, every solution, every comment, every
   review. `targets.PROVENANCE_KIND_MODELS` has four entries for them, because a hint and a solution
   are one model (`SolutionEntry`) differing by its own `kind`.
+- **A sixth, backend-only: `concept_article`** (2026-10-21, for `manage.py import_concepts
+  --ai-assisted`, whose pages are written with AI help). The ARTICLE, not a revision — one author
+  (`created_by`), the licensing unit, and what a reader sees one head of at a time. Its visibility is
+  not the generic shape, so `rules.is_readable` asks `concepts.access.can_view_article` by name (an
+  article whose only revision waits does not exist for a stranger, mark or no mark). `branch_of`
+  answers None for it — a concept has several branches — so only staff may lock its reading. No
+  migration (the kind never reaches the database). `declare_ai_assisted --kinds concept_article`
+  works through the same dict.
 
 Still open, and deliberately parked as named constants in `rules.py` rather than inlined:
 
@@ -112,8 +120,11 @@ verified solution"*. Two things, one rule:
   `/submit-material` and the editors at write time. Today the author marks the content **after** it
   exists, from its own menu, which reaches every one of the five surfaces with one component instead
   of five forms. The write-time checkbox is the better moment to ask and is a separate change.
-- **`material`, `concept_article` and `post` are not targets yet.** They have prose and belong here;
-  they are not on the surfaces the owner named on 2026-10-08, and each needs its own author field
-  and `is_readable` branch.
+- **`material` and `post` are not targets yet.** They have prose and belong here; they are not on
+  the surfaces the owner named on 2026-10-08, and each needs its own author field and `is_readable`
+  branch. `concept_article` IS a target since 2026-10-21, **but no chip draws it**: the concept page
+  needs `'concept_article'` in `types/provenance.ts`'s `AssistanceTargetKind` and an `AiAssistChip`
+  beside the article's licence line (with the menu item), browser-checked. Until then the mark is
+  stored and answered by the API, and an imported page's own footer line is what a reader sees.
 - **Nothing notifies the author when a community mark lights on their work.** Wanted; a new
   notification type is its own change.

@@ -27,14 +27,24 @@ from __future__ import annotations
 from django.contrib.contenttypes.models import ContentType
 
 from community.models import Comment, Review
+from concepts.models import ConceptArticle
 from exercises.models import Exercise, SolutionEntry
 
 #: kind -> (model, the name of the field holding its author, or None if it has no single one)
+#:
+#: `concept_article` (2026-10-21, for `manage.py import_concepts --ai-assisted`) is the ARTICLE, not
+#: a revision: it is the unit with one author (`created_by`) and the licensing unit
+#: (`licensing/targets.py`), and a reader sees one article's head at a time — a per-revision mark
+#: would light or not depending on which version happened to be the head. Its visibility is not
+#: the generic `is_removed` / `published` / `status` shape, so `rules.is_readable` asks
+#: `concepts.access.can_view_article` for it by name. No frontend chip draws it yet
+#: (`provenance/CLAUDE.md` "Left open").
 PROVENANCE_KIND_MODELS = {
     'exercise': (Exercise, 'submitted_by'),
     'solution_entry': (SolutionEntry, 'author'),
     'comment': (Comment, 'author'),
     'review': (Review, 'author'),
+    'concept_article': (ConceptArticle, 'created_by'),
 }
 
 _REVERSE_KIND_MODELS = {model: kind for kind, (model, _field) in PROVENANCE_KIND_MODELS.items()}
