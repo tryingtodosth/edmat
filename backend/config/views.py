@@ -143,3 +143,25 @@ class CreationStatusView(APIView):
         if not request.user.is_authenticated:
             return Response({kind: 'anonymous' for kind in CREATION_KINDS})
         return Response(creation_status(request.user))
+
+
+class PeopleSuggestionsView(APIView):
+    """`GET /api/people/suggestions/` — the people this account already shares a roster with
+    (`contests/people.py: suggested_people`), for every "add a person" form on the site (owner,
+    2026-10-21: "give user a list instead" of an account-id box).
+
+    Routed here, with no feature gate, rather than at the contest wizard's own
+    `/api/contests/people-suggestions/` (which stays, behind `contests`): a course's staff panel
+    must keep its picker when contests are switched off, and "who do you already work with" is a
+    reading of memberships the caller already holds, not a feature surface of its own. There is
+    still no people search, by design — this never names anybody the caller does not already
+    share a course, an event, an organisation or a material project with.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from contests.people import suggested_people
+
+        return Response({'people': suggested_people(request.user)})
+

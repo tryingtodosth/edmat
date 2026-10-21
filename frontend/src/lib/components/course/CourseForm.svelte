@@ -6,6 +6,7 @@
 	import { untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getAllBranches } from '$lib/services/taxonomy';
+	import CoursePicker from '$lib/components/shared/CoursePicker.svelte';
 	import type { Branch } from '$lib/types/taxonomy';
 	import type {
 		ContributionPolicy,
@@ -19,16 +20,20 @@
 	let {
 		initial = null,
 		parent = null,
+		as = 'version',
 		submitting = false,
 		error = '',
 		submitLabel,
 		onsubmit
 	}: {
 		initial?: Course | null;
-		/** Creating a university/faculty VERSION of this general course (`?parent=` on /courses/new).
-		 *  The kind is then fixed — a version is one university's — and the kind question is not
-		 *  asked. Editing an existing version needs no prop: `initial.parent` says it. */
+		/** Creating a course UNDER this one (`?parent=` on /courses/new): a university/faculty
+		 *  VERSION of a general course (`as="version"`, the kind is then fixed — a version is one
+		 *  university's — and the kind question is not asked) or a SUBCOURSE (`as="subcourse"`,
+		 *  2026-10-21: the kind is asked as for any course). Editing an existing child needs no
+		 *  prop: `initial.parent` and `initial.parentRelation` say it. */
 		parent?: Course | null;
+		as?: 'version' | 'subcourse';
 		submitting?: boolean;
 		error?: string;
 		submitLabel: string;
@@ -38,11 +43,25 @@
 	// What kind of gathering this is (backend `COURSE_KIND_CHOICES`): a community around a topic,
 	// or the companion to one university course. Asked FIRST, because it changes what the rest of
 	// the form is about — a university course is found by its university and code.
-	let kind = $state<CourseKind>(
-		untrack(() => (parent || initial?.parent ? 'university' : (initial?.kind ?? 'topic')))
+	// A version (new or existing) is always one university's; a top-level course and a subcourse
+	// choose.
+	const isVersion = untrack(
+		() => (parent !== null && as === 'version') || initial?.parentRelation === 'version'
 	);
-	// A version (new or existing) is always one university's; only a top-level course chooses.
-	const isVersion = untrack(() => Boolean(parent || initial?.parent));
+	let kind = $state<CourseKind>(
+		untrack(() => (isVersion ? 'university' : (initial?.kind ?? 'topic')))
+	);
+	// Moving an existing course under another one, or out from under it (2026-10-21): a picker over
+	// the courses this person can see (`CoursePicker` — their own first, then a title search; a
+	// pasted address still works in the same box). Seeded with the current parent; clearing it
+	// detaches.
+	let movedParent = $state<string | null>(untrack(() => initial?.parent ?? null));
+	const canMove = untrack(() => Boolean(initial?.canAdminister));
+	function parentForSubmit(): string | null {
+		if (parent) return parent.id;
+		if (!initial) return null;
+		return movedParent;
+	}
 	let university = $state(untrack(() => initial?.university ?? ''));
 	let faculty = $state(untrack(() => initial?.faculty ?? ''));
 	let courseCode = $state(untrack(() => initial?.courseCode ?? ''));
@@ -100,7 +119,7 @@
 				subject === initialSubject ? (initial?.subjectSlugs ?? []) : subject ? [subject] : [],
 			field: initial?.fieldSlug ?? null,
 			kind,
-			parent: parent?.id ?? initial?.parent ?? null,
+			parent: parentForSubmit(),
 			// The server clears these four on a topic course anyway; sending blanks keeps the
 			// request saying what the form shows.
 			university: kind === 'university' ? university.trim() : '',
@@ -128,9 +147,25 @@
 <form onsubmit={submit}>
 	{#if parent}
 		<p class="version-of">
-			{m.course_version_of({ title: parent.title })}
-			<!-- "A university/faculty version of “{title}”" -->
+			{as === 'subcourse'
+				? m.course_tree_subcourseOf({ title: parent.title })
+				: m.course_version_of({ title: parent.title })}
+			<!-- "A subcourse of “{title}”" / "A university/faculty version of “{title}”" -->
 		</p>
+	{/if}
+	{#if canMove && !parent}
+		<div class="field">
+			<CoursePicker
+				bind:value={movedParent}
+				id="course-parent"
+				label={m.course_tree_moveLabel()}
+				exclude={[initial?.id ?? '']}
+				initialTitle={initial?.parentSummary?.title ?? ''}
+			/>
+			<!-- "Part of (optional)" -->
+			<span class="hint">{m.course_tree_moveHint()}</span>
+			<!-- "Pick the course this one belongs under, or leave it empty to stand alone. Only the people running that course can place a subcourse under it." -->
+		</div>
 	{/if}
 	{#if !isVersion}
 		<fieldset class="field choice-set">

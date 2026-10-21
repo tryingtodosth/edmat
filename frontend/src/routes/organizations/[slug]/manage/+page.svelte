@@ -15,6 +15,10 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
+	import PersonPicker from '$lib/components/shared/PersonPicker.svelte';
+	import CoursePicker from '$lib/components/shared/CoursePicker.svelte';
+	import { getEvents } from '$lib/services/events';
+	import { listMyProjects } from '$lib/services/materialProjects';
 	import {
 		addMember,
 		dissolveOrganization,
@@ -82,10 +86,33 @@
 	let accountId = $state('');
 	let newRole = $state<OrganizationRole>('member');
 
-	// The link form.
+	// The link form. The thing is PICKED from what is this person's (2026-10-21: "give user a
+	// list instead" of an id box): a course through `CoursePicker`, an event from the ones they
+	// host, a material from the projects they co-write that have a published material.
 	let nodeKind = $state<NodeKind>('course');
 	let nodeId = $state('');
+	let pickedCourse = $state<string | null>(null);
 	let claim = $state<OrganizationLinkKind>('runs');
+	let myEvents = $state<{ id: string; title: string }[]>([]);
+	let myMaterials = $state<{ id: string; title: string }[]>([]);
+	let choicesLoaded = $state(false);
+	async function loadChoices() {
+		if (choicesLoaded) return;
+		choicesLoaded = true;
+		try {
+			const [events, projects] = await Promise.all([
+				getEvents({ mine: 'hosting', when: 'all' }),
+				listMyProjects()
+			]);
+			myEvents = events.map((e) => ({ id: e.id, title: e.title }));
+			myMaterials = projects
+				.filter((pr) => pr.materialId)
+				.map((pr) => ({ id: pr.materialId as string, title: pr.title }));
+		} catch {
+			myEvents = [];
+			myMaterials = [];
+		}
+	}
 
 	let loadedFor = $state('');
 	$effect(() => {
@@ -210,7 +237,7 @@
 	async function link(event: SubmitEvent) {
 		event.preventDefault();
 		if (!organization || busy) return;
-		const id = nodeId.trim();
+		const id = (nodeKind === 'course' ? (pickedCourse ?? '') : nodeId).trim();
 		if (!id) return;
 		busy = true;
 		error = '';
@@ -218,6 +245,7 @@
 			const created = await linkNode(organization.id, nodeKind, id, claim);
 			links = [created, ...links];
 			nodeId = '';
+			pickedCourse = null;
 		} catch (err) {
 			report(err);
 		} finally {
@@ -375,11 +403,13 @@
 					<p class="note">{m.orgs_addMemberHint()}</p>
 					<!-- "There is no people search here yet, so add somebody by their account id — the number at the end of their profile address." -->
 					<div class="row">
-						<label class="field">
-							<span>{m.orgs_fieldAccountId()}</span>
-							<!-- "Account id" -->
-							<input type="text" inputmode="numeric" bind:value={accountId} />
-						</label>
+						<div class="field field--wide">
+							<PersonPicker
+								bind:value={accountId}
+								id="org-member-person"
+								exclude={members.map((row) => row.user.id)}
+							/>
+						</div>
 						<label class="field">
 							<span>{m.orgs_fieldRole()}</span>
 							<!-- "Role" -->
@@ -426,17 +456,59 @@
 						<label class="field">
 							<span>{m.orgs_fieldNodeKind()}</span>
 							<!-- "What kind of thing" -->
-							<select bind:value={nodeKind}>
+							<select
+								bind:value={nodeKind}
+								onchange={() => {
+									nodeId = '';
+									pickedCourse = null;
+									void loadChoices();
+								}}
+							>
 								{#each NODE_KINDS as value (value)}
 									<option {value}>{NODE_KIND_LABELS[value]()}</option>
 								{/each}
 							</select>
 						</label>
-						<label class="field">
-							<span>{m.orgs_fieldNodeId()}</span>
-							<!-- "Its id" -->
-							<input type="text" inputmode="numeric" bind:value={nodeId} />
-						</label>
+						{#if nodeKind === 'course'}
+							<div class="field field--wide">
+								<CoursePicker
+									bind:value={pickedCourse}
+									id="org-link-course"
+									label={m.orgs_pickCourse()}
+								/>
+								<!-- "Which course" -->
+							</div>
+						{:else if nodeKind === 'event'}
+							<label class="field">
+								<span>{m.orgs_pickEvent()}</span>
+								<!-- "Which event" -->
+								<select bind:value={nodeId} onfocus={loadChoices}>
+									<option value="">{m.orgs_pickEventNone()}</option>
+									{#each myEvents as row (row.id)}
+										<option value={row.id}>{row.title}</option>
+									{/each}
+								</select>
+								{#if choicesLoaded && myEvents.length === 0}
+									<span class="note">{m.orgs_pickNoEvents()}</span>
+									<!-- "You host no events to link yet." -->
+								{/if}
+							</label>
+						{:else}
+							<label class="field">
+								<span>{m.orgs_pickMaterial()}</span>
+								<!-- "Which material" -->
+								<select bind:value={nodeId} onfocus={loadChoices}>
+									<option value="">{m.orgs_pickMaterialNone()}</option>
+									{#each myMaterials as row (row.id)}
+										<option value={row.id}>{row.title}</option>
+									{/each}
+								</select>
+								{#if choicesLoaded && myMaterials.length === 0}
+									<span class="note">{m.orgs_pickNoMaterials()}</span>
+									<!-- "You co-write no published materials to link yet." -->
+								{/if}
+							</label>
+						{/if}
 						<label class="field">
 							<span>{m.orgs_fieldLinkKind()}</span>
 							<!-- "The claim" -->
@@ -517,6 +589,10 @@
 	.edit-form {
 		display: grid;
 		gap: 0.7rem;
+	}
+	.field--wide {
+		flex: 1 1 100%;
+		grid-column: 1 / -1;
 	}
 	.field {
 		display: grid;

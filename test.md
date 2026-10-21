@@ -933,6 +933,51 @@ carrying `post_id`; Followed's honest empty state; the home-tab slice; delete-as
 the feed forgetting the row; and the `posts` kill switch removing the composer, the filter option
 and every post row from the feed API. Resets by tombstoning any earlier run's posts as staff.
 
+**`e2e/pickers.mjs` (10 checks, zero page errors)** — lists instead of pasted ids (root `HISTORY.md`
+§17CT, 2026-10-21). The edit form's "Part of" course picker moving a subcourse under another root
+(the current parent as a chip, "change", a title search, the match chosen, the save, the API agreeing);
+the manage page's person picker (the suggestions list or its honest empty line, the account-id
+fallback, the add landing on the staff list); the chapter dialog's "Another course on EdMat" picker
+filing a course item; the ask form's optional course. Tokens, not the login form. Deletes its three
+courses at the end. Screenshots to `e2e/screens/pickers/`.
+
+```
+LD_LIBRARY_PATH=<extracted libs>/usr/lib/x86_64-linux-gnu E2E_BASE=http://localhost:5173 \
+E2E_API=http://localhost:8000/api E2E_TOKEN=<michal> E2E_PLAIN_TOKEN=<ola> \
+CHROME=<chrome-headless-shell> node e2e/pickers.mjs
+```
+
+Backend: `manage.py test config.test_people` (2 — the neutral `/api/people/suggestions/`: the
+caller's rosters and nobody else, 401 signed out, unaffected by the `contests` switch).
+
+**`e2e/subcourses-and-board.mjs` (27 checks, zero page errors)** — the course tree, outside content in a
+course's programme and the course board (root `HISTORY.md` §17CS, 2026-10-21). A root course by API,
+then a SUBCOURSE through the real form (`/courses/new?parent=<id>&as=subcourse`: the heading, the
+"A subcourse of …" line, the kind question still asked), the new page's "Subcourse" pill and its
+breadcrumb, the root's Subcourses panel with "Add a subcourse" for the owner and without it for a
+stranger; by API, a chapter with three new item kinds (another course, an outside link, with `ftp://`
+refused); the Board tab empty, "Post about this course" → `/ask?course=`, the form saying which course,
+a question with a tag and a LINK attached, the landing back on the board with the post and "1 attached",
+the post's page with the attachment, the ROOT's board gathering the subcourse's post, the post filed
+into the programme; the content tab's Course / Link (new tab) / Post rows as a stranger; and the
+`posts` switch off for a NON-staff account — no Board tab (restored in a `finally`). Tokens, not the
+login form (trap 30); `E2E_TAG` must be an existing tag whose full name is typed (a five-letter prefix
+of `granice` has more than eight prefix matches and the picker shows eight). Deletes its courses and
+its post through the API at the end. Screenshots to `e2e/screens/subcourses-and-board/`.
+
+```
+LD_LIBRARY_PATH=<extracted libs>/usr/lib/x86_64-linux-gnu \
+E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000/api \
+E2E_STAFF_TOKEN=<kasia> E2E_TOKEN=<michal> E2E_PLAIN_TOKEN=<ola> E2E_TAG=granice \
+CHROME=<chrome-headless-shell> node e2e/subcourses-and-board.mjs
+```
+
+Backend: `manage.py test courses.test_subcourses` (12 — the tree: the parent's-staff rule, the depth
+cap, loops, moving and detaching, the cut breadcrumb, a class, both children kinds under `?parent=`,
+the materials index over the subtree), `courses.test_content_links.CourseLinkAndPostItemTests` (6),
+`activity.tests.PostCourseBoardTests` (3), `attachments.tests.PostTargetTests` (3); `test_kind.py`'s
+one-level tests were rewritten for the tree.
+
 **`e2e/ask.mjs` (59 checks)** — "ask a question in a tag" (root `HISTORY.md` §17CO, WP15): in both
 interface languages, the hero's "Ask a question" (signed out → a sign-in prompt; signed in → the
 composer), asking through the real form (question, the folded tag search, the audience band), the

@@ -105,6 +105,13 @@ def can_view_target(user, target) -> bool:
     """Whether this person may see the thing the attachment hangs off at all. A stranger gets 404
     on everything hung on it (house rule 4)."""
     kind = targets.kind_of(target)
+    if kind == 'post':
+        # A board post: readable while it stands; a tombstoned or held one (auto-hidden, waiting
+        # for a moderator — `accounts/minors.py`) only by its author and by staff, the same two
+        # people `PostViewSet` lets edit it.
+        if target.is_visible_to_readers():
+            return True
+        return _authenticated(user) and bool(user.is_staff or target.author_id == user.pk)
     if kind in targets.COMMENT_TARGET_KINDS:
         # Asked of `community` rather than re-derived: a HELD comment (auto-hidden, awaiting
         # review) is visible to its author and to staff and to nobody else, and that rule already
@@ -138,7 +145,7 @@ def can_attach(user, target) -> bool:
       participant who wants to add something has the comment thread, which has its own attachments.
     - On a **board row**, the same, plus the row's own author: somebody who filed a need may attach
       the photo that explains it.
-    - On a **comment**, its author. Nobody attaches to somebody else's comment.
+    - On a **comment** or a board **post**, its author. Nobody attaches to somebody else's words.
     """
     if not _authenticated(user):
         return False

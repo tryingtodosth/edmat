@@ -7,6 +7,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { resolve } from '$app/paths';
 	import type { CourseStaffMember, StaffRole, Course } from '$lib/types/course';
+	import PersonPicker from '$lib/components/shared/PersonPicker.svelte';
 
 	let {
 		course,
@@ -78,13 +79,15 @@
 		<p class="hint">{m.course_staff_ownerLocked()}</p>
 
 		<form onsubmit={add}>
-			<label class="field">
-				<span>{m.course_staff_userId()}</span>
-				<input type="text" bind:value={newUserId} inputmode="numeric" required />
-				<!-- Honest about the gap rather than pretending: there is no people search in this app
-				     yet, so the id from somebody's profile URL is the real way to name them. -->
-				<span class="hint">{m.course_staff_userIdHint()}</span>
-			</label>
+			<!-- The people this administrator already shares a roster with, or an account id for
+			     anybody else (2026-10-21; there is still no people search, by design). -->
+			<div class="field">
+				<PersonPicker
+					bind:value={newUserId}
+					id="course-staff-person"
+					exclude={staff.map((member) => member.user.id)}
+				/>
+			</div>
 			<label class="field">
 				<span>{m.course_staff_role()}</span>
 				<select bind:value={newRole}>
@@ -92,7 +95,7 @@
 					<option value="admin">{m.course_role_admin()}</option>
 				</select>
 			</label>
-			<button type="submit" class="primary">{m.course_staff_add()}</button>
+			<button type="submit" class="primary" disabled={!newUserId}>{m.course_staff_add()}</button>
 		</form>
 
 		{#if error}
@@ -149,7 +152,6 @@
 		font-size: var(--font-size-sm);
 		color: var(--status-danger);
 	}
-	input,
 	select {
 		@include mix.focus-ring;
 		padding: var(--space-1) var(--space-2);

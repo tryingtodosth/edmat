@@ -138,7 +138,9 @@ class IsSchoolCourseTests(SchoolTestCase):
         refusal is its own word, and the same class without its school takes versions again."""
         self.assertEqual(self.klass.kind, 'topic')
         self.assertEqual(
-            rules.subcourse_block_reason(self.teacher, self.klass, visibility='private'),
+            rules.subcourse_block_reason(
+                self.teacher, self.klass, visibility='private', kind='university'
+            ),
             'parent_is_class',
         )
         self.teacher.profile.is_verified_contributor = True
@@ -158,7 +160,9 @@ class IsSchoolCourseTests(SchoolTestCase):
         self.link.kind = 'supports'
         self.link.save(update_fields=['kind'])
         self.assertIsNone(
-            rules.subcourse_block_reason(self.teacher, self.klass, visibility='private')
+            rules.subcourse_block_reason(
+                self.teacher, self.klass, visibility='private', kind='university'
+            )
         )
 
     def test_the_course_payload_names_the_school(self):
@@ -843,7 +847,15 @@ class SchoolTakesOnAVersionTests(SchoolTestCase):
         self.assertEqual(rules.school_run_block_reason(self.version), 'course_is_version')
         self.assertEqual(rules.school_run_block_reason(self.general), 'course_has_versions')
         self.assertIsNone(rules.school_run_block_reason(self.plain))
-        self.assertEqual(set(rules.SCHOOL_RUN_REFUSALS), {'course_is_version', 'course_has_versions'})
+        self.assertEqual(
+            set(rules.SCHOOL_RUN_REFUSALS),
+            {'course_is_version', 'course_is_subcourse', 'course_has_versions'},
+        )
+        # A subcourse (2026-10-21) answers its own word, so the organisation form can say which.
+        part = Course.objects.create(
+            instructor=self.teacher, title='Część', visibility='public', parent=self.general
+        )
+        self.assertEqual(rules.school_run_block_reason(part), 'course_is_subcourse')
 
     def test_a_school_may_not_start_to_run_a_version(self):
         response = self._post_link(self.school, self.version)

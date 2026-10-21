@@ -381,19 +381,20 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/creation/ /api/users/{id}/learning-record/ /api/courses/{id}/completions/  the creation gate, the learning record, certificates
 /api/ai-assistance/ /api/ai-assistance/{kind}/{id}/{vote,author-mark,lock}/   the "AI-assisted" mark (provenance/)
 /api/text-versions/{kind}/{id}/                                       one management row's text in every language at once
-/api/{kind}/{id}/attachments/ /api/attachments/{id}/{file,acknowledge,replace,withdraw,receipts}/  attachments on any of eleven kinds (a poll joined 2026-10-10)
+/api/{kind}/{id}/attachments/ /api/attachments/{id}/{file,acknowledge,replace,withdraw,receipts}/  attachments on any of twelve kinds (a poll joined 2026-10-10, a board post 2026-10-21)
 /api/contests/ /api/contest-presets/ /api/contests/{id}/{announce,stages,registrations,results,complaints,rules,compliance}/  contests (CONTESTS-BRIEF.md)
 /api/contest-stages/{id}/{problems,submission,submit,submissions,ranking,open,close,advance}/  a stage, from both sides of the desk
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
-/api/posts/?tag=<slug>                                                one tag's questions and posts (the tag page; WP15)
+/api/posts/?tag=<slug> /api/posts/?course=<id>                        one tag's questions and posts (the tag page; WP15); a course's board — its posts and its subcourses' (2026-10-21)
 /api/discussions/ /api/discussions/thread/ /api/discussion-locations/  talk under a standing page — or under a task, a plan, a need or a poll (`tasks/17` as the page; `?keys=` for a whole board)
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)
+/api/people/suggestions/                                              the people this account shares a roster with — every "add a person" picker (no people search, by design)
 /api/auth/{register,login,logout,me,password-reset}/                 DRF TokenAuthentication
 /api/auth/{confirm-email,confirm-email/resend,password-reset/confirm,me/mail}/   mail (backend/mail/)
 /api/mail/{status,outbound,outbound/{id}/retry,test,inbound,inbound/fetch}/  the Mail tab, SUPERUSER only
 /api/analytics/{overview,traffic,content,community,moderation,coverage,cohorts,health,…}/  usage statistics, STAFF only
 /api/client-errors/                                                   a browser error report (sendBeacon, no cookie; analytics/)
-/api/courses/{id}/materials/                                           a general course's materials, its versions' included
+/api/courses/{id}/materials/ /api/courses/?parent=<id>                 a course's materials, its whole subtree's included; one course's versions AND subcourses (`parent_relation` tells them apart)
 /api/auth/sso/{providers,<p>/start,<p>/callback,exchange,ticket,complete,identities,link/…}/  sign-in with Google / Apple / GitHub / Facebook / Microsoft
 /api/auth/me/{export,erasure,password}/ /api/auth/erasure/cancel/   GDPR self-service and the password form
 ```
@@ -504,7 +505,10 @@ Long-standing, still true. Feature-level gaps live in each `HISTORY.md` section'
   `frontend/e2e/`; there is no Vitest layer and no test gate on push.
 - **SQLite, single-writer.** Fine for this deployment, and the reason for several concurrency
   workarounds that PostgreSQL would not need. See `backend/CLAUDE.md`.
-- **No people search**, so granting a role or messaging someone new needs their numeric account id.
+- **No people search**, by design. Since 2026-10-21 every "add a person" form offers the people
+  the caller already shares a course, an event, an organisation or a material project with
+  (`/api/people/suggestions/`, `PersonPicker.svelte`); anybody else still needs their numeric
+  account id, and messaging someone new does too.
 - **No per-account timezone.** Every wall-clock value is read in `settings.TIME_ZONE`, which is
   **`Europe/Warsaw`** (owner, 2026-10-15: "stays poland"); the display preferences (24h/12h, week
   start) say how a time is *drawn*, not which clock it is drawn from. That one setting is a tutor's

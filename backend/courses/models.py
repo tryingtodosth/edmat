@@ -328,10 +328,13 @@ class Course(models.Model):
     )
 
     # --- what kind of gathering, and where (COURSE_KIND_CHOICES) ---------------------------------
-    # The general course this one is a university/faculty version of. ONE level only — a version
-    # cannot have versions (`rules.subcourse_block_reason`, which also keeps a version from being
-    # more visible than its parent). SET_NULL, not CASCADE: deleting a general course must not take
-    # a faculty's whole group, roster and materials with it; the version simply stands alone.
+    # The course this one is PART OF (`rules.py`, the tree section): a university/faculty VERSION
+    # of a general course, or a SUBCOURSE of any course (2026-10-21 — "courses can have their own
+    # courses"). Which of the two it is is read from the two rows (`rules.relation_to_parent`),
+    # never stored. The tree nests to `rules.MAX_COURSE_DEPTH`, may not loop, and a child is never
+    # more visible than its parent (`rules.subcourse_block_reason`). SET_NULL, not CASCADE: deleting
+    # a parent must not take a faculty's whole group, roster and materials with it; the child
+    # simply stands alone (and its own children with it).
     parent = models.ForeignKey(
         'self', related_name='subcourses', null=True, blank=True, on_delete=models.SET_NULL
     )
@@ -831,6 +834,52 @@ class Chapter(models.Model):
         return super().save(*args, **kwargs)
 
 
+#: The item kinds in the order `CourseItem.kind` tests them — one per target column below. Mirrored
+#: as `CourseItemKind` in `frontend/src/lib/types/course.ts` (house rule 13).
+ITEM_KINDS = (
+    'material',
+    'exercise',
+    'attachment',
+    'event',
+    'discussion',
+    'course',
+    'link',
+    'post',
+)
+#: kind -> the column that carries it. `link` is the one text column; the rest are foreign keys.
+ITEM_TARGET_COLUMNS = {
+    'material': 'material',
+    'exercise': 'exercise',
+    'attachment': 'attachment',
+    'event': 'event',
+    'discussion': 'discussion',
+    'course': 'linked_course',
+    'link': 'link_url',
+    'post': 'post',
+}
+
+
+def _target_set_q(column: str) -> models.Q:
+    return ~models.Q(link_url='') if column == 'link_url' else models.Q(**{f'{column}__isnull': False})
+
+
+def _target_unset_q(column: str) -> models.Q:
+    return models.Q(link_url='') if column == 'link_url' else models.Q(**{f'{column}__isnull': True})
+
+
+def _exactly_one_target_q() -> models.Q:
+    """One branch per kind: that column set, every other one unset."""
+    columns = list(ITEM_TARGET_COLUMNS.values())
+    whole = None
+    for chosen in columns:
+        branch = _target_set_q(chosen)
+        for other in columns:
+            if other != chosen:
+                branch &= _target_unset_q(other)
+        whole = branch if whole is None else (whole | branch)
+    return whole
+
+
 class CourseItem(models.Model):
     """One piece of content placed in a course.
 
@@ -842,15 +891,21 @@ class CourseItem(models.Model):
     Content is *referenced*, never copied, exactly as `Lesson` already does: a corrected exercise
     stays corrected everywhere, and a course never becomes a silently diverging fork of the corpus.
 
-    **Five kinds, exactly one per row**, because they are genuinely different things a course points
+    **Eight kinds, exactly one per row**, because they are genuinely different things a course points
     at and a reader needs to know which they are looking at before clicking: a corpus `material`, a
     corpus `exercise`, an `attachment` (a file belonging to this course — last year's paper, Tuesday's
-    slides), an `event` (a one-off happening people turn up to), or a `discussion` — the thread that
-    already answered this week's question, wherever in the site it happens to have been asked.
+    slides), an `event` (a one-off happening people turn up to), a `discussion` — the thread that
+    already answered this week's question, wherever in the site it happens to have been asked — and,
+    since 2026-10-21 (owner: "external courses, from edmat itself or as a link, linked to course's
+    content"; "link and be linked to specific courses"), a `course` (another EdMat course, whoever
+    runs it — "do the first three weeks of X first"), a `link` (an address outside EdMat, with the
+    title the curator gives it — a MOOC, a lecturer's page, a recording) and a `post` (a board post
+    about this course, filed into the week it answers).
 
-    Five nullable FKs with a check constraint rather than a GenericForeignKey: the set is small,
-    closed and known, and every query here wants to join and prefetch the real row, which a generic
-    relation cannot do.
+    Seven nullable FKs plus one URL column, with a check constraint, rather than a GenericForeignKey:
+    the set is small, closed and known, and every query here wants to join and prefetch the real
+    row, which a generic relation cannot do. A `link` is the one target that is not a row anywhere
+    — it is the address itself, so it lives in the column.
 
     The `discussion` kind is the newest and is the one that needed a rule the other four did not.
     Every other target is a page anybody can open; a comment may be sitting in a thread that is
@@ -922,6 +977,33 @@ class CourseItem(models.Model):
         blank=True,
         on_delete=models.CASCADE,
     )
+    # Another EdMat course, anybody's — a prerequisite, a companion, the general course this one
+    # draws on. CASCADE for the `event` reason: a course pointing at a course that no longer exists
+    # is worse than one that never pointed. Visibility is the linked course's own
+    # (`target_is_available_to`): a participant who may not see it is not shown the pointer, a
+    # curator is, so they can replace it.
+    linked_course = models.ForeignKey(
+        'Course',
+        related_name='linked_from_items',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
+    # An address outside EdMat — a MOOC, a lecture recording, a lecturer's own page. http(s) only
+    # (`CourseItemWriteSerializer`). The title is the curator's words for it; blank falls back to
+    # the address itself in `label`.
+    link_url = models.URLField(max_length=2000, blank=True)
+    link_title = models.CharField(max_length=200, blank=True)
+    # A board post (`activity.Post`) — a question or a note somebody posted about this course,
+    # filed into the week it belongs to. CASCADE as the others; a post's own ending is a tombstone
+    # (`is_removed`), which `target_is_available_to` reads the way it reads a removed thread.
+    post = models.ForeignKey(
+        'activity.Post',
+        related_name='course_items',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
 
     order = models.PositiveIntegerField(default=0)
     note = models.CharField(max_length=500, blank=True)
@@ -953,48 +1035,14 @@ class CourseItem(models.Model):
     class Meta:
         ordering = ['order', 'created_at', 'id']
         constraints = [
-            # Exactly one of the four, enforced by the database. A row with none is meaningless and a
-            # row with two is ambiguous about what it even is. Spelled out as four explicit branches
-            # rather than something clever: this is the constraint most likely to be read by somebody
-            # adding a fifth kind, and it should show them exactly what to write.
+            # Exactly one of the eight, enforced by the database. A row with none is meaningless and
+            # a row with two is ambiguous about what it even is. Built from one table of the target
+            # columns rather than spelled out by hand, because at eight kinds the hand-written
+            # version was 70 lines in which a ninth kind would have to be added to every branch; the
+            # table below IS what a reader adding a kind needs to see. `link_url` is the one target
+            # that is a text column, so its "set" test is `!= ''` rather than `IS NOT NULL`.
             models.CheckConstraint(
-                condition=(
-                    models.Q(
-                        material__isnull=False,
-                        exercise__isnull=True,
-                        attachment__isnull=True,
-                        event__isnull=True,
-                        discussion__isnull=True,
-                    )
-                    | models.Q(
-                        material__isnull=True,
-                        exercise__isnull=False,
-                        attachment__isnull=True,
-                        event__isnull=True,
-                        discussion__isnull=True,
-                    )
-                    | models.Q(
-                        material__isnull=True,
-                        exercise__isnull=True,
-                        attachment__isnull=False,
-                        event__isnull=True,
-                        discussion__isnull=True,
-                    )
-                    | models.Q(
-                        material__isnull=True,
-                        exercise__isnull=True,
-                        attachment__isnull=True,
-                        event__isnull=False,
-                        discussion__isnull=True,
-                    )
-                    | models.Q(
-                        material__isnull=True,
-                        exercise__isnull=True,
-                        attachment__isnull=True,
-                        event__isnull=True,
-                        discussion__isnull=False,
-                    )
-                ),
+                condition=_exactly_one_target_q(),
                 name='course_item_exactly_one_target',
             ),
             # A lesson already belongs to a chapter, so a row carrying both would be stating the
@@ -1033,37 +1081,52 @@ class CourseItem(models.Model):
                 condition=models.Q(discussion__isnull=False),
                 name='unique_discussion_per_course',
             ),
+            models.UniqueConstraint(
+                fields=['course', 'linked_course'],
+                condition=models.Q(linked_course__isnull=False),
+                name='unique_linked_course_per_course',
+            ),
+            models.UniqueConstraint(
+                fields=['course', 'link_url'],
+                condition=~models.Q(link_url=''),
+                name='unique_link_url_per_course',
+            ),
+            models.UniqueConstraint(
+                fields=['course', 'post'],
+                condition=models.Q(post__isnull=False),
+                name='unique_post_per_course',
+            ),
         ]
 
     def __str__(self) -> str:
         return f'{self.course.title} — {self.kind}'
 
     def clean(self):
-        targets = [
+        if sum(1 for t in self._target_values() if t) != 1:
+            raise ValidationError(
+                'An item must reference exactly one material, exercise, attachment, event, '
+                'discussion, course, link or post.'
+            )
+        if self.lesson_id and self.chapter_id:
+            raise ValidationError('An item files into a lesson or a chapter, not both.')
+
+    def _target_values(self):
+        return [
             self.material_id,
             self.exercise_id,
             self.attachment_id,
             self.event_id,
             self.discussion_id,
+            self.linked_course_id,
+            self.link_url,
+            self.post_id,
         ]
-        if sum(1 for t in targets if t) != 1:
-            raise ValidationError(
-                'An item must reference exactly one material, exercise, attachment, event or '
-                'discussion.'
-            )
-        if self.lesson_id and self.chapter_id:
-            raise ValidationError('An item files into a lesson or a chapter, not both.')
 
     @property
     def kind(self) -> str:
-        if self.material_id:
-            return 'material'
-        if self.exercise_id:
-            return 'exercise'
-        if self.attachment_id:
-            return 'attachment'
-        if self.event_id:
-            return 'event'
+        for name, value in zip(ITEM_KINDS, self._target_values()):
+            if value:
+                return name
         return 'discussion'
 
     @property
@@ -1142,6 +1205,18 @@ class CourseItem(models.Model):
         if self.discussion_id is not None and (
             self.discussion.is_removed or self.discussion.auto_hidden_at is not None
         ):
+            return False
+        # A linked course answers to its own visibility rule — the one every course read uses
+        # (`rules.course_visible_to`). A participant of this course who may not open that one is
+        # not shown a pointer they cannot follow, and is not told the title of a course somebody
+        # chose not to list; the curator who filed it still sees it, as with everything above.
+        if self.linked_course_id is not None:
+            from .rules import course_visible_to
+
+            if not course_visible_to(user, self.linked_course):
+                return False
+        # A board post's tombstone and its auto-hide are the same two endings a thread has.
+        if self.post_id is not None and not self.post.is_visible_to_readers():
             return False
         return True
 

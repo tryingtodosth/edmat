@@ -35,8 +35,14 @@ Also `attachmentfile.py` (upload validation), `search.py` (in-course search with
   `approval` (the only value safe to pick on someone's behalf). Content is **referenced, never
   copied**. Pending items visible to staff + own submitter only; EVERY staff member notified
   (a one-person queue stalls). Two partial unique constraints (NULLs don't compare equal in SQL).
-- **Five item kinds**, exactly one FK set per row: `material`, `exercise`, `attachment`, `event`,
-  `discussion`. The last points at a `community.Comment` and needs two rules the others don't —
+- **Eight item kinds**, exactly one target per row: `material`, `exercise`, `attachment`, `event`,
+  `discussion`, and since 2026-10-21 `course` (`linked_course` → another EdMat course the curator
+  can see, not this one; dropped for a participant who cannot see it, kept for curators —
+  `target_is_available_to`), `link` (`link_url` + `link_title`, http(s) only — the one target that
+  is a text column, so the exactly-one constraint is BUILT from `ITEM_TARGET_COLUMNS` rather than
+  spelled out; `ITEM_KINDS` is mirrored as `CourseItemKind` in `types/course.ts`) and `post`
+  (`activity.Post`, a board post filed into the week it answers; leaves with its tombstone the way
+  a removed thread does). The `discussion` kind points at a `community.Comment` and needs two rules the others don't —
   it must be a **root** comment (a reply is half a conversation), and a thread private to ANOTHER
   course is refused (`community.targets.PRIVATE_TARGET_TYPES`), on exactly the reasoning that
   already refuses another course's attachment. `target_is_available_to` drops a linked thread once
@@ -77,62 +83,99 @@ Also `attachmentfile.py` (upload validation), `search.py` (in-course search with
   maps it to `courseClaim`. Frontend: `components/course/CourseClaims.svelte` reuses the
   material badge/popover/form unchanged — a claim's `ownerKind` picks the endpoint.
 
-## General courses and their university/faculty versions (migration 0021, 2026-10-14)
+## The course tree: subcourses and university/faculty versions (migrations 0021 and 0022)
 
-Owner: "a default/general course, and subcourses for specific universities and faculties", so
-that "all the materials are in one place". `rules.py` (bottom section) is the whole rule.
+Owner, 2026-10-14: "a default/general course, and subcourses for specific universities and
+faculties". Owner, 2026-10-21: "courses can have their own courses (subcourses) … having
+parent-child relationship." `rules.py` (the tree section) is the whole rule.
 
+- **One column, two relations, read not stored.** `Course.parent` is the course this one is PART
+  OF. `rules.relation_to_parent` reads the two rows: a `university` child of a `topic` parent is a
+  **version** (one university's and faculty's group for the subject); anything else with a parent
+  is a **subcourse** (a part of a course that is a whole course — "Analiza 1" under "Analiza", a lab
+  group under one university's course). `CourseSerializer` carries `parent_relation`,
+  `parent_summary` (`{id, title, kind}`, null when the viewer cannot see the parent) and
+  `ancestors` (root first, cut at the first ancestor the viewer may not open — the breadcrumb).
+  Mirrored as `CourseRelation` / `CourseRef` in `types/course.ts`, `COURSE_RELATION_LABELS` in
+  `labels.ts`.
 - `Course.kind`: `topic` = a GENERAL course (default; every older row) | `university` = one
   university's course. **Mirrored** in `frontend/src/lib/utils/labels.ts` (`COURSE_KIND_LABELS`).
   University fields `university` (required for that kind), `faculty`, `course_code`,
-  `current_term` — all four cleared by `CourseWriteSerializer.validate` on a `topic` row. The
-  identity of a university course is (university, course_code), indexed for the duplicate guard
-  that is the NEXT step and not built; `current_term` is deliberately not identity (terms are meant
-  to live inside one standing course later). The taxonomy Branch is the existing `subjects` M2M —
-  no new column; the form picks one.
-- `Course.parent` → a general course, **one level only**, SET_NULL (deleting a general course
-  leaves its versions standing alone, which is why a top-level `university` course stays valid).
-  A version is always `kind='university'`. Refusal words (`SUBCOURSE_REFUSALS`, mirrored as
-  `SUBCOURSE_REFUSAL_LABELS`): `parent_not_found`, `parent_is_subcourse`, `parent_not_general`,
-  `parent_is_class` (a school class — school mode is a link, not a kind, so a class is still
-  `kind='topic'` and the kind test alone let it through; WP11), `has_subcourses`,
-  `parent_is_self`, `parent_fixed` (the parent is chosen at creation, never moved — moving is left
-  open), `more_visible_than_parent`. Answered as 400 `{parent: [word]}`.
-- **Who may add a version: anybody the creation gate lets found a course and who can see the
-  general course** — not the general course's managers only (a faculty's students need nobody's
-  permission; a version is its own course with its own staff).
+  `current_term` — all four cleared by `CourseWriteSerializer.validate` on a `topic` row. The kind
+  is the client's to send on a child too (the form fixes it to `university` for a version and asks
+  it for a subcourse); nothing is auto-assigned any more.
+- **Nesting to `MAX_COURSE_DEPTH` (4), no loops, never more visible than the parent.**
+  `subcourse_block_reason(user, parent, visibility=, kind=, instance=, placing=)` answers one word
+  (`SUBCOURSE_REFUSALS`, mirrored as `SUBCOURSE_REFUSAL_LABELS`): `parent_not_found`,
+  `parent_is_self`, `parent_is_descendant` (a loop), `parent_is_class` (a school class is neither
+  carved into parts nor given versions — a class's `kind` is still `topic`, so the kind test alone
+  let it through; WP11), `not_parent_staff`, `too_deep` (counts the subtree being moved),
+  `more_visible_than_parent`. Answered as 400 `{parent: [word]}`. `placing` is False when a PATCH
+  touches only `kind`/`visibility` and not the parent — an administrator of a subcourse narrowing
+  it is not asking to place it, so only the rank check runs then.
+- **Who may add a child differs by relation, and that is the point of telling them apart.** A
+  VERSION: anybody the creation gate lets found a course and who can see the general course (a
+  faculty's students need nobody's permission; a version is its own course with its own staff). A
+  SUBCOURSE: somebody who `can_curate` the parent (`not_parent_staff`) — it is the parent's own
+  structure. The new-course page says both before the form (`?parent=<id>&as=subcourse`).
+- **The parent may be MOVED** (2026-10-21; `parent_fixed` is gone): a PATCH of `parent` by the
+  child's administrator, through the same refusals; `null` detaches. The edit form picks the
+  parent with `components/shared/CoursePicker.svelte` (the reader's own courses first, then
+  `GET /api/courses/?q=` as they type; a pasted address or id still resolves in the same box).
+  The same picker is the content editor's "Another course", the post composers' course reference
+  and the organisation link form's course. `components/shared/PersonPicker.svelte` is the staff
+  panel's "who" (the people this account shares a roster with, `GET /api/people/suggestions/`,
+  `config/views.py` → `contests/people.py`; an account id stays as the fallback). Both landed the
+  same afternoon as the tree (owner: "give user a list instead"); `e2e/pickers.mjs` drives them.
 - **Visibility is `rules.visible_courses`**, used by `CourseViewSet.get_queryset` AND
   `_visible_courses` (claims): own rule AND (no parent, or the parent visible to the caller, or the
-  caller is inside the version). The write-time rank check stops a version being MORE visible than
-  its parent; the read-time filter keeps that true after the parent is narrowed later.
-- Filters: `?kind=`, `?university=`, `?faculty=` (iexact), `?parent=<id>`, `?top=true` (no parent — a
-  SHAPE, classes and stand-alone university courses included), `?general=true` (WP12,
-  `rules.general_courses`: `kind='topic'`, no parent, and no active school `runs` it — the MEANING);
-  `?q=` also searches university/faculty/code. The hub's "General courses" chip filters client-side
-  with `labels.ts: isGeneralCourse`, the row-level mirror of `general_courses` (both files say so); it
-  used to test "has no parent" alone and so listed a public class as a general course. The course
-  page mounts the versions panel on the same test. **`?parent=` is not narrowed by content language** — it is a
-  course page's own list, and a detail page never narrows.
-- `GET /courses/{id}/materials/` — "all the materials in one place": approved material items of
-  this course and (on a general course) of its versions the caller can see, minus unopened weeks
-  and unpublished materials, each row naming its course. No new table — `CourseItem` is the link.
-  Honest limit: `Material.branch` is a single required subject, so a material pinned to a general
-  course still belongs to exactly one Branch; nothing here changes that.
-- Frontend: `CourseVersions.svelte` (grouped university → faculty, "Add a university/faculty
-  version" → `/courses/new?parent=`), `CourseMaterialsIndex.svelte`, the hub's
-  General/Versions/All chips + university/faculty selects (client-side over the loaded list).
-  Browser check: `e2e/courses-communities.mjs` (45 checks, tokens not logins).
-- **A school may not start to RUN a version, or a general course with versions** (WP12) —
-  `rules.school_run_block_reason` → `course_is_version` / `course_has_versions`, the other door
-  into the state `parent_is_class` closes. Asked by `organizations/access.py` in two places: a new
-  `runs` link from a school (`link_block_reason`) and a body that already `runs` such a course
-  turning into a school (`kind_change_block_reason`, on the organisation PATCH). Both 409
-  `{detail: word}`; `supports` and every other kind of body are untouched. Mirrored in
-  `labels.ts: ORGANIZATION_BLOCK_LABELS` (the refusal surfaces on the organisation forms). A
-  stand-alone university course (no parent, no versions) is NOT refused — odd for a school, but
-  nothing contradicts itself; that is a decision nobody has taken.
-- Tests: `test_kind.py`; the two WP12 edges in `test_school_mode.py` (`GeneralCourseTests`,
-  `SchoolTakesOnAVersionTests`).
+  caller is inside the child). The write-time rank check stops a child being MORE visible than
+  its parent; the read-time filter keeps that true after the parent is narrowed later. **Honest
+  limit: the filter looks ONE level up** — a grandparent narrowed after the fact hides the parent
+  but not the grandchild; the rank check keeps the chain consistent at every edit, so it only
+  matters after a later narrowing two levels up.
+- Filters: `?kind=`, `?university=`, `?faculty=` (iexact), `?parent=<id>` (ALL of one course's
+  children — versions and subcourses; the row's `parent_relation` tells them apart, and the two
+  panels split the one list), `?top=true` (no parent — a SHAPE), `?general=true` (WP12,
+  `rules.general_courses`: `kind='topic'`, no parent, no active school `runs` it — the MEANING;
+  a subcourse has a parent and is therefore not listed as general on the hub); `?q=` also
+  searches university/faculty/code. The hub's "General courses" chip filters client-side with
+  `labels.ts: isGeneralCourse`, the row-level mirror. **`?parent=` is not narrowed by content
+  language** — it is a course page's own list, and a detail page never narrows.
+- `rules.descendant_ids(course)` — the whole subtree as ids, one query per level, bounded by the
+  cap. Asked by `GET /courses/{id}/materials/` ("all the materials in one place" now gathers the
+  whole subtree the caller can see, each row naming its course), by the cycle guard, and by
+  `activity.PostViewSet.list?course=` (the course board, below). Honest limit as before:
+  `Material.branch` is a single required subject.
+- Frontend: `CourseVersions.svelte` (versions only, grouped university → faculty, "Add a
+  university/faculty version" → `/courses/new?parent=`; mounted on every `topic` course that is not
+  a class, since a subcourse may have universities' versions of its own), `CourseSubcourses.svelte`
+  (subcourses, "Add a subcourse" for curators → `/courses/new?parent=&as=subcourse`; mounted on
+  every course but a class; hidden when empty for a reader who may not add), the breadcrumb
+  (`[data-course-trail]`) and the "Subcourse" pill on the page, `CourseForm`'s `as` prop and its
+  move field, `CourseMaterialsIndex.svelte`, the hub's chips. Browser check:
+  `e2e/subcourses-and-board.mjs` (27 checks, tokens not logins) alongside
+  `e2e/courses-communities.mjs` (45).
+- **A school may not start to RUN a course in the tree** (WP12, widened 2026-10-21) —
+  `rules.school_run_block_reason` → `course_is_version` / `course_is_subcourse` /
+  `course_has_versions` (the last now means "has children of either relation"; the word is kept
+  because it is mirrored on the organisation form). Asked by `organizations/access.py` in two
+  places (a new `runs` link; a body turning into a school while it `runs` courses), both 409
+  `{detail: word}`. Mirrored in `labels.ts: ORGANIZATION_BLOCK_LABELS`.
+- Tests: `test_kind.py` (kinds and versions), `test_subcourses.py` (the tree: staff rule, depth,
+  loops, moving, the trail, the materials index), the WP12 edges in `test_school_mode.py`.
+
+## The course board (2026-10-21)
+
+Owner: "some sort of discussion board (maybe lets utilize current portal's tags page for that) for
+people to be able to post pdfs, imgs, notes, comments, links, etc, and link and be linked to
+specific courses/subcourses." **No new table.** A board post IS an `activity.Post` — the thing the
+tag page lists and `/ask` writes — with its existing `ref_course` set. This app adds nothing but the
+`post` item kind above; the reading is `GET /api/posts/?course=<id>` (activity/, the course plus
+`descendant_ids`), the writing is `/ask?course=<id>` (sets the reference), and files, pictures,
+notes and links on a post are `attachments/` rows with the `post` target kind. The course page's
+Board tab (`CourseBoard.svelte`, behind `posts`) is a view of those posts, each row naming the
+subcourse it is about when it is not this course's own.
 
 ## School mode — a class is a course a school runs (learning step C, 2026-10-05)
 
@@ -210,5 +253,6 @@ would have refused.
 `manage.py test courses`. E2E: `classroom.mjs`, `classroom-overhaul.mjs`, `course-tabs.mjs`,
 `course-search.mjs`, `course-add-chapter.mjs`, `course-lessons-linking.mjs`,
 `course-content-links.mjs`, `course-claims.mjs` (names still say "classroom" — that's just history),
+`subcourses-and-board.mjs` (the tree, the three outside item kinds, the board),
 `school-mode.mjs` (needs `seed_school_demo` run against the backend it drives; its deck POST is
 mocked because learning step A owns `/api/decks/`).

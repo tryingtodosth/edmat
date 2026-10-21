@@ -18,6 +18,14 @@ export type CourseStatus = 'open' | 'running' | 'finished';
 /** A community around a general topic, or the companion to one specific university course.
  *  Mirrors `backend/courses/models.py: COURSE_KIND_CHOICES` (labels in `utils/labels.ts`). */
 export type CourseKind = 'topic' | 'university';
+/** Mirrors `backend/courses/rules.py: relation_to_parent` (house rule 13). */
+export type CourseRelation = 'version' | 'subcourse';
+/** A course named in another course's payload — its parent, its ancestors. */
+export interface CourseRef {
+	id: string;
+	title: string;
+	kind: CourseKind;
+}
 export type EnrollmentPolicy = 'open' | 'approval';
 /** Who may READ the thread. Posting is always restricted to the people in the course — "anyone may
  * read" is a reasonable thing for an instructor to want, "anyone may post" is not. */
@@ -118,7 +126,10 @@ export interface CourseStaffMember {
 /** The five things a course can point at. A reader needs to know which before clicking: a corpus
  * material, a corpus exercise, a file belonging to this course, a one-off event, or a discussion —
  * the thread that already answered this week's question, wherever it happens to have been asked. */
-export type CourseItemKind = 'material' | 'exercise' | 'attachment' | 'event' | 'discussion';
+/** Mirrors `backend/courses/models.py: ITEM_KINDS` (house rule 13). The last three joined on
+ * 2026-10-21: another EdMat course, an address outside EdMat, a board post. */
+export type CourseItemKind =
+	'material' | 'exercise' | 'attachment' | 'event' | 'discussion' | 'course' | 'link' | 'post';
 
 export interface CourseItem {
 	id: string;
@@ -137,6 +148,14 @@ export interface CourseItem {
 	 * server can resolve which that is, so it says so rather than the client guessing. */
 	discussionTargetType: CommentTargetType | '';
 	discussionTargetId: string;
+	/** Another EdMat course (kind `course`) — null on every other kind. */
+	linkedCourse: string | null;
+	/** An address outside EdMat (kind `link`), http(s) only, with the curator's title for it; both
+	 * empty on every other kind. */
+	linkUrl: string;
+	linkTitle: string;
+	/** A board post (kind `post`) — null on every other kind. */
+	post: string | null;
 	/** Enough to recognise the thing without a second request — a material's resolved title, an
 	 * exercise's subject-and-number (the only name an exercise has ever had here), an attachment's
 	 * or event's own plain title, or the opening words of a linked thread, which is what a reader
@@ -369,10 +388,17 @@ export interface Course {
 	subjectSlugs: string[];
 	fieldSlug: string | null;
 	kind: CourseKind;
-	/** The general course this is a university/faculty version of — one level only. */
+	/** The course this one is PART OF — a university/faculty version of a general course, or a
+	 *  subcourse of any course (`backend/courses/rules.py`, the tree section). */
 	parent: string | null;
-	/** `{id, title}` of the parent, or null when there is none OR this viewer cannot see it. */
-	parentSummary: { id: string; title: string } | null;
+	/** `{id, title, kind}` of the parent, or null when there is none OR this viewer cannot see it. */
+	parentSummary: CourseRef | null;
+	/** What this course is to its parent, read by the server from the two rows: a `version` is a
+	 *  university course under a general one; anything else with a parent is a `subcourse`. */
+	parentRelation: CourseRelation | null;
+	/** The chain above this course, root first — the breadcrumb. Cut at the first ancestor the
+	 *  viewer may not open. Empty for a root. */
+	ancestors: CourseRef[];
 	/** Blank on a `topic` course — the server clears all four there. */
 	university: string;
 	faculty: string;
@@ -458,7 +484,9 @@ export interface TaughtCourseDraft {
 	subjects: string[];
 	field: string | null;
 	kind: CourseKind;
-	/** Set only when creating a university/faculty version; fixed afterwards (server: `parent_fixed`). */
+	/** The course this one goes under — a version or a subcourse (`backend/courses/rules.py`). An
+	 *  administrator may move a course under another parent later; the server answers a refusal
+	 *  with one of `SUBCOURSE_REFUSAL_LABELS`' words. */
 	parent: string | null;
 	university: string;
 	faculty: string;

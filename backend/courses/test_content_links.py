@@ -304,3 +304,98 @@ class ChapterExerciseSetTests(ContentLinkTestCase):
         link = LessonExerciseSet.objects.get(pk=link_id)
         self.assertEqual(link.chapter_id, self.chapter.pk)
         self.assertIsNone(link.lesson_id)
+
+
+class CourseLinkAndPostItemTests(ContentLinkTestCase):
+    """The three item kinds of 2026-10-21 (owner: "external courses, from edmat itself or as a
+    link, linked to course's content"; a board post "linked to specific courses"): another EdMat
+    course, an address outside EdMat, a board post. Refusals first."""
+
+    def items_url(self):
+        return f'/api/courses/{self.course.pk}/items/'
+
+    def post_item(self, payload, client=None):
+        payload = {'chapter': self.chapter.pk, **payload}
+        return (client or self.as_(self.instructor)).post(self.items_url(), payload, format='json')
+
+    def make_other_course(self, **over):
+        fields = dict(
+            instructor=self.student, title='Algebra', visibility='public', status='open'
+        )
+        fields.update(over)
+        return Course.objects.create(**fields)
+
+    def test_another_course_becomes_an_item_with_its_title_as_the_label(self):
+        other = self.make_other_course()
+        res = self.post_item({'linked_course': other.pk, 'note': 'Do weeks 1–3 first'})
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data['kind'], 'course')
+        self.assertEqual(res.data['linked_course'], other.pk)
+        self.assertEqual(res.data['label'], 'Algebra')
+        # Once per course.
+        again = self.post_item({'linked_course': other.pk})
+        self.assertEqual(again.status_code, 400)
+        self.assertEqual(again.data['detail'], 'already_in_course')
+
+    def test_a_course_may_not_point_at_itself_nor_at_one_the_curator_cannot_see(self):
+        self_ref = self.post_item({'linked_course': self.course.pk})
+        self.assertEqual(self_ref.status_code, 400)
+        self.assertEqual(self_ref.data['linked_course'], ['is_self'])
+        hidden = self.make_other_course(visibility='only_you')
+        res = self.post_item({'linked_course': hidden.pk})
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.data['linked_course'], ['not_found'])
+
+    def test_a_linked_course_that_goes_private_is_dropped_for_participants_not_curators(self):
+        other = self.make_other_course()
+        item_id = self.post_item({'linked_course': other.pk}).data['id']
+        self.as_(self.student).post(f'/api/courses/{self.course.pk}/enrol/')
+        reader = User.objects.create_user('reader', 'reader@x.example', 'pw12345!')
+        self.as_(reader).post(f'/api/courses/{self.course.pk}/enrol/')
+        listed = lambda user: [row['id'] for row in self.as_(user).get(self.items_url()).data]
+        self.assertIn(item_id, listed(reader))
+        other.visibility = 'only_you'
+        other.save(update_fields=['visibility'])
+        self.assertNotIn(item_id, listed(reader))
+        self.assertIn(item_id, listed(self.instructor))
+
+    def test_an_outside_link_is_kept_as_typed_http_s_only_and_labelled_by_its_title(self):
+        res = self.post_item({'link_url': 'https://ocw.mit.edu/18-01', 'link_title': 'MIT 18.01'})
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data['kind'], 'link')
+        self.assertEqual(res.data['link_url'], 'https://ocw.mit.edu/18-01')
+        self.assertEqual(res.data['label'], 'MIT 18.01')
+        untitled = self.post_item({'link_url': 'https://example.org/notes'})
+        self.assertEqual(untitled.data['label'], 'https://example.org/notes')
+        refused = self.post_item({'link_url': 'ftp://example.org/notes'})
+        self.assertEqual(refused.status_code, 400)
+        self.assertIn('link_url', refused.data)
+        dup = self.post_item({'link_url': 'https://ocw.mit.edu/18-01'})
+        self.assertEqual(dup.data['detail'], 'already_in_course')
+
+    def test_a_board_post_becomes_an_item_and_leaves_with_its_tombstone(self):
+        from activity.models import Post
+        from exercises.models import Tag
+
+        tag = Tag.objects.create(slug='analiza')
+        post = Post.objects.create(author=self.student, body='Which norm do we use in week 2?', tag=tag)
+        res = self.post_item({'post': post.pk})
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data['kind'], 'post')
+        self.assertEqual(res.data['label'], 'Which norm do we use in week 2?')
+        reader = User.objects.create_user('reader', 'reader@x.example', 'pw12345!')
+        self.as_(reader).post(f'/api/courses/{self.course.pk}/enrol/')
+        listed = lambda user: [row['id'] for row in self.as_(user).get(self.items_url()).data]
+        self.assertIn(res.data['id'], listed(reader))
+        post.is_removed = True
+        post.save(update_fields=['is_removed'])
+        self.assertNotIn(res.data['id'], listed(reader))
+        self.assertIn(res.data['id'], listed(self.instructor))
+        # And a removed post cannot be filed in the first place.
+        refused = self.post_item({'post': post.pk, 'chapter': None})
+        self.assertEqual(refused.status_code, 400)
+
+    def test_two_targets_at_once_are_refused(self):
+        other = self.make_other_course()
+        res = self.post_item({'linked_course': other.pk, 'link_url': 'https://example.org'})
+        self.assertEqual(res.status_code, 400)

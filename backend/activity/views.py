@@ -196,9 +196,11 @@ class PostViewSet(viewsets.GenericViewSet):
         from config.content_locale import apply_content_locale_filter
 
         slug = (request.query_params.get('tag') or '').strip()
-        if not slug:
+        course_param = (request.query_params.get('course') or '').strip()
+        if not slug and not course_param:
             return Response(
-                {'tag': ['Name the tag whose posts to list.']}, status=status.HTTP_400_BAD_REQUEST
+                {'tag': ['Name the tag, or the course, whose posts to list.']},
+                status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             before_id = int(request.query_params.get('before', '') or 0) or None
@@ -208,9 +210,27 @@ class PostViewSet(viewsets.GenericViewSet):
             limit = int(request.query_params.get('limit', '') or 20)
         except ValueError:
             limit = 20
-        qs = self.get_queryset().filter(
-            tag__slug=slug, tag__is_removed=False, is_removed=False, auto_hidden_at__isnull=True
-        )
+        qs = self.get_queryset().filter(is_removed=False, auto_hidden_at__isnull=True)
+        if slug:
+            qs = qs.filter(tag__slug=slug, tag__is_removed=False)
+        if course_param:
+            # `?course=<id>` — the course BOARD (2026-10-21): every post that references this
+            # course or one under it (its versions and subcourses, any depth —
+            # `courses.rules.descendant_ids`), newest first, each row naming the course it is
+            # about. The course itself must be one the caller may see; otherwise 404, as every
+            # course read answers a stranger (house rule 4). Combinable with `?tag=` — a tag's
+            # posts about one course.
+            from courses import rules as course_rules
+            from courses.models import Course
+
+            course = (
+                course_rules.visible_courses(Course.objects.filter(pk=course_param), request.user).first()
+                if course_param.isdigit()
+                else None
+            )
+            if course is None:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            qs = qs.filter(ref_course_id__in=[course.pk, *course_rules.descendant_ids(course)])
         qs, hidden = apply_content_locale_filter(qs, request.query_params, 'language')
         if before_id:
             qs = qs.filter(id__lt=before_id)
@@ -231,11 +251,31 @@ class PostViewSet(viewsets.GenericViewSet):
             .annotate(n=Count('id'))
             .values_list('object_id', 'n')
         )
+        # And the same one grouped COUNT for what is attached (files, pictures, notes, links —
+        # `attachments/`), so a board row can say it carries something before it is opened.
+        from attachments.models import Attachment
+
+        attachment_counts = dict(
+            Attachment.objects.filter(
+                content_type=ContentType.objects.get_for_model(Post),
+                object_id__in=[post.pk for post in posts],
+                visibility='public',
+                replaced_by__isnull=True,
+                removed_at__isnull=True,
+            )
+            .values('object_id')
+            .annotate(n=Count('id'))
+            .values_list('object_id', 'n')
+        )
         response = Response(
             PostSerializer(
                 posts,
                 many=True,
-                context={'request': request, 'comment_counts': comment_counts},
+                context={
+                    'request': request,
+                    'comment_counts': comment_counts,
+                    'attachment_counts': attachment_counts,
+                },
             ).data
         )
         response[HIDDEN_HEADER] = str(hidden)

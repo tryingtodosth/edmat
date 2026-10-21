@@ -354,9 +354,9 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def materials(self, request, pk=None):
-        """Every material this course links to — AND, on a general course, every material its
-        university/faculty versions link to — in one flat list, each row saying which course it
-        came from.
+        """Every material this course links to — AND every material the courses under it (its
+        university/faculty versions and its subcourses, any depth) link to — in one flat list, each
+        row saying which course it came from.
 
         Honest about what it leaves out: only APPROVED items (a pending offer is the reviewing
         staff's business), only versions THIS viewer can see (`rules.visible_courses` again, via
@@ -366,11 +366,13 @@ class CourseViewSet(viewsets.ModelViewSet):
         between a course and a material is the `CourseItem` it always was.
         """
         course = self.get_object()
-        courses = [course]
-        if course.parent_id is None:
-            courses += list(
-                rules.visible_courses(Course.objects.filter(parent=course), request.user)
+        # The whole subtree the viewer may see (2026-10-21: subcourses as well as versions, any
+        # depth), not only the direct versions of a root.
+        courses = [course] + list(
+            rules.visible_courses(
+                Course.objects.filter(pk__in=rules.descendant_ids(course)), request.user
             )
+        )
         now = timezone.now()
         items = (
             CourseItem.objects.filter(

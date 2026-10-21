@@ -56,6 +56,9 @@ export interface Post {
 	isRemoved: boolean;
 	isAutoHidden: boolean;
 	commentCount: number;
+	/** Files, pictures, notes and links hung on the post (`attachments/`, 2026-10-21) — the
+	 * public, current ones. */
+	attachmentCount: number;
 	createdAt: string;
 	/** Only on the answer to creating a post with a tag NAME (WP16): true when that name made a new
 	 * tag, false when it folded to one that already existed. Absent everywhere else. */

@@ -123,6 +123,9 @@ class UniversityVersionTests(ApiTestCase):
         body = {
             'title': 'AM2 na MIM',
             'parent': parent.pk,
+            # Sent explicitly since 2026-10-21: a child's kind is the client's to say (a `topic`
+            # child is a SUBCOURSE and takes the parent's staff), and the form sends it.
+            'kind': 'university',
             'university': 'Uniwersytet Warszawski',
             'faculty': 'MIM',
             'visibility': 'public',
@@ -132,10 +135,14 @@ class UniversityVersionTests(ApiTestCase):
 
     def test_anyone_who_may_found_a_course_may_add_a_version_and_it_is_a_university_course(self):
         general = self.make_course(title='Analiza 2')
-        res = self.make_version(general, kind='topic')
+        res = self.make_version(general)
         self.assertEqual(res.status_code, 201, res.data)
         self.assertEqual(res.data['parent'], general.pk)
-        self.assertEqual(res.data['parent_summary'], {'id': general.pk, 'title': 'Analiza 2'})
+        self.assertEqual(
+            res.data['parent_summary'], {'id': general.pk, 'title': 'Analiza 2', 'kind': 'topic'}
+        )
+        self.assertEqual(res.data['parent_relation'], 'version')
+        self.assertEqual(res.data['ancestors'], [{'id': general.pk, 'title': 'Analiza 2', 'kind': 'topic'}])
         self.assertEqual(res.data['kind'], 'university')
         self.assertEqual(res.data['faculty'], 'MIM')
         # Its own course, run by whoever made it — not by the general course's owner.
@@ -147,18 +154,27 @@ class UniversityVersionTests(ApiTestCase):
         self.assertEqual(res.status_code, 400)
         self.assertIn('university', res.data)
 
-    def test_one_level_only(self):
+    def test_a_version_under_a_version_is_a_subcourse_and_takes_the_parents_staff(self):
+        # Until 2026-10-21 this was `parent_is_subcourse` ("one level only"). A course under a
+        # university course is now a SUBCOURSE of it — one university's lab group — which the
+        # parent's own staff may add and a stranger may not (`not_parent_staff`); `test_subcourses`
+        # has the tree itself.
         general = self.make_course()
         version = Course.objects.get(pk=self.make_version(general).data['id'])
         res = self.make_version(version, client=self.as_(self.other))
         self.assertEqual(res.status_code, 400)
-        self.assertEqual(res.data['parent'], ['parent_is_subcourse'])
+        self.assertEqual(res.data['parent'], ['not_parent_staff'])
+        ok = self.make_version(version, client=self.as_(self.student), title='Grupa 3')
+        self.assertEqual(ok.status_code, 201, ok.data)
+        self.assertEqual(ok.data['parent_relation'], 'subcourse')
 
-    def test_versions_hang_under_a_general_course_only(self):
+    def test_a_university_course_under_a_standalone_university_course_is_a_subcourse(self):
+        # Was `parent_not_general` before the tree: "a version of one university's course means
+        # nothing" is still true, and the row is now read as a subcourse instead.
         standalone = self.make_course(kind='university', university='UW')
-        res = self.make_version(standalone)
-        self.assertEqual(res.status_code, 400)
-        self.assertEqual(res.data['parent'], ['parent_not_general'])
+        res = self.make_version(standalone, client=self.as_(self.instructor))
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data['parent_relation'], 'subcourse')
 
     def test_a_version_cannot_be_more_visible_than_its_parent(self):
         general = self.make_course(visibility='private', title='Unlisted')
@@ -179,15 +195,23 @@ class UniversityVersionTests(ApiTestCase):
         self.assertEqual(res.status_code, 400)
         self.assertEqual(res.data['parent'], ['parent_not_found'])
 
-    def test_the_parent_is_fixed_after_creation(self):
+    def test_a_version_may_be_moved_to_another_general_course_by_its_administrator(self):
+        # `parent_fixed` until 2026-10-21; moving is the tree's own feature now and the same
+        # refusals apply at the new place (`test_subcourses` has the rest of them).
         general = self.make_course()
         other_general = self.make_course(title='Other')
         version = self.make_version(general)
         res = self.as_(self.student).patch(
             f"/api/courses/{version.data['id']}/", {'parent': other_general.pk}, format='json'
         )
-        self.assertEqual(res.status_code, 400)
-        self.assertEqual(res.data['parent'], ['parent_fixed'])
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['parent'], other_general.pk)
+        self.assertEqual(res.data['parent_relation'], 'version')
+        # A stranger to the version cannot move it: the PATCH itself is 404 for them.
+        res = self.as_(self.other).patch(
+            f"/api/courses/{version.data['id']}/", {'parent': general.pk}, format='json'
+        )
+        self.assertEqual(res.status_code, 404)
 
     def test_narrowing_the_parent_hides_its_versions_from_strangers_but_not_from_members(self):
         general = self.make_course()

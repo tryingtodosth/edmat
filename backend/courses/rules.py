@@ -237,36 +237,124 @@ def can_read_completion(user, completion) -> bool:
     return completion.course.is_staff_member(user)
 
 
-# ---- general courses and their university/faculty versions (owner, 2026-10-14) ---------------------
+# ---- the course tree: subcourses and university/faculty versions (owner, 2026-10-14 / 2026-10-21) --
 #
-# "A default/general course, and subcourses for specific universities and faculties." A course may
-# have a `parent` — ONE level only: a general course ("Analiza matematyczna 2", a community around
-# the subject, no university) and under it the versions for one university and faculty ("UW · MIM ·
-# 1000-112bAM2"). Every rule about that shape is here, asked by the serializer and the viewsets
-# (root CLAUDE.md boundary 2); the frontend mirrors the refusal words in
+# 2026-10-14: "A default/general course, and subcourses for specific universities and faculties."
+# 2026-10-21: "courses can have their own courses (subcourses) … having parent-child relationship."
+#
+# One column answers both: `Course.parent` is the course this one is PART OF, and the relation a
+# child has to its parent is READ from the two rows rather than stored (`relation_to_parent`):
+#
+# - a **version** — a `university` course under a `topic` (general) course: one university's and
+#   faculty's own group for the subject ("UW · MIM · 1000-112bAM2" under "Analiza matematyczna 2");
+# - a **subcourse** — anything else: a part of a course that is itself a whole course, with its own
+#   staff, roster, weeks and board ("Analiza 1" and "Analiza 2" under "Analiza", or a lab group under
+#   one university's course).
+#
+# The tree may nest (`MAX_COURSE_DEPTH` levels, counted from a root), may not loop, and a child is
+# never more visible than its parent. Every rule about the shape is here, asked by the serializer
+# and the viewsets (root CLAUDE.md boundary 2); the frontend mirrors the refusal words in
 # `frontend/src/lib/utils/labels.ts` (`SUBCOURSE_REFUSAL_LABELS`) — house rule 13.
 #
-# **Who may add a version: anyone the creation gate lets found a course** (`config/creation.py`,
-# asked by `CourseViewSet.create` before this module is) **and who can see the general course.**
-# Deliberately NOT the general course's managers only: the students of one faculty should not need
-# a stranger's permission to gather their course's materials, and a version is its own course with
-# its own staff, roster and moderation — it adds nothing to the parent's content and takes nothing
-# from it. What the parent's managers keep is everything that is theirs: the parent itself.
+# **Who may add a child differs by relation, and that is the point of telling them apart.**
+# A VERSION may be added by anyone the creation gate lets found a course (`config/creation.py`,
+# asked by `CourseViewSet.create` before this module is) and who can see the general course —
+# deliberately NOT the general course's managers only: the students of one faculty should not need
+# a stranger's permission to gather their course's materials, and a version is its own course that
+# adds nothing to the parent's content and takes nothing from it. A SUBCOURSE is the parent's own
+# structure — "week 1–7 is Analiza 1" is a statement about the parent — so it takes somebody who
+# curates the parent (`not_parent_staff`). A stranger may still open a version under a public
+# course; they may not carve somebody else's course into parts.
 
-#: Visibility, narrowest first — a version may never be MORE visible than its general course.
+#: Visibility, narrowest first — a child may never be MORE visible than its parent.
 VISIBILITY_RANK = {'only_you': 0, 'private': 1, 'public': 2}
+
+#: How deep the tree goes, counted in rows from a root (a root alone is depth 1). Four levels is
+#: "course › part › subpart › a university's group of that", which is already more than anybody
+#: asked for; the cap exists so that a walk up or down the tree is bounded by construction.
+MAX_COURSE_DEPTH = 4
 
 #: The refusal words `subcourse_block_reason` answers with. Mirrored in labels.ts.
 SUBCOURSE_REFUSALS = (
     'parent_not_found',
-    'parent_is_subcourse',
-    'parent_not_general',
-    'parent_is_class',
-    'has_subcourses',
     'parent_is_self',
-    'parent_fixed',
+    'parent_is_descendant',
+    'parent_is_class',
+    'not_parent_staff',
+    'too_deep',
     'more_visible_than_parent',
 )
+
+
+def relation_to_parent(course) -> str | None:
+    """`'version'`, `'subcourse'`, or None for a root. Read from the two rows, never stored:
+    a version is a `university` course under a `topic` one, and everything else with a parent is a
+    subcourse. `CourseSerializer.parent_relation` carries it; the course page draws the two lists
+    from it and `labels.ts` names them."""
+    parent = course.parent if course.parent_id is not None else None
+    if parent is None:
+        return None
+    if course.kind == 'university' and parent.kind == 'topic':
+        return 'version'
+    return 'subcourse'
+
+
+def ancestors_of(course) -> list:
+    """The chain above a course, ROOT FIRST, bounded by `MAX_COURSE_DEPTH` so that a loop the
+    database somehow holds (the API refuses one) can never hang a request."""
+    chain = []
+    seen = {course.pk}
+    node = course.parent if course.parent_id is not None else None
+    while node is not None and node.pk not in seen and len(chain) < MAX_COURSE_DEPTH:
+        chain.append(node)
+        seen.add(node.pk)
+        node = node.parent if node.parent_id is not None else None
+    chain.reverse()
+    return chain
+
+
+def depth_of(course) -> int:
+    """1 for a root, 2 for its child, and so on."""
+    return len(ancestors_of(course)) + 1
+
+
+def descendant_ids(course, *, max_depth: int = MAX_COURSE_DEPTH) -> list[int]:
+    """Every course under this one, any depth, as ids — breadth first, this course NOT included.
+    One query per level rather than one per row; the cap bounds it. Used by the course board
+    (`activity.PostViewSet.list?course=`), the materials index and the cycle guard below."""
+    from .models import Course
+
+    found: list[int] = []
+    frontier = [course.pk]
+    seen = {course.pk}
+    for _level in range(max_depth):
+        children = list(
+            Course.objects.filter(parent_id__in=frontier).values_list('pk', flat=True)
+        )
+        children = [pk for pk in children if pk not in seen]
+        if not children:
+            break
+        seen.update(children)
+        found.extend(children)
+        frontier = children
+    return found
+
+
+def subtree_height(course) -> int:
+    """1 for a leaf, 2 for a course with children, … — how much room the thing being moved takes
+    up below the parent it is moved under."""
+    from .models import Course
+
+    height = 1
+    frontier = [course.pk]
+    for _level in range(MAX_COURSE_DEPTH):
+        frontier = list(
+            Course.objects.filter(parent_id__in=frontier).values_list('pk', flat=True)
+        )
+        if not frontier:
+            break
+        height += 1
+    return height
 
 
 def visible_courses(qs, user):
@@ -274,12 +362,16 @@ def visible_courses(qs, user):
     viewset's lookup alike (house rule 4 — visibility is a queryset filter).
 
     A course is visible when it is listed (`public`), or the caller runs it or is an active
-    participant — and, for a version under a general course, ALSO only when its parent is visible
-    to the caller by the same tests. That second half is what keeps "never more visible than its
-    parent" true after the parent's owner narrows the parent: the write-time check
+    participant — and, for a course under a parent, ALSO only when its parent is visible to the
+    caller by the same tests. That second half is what keeps "never more visible than its parent"
+    true after the parent's owner narrows the parent: the write-time check
     (`subcourse_block_reason`) cannot see the future, the read-time filter does not need to. People
-    inside the version itself still reach it — they are in it, and a parent going private must not
+    inside the child itself still reach it — they are in it, and a parent going private must not
     lock a faculty's group out of its own course.
+
+    Honest limit: the filter looks ONE level up. A grandparent narrowed after the fact hides the
+    parent but not the grandchild, whose own parent row still says `public`. A filter cannot walk
+    an unbounded chain; the write-time rank check keeps the chain consistent at every edit.
     """
     from django.db.models import Q
 
@@ -310,39 +402,49 @@ def course_visible_to(user, course) -> bool:
     return visible_courses(Course.objects.filter(pk=course.pk), user).exists()
 
 
-def subcourse_block_reason(user, parent, *, visibility, instance=None) -> str | None:
-    """Why `user` may not have a course under `parent` with this `visibility` — or None.
+def subcourse_block_reason(
+    user, parent, *, visibility, kind, instance=None, placing=True
+) -> str | None:
+    """Why `user` may not have a course of this `kind` and `visibility` under `parent` — or None.
+    Asked on create and on a PATCH that touches the parent, the kind or the visibility
+    (`instance` is then the course being edited). `placing` is False when the parent is NOT being
+    set by this request — an administrator of a subcourse narrowing its visibility is not asking
+    to place it anywhere, so only the rank check is asked then (and `parent_is_self`). One word each
+    (house rule 6):
 
-    One word each (house rule 6):
       - `parent_is_self`;
-      - `parent_not_found` — the caller cannot see the general course (as good as absent);
-      - `parent_is_subcourse` — one level only: a version cannot have versions;
-      - `parent_not_general` — versions hang under a GENERAL (`topic`) course; a stand-alone
-        university course is already one university's, so "a version of it" means nothing;
+      - `parent_not_found` — the caller cannot see the parent (as good as absent);
+      - `parent_is_descendant` — the parent is already under the course being moved: a loop;
       - `parent_is_class` — a school class (a course an active school `runs`, `is_school_course`
-        above) is one school's group of pupils, not a general course about a subject, so "a
-        university/faculty version" of it means nothing. Asked separately from `parent_not_general`
-        because a class's `kind` is still the default `topic` (school mode is a link, not a kind),
-        so the kind test alone lets it through — which is how a class came to read "A general
-        course" and offer versions (WP11);
-      - `has_subcourses` — a course that already has versions cannot itself become one;
-      - `more_visible_than_parent` — e.g. a public version of an unlisted general course, which
-        would publish the existence of something its owner chose not to list.
-    (`parent_fixed` is answered by the serializer: the parent is chosen at creation and not moved
-    afterwards — moving a version between general courses is left open.)
+        above) is one school's group of pupils; it is neither carved into parts nor given
+        university versions. Asked by its own word because a class's `kind` is still the default
+        `topic` (school mode is a link, not a kind), so no kind test sees it (WP11);
+      - `not_parent_staff` — a SUBCOURSE is the parent's own structure and takes somebody who
+        curates the parent; a VERSION needs only to see it (the note at the top of this section);
+      - `too_deep` — the result would be deeper than `MAX_COURSE_DEPTH`, counting what the moved
+        course already carries beneath it;
+      - `more_visible_than_parent` — e.g. a public child of an unlisted course, which would
+        publish the existence of something its owner chose not to list.
     """
     if instance is not None and parent.pk == instance.pk:
         return 'parent_is_self'
-    if not course_visible_to(user, parent):
-        return 'parent_not_found'
-    if parent.parent_id is not None:
-        return 'parent_is_subcourse'
-    if parent.kind != 'topic':
-        return 'parent_not_general'
-    if is_school_course(parent) is not None:
-        return 'parent_is_class'
-    if instance is not None and instance.subcourses.exists():
-        return 'has_subcourses'
+    if placing:
+        # The words about PLACING. An edit that leaves the parent alone skips them all: a child's
+        # administrator who cannot see the parent any more (it went private, they were never on
+        # its staff) must still be able to narrow their own course — the one PATCH that makes the
+        # rank rule true again.
+        if not course_visible_to(user, parent):
+            return 'parent_not_found'
+        if instance is not None and parent.pk in descendant_ids(instance):
+            return 'parent_is_descendant'
+        if is_school_course(parent) is not None:
+            return 'parent_is_class'
+        is_version = kind == 'university' and parent.kind == 'topic'
+        if not is_version and not parent.can_curate(user):
+            return 'not_parent_staff'
+        below = subtree_height(instance) if instance is not None else 1
+        if depth_of(parent) + below > MAX_COURSE_DEPTH:
+            return 'too_deep'
     if VISIBILITY_RANK.get(visibility, 0) > VISIBILITY_RANK.get(parent.visibility, 0):
         return 'more_visible_than_parent'
     return None
@@ -353,7 +455,7 @@ def subcourse_block_reason(user, parent, *, visibility, instance=None) -> str | 
 # Two edges WP11 left. School mode is a `runs` LINK, not a kind (top of this module), so a class is
 # still `kind='topic'`, `parent=None` — which is exactly the shape of a general course. Every place
 # that asks "is this a general course" therefore has to ask about the school as well, and every
-# place that makes a course a class has to ask about versions. Both questions live here.
+# place that makes a course a class has to ask about the tree.
 
 
 def general_courses(qs):
@@ -361,10 +463,11 @@ def general_courses(qs):
     hub's "General courses" chip.
 
     A general course is `kind='topic'`, has no parent, and is not a school class. Each half rules
-    out one thing that has the other two: a version (it has a parent), a stand-alone university
-    course (it is one university's, `kind='university'`), and a class (an active school `runs` it —
-    one school's group of pupils, not a community around a subject). The third is the one that used
-    to slip through, because without the `organizations` table a class's row is indistinguishable
+    out one thing that has the other two: a child (it has a parent — a version or a subcourse; the
+    hub lists roots and a course page lists what is under it), a stand-alone university course (it
+    is one university's, `kind='university'`), and a class (an active school `runs` it — one
+    school's group of pupils, not a community around a subject). The third is the one that used to
+    slip through, because without the `organizations` table a class's row is indistinguishable
     from a general course's; the hub's chip filtered on "has no parent" alone (WP12).
 
     **Mirrored** row by row in `frontend/src/lib/utils/labels.ts: isGeneralCourse`, which the hub
@@ -379,7 +482,7 @@ def general_courses(qs):
 #: The refusal words `school_run_block_reason` answers with. Mirrored in
 #: `frontend/src/lib/utils/labels.ts` (`ORGANIZATION_BLOCK_LABELS` — the refusal surfaces on the
 #: organisation's link form, so it reads from that table; house rule 13).
-SCHOOL_RUN_REFUSALS = ('course_is_version', 'course_has_versions')
+SCHOOL_RUN_REFUSALS = ('course_is_version', 'course_is_subcourse', 'course_has_versions')
 
 
 def makes_a_class(organization_kind: str, link_kind: str) -> bool:
@@ -390,26 +493,31 @@ def makes_a_class(organization_kind: str, link_kind: str) -> bool:
 
 def school_run_block_reason(course) -> str | None:
     """Why a school may not start to RUN this course (a `runs` link, which makes it a class) — or
-    None. The other half of `parent_is_class`: that word stops a version being made UNDER a class;
-    this stops a course that is already in the general/version shape becoming a class afterwards.
+    None. The other half of `parent_is_class`: that word stops a child being made UNDER a class;
+    this stops a course that is already in the tree becoming a class afterwards.
 
       - `course_is_version` — it is one university's/faculty's version of a general course. A class
         is one school's group of pupils; a version is one faculty's companion to a subject. A row
         cannot be both without the general course's page listing a school class among its
         university versions, under a university and faculty that are not the school's.
-      - `course_has_versions` — it is a general course with versions under it. Making it a class
-        would turn every one of those faculty groups into "a version of a school class", the exact
-        state `parent_is_class` exists to prevent, reached from the other side.
+      - `course_is_subcourse` — it is a part of another course (2026-10-21). A class run by a school
+        inside somebody else's course would put the school's pupils under a parent whose staff the
+        school did not choose.
+      - `course_has_versions` — it has courses under it (versions or subcourses). Making it a class
+        would turn every one of them into "a part of a school class", the exact state
+        `parent_is_class` exists to prevent, reached from the other side. The word predates
+        subcourses and is kept: it is mirrored on the organisation form, and what it refuses has
+        not changed, only widened.
 
     Asked by `organizations.access.link_block_reason` for a new link and by
     `organizations.access.kind_change_block_reason` for a body that becomes a school while it
-    already `runs` courses — two doors into one state, one rule. A course that is neither is
-    untouched, including a stand-alone university course (no parent, no versions): odd for a
+    already `runs` courses — two doors into one state, one rule. A course that is none of these is
+    untouched, including a stand-alone university course (no parent, no children): odd for a
     school, but nothing on any page contradicts itself, and refusing it is a decision about what
     schools may run that nobody has taken.
     """
     if course.parent_id is not None:
-        return 'course_is_version'
+        return 'course_is_version' if relation_to_parent(course) == 'version' else 'course_is_subcourse'
     if course.subcourses.exists():
         return 'course_has_versions'
     return None

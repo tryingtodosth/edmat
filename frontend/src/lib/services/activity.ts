@@ -26,6 +26,7 @@ interface RawPost {
 	is_removed: boolean;
 	auto_hidden_at: string | null;
 	comment_count: number;
+	attachment_count?: number;
 	created_at: string;
 	tag_created?: boolean;
 }
@@ -83,6 +84,7 @@ export function mapPost(json: RawPost): Post {
 		isRemoved: json.is_removed,
 		isAutoHidden: json.auto_hidden_at !== null,
 		commentCount: json.comment_count,
+		attachmentCount: json.attachment_count ?? 0,
 		createdAt: json.created_at,
 		tagCreated: json.tag_created
 	};
@@ -196,6 +198,20 @@ export async function getPostsForTag(
 	options: { beforeId?: string; limit?: number } = {}
 ): Promise<Post[]> {
 	const search = new URLSearchParams({ tag: tagSlug });
+	if (options.beforeId) search.set('before', options.beforeId);
+	if (options.limit) search.set('limit', String(options.limit));
+	const raw = await apiClient.get<RawPost[]>(`/posts/?${search.toString()}`);
+	return raw.map(mapPost);
+}
+
+/** The posts about ONE course — the course BOARD (2026-10-21): every post that references the
+ * course or one under it (its versions and subcourses, any depth), newest first, each row naming
+ * the course it is about. `GET /api/posts/?course=`; 404 for a course this reader may not see. */
+export async function getPostsForCourse(
+	courseId: string,
+	options: { beforeId?: string; limit?: number } = {}
+): Promise<Post[]> {
+	const search = new URLSearchParams({ course: courseId });
 	if (options.beforeId) search.set('before', options.beforeId);
 	if (options.limit) search.set('limit', String(options.limit));
 	const raw = await apiClient.get<RawPost[]>(`/posts/?${search.toString()}`);

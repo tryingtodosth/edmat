@@ -9,6 +9,8 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import PostCard from '$lib/components/activity/PostCard.svelte';
 	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
+	import AttachmentsPanel from '$lib/components/attachments/AttachmentsPanel.svelte';
+	import { authStore } from '$lib/state/auth.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let post = $state<Post | undefined>(undefined);
@@ -53,6 +55,18 @@
 			<p class="status">{m.post_notFound()}</p>
 		{:else}
 			<PostCard {post} linkTitle={false} expandThread={true} />
+			<!-- What is attached to the post — files, pictures, notes, links (`attachments/`, the
+			     `post` target kind, 2026-10-21). The author adds; the public tier is the only one a
+			     post has, as on a comment. A tombstoned post keeps nothing to attach to. -->
+			{#if !post.isRemoved}
+				<AttachmentsPanel
+					targetKind="post"
+					targetId={post.id}
+					canAttach={!!authStore.user && post.authorId === authStore.user.id}
+					canManage={!!authStore.user && post.authorId === authStore.user.id}
+					tiers={['public']}
+				/>
+			{/if}
 			<GallerySection targetType="post" targetId={post.id} />
 		{/if}
 	</div>

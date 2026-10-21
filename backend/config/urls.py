@@ -7,7 +7,13 @@ from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 
 from config.sitemaps import SITEMAPS
-from config.views import CreationStatusView, LocaleHintView, NodeRefView, NodeStaffView
+from config.views import (
+    CreationStatusView,
+    LocaleHintView,
+    NodeRefView,
+    NodeStaffView,
+    PeopleSuggestionsView,
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -18,6 +24,9 @@ urlpatterns = [
     # The management node seam (MANAGEMENT-BRIEF.md §2, config/nodes.py): what a course, event,
     # material or organisation is and where the caller stands on it, and its roster for a picker.
     # Here rather than in any one of the six management apps because all six ask it.
+    # The people this account already works with, for every "add a person" picker (config/views.py).
+    # Not gated: a staff panel keeps its picker when contests are off.
+    path('api/people/suggestions/', PeopleSuggestionsView.as_view(), name='people-suggestions'),
     path('api/nodes/<str:kind>/<int:pk>/', NodeRefView.as_view(), name='node-ref'),
     path('api/nodes/<str:kind>/<int:pk>/staff/', NodeStaffView.as_view(), name='node-staff'),
     # The creation gate's read side (config/creation.py, learning step F): what the Add… menu may

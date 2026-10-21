@@ -483,3 +483,57 @@ class CourseTargetTests(AttachmentCase):
         # list (house rule 4). Asserted on the STATUS, because a 404's body is a dict and `len()` of
         # it is 1 — which is how this check first "passed" against the wrong thing.
         self.assertEqual(APIClient().get(url).status_code, 404)
+
+
+class PostTargetTests(AttachmentCase):
+    """A board post (2026-10-21) takes attachments the way a comment does: its author adds, the
+    public tier only, visible to whoever may read the post."""
+
+    def setUp(self):
+        super().setUp()
+        from activity.models import Post
+        from exercises.models import Tag
+
+        tag = Tag.objects.create(slug='att-post')
+        self.post = Post.objects.create(author=self.attendee, body='My notes from week 2', tag=tag)
+        self.post_url = reverse('target-attachments', args=['post', self.post.pk])
+
+    def test_the_author_attaches_a_pdf_and_a_link_and_a_stranger_reads_them(self):
+        res = as_(self.attendee).post(
+            self.post_url,
+            {'title': 'Notes', 'kind': 'file', 'visibility': 'public',
+             'file': SimpleUploadedFile('notes.pdf', PDF, content_type='application/pdf')},
+            format='multipart',
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data['target_kind'], 'post')
+        link = as_(self.attendee).post(
+            self.post_url, {'title': 'Lecture', 'kind': 'link', 'url': 'https://e.org/l', 'visibility': 'public'}
+        )
+        self.assertEqual(link.status_code, 201, link.data)
+        listed = as_(self.stranger).get(self.post_url)
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual({row['title'] for row in listed.data}, {'Notes', 'Lecture'})
+        # And the post itself counts them.
+        post = as_(self.stranger).get(f'/api/posts/{self.post.pk}/')
+        self.assertEqual(post.data['attachment_count'], 2)
+
+    def test_only_the_author_attaches_and_only_the_public_tier(self):
+        res = as_(self.host).post(
+            self.post_url, {'title': 'x', 'kind': 'link', 'url': 'https://e.org'}
+        )
+        self.assertEqual(res.status_code, 403)
+        tier = as_(self.attendee).post(
+            self.post_url, {'title': 'x', 'kind': 'link', 'url': 'https://e.org', 'visibility': 'staff'}
+        )
+        self.assertEqual(tier.status_code, 400)
+        self.assertEqual(tier.data['detail'], 'tier_not_on_a_comment')
+
+    def test_a_tombstoned_post_hides_its_attachments_from_everybody_but_author_and_staff(self):
+        as_(self.attendee).post(
+            self.post_url, {'title': 'Lecture', 'kind': 'link', 'url': 'https://e.org/l', 'visibility': 'public'}
+        )
+        self.post.is_removed = True
+        self.post.save(update_fields=['is_removed'])
+        self.assertEqual(as_(self.stranger).get(self.post_url).status_code, 404)
+        self.assertEqual(as_(self.attendee).get(self.post_url).status_code, 200)

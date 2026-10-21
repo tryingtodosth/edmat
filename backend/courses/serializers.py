@@ -6,7 +6,7 @@ from config.i18n_utils import request_locale, resolve_translation
 from taxonomy.models import Branch, Discipline
 
 from .attachmentfile import process_attachment_file
-from .rules import course_visible_to, subcourse_block_reason
+from .rules import ancestors_of, course_visible_to, relation_to_parent, subcourse_block_reason
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
     DEFAULT_COURSE_KIND,
@@ -434,6 +434,14 @@ class CourseSerializer(serializers.ModelSerializer):
     # a course whose general parent has since gone private; they keep their course and are not
     # told the title of one they may no longer read.
     parent_summary = serializers.SerializerMethodField()
+    # `'version'` | `'subcourse'` | null — what this course IS to its parent, read from the two rows
+    # by `rules.relation_to_parent` (never stored). The course page draws its two lists from it.
+    parent_relation = serializers.SerializerMethodField()
+    # The chain above this course, root first, as `{id, title, kind}` — the breadcrumb on the
+    # page. Cut at the first ancestor the viewer cannot see, from the top: a reader inside a
+    # subcourse whose grandparent went private is shown the trail from the first course they may
+    # open, and is not told the title of one they may not.
+    ancestors = serializers.SerializerMethodField()
     chapters = serializers.SerializerMethodField()
     unfiled_items = serializers.SerializerMethodField()
     pending_contribution_count = serializers.SerializerMethodField()
@@ -451,6 +459,8 @@ class CourseSerializer(serializers.ModelSerializer):
             'kind',
             'parent',
             'parent_summary',
+            'parent_relation',
+            'ancestors',
             'university',
             'faculty',
             'course_code',
@@ -569,7 +579,25 @@ class CourseSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None)
         if parent.visibility not in LISTED_VISIBILITIES and not course_visible_to(user, parent):
             return None
-        return {'id': parent.pk, 'title': parent.title}
+        return {'id': parent.pk, 'title': parent.title, 'kind': parent.kind}
+
+    def get_parent_relation(self, course):
+        return relation_to_parent(course)
+
+    def get_ancestors(self, course):
+        if course.parent_id is None:
+            return []
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        rows = []
+        for node in ancestors_of(course):
+            visible = node.visibility in LISTED_VISIBILITIES or course_visible_to(user, node)
+            if not visible:
+                # Start the trail again below the one the viewer may not open.
+                rows = []
+                continue
+            rows.append({'id': node.pk, 'title': node.title, 'kind': node.kind})
+        return rows
 
     def get_my_enrollment_status(self, course) -> str | None:
         enrollment = self._my_enrollment(course)
@@ -748,26 +776,30 @@ class CourseWriteSerializer(serializers.ModelSerializer):
         # it by that name. A topic community carries none of the three: they are cleared rather
         # than refused, so switching an existing course from `university` to `topic` is one PATCH
         # of `kind` and never leaves a stale course code behind on a community.
-        # The general course above this one (`rules.py`). Chosen at creation and never moved: a
-        # version re-parented under another general course would carry its materials somewhere
-        # its members did not put them (moving is left open, not built).
+        # The course above this one (`rules.py`, the tree section). Checked whenever the parent,
+        # the kind or the visibility is being set, because all three decide the relation and its
+        # refusals: a PATCH may move a course under another parent (2026-10-21 — the administrator
+        # building the tree asks for that), and a PATCH that only narrows the parent's own
+        # visibility is the parent's business, not this row's (`rules.visible_courses` reads it).
         request = self.context.get('request')
         user = getattr(request, 'user', None)
-        if self.instance is not None and 'parent' in attrs and attrs['parent'] != self.instance.parent:
-            raise serializers.ValidationError({'parent': 'parent_fixed'})
+        kind = attrs.get('kind', getattr(self.instance, 'kind', DEFAULT_COURSE_KIND))
         parent = attrs.get('parent', getattr(self.instance, 'parent', None))
-        if parent is not None:
+        tree_touched = any(name in attrs for name in ('parent', 'kind', 'visibility'))
+        placing = self.instance is None or (
+            'parent' in attrs and attrs['parent'] != self.instance.parent
+        )
+        if parent is not None and (self.instance is None or tree_touched):
             reason = subcourse_block_reason(
                 user,
                 parent,
                 visibility=attrs.get('visibility', getattr(self.instance, 'visibility', 'only_you')),
+                kind=kind,
                 instance=self.instance,
+                placing=placing,
             )
             if reason:
                 raise serializers.ValidationError({'parent': reason})
-            # A version under a general course is, by definition, one university's version.
-            attrs['kind'] = 'university'
-        kind = attrs.get('kind', getattr(self.instance, 'kind', DEFAULT_COURSE_KIND))
         for name in ('university', 'faculty', 'course_code', 'current_term'):
             if name in attrs:
                 attrs[name] = (attrs[name] or '').strip()
@@ -902,6 +934,12 @@ class CourseItemSerializer(serializers.ModelSerializer):
             # on, and only the server can say which that is. See `community/targets.py`.
             'discussion_target_type',
             'discussion_target_id',
+            # The three kinds of 2026-10-21: another EdMat course, an outside address with the
+            # curator's title for it, a board post. Null / '' on every other kind.
+            'linked_course',
+            'link_url',
+            'link_title',
+            'post',
             'label',
             'order',
             'note',
@@ -939,13 +977,21 @@ class CourseItemSerializer(serializers.ModelSerializer):
             return item.attachment.title
         if item.event_id:
             return item.event.title
-        # A comment has no title and never will — it is somebody talking. So the label is the first
-        # words of it, which is what a reader recognises a thread by anyway ("the one about the
-        # counterexample"). Truncated on a word boundary rather than mid-word, and the body is read
-        # rather than the serializer's blanked version because a removed thread is dropped from the
-        # response entirely one level up (`CourseItem.target_is_available_to`) — anybody still
-        # holding this row is a curator, who is being shown it precisely so they can replace it.
-        body = ' '.join((item.discussion.body or '').split())
+        if item.linked_course_id:
+            return item.linked_course.title
+        if item.link_url:
+            # The curator's title, or the address itself — a reader can judge an address they can
+            # see, and an untitled link that said "Link" would tell them nothing.
+            return item.link_title or item.link_url
+        # A comment or a post has no title and never will — it is somebody talking. So the label is
+        # the first words of it, which is what a reader recognises a thread by anyway ("the one
+        # about the counterexample"). Truncated on a word boundary rather than mid-word, and the
+        # body is read rather than the serializer's blanked version because a removed thread is
+        # dropped from the response entirely one level up (`CourseItem.target_is_available_to`) —
+        # anybody still holding this row is a curator, who is being shown it precisely so they can
+        # replace it.
+        source = item.post if item.post_id else item.discussion
+        body = ' '.join((getattr(source, 'body', '') or '').split())
         return Truncator(body).words(12, truncate='…') or '—'
 
     def get_discussion_target_type(self, item) -> str:
@@ -987,23 +1033,64 @@ class CourseItemWriteSerializer(serializers.ModelSerializer):
             'attachment',
             'event',
             'discussion',
+            'linked_course',
+            'link_url',
+            'link_title',
+            'post',
             'order',
             'note',
         ]
+        extra_kwargs = {
+            'link_url': {'required': False, 'allow_blank': True},
+            'link_title': {'required': False, 'allow_blank': True},
+        }
+
+    def validate_link_url(self, value):
+        value = (value or '').strip()
+        if value and not value.lower().startswith(('http://', 'https://')):
+            # `URLField` would also take ftp:// — a course links to pages, not to file servers,
+            # and a browser opening the former in a new tab is the only thing anybody expects.
+            raise serializers.ValidationError('link_scheme')
+        return value
 
     def validate(self, attrs):
         def resolved(name):
             return attrs.get(name, getattr(self.instance, name, None))
 
-        target_names = ('material', 'exercise', 'attachment', 'event', 'discussion')
+        target_names = (
+            'material', 'exercise', 'attachment', 'event', 'discussion', 'linked_course',
+            'link_url', 'post',
+        )
         targets = {name: resolved(name) for name in target_names}
         chosen = [name for name, value in targets.items() if value]
         if len(chosen) != 1:
             raise serializers.ValidationError(
-                'Reference exactly one of material, exercise, attachment, event or discussion.'
+                'Reference exactly one of material, exercise, attachment, event, discussion, '
+                'course, link or post.'
             )
+        if 'link_title' in attrs:
+            attrs['link_title'] = (attrs['link_title'] or '').strip()
 
         course = self.context.get('course')
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+
+        # Another course: one THIS person can open (the same rule every course read applies —
+        # `rules.course_visible_to`; an unlisted course they cannot see is "not found" to them,
+        # house rule 4) and not this course itself. Nothing about who runs it: pointing a course at
+        # somebody else's is the normal case, exactly as for an event.
+        linked_course = attrs.get('linked_course')
+        if linked_course is not None:
+            if course is not None and linked_course.pk == course.pk:
+                raise serializers.ValidationError({'linked_course': 'is_self'})
+            if not course_visible_to(user, linked_course):
+                raise serializers.ValidationError({'linked_course': 'not_found'})
+
+        # A board post: one a reader may see now. A tombstoned or auto-hidden one is refused for
+        # the same reason a removed thread is, below.
+        post = attrs.get('post')
+        if post is not None and not post.is_visible_to_readers():
+            raise serializers.ValidationError({'post': 'That post is no longer available.'})
 
         # A lesson or chapter from another course would file this item somewhere its own course
         # cannot see. The database cannot express that constraint across the join, so it is checked

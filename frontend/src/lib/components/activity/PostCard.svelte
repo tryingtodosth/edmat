@@ -166,6 +166,13 @@
 				>{m.entry_commentsToggle({ count: post.commentCount })}</button
 			>
 		{/if}
+		{#if !hidden && post.attachmentCount > 0 && linkTitle}
+			<!-- Files, pictures, notes and links on the post live on its own page (2026-10-21). -->
+			<a class="action" href={resolve('/posts/[id]', { id: post.id })}
+				>{m.post_attachments({ count: post.attachmentCount })}</a
+			>
+			<!-- "{count} attached" -->
+		{/if}
 		{#if !hidden}
 			<ReportButton kind="post" objectId={post.id} />
 			{#if isOwn || authStore.user?.isModerator}

@@ -17269,3 +17269,120 @@ catalogue, `/about` `/activity` `/levels` each answer 200, no page error, `scrol
 viewport at both widths, and the screenshots were looked at — the dark cards carry their own
 `--bg-surface` ground on the wash's tail, the strip's long third title wraps to two lines without
 breaking the row. Committed on `fix/analytics-after-deploy`.
+
+## §17CS — Courses inside courses, outside content in a programme, and a board on every course (2026-10-21)
+
+Owner: *"make it so that courses can have their own courses (subcourses). incorporated in the ui and
+having parent-child relationship. besides we want external courses (from edmat itself or as a link)
+to be able to be linked to course's content. also lets have some sort of discussion board (maybe lets
+utilize current portal's tags page for that) for poeple to be able to post pdfs, imgs, notes, comments
+(with our builders), links, etc, and link and be linked to specific courses/subcourses."* Three
+things, each built on a shape that already existed rather than beside it.
+
+**1. The course tree (`courses/rules.py`, the tree section; no migration).** `Course.parent` existed
+since §17CK as a one-level "university version of a general course". It is now the course this one is
+PART OF, any depth to `MAX_COURSE_DEPTH` (4), and the relation is READ from the two rows
+(`relation_to_parent`): a `university` child of a `topic` parent is still a *version*; anything else
+with a parent is a *subcourse*. Nothing is stored for it, so every older row keeps its meaning. The
+refusal words changed with the shape — `parent_is_subcourse`, `parent_not_general`, `has_subcourses`
+and `parent_fixed` are gone; `parent_is_descendant` (a loop), `not_parent_staff` and `too_deep` came —
+and **who may add a child differs by relation, which is the reason to tell them apart at all**: a
+version by anybody who can see the general course (§17CK's decision, kept), a subcourse only by somebody
+who curates the parent, because "weeks 1–7 are Analiza 1" is a statement about the parent. The parent
+may now be MOVED by the child's administrator (the §17CK "left open"), through the same refusals, and
+`placing` keeps a visibility-only PATCH from being refused as a placement. The serializer carries
+`parent_relation`, a `kind` on `parent_summary`, and `ancestors` root-first, cut at the first course
+the viewer may not open — which is the breadcrumb. `descendant_ids` walks a subtree one query per
+level; the materials index now gathers the whole subtree. A school still may not run a course in the
+tree, with `course_is_subcourse` as its own word.
+
+**2. Three more item kinds (`courses` 0022).** `CourseItem` takes `linked_course` (another EdMat
+course the curator can see, not this one; a participant who cannot see it is not shown the pointer),
+`link_url` + `link_title` (an address outside EdMat, http(s) only — the one target that is a text
+column, which is why the exactly-one check constraint is now BUILT from `ITEM_TARGET_COLUMNS` instead
+of eight hand-written branches) and `post` (a board post, filed into the week it answers; leaves with
+its tombstone the way a removed thread does). `LinkedContentEditor` offers all three; a `link` row opens
+in a new tab.
+
+**3. The board (no new table).** "Utilize the tags page" was taken literally: a board post IS an
+`activity.Post` — the thing the tag page lists and `/ask` writes — with its existing `ref_course` set.
+`GET /api/posts/?course=<id>` lists the posts about a course AND its subcourses (each row naming which),
+404 for a course the caller may not see; `/ask?course=<id>` sets the reference and lands back on the
+Board tab; the course page's Board tab (`CourseBoard.svelte`, behind `posts`) is a view of the same
+posts, so a question still lives in its tag where the people who follow it see it. PDFs, pictures,
+notes and links are `attachments/` rows with a new `post` target kind — the comment's shape (no node,
+the public tier only, the author attaches) with the post's own visibility — offered on the ask form
+(uploaded after the post exists; a failure is said, never swallowed) and on `/posts/[id]`. The post
+serializer carries `attachment_count` (one grouped COUNT per page) so a board row says it carries a
+PDF before it is opened. "Comments with our builders" were already there: `RichEditor` is the ask
+form's body and the reply thread's.
+
+**Not built, said here:** a course picker (the move field and the content editor take a pasted
+address or id, as every other link field here does); a tree-wide hub view (the hub lists roots; the
+tree reads one level per page); the read-time visibility filter still looks one level up (a
+grandparent narrowed after the fact hides the parent, not the grandchild); the attachments panel on
+`PostCard` in a list (the count links to the post's page); a subcourse's board does not fold its
+parent's posts in (the parent's does its children's); sketch and chem attachments still have no picker.
+
+**Also that afternoon (owner: "change the api of local edmat to 0.0.0.0"):** `run.sh` takes
+`BACKEND_HOST`; `0.0.0.0` binds both halves to every interface, writes the machine's first address
+into `frontend/.env` as the API base and adds that origin to CORS, and `settings.py` reads a new
+`EDMAT_DEV_HOSTS` under DEBUG only — a separate variable from the production `DJANGO_ALLOWED_HOSTS`,
+so the half-applied-production guard keeps its meaning. Checked by a request addressed by the LAN IP.
+
+**Verified:** backend `manage.py test courses.test_subcourses courses.test_kind
+courses.test_content_links courses.test_school_mode activity attachments organizations --parallel 4
+--keepdb` → 293 OK (two earlier runs found that a visibility-only PATCH on a subcourse whose parent
+the administrator cannot see was refused as `parent_not_found` — the `placing` split is the fix —
+and that `test_kind`'s helper relied on the kind being auto-assigned); `manage.py check`, `makemigrations --check` and
+`testing/check_databases_declared.py` clean. Frontend: `npm run check` 0 errors / 0 warnings, eslint
+clean, prettier clean on every changed file (27 pre-existing analytics/contests files still warn),
+`npm run build` green, `en.json` = `pl.json` at 5428 keys (four unused version-refusal keys removed,
+40 added, 6 reworded). `e2e/subcourses-and-board.mjs` 27/27 with zero page errors against both dev
+servers, and the four screenshots looked at: the breadcrumb and "Subcourse" pill, the Subcourses panel
+with and without its add link, the board with the post and "1 attached", the content tab's three rows.
+
+## §17CT — Lists instead of pasted ids (2026-10-21, the same afternoon)
+
+Owner: *"lets improve the course picker, and other places where we could instead of text input
+requirement give user a list instead."* An inventory first: the tree's move field and the content
+editor took a pasted address (§17CS, hours old); the course and event staff panels, the organisation
+roster and the moderation governors tab took an account id; the organisation link form took a node
+id; the post composer listed every open course in a select. Two components answer most of it.
+
+**`CoursePicker.svelte`** — the reader's own courses (teaching + taking, `getMyTeaching` /
+`getMyParticipation`) offered first, then `GET /api/courses/?q=` as they type (300 ms debounce),
+each row saying "yours" and a university badge where it applies; a pasted address or bare id still
+resolves in the same box through `parseContentRef`, so nothing that worked before stops. Enter picks
+the first match rather than submitting the form around it. An `onchange` callback is what lets the
+content editor treat the choice itself as the add. Mounted in the edit form's "Part of", the chapter
+and lesson dialogs' "Another course on EdMat", the post composer's course reference (the open-courses
+select is gone), the ask form when no course was preset ("About a course (optional)"), and the
+organisation link form when the kind is a course.
+
+**`PersonPicker.svelte`** — one person from the people this account already shares a roster with,
+with the "staff with you on …" line, filterable by name; an account id stays underneath for anybody
+else. The list is `contests/people.py: suggested_people`, which the contest wizard's `RolePicker`
+already drew — now served at a neutral **`GET /api/people/suggestions/`** (`config/views.py`, no
+feature gate: a staff panel must keep its picker when contests are off; the contest path stays
+behind its flag). Mounted on the course staff panel, the event staff panel and the organisation
+roster. **Not** on the moderation governors tab: a moderator granting a role to an arbitrary account
+is exactly the case the suggestions cannot cover, and the id box there is the honest control.
+
+**The content editor's other kinds:** an exercise or a material is found by title through the
+searches the post composer already had (`searchExercises`, `searchMaterials`), with a match list
+under the box, and the address stays as the fallback (a discussion thread has no title to search;
+a set by link). A board post is picked from this course's own board (`getPostsForCourse`). The
+organisation link form lists the events the person hosts and the materials their projects published.
+
+**Not changed, said here:** messaging somebody new still needs their id (the `messages` composer was
+outside the ask); the contest wizard keeps its own multi-select `RolePicker` rather than N copies of
+the single one; the moderation governors box, above. `course_staff_userId`,
+`events_staffUserIdPlaceholder`, `orgs_fieldAccountId`, `orgs_fieldNodeId` and `course_tree_moveNone`
+left the catalogues as unused.
+
+**Verified:** `npm run check` 0/0, eslint clean on every changed file (the two `Set`s eslint read as
+state became a plain object, trap 7), prettier clean, catalogues equal at 5448 keys. `e2e/pickers.mjs`
+10/10 with zero page errors; screenshots looked at — the suggestion line names a shared organisation,
+the match list marks the reader's own course, the picked course sits in the chapter. `manage.py test config.test_people` 2 OK, `manage.py check` clean. `e2e/subcourses-and-board.mjs` re-run against the changed forms: 27/27; `npm run build` green.
+

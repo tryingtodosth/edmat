@@ -102,6 +102,16 @@ if DEBUG and ALLOWED_HOSTS:
         'public domain. Refusing to start. Set DJANGO_DEBUG=False in /etc/apache2/envvars.'
     )
 
+# Local dev reached from ANOTHER machine (owner, 2026-10-21: "change the api of local edmat to
+# 0.0.0.0"). A DEBUG server bound to 0.0.0.0 is addressed with `Host: 192.168.x.y`, which Django's
+# implicit localhost-only list refuses with a 400 — so `./run.sh` passes the hosts it serves on here.
+# A DIFFERENT variable from the production `DJANGO_ALLOWED_HOSTS` on purpose, read only under
+# DEBUG, so the half-applied-production guard above keeps its meaning and a real deployment never
+# reads this. `*` is accepted: a dev server on a private network, serving tracebacks to the LAN, is
+# the thing somebody asked for by binding to 0.0.0.0.
+if DEBUG:
+    ALLOWED_HOSTS = _split_env_list('EDMAT_DEV_HOSTS')
+
 # Empty by default — CSRF_TRUSTED_ORIGINS only matters once a real Host-header-spoofing-resistant
 # origin check is needed (Django 4+, distinct from ALLOWED_HOSTS), which local dev over plain HTTP
 # never hits. A real deployment sets `DJANGO_CSRF_TRUSTED_ORIGINS=https://edmat.net,https://www.edmat.net`.

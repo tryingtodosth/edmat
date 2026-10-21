@@ -4,6 +4,7 @@
      merely encourages. -->
 <script lang="ts">
 	import RichEditor from '$lib/components/editor/RichEditor.svelte';
+	import CoursePicker from '$lib/components/shared/CoursePicker.svelte';
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import type { Audience } from '$lib/types';
 	import type { FixedAnchor, Material, ResolvedExercise, Post } from '$lib/types';
@@ -13,7 +14,6 @@
 	import { getDisciplines, getAllBranches } from '$lib/services/taxonomy';
 	import { getAllTags, searchExercises } from '$lib/services/exercises';
 	import { searchMaterials } from '$lib/services/materials';
-	import { getCourses } from '$lib/services/course';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import { onMount } from 'svelte';
 
@@ -66,7 +66,9 @@
 	let refQuery = $state('');
 	let refResults = $state<{ id: string; label: string }[]>([]);
 	let refChosen = $state<{ id: string; label: string } | null>(null);
-	let refCourses = $state<{ id: string; label: string }[]>([]);
+	// A course is picked with `CoursePicker` (2026-10-21) — the reader's own first, then any they
+	// can see by title — rather than from a select of every open course.
+	let refCourseId = $state<string | null>(null);
 	let refSearching = $state(false);
 
 	async function searchRef() {
@@ -87,20 +89,11 @@
 		}
 	}
 
-	async function onRefKindChange() {
+	function onRefKindChange() {
 		refChosen = null;
 		refResults = [];
 		refQuery = '';
-		if (refKind === 'course' && refCourses.length === 0) {
-			try {
-				refCourses = (await getCourses({ openOnly: true })).map((c) => ({
-					id: c.id,
-					label: c.title
-				}));
-			} catch {
-				refCourses = [];
-			}
-		}
+		refCourseId = null;
 	}
 
 	async function submit() {
@@ -136,7 +129,7 @@
 						: undefined,
 				refExerciseId: refKind === 'exercise' ? refChosen?.id : undefined,
 				refMaterialId: refKind === 'material' ? refChosen?.id : undefined,
-				refCourseId: refKind === 'course' ? refChosen?.id : undefined,
+				refCourseId: refKind === 'course' ? (refCourseId ?? undefined) : undefined,
 				image: imageFile
 			});
 			body = '';
@@ -259,17 +252,7 @@
 				>
 			{/if}
 		{:else if refKind === 'course'}
-			<select
-				onchange={(e) => {
-					const id = (e.currentTarget as HTMLSelectElement).value;
-					refChosen = refCourses.find((c) => c.id === id) ?? null;
-				}}
-			>
-				<option value="">{m.post_anchorPick()}</option>
-				{#each refCourses as course (course.id)}
-					<option value={course.id}>{course.label}</option>
-				{/each}
-			</select>
+			<CoursePicker bind:value={refCourseId} id="post-ref-course" />
 		{/if}
 	</div>
 

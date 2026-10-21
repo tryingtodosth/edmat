@@ -22,7 +22,7 @@
 	import { lessonExerciseIds } from '$lib/services/course';
 	import { createDeckFromExercises } from '$lib/services/flashcards';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
-	import { commentAnchorId, type ParsedContentRef } from '$lib/utils/contentLinks';
+	import { commentAnchorId, type LinkedContentRef } from '$lib/utils/contentLinks';
 	import type { ExerciseSet } from '$lib/types';
 	import type { Chapter, CourseItem, Course, Lesson, LessonExerciseSet } from '$lib/types/course';
 
@@ -81,7 +81,7 @@
 		onlinkcontent?: (
 			parentKind: 'lesson' | 'chapter',
 			parentId: string,
-			ref: ParsedContentRef,
+			ref: LinkedContentRef,
 			note: string
 		) => void;
 		/** Whole groups, never a single move — a drag between two lessons changes both, and the
@@ -133,7 +133,7 @@
 	function addLink(
 		parentKind: 'lesson' | 'chapter',
 		parentId: string,
-		ref: ParsedContentRef,
+		ref: LinkedContentRef,
 		note: string
 	) {
 		if (ref.kind === 'set') onlinkset?.(parentKind, parentId, ref.slug);
@@ -441,6 +441,11 @@
 			});
 		}
 		if (item.kind === 'event') return resolve('/events/[id]', { id: item.event ?? '' });
+		if (item.kind === 'course') return resolve('/courses/[id]', { id: item.linkedCourse ?? '' });
+		if (item.kind === 'post') return resolve('/posts/[id]', { id: item.post ?? '' });
+		// An address outside EdMat: the address itself, opened in a new tab by the row (the server
+		// took only http(s)).
+		if (item.kind === 'link') return item.linkUrl;
 		return discussionHref(item);
 	}
 
@@ -499,6 +504,9 @@
 		if (item.kind === 'exercise') return m.course_items_exercise();
 		if (item.kind === 'attachment') return m.course_items_attachment();
 		if (item.kind === 'event') return m.course_items_event();
+		if (item.kind === 'course') return m.course_items_course(); // "Course"
+		if (item.kind === 'link') return m.course_items_link(); // "Link"
+		if (item.kind === 'post') return m.course_items_post(); // "Post"
 		return m.course_items_discussion();
 	}
 
@@ -953,6 +961,7 @@
 				     Cancel. That is deliberate — the alternative is a dialog where half the fields are
 				     staged and half are live, with nothing on screen saying which is which. -->
 				<LinkedContentEditor
+					courseId={course.id}
 					items={editedChapter.items}
 					sets={editedChapter.exerciseSets}
 					{mySets}
@@ -1006,6 +1015,7 @@
 				<!-- Same editor, same reasoning as the chapter dialog above — the level a link hangs
 				     off is a parameter, not a different feature. -->
 				<LinkedContentEditor
+					courseId={course.id}
 					items={editedLesson.items}
 					sets={editedLesson.exerciseSets}
 					{mySets}
@@ -1063,8 +1073,15 @@
 {#snippet itemRow(item: CourseItem)}
 	<li class="item" class:item--pending={item.status !== 'approved'}>
 		<span class="kind">{kindLabel(item)}</span>
-		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the href is built by a helper that calls resolve() itself; the rule only sees the attribute -->
-		<a class="label" href={itemHref(item)}>{item.label}</a>
+		{#if item.kind === 'link'}
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an address outside EdMat, by design -->
+			<a class="label" href={itemHref(item)} target="_blank" rel="noopener noreferrer"
+				>{item.label} <span class="external" aria-hidden="true">↗</span></a
+			>
+		{:else}
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the href is built by a helper that calls resolve() itself; the rule only sees the attribute -->
+			<a class="label" href={itemHref(item)}>{item.label}</a>
+		{/if}
 
 		{#if item.status === 'pending'}
 			<span class="pill pill--pending">{m.course_item_pending()}</span>

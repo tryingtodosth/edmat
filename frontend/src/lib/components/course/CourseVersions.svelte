@@ -3,7 +3,9 @@
 	// and subcourses for specific universities and faculties"), grouped by university, then faculty.
 	// The list is `GET /api/courses/?parent=<id>`, which applies the same visibility filter as every
 	// other course read (`backend/courses/rules.py: visible_courses`), so a version this reader may
-	// not see is simply not in it.
+	// not see is simply not in it. Since 2026-10-21 that list also holds the course's SUBCOURSES
+	// (`CourseSubcourses.svelte` draws those); each row says which it is (`parentRelation`), and
+	// this panel keeps the versions.
 	//
 	// "Add a university/faculty version" is offered to anybody the creation gate lets found a course
 	// — not only to this course's managers, by decision: a faculty's students should not need a
@@ -27,7 +29,7 @@
 		loaded = false;
 		getCourses({ parent: id })
 			.then((rows) => {
-				if (loadedFor === id) versions = rows;
+				if (loadedFor === id) versions = rows.filter((row) => row.parentRelation === 'version');
 			})
 			.catch(() => (versions = []))
 			.finally(() => (loaded = true));

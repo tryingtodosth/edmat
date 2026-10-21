@@ -6,6 +6,7 @@
 	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { resolve } from '$app/paths';
 	import type { EventStaffMember, EventStaffRole } from '$lib/types/event';
+	import PersonPicker from '$lib/components/shared/PersonPicker.svelte';
 
 	let {
 		staff,
@@ -64,20 +65,18 @@
 			{/each}
 		</ul>
 		<form class="add" onsubmit={add}>
-			<input
-				type="text"
-				inputmode="numeric"
-				pattern="[0-9]*"
-				placeholder={m.events_staffUserIdPlaceholder()}
+			<!-- A list of the people this organiser already works with, or an account id (2026-10-21). -->
+			<PersonPicker
 				bind:value={newUserId}
-				aria-label={m.events_staffUserIdPlaceholder()}
+				id="event-staff-person"
+				exclude={staff.map((row) => row.user.id)}
 			/>
 			<select bind:value={newRole} aria-label={m.events_staffRole()}>
 				{#each Object.keys(roleLabels) as r (r)}
 					<option value={r}>{roleLabels[r as EventStaffRole]()}</option>
 				{/each}
 			</select>
-			<button type="submit">{m.events_staffAdd()}</button>
+			<button type="submit" disabled={!newUserId}>{m.events_staffAdd()}</button>
 		</form>
 		{#if error}<p class="error" role="alert">{error}</p>{/if}
 	</div>

@@ -1051,7 +1051,8 @@ export const ORGANIZATION_BLOCK_LABELS: Record<string, () => string> = {
 	// SCHOOL_RUN_REFUSALS`, answered through `organizations/access.py` — mirrored here, and that
 	// tuple names this table back (house rule 13).
 	course_is_version: m.wp12_orgBlockedCourseIsVersion, // "This course is a university or faculty version of a general course, so a school cannot run it as a class."
-	course_has_versions: m.wp12_orgBlockedCourseHasVersions // "This general course has university or faculty versions under it, so a school cannot run it as a class."
+	course_is_subcourse: m.course_tree_orgBlockedCourseIsSubcourse, // "This course is part of another course, so a school cannot run it as a class."
+	course_has_versions: m.wp12_orgBlockedCourseHasVersions // "This course has versions or subcourses under it, so a school cannot run it as a class."
 };
 
 /** The one lookup every organisation surface uses, so that an unknown word is still a sentence
@@ -1341,7 +1342,7 @@ export function completionRefusalMessage(err: unknown, fallback: string): string
 	return err instanceof Error ? err.message : fallback;
 }
 
-import type { CourseKind } from '$lib/types/course';
+import type { CourseKind, CourseRelation } from '$lib/types/course';
 
 // Course kinds — a hand-maintained mirror of `backend/courses/models.py: COURSE_KIND_CHOICES`,
 // which names this file back (house rule 13). A community around a topic, or the companion to one
@@ -1350,17 +1351,22 @@ export const COURSE_KIND_LABELS: Record<CourseKind, () => string> = {
 	topic: m.course_kind_topic, // "A general course"
 	university: m.course_kind_university // "One university’s course"
 };
-/** Why a university/faculty version was refused — mirrors `backend/courses/rules.py:
- *  SUBCOURSE_REFUSALS`, which names this file back (house rule 13). */
+/** Why a course could not be placed under a parent — a university/faculty version or a subcourse
+ *  (2026-10-21). Mirrors `backend/courses/rules.py: SUBCOURSE_REFUSALS`, which names this file
+ *  back (house rule 13). */
 export const SUBCOURSE_REFUSAL_LABELS: Record<string, () => string> = {
-	parent_not_found: m.course_version_refusal_parentNotFound, // "That general course is not visible to you."
-	parent_is_subcourse: m.course_version_refusal_parentIsSubcourse, // "A version cannot have versions of its own — add it under the general course."
-	parent_not_general: m.course_version_refusal_parentNotGeneral, // "Versions are added under a general course, not under one university's course."
+	parent_not_found: m.course_version_refusal_parentNotFound, // "That course is not visible to you."
+	parent_is_self: m.course_version_refusal_parentIsSelf, // "A course cannot be part of itself."
+	parent_is_descendant: m.course_tree_refusal_parentIsDescendant, // "That course is already under this one — a course cannot be part of its own part."
 	parent_is_class: m.wp11_versionRefusalParentIsClass, // "A school class has no university or faculty versions."
-	has_subcourses: m.course_version_refusal_hasSubcourses, // "This course already has versions, so it cannot become one."
-	parent_is_self: m.course_version_refusal_parentIsSelf, // "A course cannot be a version of itself."
-	parent_fixed: m.course_version_refusal_parentFixed, // "A version stays under the general course it was created in."
-	more_visible_than_parent: m.course_version_refusal_moreVisible // "A version cannot be more visible than its general course."
+	not_parent_staff: m.course_tree_refusal_notParentStaff, // "Only the people who run a course can add subcourses to it."
+	too_deep: m.course_tree_refusal_tooDeep, // "That would nest courses deeper than four levels."
+	more_visible_than_parent: m.course_version_refusal_moreVisible // "A course cannot be more visible than the course it is part of."
+};
+/** What a course IS to its parent — `backend/courses/rules.py: relation_to_parent`. */
+export const COURSE_RELATION_LABELS: Record<CourseRelation, () => string> = {
+	version: m.course_version_badge, // "University/faculty version"
+	subcourse: m.course_tree_subcourseBadge // "Subcourse"
 };
 
 /** The sentence for a refused course create/edit: a version refusal by its word, otherwise the

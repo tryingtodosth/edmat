@@ -5,9 +5,11 @@
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
-	import { courseKindLabel, isGeneralCourse } from '$lib/utils/labels';
+	import { courseKindLabel, COURSE_RELATION_LABELS } from '$lib/utils/labels';
 	import CourseMaterialsIndex from '$lib/components/course/CourseMaterialsIndex.svelte';
 	import CourseVersions from '$lib/components/course/CourseVersions.svelte';
+	import CourseSubcourses from '$lib/components/course/CourseSubcourses.svelte';
+	import CourseBoard from '$lib/components/course/CourseBoard.svelte';
 	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import {
 		addLesson,
@@ -444,6 +446,10 @@
 			tabs.push({ id: 'attachments', label: m.course_tab_attachments() });
 		if (authStore.user) tabs.push({ id: 'notes', label: m.course_tab_notes() });
 		if (course.canReadDiscussion) tabs.push({ id: 'discussion', label: m.course_tab_discussion() });
+		// The board (2026-10-21): the posts about this course, readable by whoever can open the
+		// course. Behind the `posts` switch — a killed feature takes its tab with it (house rule 3).
+		if (featureFlagsStore.isEnabled('posts') || authStore.isModerator)
+			tabs.push({ id: 'board', label: m.course_tab_board() });
 		if (course.isInstructor || course.myEnrollmentStatus === 'active')
 			tabs.push({
 				id: 'people',
@@ -483,20 +489,35 @@
 		<header class="head" id="course-overview">
 			<!-- The kind, and for a university course which one: answered above the title's byline
 			     because it is the first thing a newcomer needs to know about what they have opened. -->
-			{#if course.parentSummary}
-				<!-- A university/faculty version links back to its general course, where the other
-				     universities' versions and everything they gathered are. -->
+			{#if course.ancestors.length > 0}
+				<!-- The trail above this course, root first (2026-10-21 — a course can be part of a
+				     course, any depth): a version links back to its general course, where the other
+				     universities' versions and everything they gathered are; a subcourse back to the
+				     course it is a part of, and on up. The server cut the trail at the first course
+				     this reader may not open. -->
+				<nav class="parent-link" aria-label={m.course_tree_trailLabel()} data-course-trail>
+					<!-- "Part of" -->
+					{#each course.ancestors as ancestor, i (ancestor.id)}
+						{#if i > 0}<span class="sep">›</span>{/if}
+						<a href={resolve('/courses/[id]', { id: ancestor.id })}>{ancestor.title}</a>
+					{/each}
+					<span class="sep">›</span>
+					<span class="here">{course.title}</span>
+				</nav>
+			{:else if course.parentSummary}
 				<p class="parent-link">
 					<a href={resolve('/courses/[id]', { id: course.parentSummary.id })}>
 						← {m.course_version_partOf({ title: course.parentSummary.title })}
 					</a>
-					<!-- "Part of the general course “{title}”" -->
+					<!-- "Part of the course “{title}”" -->
 				</p>
 			{/if}
 			<p class="kind-line">
 				<span class="kind-pill">
-					{course.parent ? m.course_version_badge() : courseKindLabel(course)}
-					<!-- "University/faculty version" / "A general course" / "A school class" -->
+					{course.parentRelation
+						? COURSE_RELATION_LABELS[course.parentRelation]()
+						: courseKindLabel(course)}
+					<!-- "University/faculty version" / "Subcourse" / "A general course" / "A school class" -->
 				</span>
 				{#if course.kind === 'university'}
 					<span>
@@ -679,12 +700,17 @@
 		</div>
 
 		<!-- A general course's university/faculty versions, above the tabs: they are the first thing
-		     somebody studying this subject at one university is looking for (owner, 2026-10-14). A
-		     version has none — one level only — and neither does a school class, whose `kind` is still
-		     `topic` because school mode is a link, not a kind (`rules.py: parent_is_class`, WP11).
-		     `isGeneralCourse` is the same test the hub's "General courses" chip makes (WP12). -->
-		{#if isGeneralCourse(course)}
+		     somebody studying this subject at one university is looking for (owner, 2026-10-14). Any
+		     `topic` course may have them since the tree of 2026-10-21 (a subcourse that is a general
+		     course of its part may have its universities' versions); a university course has none,
+		     and neither does a school class, whose `kind` is still `topic` because school mode is a
+		     link, not a kind (`rules.py: parent_is_class`, WP11). Below them, the course's own
+		     SUBCOURSES — the parts of it that are courses of their own — on every course but a class. -->
+		{#if course.kind === 'topic' && !course.school}
 			<CourseVersions {course} />
+		{/if}
+		{#if !course.school}
+			<CourseSubcourses {course} />
 		{/if}
 
 		<!-- Above the tabs, deliberately: it finds things that live on four different ones, and
@@ -789,11 +815,15 @@
 								act(
 									() =>
 										submitCourseItem(course!.id, {
-											// One of these three; the editor never produces more, and the
+											// One of these six; the editor never produces more, and the
 											// server refuses anything that names two.
 											exerciseId: ref.kind === 'exercise' ? ref.id : undefined,
 											materialId: ref.kind === 'material' ? ref.id : undefined,
 											discussionId: ref.kind === 'discussion' ? ref.id : undefined,
+											linkedCourseId: ref.kind === 'course' ? ref.id : undefined,
+											postId: ref.kind === 'post' ? ref.id : undefined,
+											linkUrl: ref.kind === 'link' ? ref.url : undefined,
+											linkTitle: ref.kind === 'link' ? ref.title : undefined,
 											chapterId: parentKind === 'chapter' ? parentId : null,
 											lessonId: parentKind === 'lesson' ? parentId : null,
 											note
@@ -1003,6 +1033,10 @@
 				{/if}
 			{/if}
 
+			{#if activeTab === 'board'}
+				<CourseBoard {course} />
+			{/if}
+
 			{#if activeTab === 'people'}
 				<!-- The roster, and — for the instructor only — the requests waiting on a decision. -->
 				{#if course.isInstructor || isActive}
@@ -1146,6 +1180,15 @@
 	}
 	.parent-link {
 		font-size: var(--font-size-sm);
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+		.sep {
+			color: var(--text-secondary);
+		}
+		.here {
+			color: var(--text-secondary);
+		}
 	}
 	.kind-line code {
 		font-family: var(--font-mono);

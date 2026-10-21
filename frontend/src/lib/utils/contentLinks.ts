@@ -19,11 +19,18 @@
 /** What a pasted reference turned out to be. `id` is a row id for the first three and a share slug
  * for a set, matching how each is addressed everywhere else in this app. */
 export type ParsedContentRef =
-	{ kind: 'exercise' | 'material' | 'discussion'; id: string } | { kind: 'set'; slug: string };
+	| { kind: 'exercise' | 'material' | 'discussion' | 'course' | 'post'; id: string }
+	| { kind: 'set'; slug: string };
+
+/** What `LinkedContentEditor` hands its parent: a parsed reference, or an outside address typed
+ * in with the curator's title for it (2026-10-21 — not parsed, because there is nothing to parse;
+ * the server keeps the address as it is, http(s) only). */
+export type LinkedContentRef = ParsedContentRef | { kind: 'link'; url: string; title: string };
 
 /** The kinds a person can choose to add. `attachment` and `event` are deliberately absent: an
  * attachment is uploaded through its own tab (it does not exist until then, so there is no link to
- * paste), and an event is added from the event itself. */
+ * paste), and an event is added from the event itself. An outside `link` is not here either: it
+ * is not parsed, it is typed, and `LinkedContentEditor` sends it as what it is. */
 export type LinkableKind = ParsedContentRef['kind'];
 
 /** Strips the origin, any locale prefix, the query and the trailing slash — leaving `/exercises/12`
@@ -55,9 +62,13 @@ function normalisePath(raw: string): { path: string; hash: string } {
 	return { path, hash };
 }
 
-const PATH_KINDS: Array<{ prefix: string; kind: 'exercise' | 'material' }> = [
+const PATH_KINDS: Array<{ prefix: string; kind: 'exercise' | 'material' | 'course' | 'post' }> = [
 	{ prefix: '/exercises/', kind: 'exercise' },
-	{ prefix: '/materials/', kind: 'material' }
+	{ prefix: '/materials/', kind: 'material' },
+	// 2026-10-21: another EdMat course, and a board post, both of which have a page of their own
+	// whose address is what a curator has on the clipboard.
+	{ prefix: '/courses/', kind: 'course' },
+	{ prefix: '/posts/', kind: 'post' }
 ];
 
 /**

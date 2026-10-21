@@ -56,6 +56,15 @@ only when a name was sent. A tag a question minted is LISTED only while somethin
 (`tags.listed_tags`), and `PostSerializer` withholds such a tag's name on a hidden post from
 non-staff readers, so a withdrawn or held question never leaves its tag's name standing.
 
+**`?course=<id>` on the same list (2026-10-21, the course BOARD):** every post whose `ref_course` is
+that course or one under it (`courses.rules.descendant_ids` — its versions and subcourses, any
+depth), newest first; the course must be one the caller may see (`courses.rules.visible_courses`),
+else 404. Combinable with `?tag=`; one of the two is required. The serializer also carries
+`attachment_count` — the public, current `attachments/` rows on the post (one grouped COUNT per
+page, the comment-count shape) — because a board row should say it carries a PDF before it is
+opened. `/ask?course=` is the writing side (the composer sets `ref_course`, then attaches files and
+a link to the post it just made). `PostCourseBoardTests`.
+
 **Known gap (found in WP16, not fixed):** `PostCreateThrottle` is a `ScopedRateThrottle` on a
 viewset with no `throttle_scope`, and DRF's scoped throttle reads the scope from the VIEW — so
 `post_create` (12/hour) is never counted. `TagCreateThrottle` is a `UserRateThrottle` for that

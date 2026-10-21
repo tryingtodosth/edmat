@@ -18,7 +18,8 @@ than derived:
   row to its node and asks `config/nodes.py` about THAT, rather than teaching four more apps a
   permission model.
 - **A comment** — which has no node at all. A comment's attachment is visible to whoever may read
-  the comment, which `community` already decides; the tiers do not apply and are refused.
+  the comment, which `community` already decides; the tiers do not apply and are refused. A board
+  **post** (`activity.Post`, 2026-10-21) is the same shape with a page of its own.
 
 `frontend/src/lib/types/attachment.ts` mirrors `TARGET_KINDS` and says so; adding a kind is a change
 to both files.
@@ -50,6 +51,10 @@ TARGET_KINDS: dict[str, tuple[str, str]] = {
     # figures the question is about.
     'poll': ('decisions', 'poll'),
     'comment': ('community', 'comment'),
+    # A board post (`activity.Post`, 2026-10-21 — the owner's "post pdfs, imgs, notes, links"):
+    # the comment's shape exactly. No node, only the public tier, visible to whoever may read the
+    # post, attached to by its author.
+    'post': ('activity', 'post'),
 }
 TARGET_KIND_OF_MODEL = {v: k for k, v in TARGET_KINDS.items()}
 
@@ -57,8 +62,10 @@ TARGET_KIND_OF_MODEL = {v: k for k, v in TARGET_KINDS.items()}
 NODE_TARGET_KINDS = frozenset(nodes.NODE_KINDS)
 #: The kinds that inherit a node's standing — a board row is not a thing you can be staff *of*.
 ROW_TARGET_KINDS = frozenset({'task', 'plan', 'need', 'goal', 'poll'})
-#: The one kind with no node behind it at all.
-COMMENT_TARGET_KINDS = frozenset({'comment'})
+#: The kinds with no node behind them at all — a comment, and a board post, which is a comment
+#: with a page of its own. Both answer to the person who wrote them and to their own visibility
+#: rule, and the tiers do not apply.
+COMMENT_TARGET_KINDS = frozenset({'comment', 'post'})
 
 
 def kind_of(target) -> str | None:

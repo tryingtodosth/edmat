@@ -31,7 +31,9 @@ export type AttachmentTargetKind =
 	| 'need'
 	| 'goal'
 	| 'poll'
-	| 'comment';
+	| 'comment'
+	// A board post (2026-10-21): the comment's shape — no node, the public tier only.
+	| 'post';
 
 export type AttachmentTier = 'public' | 'members' | 'staff' | 'managers' | 'venue';
 

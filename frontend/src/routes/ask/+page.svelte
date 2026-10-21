@@ -16,8 +16,28 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import AskComposer from '$lib/components/activity/AskComposer.svelte';
+	import { getCourse } from '$lib/services/course';
 
 	let presetTag = $derived(browser ? (page.url.searchParams.get('tag') ?? '') : '');
+	// `?course=<id>` — a post ABOUT that course, from its Board tab (2026-10-21). The course is
+	// loaded for its title; a course this reader may not open is simply not referenced (the server
+	// would refuse the reference anyway). Loaded in an effect with the id guard (frontend/CLAUDE.md
+	// traps 2 and 5), never at the top level.
+	let courseId = $derived(browser ? page.url.searchParams.get('course') : null);
+	let aboutCourse = $state<{ id: string; title: string } | null>(null);
+	let courseLoadedFor = $state<string | null>(null);
+	$effect(() => {
+		const id = courseId;
+		if (id === courseLoadedFor) return;
+		courseLoadedFor = id;
+		aboutCourse = null;
+		if (!id) return;
+		getCourse(id)
+			.then((found) => {
+				if (courseLoadedFor === id && found) aboutCourse = { id: found.id, title: found.title };
+			})
+			.catch(() => (aboutCourse = null));
+	});
 	// A question from a minor is held for a moderator (accounts/minors.py) — the server answers 201
 	// with the post already hidden. Saying "published" then would be a lie; this says what happened.
 	let heldIn = $state<string | null>(null);
@@ -25,6 +45,14 @@
 	function handleCreated(post: Post) {
 		if (post.isAutoHidden || !post.tagSlug) {
 			heldIn = post.tagSlug ?? '';
+			return;
+		}
+		if (aboutCourse && post.refCourseId === aboutCourse.id) {
+			// Asked from a course's board: land back on that board, where the post now is.
+			goto(
+				// eslint-disable-next-line svelte/no-navigation-without-resolve -- built on resolve('/courses/[id]'), query parameters added
+				`${resolve('/courses/[id]', { id: aboutCourse.id })}?tab=board&asked=${encodeURIComponent(post.id)}`
+			);
 			return;
 		}
 		// A tag is not always a clean slug ("całka z 1-formy"), and `resolve()` does not encode.
@@ -68,7 +96,7 @@
 				{/if}
 			</div>
 		{:else}
-			<AskComposer tag={presetTag} onCreated={handleCreated} />
+			<AskComposer tag={presetTag} course={aboutCourse} onCreated={handleCreated} />
 		{/if}
 	</div>
 </FeatureGate>

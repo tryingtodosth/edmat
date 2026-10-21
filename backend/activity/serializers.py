@@ -36,6 +36,10 @@ class PostSerializer(serializers.ModelSerializer):
     ref_material_title = serializers.SerializerMethodField()
     ref_course_title = serializers.SerializerMethodField()
     comment_count = serializers.SerializerMethodField()
+    # What hangs on the post through `attachments/` (2026-10-21 — the board carries PDFs, pictures,
+    # notes and links): the public, current rows. A board list passes one grouped count in the
+    # context; a single post counts its own.
+    attachment_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
@@ -61,6 +65,7 @@ class PostSerializer(serializers.ModelSerializer):
             'is_removed',
             'auto_hidden_at',
             'comment_count',
+            'attachment_count',
             'created_at',
         ]
 
@@ -134,6 +139,22 @@ class PostSerializer(serializers.ModelSerializer):
             content_type=ContentType.objects.get_for_model(Post),
             object_id=obj.pk,
             is_removed=False,
+        ).count()
+
+    def get_attachment_count(self, obj):
+        counts = self.context.get('attachment_counts')
+        if counts is not None:
+            return counts.get(obj.pk, 0)
+        if self._hidden(obj):
+            return 0
+        from attachments.models import Attachment
+
+        return Attachment.objects.filter(
+            content_type=ContentType.objects.get_for_model(Post),
+            object_id=obj.pk,
+            visibility='public',
+            replaced_by__isnull=True,
+            removed_at__isnull=True,
         ).count()
 
 

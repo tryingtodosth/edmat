@@ -668,3 +668,67 @@ class TagCreationTests(ActivityTestCase):
         response = self.client.patch(f'/api/posts/{post_id}/', {'tag_name': 'nowy z edycji'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Tag.objects.filter(slug='nowy-z-edycji').exists())
+
+
+class PostCourseBoardTests(ActivityTestCase):
+    """`GET /api/posts/?course=` — the course BOARD (2026-10-21): every post about a course or one
+    under it, the way the course page's Board tab reads it."""
+
+    def setUp(self):
+        from courses.models import Course
+
+        self.tag = Tag.objects.create(slug='board-tag')
+        self.teacher = make_user('board-teacher')
+        self.user = make_user('board-user')
+        self.root = Course.objects.create(
+            instructor=self.teacher, title='Analiza', visibility='public', status='open'
+        )
+        self.part = Course.objects.create(
+            instructor=self.teacher, title='Analiza 1', visibility='public', status='open',
+            parent=self.root,
+        )
+        self.hidden = Course.objects.create(
+            instructor=self.teacher, title='Secret', visibility='only_you', status='open'
+        )
+        self.client.force_authenticate(self.user)
+
+    def _post(self, body, course):
+        return self.client.post(
+            '/api/posts/',
+            {'body': body, 'tag': self.tag.slug, 'language': 'pl', 'ref_course': course.pk},
+            format='json',
+        )
+
+    def test_the_board_lists_the_course_and_its_subcourses_newest_first(self):
+        on_root = self._post('About the whole thing', self.root).data['id']
+        on_part = self._post('About part one', self.part).data['id']
+        removed = self._post('Withdrawn', self.root).data['id']
+        self.client.delete(f'/api/posts/{removed}/')
+        self.client.force_authenticate(None)
+        res = self.client.get(f'/api/posts/?course={self.root.pk}')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual([row['id'] for row in res.data], [on_part, on_root])
+        self.assertEqual(res.data[0]['ref_course_title'], 'Analiza 1')
+        self.assertEqual(res.data[0]['attachment_count'], 0)
+        # The part's own board holds only its own.
+        part = self.client.get(f'/api/posts/?course={self.part.pk}')
+        self.assertEqual([row['id'] for row in part.data], [on_part])
+
+    def test_a_course_the_reader_cannot_see_is_not_found(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(
+            self.client.get(f'/api/posts/?course={self.hidden.pk}').status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        self.assertEqual(self.client.get('/api/posts/?course=x').status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_a_tag_and_a_course_combine(self):
+        other = Tag.objects.create(slug='board-other')
+        on_root = self._post('In the tag', self.root).data['id']
+        self.client.post(
+            '/api/posts/',
+            {'body': 'Other tag', 'tag': other.slug, 'language': 'pl', 'ref_course': self.root.pk},
+            format='json',
+        )
+        res = self.client.get(f'/api/posts/?course={self.root.pk}&tag={self.tag.slug}')
+        self.assertEqual([row['id'] for row in res.data], [on_root])

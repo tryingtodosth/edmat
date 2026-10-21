@@ -25,6 +25,10 @@
 	// Who may: anybody the creation gate lets found a course and who can see the general course —
 	// `backend/courses/rules.py` decides, and its refusal words come back as sentences.
 	let parentId = $derived(page.url.searchParams.get('parent'));
+	// `&as=subcourse` — a part of that course rather than a university's version of it (2026-10-21).
+	// The server tells the two apart by the kinds and refuses a subcourse from anybody who does not
+	// run the parent (`not_parent_staff`); the page only picks the words.
+	let asSubcourse = $derived(page.url.searchParams.get('as') === 'subcourse');
 	let parent = $state<Course | null>(null);
 	let parentMissing = $state(false);
 	let parentLoadedFor = $state<string | null>(null);
@@ -39,11 +43,13 @@
 			.then((found) => {
 				if (parentLoadedFor !== id) return;
 				parent = found ?? null;
-				parentMissing = !found || Boolean(found.parent);
+				parentMissing = !found;
 			})
 			.catch(() => (parentMissing = true));
 	});
-	let heading = $derived(parentId ? m.course_version_add() : m.course_runACourse());
+	let heading = $derived(
+		parentId ? (asSubcourse ? m.course_tree_add() : m.course_version_add()) : m.course_runACourse()
+	);
 
 	async function submit(draft: TaughtCourseDraft) {
 		submitting = true;
@@ -78,20 +84,37 @@
 		<p class="status">{m.common_loading()}</p>
 	{:else if parent?.school}
 		<!-- Asked before the form rather than after a refused submit: a school class takes no
-		     versions (`backend/courses/rules.py: parent_is_class`), and an old link must not lead to a
-		     form the server will turn down. -->
+		     versions and no subcourses (`backend/courses/rules.py: parent_is_class`), and an old link
+		     must not lead to a form the server will turn down. -->
 		<p class="status">{SUBCOURSE_REFUSAL_LABELS.parent_is_class()}</p>
 		<!-- "A school class has no university or faculty versions." -->
+	{:else if parent && asSubcourse && !parent.canCurate}
+		<p class="status">{SUBCOURSE_REFUSAL_LABELS.not_parent_staff()}</p>
+		<!-- "Only the people who run a course can add subcourses to it." -->
+	{:else if parent && !asSubcourse && parent.kind !== 'topic'}
+		<!-- A version hangs under a GENERAL course; under one university's course the only thing to
+		     add is a subcourse, so say so rather than draw a form the server will refuse. -->
+		<p class="status">{m.course_tree_versionNeedsGeneral()}</p>
+		<!-- "Versions are added under a general course. Under one university's course you can add a subcourse instead." -->
 	{:else if parentId && parentMissing}
 		<p class="status">{m.course_version_refusal_parentNotFound()}</p>
 		<!-- "That general course is not visible to you." -->
 	{:else if parentId && !parent}
 		<p class="status">{m.common_loading()}</p>
 	{:else}
-		<p class="lead">{parent ? m.course_version_lead() : m.course_newLead()}</p>
-		<!-- "One university's (and faculty's) version of this course: …" -->
+		<p class="lead">
+			{parent ? (asSubcourse ? m.course_tree_lead() : m.course_version_lead()) : m.course_newLead()}
+		</p>
+		<!-- "A part of this course that is a course of its own: …" / "One university's (and faculty's) version of this course: …" -->
 		{#key parent?.id}
-			<CourseForm {parent} submitLabel={m.course_create()} {submitting} {error} onsubmit={submit} />
+			<CourseForm
+				{parent}
+				as={asSubcourse ? 'subcourse' : 'version'}
+				submitLabel={m.course_create()}
+				{submitting}
+				{error}
+				onsubmit={submit}
+			/>
 		{/key}
 	{/if}
 </div>

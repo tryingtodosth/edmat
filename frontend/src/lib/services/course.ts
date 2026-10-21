@@ -33,6 +33,7 @@ import type {
 	RatingSummary,
 	StaffRole,
 	Course,
+	CourseRef,
 	CourseKind,
 	TaughtCourseDraft
 } from '$lib/types/course';
@@ -192,6 +193,10 @@ function mapItem(raw: any): CourseItem {
 		discussion: optionalId(raw.discussion),
 		discussionTargetType: raw.discussion_target_type ?? '',
 		discussionTargetId: raw.discussion_target_id ?? '',
+		linkedCourse: optionalId(raw.linked_course),
+		linkUrl: raw.link_url ?? '',
+		linkTitle: raw.link_title ?? '',
+		post: optionalId(raw.post),
 		label: raw.label ?? '',
 		order: raw.order ?? 0,
 		note: raw.note ?? '',
@@ -249,6 +254,14 @@ function mapInvite(raw: any): CourseInvite {
  *  with exactly this shape — the backend reuses `CourseSerializer` there on purpose
  *  (`backend/events/learning_views.py`) so there is one course shape, one mapper and one
  *  `CourseCard`, rather than a second summary kept in step with this one by hand. */
+function mapCourseRef(raw: any): CourseRef {
+	return {
+		id: String(raw.id),
+		title: raw.title ?? '',
+		kind: raw.kind === 'university' ? 'university' : 'topic'
+	};
+}
+
 export function mapCourse(raw: any): Course {
 	return {
 		id: String(raw.id),
@@ -263,9 +276,12 @@ export function mapCourse(raw: any): Course {
 		fieldSlug: raw.field_slug ?? null,
 		kind: raw.kind === 'university' ? 'university' : 'topic',
 		parent: raw.parent == null ? null : String(raw.parent),
-		parentSummary: raw.parent_summary
-			? { id: String(raw.parent_summary.id), title: raw.parent_summary.title ?? '' }
-			: null,
+		parentSummary: raw.parent_summary ? mapCourseRef(raw.parent_summary) : null,
+		parentRelation:
+			raw.parent_relation === 'version' || raw.parent_relation === 'subcourse'
+				? raw.parent_relation
+				: null,
+		ancestors: (raw.ancestors ?? []).map(mapCourseRef),
 		university: raw.university ?? '',
 		faculty: raw.faculty ?? '',
 		courseCode: raw.course_code ?? '',
@@ -376,7 +392,8 @@ export interface CourseFilters {
 	/** Exact (case-insensitive) university name. */
 	university?: string;
 	faculty?: string;
-	/** One general course's university/faculty versions. */
+	/** One course's children — its university/faculty versions AND its subcourses; the caller
+	 *  tells them apart by each row's `parentRelation`. */
 	parent?: string;
 	/** General and stand-alone courses only — no versions. */
 	topOnly?: boolean;
@@ -736,6 +753,13 @@ export interface CourseItemSubmission {
 	/** A comment id, and it must be the START of a thread: the server refuses a reply, and refuses
 	 * a thread private to a different course. */
 	discussionId?: string;
+	/** Another EdMat course — one this person can open, and not this course itself. */
+	linkedCourseId?: string;
+	/** An address outside EdMat, http(s) only, with the title the curator gives it. */
+	linkUrl?: string;
+	linkTitle?: string;
+	/** A board post. */
+	postId?: string;
 	/** Where it goes. At most one: a lesson already belongs to a chapter, so sending both would state
 	 * the same fact twice with two chances to disagree. Neither means unfiled. */
 	chapterId?: string | null;
@@ -753,6 +777,12 @@ export async function submitCourseItem(
 	if (submission.attachmentId) body.attachment = Number(submission.attachmentId);
 	if (submission.eventId) body.event = Number(submission.eventId);
 	if (submission.discussionId) body.discussion = Number(submission.discussionId);
+	if (submission.linkedCourseId) body.linked_course = Number(submission.linkedCourseId);
+	if (submission.linkUrl) {
+		body.link_url = submission.linkUrl;
+		body.link_title = submission.linkTitle ?? '';
+	}
+	if (submission.postId) body.post = Number(submission.postId);
 	// A lesson wins if both somehow arrive, rather than sending both and letting the server refuse
 	// the whole request: the caller asked for the more specific of the two.
 	if (submission.lessonId) body.lesson = Number(submission.lessonId);

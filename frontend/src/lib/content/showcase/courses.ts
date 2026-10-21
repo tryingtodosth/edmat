@@ -69,6 +69,8 @@ function courseBase(): Omit<Course, 'title' | 'summary' | 'instructor' | 'langua
 		kind: 'topic',
 		parent: null,
 		parentSummary: null,
+		parentRelation: null,
+		ancestors: [],
 		university: '',
 		faculty: '',
 		courseCode: '',

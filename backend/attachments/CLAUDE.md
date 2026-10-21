@@ -34,6 +34,12 @@ bytes — so while both rows exist, deleting either takes the shared file with i
    THAT — the same thing their own discussion threads do. Four more apps did not have to learn a
    permission model.
 
+   **`post` (2026-10-21) is a comment with a page of its own**: no node, the public tier only,
+   attached to by its author, visible while the post stands and to its author and staff once it
+   is tombstoned or held (`can_view_target`'s `post` branch). It is what makes the course board
+   carry PDFs, pictures, notes and links — `/ask` attaches them to the post it just created, and
+   `/posts/[id]` mounts the panel. `PostTargetTests`.
+
    **`poll` (2026-10-10) is the one exception and the reason `can_view_target` has a branch.** A
    poll is narrower than its node: a draft is managers-only and an open one is for the eligible,
    because the wording of a question put to the room is as much of the decision as the count is

@@ -60,7 +60,9 @@ def _forbidden(reason):
 #: The link refusals that are 409 — the world is not what the request assumed (somebody linked it
 #: first; the course is already a version or already has versions, WP12). `not_linkable` is 400 and
 #: the rest are 403, below.
-_CONFLICT_REASONS = frozenset({'already_linked', 'course_is_version', 'course_has_versions'})
+_CONFLICT_REASONS = frozenset(
+    {'already_linked', 'course_is_version', 'course_is_subcourse', 'course_has_versions'}
+)
 
 
 def _conflict(reason):
