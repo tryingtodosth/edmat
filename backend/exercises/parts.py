@@ -109,6 +109,31 @@ def parts_payload_refusal(exercise: Exercise, items: list[dict]) -> str | None:
     return None
 
 
+def submission_parts_refusal(items) -> str | None:
+    """Why a submission draft's `parts` list (`ExerciseSubmission.payload['parts']`, written by the
+    bulk upload — `exercises/bulk.py`, 2026-10-22 — and readable by `/submit`'s serializer for any
+    hand-built draft) may not be queued, or None. The same words as the PATCH's, plus
+    `part_field_invalid` for an item that is not `{label, statement, answer?, hint?, solution?}` of
+    strings, or whose statement is empty."""
+    if not isinstance(items, list):
+        return 'part_field_invalid'
+    if len(items) > MAX_PARTS:
+        return 'parts_too_many'
+    labels = []
+    for item in items:
+        if not isinstance(item, dict) or set(item) - {'label', 'statement', 'answer', 'hint', 'solution'}:
+            return 'part_field_invalid'
+        if not all(isinstance(item.get(k, ''), str) for k in ('label', 'statement', 'answer', 'hint', 'solution')):
+            return 'part_field_invalid'
+        label = item.get('label', '').strip()
+        if not label or len(label) > 20 or not item.get('statement', '').strip():
+            return 'part_field_invalid'
+        labels.append(label)
+    if len(labels) != len(set(labels)):
+        return 'part_label_duplicate'
+    return None
+
+
 def apply_parts(exercise: Exercise, items: list[dict], user) -> None:
     """Make the exercise's parts exactly `items` (already validated by `parts_payload_refusal`):
 

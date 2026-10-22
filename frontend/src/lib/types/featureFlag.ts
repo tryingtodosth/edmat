@@ -135,6 +135,10 @@ export type FeatureFlagKey =
 	// The browser error reporter (lib/errors/reporter.ts; backend analytics/client_errors.py), 0055.
 	// Off: the reporter sends nothing and the server drops whatever arrives. No link to remove.
 	| 'client_errors'
+	// A person's bulk upload of exercise files (backend exercises/bulk.py, 2026-10-22, migration
+	// 0057). Off: /submit/bulk, its link on /submit and the Add… entry go (house rule 3). Also closed
+	// whenever `exercise_submissions` is off — the endpoint answers to both.
+	| 'exercise_bulk_upload'
 	| 'creation_requires_verification'
 	| 'material_uploads_verified_only';
 

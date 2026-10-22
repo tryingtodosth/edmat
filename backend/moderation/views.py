@@ -241,6 +241,57 @@ class EditSuggestionViewSet(viewsets.ModelViewSet):
         return Response(EditSuggestionSerializer(suggestion).data)
 
 
+class UploadBatchApproveView(APIView):
+    """`POST /api/moderation/batches/<batch>/approve/ {review_note?}` — approve every still-pending
+    submission of one bulk upload at once (`exercises/bulk.py`, 2026-10-22), for a moderator who has
+    read the batch and wants to decide it as one.
+
+    Each row goes through exactly what a one-by-one approve does (`ModerationActionView.post`): the
+    governor check for ITS branch first, the WHERE-anchored claim (a row somebody decided a moment
+    ago is skipped, `already_decided`, never applied twice), `_apply_submission`, the revert on
+    failure, the submitter's notification. Rows outside the caller's authority are skipped with
+    `not_governor`, not refused as a whole — a governor of one branch may approve their part.
+    Rejecting is deliberately NOT offered in bulk: a rejection carries its reason per file (house
+    rule 6), and one note for fifty different problems is no reason at all.
+
+    404 for a batch id that has no submissions (or is not a batch id)."""
+
+    permission_classes = [IsModerator]
+
+    def post(self, request, batch):
+        import re as _re
+
+        if not _re.fullmatch(r'[0-9a-f]{32}', batch or '') or not ExerciseSubmission.objects.filter(
+            upload_batch=batch
+        ).exists():
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        note = str(request.data.get('review_note') or '')
+        approved, skipped = [], []
+        pending = ExerciseSubmission.objects.filter(upload_batch=batch, status='pending').select_related('branch')
+        for row in pending.order_by('pk'):
+            if not is_governor_of_course(request.user, row.branch):
+                skipped.append({'id': row.pk, 'reason': 'not_governor'})
+                continue
+            claimed = ExerciseSubmission.objects.filter(pk=row.pk, status='pending').update(
+                status='approved', reviewed_by=request.user, review_note=note
+            )
+            if not claimed:
+                skipped.append({'id': row.pk, 'reason': 'already_decided'})
+                continue
+            obj = ExerciseSubmission.objects.get(pk=row.pk)
+            try:
+                _apply_submission(obj, request.user)
+                obj.save(update_fields=['resulting_exercise'])
+            except Exception:
+                ExerciseSubmission.objects.filter(pk=row.pk).update(
+                    status='pending', reviewed_by=None, review_note=''
+                )
+                raise
+            ModerationActionView._notify_decision('submission', obj, request.user, 'approved', note)
+            approved.append({'id': obj.pk, 'exercise': obj.resulting_exercise_id})
+        return Response({'approved': approved, 'skipped': skipped})
+
+
 class ReportViewSet(viewsets.ModelViewSet):
     """POST /api/reports/ (auth required) — the user-facing side of the reporting system (see
     moderation/services.py's own module doc comment for the full feature). Create-only from this
@@ -445,6 +496,58 @@ def _apply_submission(submission, reviewer):
                 # The same author, the same form, the same choice: the founding hint and solution
                 # carry the licence the submitter picked for the exercise.
                 licence=exercise.licence,
+            )
+    # `parts` — a set-shaped exercise from a bulk upload (`exercises/bulk.py`, 2026-10-22): each
+    # part's label and text in the draft's locale, and its own hint/solution pinned exactly when the
+    # whole exercise's are. `submission_parts_refusal` validated the list when it was submitted;
+    # it is re-read defensively here because a payload is JSON that sat in a queue.
+    from exercises.models import ExercisePart, ExercisePartTranslation
+    from exercises.parts import MAX_PARTS
+
+    for order, item in enumerate((payload.get('parts') or [])[:MAX_PARTS], start=1):
+        if not isinstance(item, dict) or not str(item.get('statement') or '').strip():
+            continue
+        part = ExercisePart.objects.create(
+            exercise=exercise, order=order, label=str(item.get('label') or order)[:20]
+        )
+        ExercisePartTranslation.objects.create(
+            part=part,
+            locale=payload.get('locale', 'pl'),
+            status='published',
+            statement=str(item.get('statement') or ''),
+            answer=str(item.get('answer') or ''),
+            translated_by=None,
+        )
+        for kind in ('hint', 'solution'):
+            body = str(item.get(kind) or '').strip()
+            if body:
+                SolutionEntry.objects.create(
+                    exercise=exercise,
+                    part=part,
+                    kind=kind,
+                    locale=payload.get('locale', 'pl'),
+                    body=body,
+                    author=submission.submitted_by,
+                    status='published',
+                    pinned=submission.reviewed_by_id is not None,
+                    reviewed_by=submission.reviewed_by,
+                    licence=exercise.licence,
+                )
+    # `ai_assisted` — the author's own "AI-assisted" mark (`provenance/`), given once for the whole
+    # upload on the bulk form and carried in each draft. Written as the author's mark on the
+    # exercise and on every hint/solution it founded, the way `declare_ai_assisted` writes it, so an
+    # AI-assisted solution stops counting toward `verified` until somebody reviews it.
+    if payload.get('ai_assisted') is True:
+        from django.contrib.contenttypes.models import ContentType
+
+        from provenance.models import AuthorMark
+
+        targets = [exercise, *SolutionEntry.objects.filter(exercise=exercise, author=submission.submitted_by)]
+        for target in targets:
+            AuthorMark.objects.update_or_create(
+                content_type=ContentType.objects.get_for_model(type(target)),
+                object_id=target.pk,
+                defaults={'assisted': True, 'declared_by': submission.submitted_by},
             )
     submission.resulting_exercise = exercise
     from activity.services import record_activity

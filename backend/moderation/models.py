@@ -44,6 +44,10 @@ class ExerciseSubmission(models.Model):
     resulting_exercise = models.ForeignKey(
         Exercise, null=True, blank=True, on_delete=models.SET_NULL
     )  # set once approved
+    # The upload a submission came in with (`exercises/bulk.py`, 2026-10-22) — one random hex id per
+    # bulk upload, blank for a `/submit` one. What lets a moderator decide one person's batch at once
+    # (`POST /api/moderation/batches/<id>/approve/`) and the queue say "from a bulk upload".
+    upload_batch = models.CharField(max_length=32, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -470,6 +474,11 @@ FEATURE_FLAG_CHOICES = [
     # off; the browser half reads it too and does not send. The staff dashboard section stays (it
     # shows what was collected before; staff bypass every gate anyway). There is no link to remove.
     ('client_errors', 'Browser error reports (no cookie, no identifier)'),
+    # A person's bulk upload of exercise files (exercises/bulk.py, `POST /api/exercise-imports/`,
+    # 2026-10-22). A plain kill switch, seeded ON by migration 0057, read with `feature_gate` (staff
+    # bypass). The endpoint ALSO answers to `exercise_submissions`: killing submissions kills the
+    # bulk path with it. Off, /submit/bulk, its link on /submit and its Add… entry go (house rule 3).
+    ('exercise_bulk_upload', 'Bulk upload of exercise files'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

@@ -152,6 +152,24 @@ for a batch (idempotent by `(branch, number)`, `--dry-run` first — `.claude/sk
 is the whole procedure); and `import_legacy_corpus`, which is **dead** — it predates the
 Discipline/Branch restructure and crashes on its first row. Keep it as provenance, do not repair it.
 
+**A fourth, for every signed-in person: the bulk upload** (`bulk.py` + `bulk_views.py`,
+`POST /api/exercise-imports/?mode=preview|commit`, `/submit/bulk`, 2026-10-22). The SAME file format,
+read by the SAME parser — `importing.py` (`split_text`, `parse_file`, the constants), lifted out of
+`import_exercises` that day; the command re-exports every name, so `import_concepts` and
+`test_import_parts` still import from the command. What a person may do with a parsed file is
+narrower and is `bulk.py`'s whole job (its docstring has the table): never updates (`number:` →
+warning `number_ignored`, the number is allocated on publication), no `--author`, no new topics
+(`topic_not_in_branch`), no `unknown` licence, no `published: false`, approved branches only, tags
+through `tags.py`'s rules (≤ 20 new per upload; a minor mints none). Caps: 50 files, 256 KB each,
+4 MB together (413 before the body is read), 16 KB of front matter, YAML through a safe loader that
+also refuses aliases. Every payload is sanitized when it is written; `html_removed` says so. Each
+file becomes an `ExerciseSubmission` (`upload_batch` = one hex id per upload): a verified
+contributor's (or staff's) are applied at once through `moderation.views._apply_submission`, which
+now builds PARTS and writes the author's AI-assisted mark from the draft; everybody else's queue, and
+a moderator may approve a whole batch (`POST /api/moderation/batches/<id>/approve/`). Commit
+re-validates and writes nothing unless every file is clean (400 with the report). Behind
+`exercise_submissions` AND `exercise_bulk_upload`. Tests: `test_bulk.py`.
+
 ## A solution can carry a file (2026-10-01)
 
 `SolutionEntryAttachment` — a scan or a PDF hanging off one hint/solution, added for the owner's

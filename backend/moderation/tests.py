@@ -1390,6 +1390,9 @@ class FeatureFlagTests(ApiTestCase):
                 'social_login',
                 # Browser error reports, migration 0055 (`analytics/client_errors.py`, 2026-10-14).
                 'client_errors',
+                # A person's bulk upload of exercise files, migration 0057 (`exercises/bulk.py`,
+                # 2026-10-22).
+                'exercise_bulk_upload',
                 'material_uploads_verified_only',
             },
         )
@@ -1405,6 +1408,7 @@ class FeatureFlagTests(ApiTestCase):
                     'courses',
                     'messaging',
                     'exercise_submissions',
+                    'exercise_bulk_upload',
                     'material_submissions',
                     'events',
                     'issues',

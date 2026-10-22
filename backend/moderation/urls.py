@@ -13,6 +13,7 @@ from .views import (
     ReportActionView,
     ReportViewSet,
     TaxonomyProposalActionView,
+    UploadBatchApproveView,
 )
 
 router = NumericPkRouter()
@@ -52,6 +53,12 @@ urlpatterns = router.urls + [
         'moderation/reports/<str:kind>/<int:pk>/<str:decision>/',
         ReportActionView.as_view(),
         name='moderation-report-action',
+    ),
+    # One bulk upload's pending submissions, approved at once (exercises/bulk.py, 2026-10-22).
+    path(
+        'moderation/batches/<str:batch>/approve/',
+        UploadBatchApproveView.as_view(),
+        name='moderation-batch-approve',
     ),
     path(
         'moderation/<str:kind>/<int:pk>/<str:decision>/',

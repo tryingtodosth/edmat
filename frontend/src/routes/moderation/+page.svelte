@@ -49,6 +49,7 @@
 	import { getUserById } from '$lib/services/users';
 	import { getBranchById, getDisciplines, getAllBranches } from '$lib/services/taxonomy';
 	import { getExercisesByIds, reviewSolutionEntry } from '$lib/services/exercises';
+	import { approveUploadBatch } from '$lib/services/bulkUpload';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import DiscussionLocationsPanel from '$lib/components/moderation/DiscussionLocationsPanel.svelte';
@@ -301,6 +302,32 @@
 	async function approveSubmission(s: ExerciseSubmission) {
 		if (!authStore.user) return;
 		await decideExerciseSubmission(s.id, 'approved', authStore.user.id, notes[s.id]);
+		await load();
+	}
+	// One bulk upload's still-pending rows, approved at once (exercises/bulk.py, 2026-10-22). The
+	// button sits on the FIRST row of a batch only, and says how many it will decide; rejecting stays
+	// one by one, because a rejection's note is about one file.
+	let batchNotice = $state('');
+	const batchCounts = $derived(
+		submissions.reduce<Record<string, number>>((acc, s) => {
+			if (s.uploadBatch) acc[s.uploadBatch] = (acc[s.uploadBatch] ?? 0) + 1;
+			return acc;
+		}, {})
+	);
+	const firstOfBatch = $derived(
+		new Set(
+			submissions
+				.filter(
+					(s, i) =>
+						s.uploadBatch && submissions.findIndex((t) => t.uploadBatch === s.uploadBatch) === i
+				)
+				.map((s) => s.id)
+		)
+	);
+	async function approveBatch(s: ExerciseSubmission) {
+		if (!s.uploadBatch) return;
+		const result = await approveUploadBatch(s.uploadBatch, notes[s.id] ?? '');
+		batchNotice = m.moderation_bulkApproved({ approved: result.approved, skipped: result.skipped }); // "Approved {approved}; skipped {skipped}."
 		await load();
 	}
 	async function rejectSubmission(s: ExerciseSubmission) {
@@ -872,6 +899,9 @@
 					</ul>
 				{/if}
 			{:else if tab === 'submissions'}
+				{#if batchNotice}
+					<p class="meta" role="status">{batchNotice}</p>
+				{/if}
 				{#if submissions.length === 0}
 					<p class="empty">{m.moderation_empty()}</p>
 				{:else}
@@ -886,6 +916,18 @@
 									{m.moderation_forBranch({ branch: coursesById[s.branchId]?.name ?? s.branchId })}
 								</p>
 								<p class="excerpt">{s.draft.statement.replace(/<[^>]+>/g, '').slice(0, 200)}</p>
+								{#if s.draft.bulk || s.draft.parts?.length || s.draft.ai_assisted}
+									<p class="meta" data-testid="queue-bulk">
+										{#if s.draft.bulk}{m.moderation_bulkFrom({ file: s.draft.bulk.file })}{/if}
+										<!-- "From a bulk upload: {file}" -->
+										{#if s.draft.parts?.length}· {m.moderation_bulkParts({
+												count: s.draft.parts.length
+											})}{/if}
+										<!-- "{count} part(s)" -->
+										{#if s.draft.ai_assisted}· {m.moderation_bulkAiAssisted()}{/if}
+										<!-- "The author marked this AI-assisted" -->
+									</p>
+								{/if}
 								<!-- The licence the author chose (backend licensing/) — the reviewer accepting it is
 								     publishing it under that licence. A draft from before 2026-10-14 has none: the
 								     backend applies `edmat-only`, so that is what this says. -->
@@ -904,6 +946,16 @@
 									<button type="button" class="reject" onclick={() => rejectSubmission(s)}
 										>{m.moderation_reject()}</button
 									>
+									{#if s.uploadBatch && firstOfBatch.has(s.id) && batchCounts[s.uploadBatch] > 1}
+										<button
+											type="button"
+											class="approve"
+											onclick={() => approveBatch(s)}
+											data-testid="queue-batch-approve"
+											>{m.moderation_bulkApprove({ count: batchCounts[s.uploadBatch] })}</button
+										>
+										<!-- "Approve all {count} from this upload" -->
+									{/if}
 								</div>
 							</li>
 						{/each}

@@ -762,6 +762,11 @@ REST_FRAMEWORK = {
         # name up to 500 items, so 30 an hour is ~15000 changes — far more than any real account
         # holds, while a loop hammering the endpoint stops quickly. Reading the list costs nothing.
         'licence_bulk': '30/hour',
+        # A person's bulk upload of exercise files (exercises/bulk_views.py, 2026-10-22). A preview
+        # parses up to fifty files and writes nothing — generous, for somebody fixing a batch file by
+        # file; a commit writes up to fifty submissions — a handful an hour is a busy afternoon.
+        'exercise_bulk_preview': '120/hour',
+        'exercise_bulk_commit': '10/hour',
         # Saving a chemistry drawing decodes and re-encodes a picture (chem/serializers.py) — plenty
         # for somebody drawing a mechanism step by step, far too few for a CPU-exhaustion loop.
         'chem_drawing': '60/hour',

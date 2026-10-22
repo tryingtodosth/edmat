@@ -14,6 +14,13 @@ on every run, the AI-assisted step — a draft awaiting the owner's word, 2026-1
 
 Read `backend/exercises/CLAUDE.md` as well — it owns the invariants this import has to respect.
 
+**This command is the OPERATOR's path.** Since 2026-10-22 every signed-in person has their own:
+`/submit/bulk` (`POST /api/exercise-imports/`, `backend/exercises/bulk.py`) reads the same format
+with the same parser (`exercises/importing.py`), but never updates an existing exercise, credits only
+the uploader, creates no topics, refuses `licence: unknown` and `published: false`, and queues the
+files for review unless the uploader is a verified contributor. Point somebody who is not the
+operator THERE, not at this command; use this command when you are running a kit on the server.
+
 **Concept (wiki) pages** have their own command, `manage.py import_concepts` (2026-10-21) — same
 CLI shape, same validate-everything-then-write discipline: `reference/concepts.md`.
 

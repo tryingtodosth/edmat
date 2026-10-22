@@ -814,6 +814,7 @@ export interface RawExerciseSubmission {
 	reviewed_by: number | null;
 	review_note: string;
 	resulting_exercise: number | null;
+	upload_batch?: string;
 	created_at: string;
 }
 
@@ -828,7 +829,8 @@ export function mapExerciseSubmission(json: RawExerciseSubmission): ExerciseSubm
 		reviewedByUserId: idOrUndefined(json.reviewed_by),
 		reviewNote: undefinedIfEmpty(json.review_note),
 		createdAt: json.created_at,
-		resultingExerciseId: idOrUndefined(json.resulting_exercise)
+		resultingExerciseId: idOrUndefined(json.resulting_exercise),
+		uploadBatch: json.upload_batch || undefined
 	};
 }
 

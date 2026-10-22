@@ -114,6 +114,19 @@ firing — **and nothing else**. The minors regime (`accounts/minors.py`) and Se
 are deliberately outside its reach; `accounts/test_minors.py`'s `RegistrationAgeGateFlagTests`
 is what pins that, and `e2e/age-gate-flag.mjs` drives it in a browser.
 
+## Bulk uploads (`exercises/bulk.py`, 2026-10-22)
+
+`ExerciseSubmission.upload_batch` (migration 0057, with the `exercise_bulk_upload` flag) groups one
+person's bulk upload. `_apply_submission` reads two new draft keys, both validated at `/submit` too
+(`ExerciseSubmissionSerializer.validate_payload`, `exercises/parts.py: submission_parts_refusal`):
+`parts` (built as `ExercisePart` + its text + its own hint/solution, pinned exactly when the whole
+exercise's are) and `ai_assisted` (the author's `provenance.AuthorMark` on the exercise and every
+entry it founded). `bulk` is the upload's bookkeeping and `/submit` strips it.
+`UploadBatchApproveView` (`POST /api/moderation/batches/<id>/approve/`) runs each pending row of a
+batch through exactly the one-by-one approve: governor check, WHERE-anchored claim, apply, revert on
+failure, notification; rows outside the caller's branches are `skipped: not_governor`. There is no
+bulk REJECT, on purpose — a rejection's note is about one file.
+
 ## Verified-contributor fast path
 
 A brand-new `ExerciseSubmission` from `is_verified_contributor` auto-publishes in

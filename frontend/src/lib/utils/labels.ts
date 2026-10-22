@@ -443,6 +443,9 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	// Browser error reports (analytics/client_errors.py, 2026-10-14) — mirrors moderation/models.py's
 	// 0055 key; the third file of the three-file change.
 	client_errors: m.featureFlags_label_clientErrors, // "Browser error reports (no cookie, no identifier)"
+	// Bulk upload of exercise files (exercises/bulk.py, 2026-10-22) — mirrors moderation/models.py's
+	// 0057 key; the third file of the three-file change.
+	exercise_bulk_upload: m.featureFlags_label_exerciseBulkUpload, // "Bulk upload of exercise files"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 
@@ -2111,4 +2114,39 @@ export function partRefusalMessage(err: unknown): string | null {
 	if (!(err instanceof ApiError)) return null;
 	const word = firstRefusalWord(err.body);
 	return Object.hasOwn(PART_REFUSAL_LABELS, word) ? PART_REFUSAL_LABELS[word]() : null;
+}
+
+// ---- bulk upload of exercises (backend `exercises/bulk.py`, 2026-10-22) ------------------------
+// MIRRORED by hand from `bulk.py: UPLOAD_REFUSALS`, `FILE_REFUSALS` and `WARNINGS` (house rule 13 —
+// that module says so too). A word missing here falls back to the server's own detail text.
+export const BULK_UPLOAD_LABELS: Record<string, (p: { detail: string }) => string> = {
+	no_files: () => m.bulkUpload_refusal_no_files(), // "Choose at least one .md file."
+	too_many_files: (p) => m.bulkUpload_refusal_too_many_files(p), // "Too many files in one upload ({detail})."
+	total_too_large: (p) => m.bulkUpload_refusal_total_too_large(p), // "The files are too large altogether ({detail} bytes)."
+	branch_not_found: () => m.bulkUpload_refusal_branch_not_found(), // "Choose a subject that exists."
+	batch_yaml_invalid: (p) => m.bulkUpload_refusal_batch_yaml_invalid(p), // "batch.yaml could not be read: {detail}"
+	batch_yaml_twice: () => m.bulkUpload_refusal_batch_yaml_twice(), // "Only one batch.yaml per upload."
+	too_many_new_tags: (p) => m.bulkUpload_refusal_too_many_new_tags(p), // "This upload would create too many new tags ({detail}). Reuse existing ones."
+	licence_not_selectable: (p) => m.bulkUpload_refusal_licence_not_selectable(p), // "This licence cannot be chosen: {detail}"
+	not_markdown: () => m.bulkUpload_refusal_not_markdown(), // "Not a .md file."
+	file_too_large: (p) => m.bulkUpload_refusal_file_too_large(p), // "The file is too large ({detail} bytes)."
+	not_utf8: () => m.bulkUpload_refusal_not_utf8(), // "The file is not UTF-8 text."
+	front_matter_too_large: () => m.bulkUpload_refusal_front_matter_too_large(), // "The front matter is too long."
+	format: (p) => m.bulkUpload_refusal_format(p), // "{detail}"
+	value_type: (p) => m.bulkUpload_refusal_value_type(p), // "{detail}"
+	published_false: () => m.bulkUpload_refusal_published_false(), // "published: false is not available in an upload — remove the line."
+	locale_invalid: (p) => m.bulkUpload_refusal_locale_invalid(p), // "locale: must be a language code such as pl or en (got “{detail}”)."
+	topic_not_in_branch: (p) => m.bulkUpload_refusal_topic_not_in_branch(p), // "This subject has no topic “{detail}”."
+	tag_refused: (p) => m.bulkUpload_refusal_tag_refused(p), // "Tag refused: {detail}"
+	duplicate_name: () => m.bulkUpload_refusal_duplicate_name(), // "Two files have this name."
+	number_ignored: () => m.bulkUpload_warning_number_ignored(), // "number: is ignored — the exercise gets the next free number."
+	id_ignored: () => m.bulkUpload_warning_id_ignored(), // "id: is ignored."
+	source_type_other: () => m.bulkUpload_warning_source_type_other(), // "The source type is not one EdMat knows; it is saved as “other”."
+	html_removed: () => m.bulkUpload_warning_html_removed(), // "Unsafe HTML (a script, an event handler or similar) will be removed."
+	topic_names_ignored: () => m.bulkUpload_warning_topic_names_ignored() // "topic_names: in batch.yaml is ignored — an upload uses the subject's existing topics."
+};
+
+export function bulkUploadMessage(issue: { code: string; detail: string }): string {
+	const label = BULK_UPLOAD_LABELS[issue.code];
+	return label ? label({ detail: issue.detail }) : issue.detail || issue.code;
 }

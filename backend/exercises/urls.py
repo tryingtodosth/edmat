@@ -1,4 +1,8 @@
+from django.urls import path
+
 from config.routers import NumericPkRouter
+
+from .bulk_views import ExerciseImportView
 
 from .views import (
     ExerciseClaimViewSet,
@@ -19,4 +23,7 @@ router.register('exercise-claims', ExerciseClaimViewSet, basename='exercise-clai
 router.register('solution-entries', SolutionEntryViewSet, basename='solution-entry')
 router.register('tags', TagViewSet, basename='tag')
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('exercise-imports/', ExerciseImportView.as_view(), name='exercise-imports'),
+    *router.urls,
+]

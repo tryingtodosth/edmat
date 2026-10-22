@@ -31,6 +31,7 @@
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import { submitExercise } from '$lib/services/submissions';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import {
 		DIFFICULTIES,
 		DIFFICULTY_LABELS,
@@ -328,6 +329,16 @@
 				<a href={resolve('/submit/mine')}>{m.wp14a_submit_mineLink()}</a>
 				<!-- "Exercises you've sent →" -->
 			</p>
+			<!-- A whole sheet at once (exercises/bulk.py, 2026-10-22): behind its own switch, and this
+			     page is already behind `exercise_submissions`, so the link asks both (house rule 3). -->
+			{#if featureFlagsStore.isEnabled('exercise_bulk_upload') || authStore.isModerator}
+				<p class="mine-link">
+					<a href={resolve('/submit/bulk')} data-testid="submit-bulk-link"
+						>{m.bulkUpload_linkFromSubmit()}</a
+					>
+					<!-- "Have a whole problem sheet? Upload many files at once →" -->
+				</p>
+			{/if}
 
 			{#if success}
 				<div class="submitted" role="status" tabindex="-1" bind:this={submittedNotice}>

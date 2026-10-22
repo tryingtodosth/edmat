@@ -17997,3 +17997,106 @@ which `frontend/CLAUDE.md` forbids on content; they now read in `--text-secondar
 - **No undo, by design** — only widening exists, and the confirm step says so.
 - **A translation somebody else wrote keeps its stamped licence** when the exercise widens
   (`rules._carry_to_own_text`, unchanged); the page does not list translations as items of their own.
+## 17CX.U — A person's bulk upload of exercise files (2026-10-22, `feat/bulk-upload`)
+
+**The ask.** The owner, the morning paczka5 was being packed: *"we also want to empower users to feed
+the DB with their own exercises in bulk: we are doing it by uploading .md and executing a script on
+them, so it should also work (with bunch of security checks and sanitization) for every user, or am
+i wrong?"* — and, asked how such files should land: **a verified contributor's publish at once,
+everybody else's queue**. That is exactly the split `/submit` has had since Section 18 item 4, which
+decided most of the design: a bulk upload is N ordinary `ExerciseSubmission`s, built by the same
+`_apply_submission`, not a new way for rows to come into being.
+
+**Not the operator's script.** `import_exercises` is the operator's tool and stays one: it updates by
+`(branch, number)`, credits anybody (`--author`), creates topics, stages hidden rows and writes
+`unknown`. Handing that to every account would let anybody rewrite anybody's exercise by numbering a
+file. So the FORMAT is shared and the AUTHORITY is not:
+
+- **One parser** — `exercises/importing.py` (`split_text`, `parse_file`, the constants), lifted
+  unchanged out of the command; the command re-exports every name (`import_concepts` and
+  `test_import_parts` import from it) and its 28+ tests ran green unchanged.
+- **One rule module for a person** — `exercises/bulk.py`, whose docstring has the operator/person
+  table: `number:` is a WARNING and never a key (the number is allocated on publication);
+  `topic_not_in_branch` instead of `--create-topics`; `licence: unknown` and `published: false`
+  refused; approved branches only; tags through `tags.py` (`name_refusal`, `matching_tag`, ≤ 20 new
+  per upload, a minor mints none).
+- **The door** — `exercises/bulk_views.py`, `POST /api/exercise-imports/?mode=preview|commit`
+  (multipart: `files`, `branch`, `licence`, `ai_assisted`). Behind `exercise_submissions` AND the new
+  `exercise_bulk_upload` (moderation 0057, seeded on; three-file change). Two `UserRateThrottle`
+  scopes — not `ScopedRateThrottle`, which counts nothing on a view without `throttle_scope` (the
+  todo.md finding): 120 previews and 10 commits an hour.
+
+**The security checks, in the order they run.** `Content-Length` over 4 MB + slack → 413 before the
+body is parsed (the mode is in the query string so the throttle and this check never touch the
+body); at most 50 `.md` files + one `batch.yaml`; each read at most 256 KB + 1 byte; strict UTF-8;
+front matter ≤ 16 KB; YAML through `_NoAliasLoader` — `SafeLoader` (a `!!python/…` tag is a
+`ConstructorError`) that also refuses anchors and aliases, because a few hundred bytes of nested
+aliases is a "billion laughs"; every key's value of the type it means (`value_type` — a mapping under
+`title:` would otherwise be `str()`-ed onto the page); the uploaded filename reduced to a basename
+with control and format characters (a right-to-left override) stripped and used for nothing but the
+report — nothing an upload sends is stored as a file. **Sanitized on write** (house rule 8): every
+body, title, part and source name in the queued payload goes through `config/sanitize.py` when it is
+written — `/submit` stores its payload raw and relies on the models' `save()`, which a moderator
+rendering a pending row does not reach — and `html_removed` tells the person the sanitizer will cut
+something rather than doing it silently.
+
+**Preview, then commit.** A preview writes nothing and answers 200 with a per-file report (every
+refusal a word plus the server's detail — house rule 6). A commit re-validates from scratch — a
+preview is never trusted; the branch or a topic may have gone in between — and writes only when
+EVERY file is clean, otherwise 400 with the same report. The writes are one transaction per file,
+not one around the batch (SQLite rule 2: fifty multi-table applies in one atomic block hold the single
+writer for all of them).
+
+**`_apply_submission` grew two keys**, validated at `/submit` too so a hand-built draft cannot hand it
+something to guess about (`exercises/parts.py: submission_parts_refusal`): `parts` (an `ExercisePart`
++ its published text + its own hint/solution, pinned exactly when the whole exercise's are — i.e.
+when a moderator approved) and `ai_assisted` (the author's `provenance.AuthorMark` on the exercise and
+on every entry it founded, the way `declare_ai_assisted` writes it — so an AI-assisted solution stops
+counting toward `verified` until somebody reviews it). `bulk` is the upload's bookkeeping;
+`/submit`'s serializer strips it.
+
+**Moderators.** `ExerciseSubmission.upload_batch` (one hex id per upload) lets the queue say "From a
+bulk upload: <file>", "N part(s)", "The author marked this AI-assisted", and offer "Approve all N
+from this upload" on a batch's first row — `POST /api/moderation/batches/<id>/approve/`, which runs
+each pending row through exactly the one-by-one approve (governor check for its branch, WHERE-anchored
+claim, apply, revert on failure, notification) and reports `skipped: not_governor | already_decided`.
+No bulk reject: a rejection's note is about one file.
+
+**The page.** `/submit/bulk`: field of study → subject (its topic slugs listed, because `topics:`
+needs them), files by picker or drop, the licence picker (default `edmat-only`, the form's licence is
+the default for files that name none), the AI-assisted box (only while `ai_assisted` is on), "Check
+the files" → the report table, then "Publish N" / "Send N for review" — off until a clean check, and
+off again the moment any input changes. The format help and a downloadable example file are on the
+page (built in the browser, no request). Linked from `/submit` and the Add… menu's content group, both
+gone with either switch (house rule 3). 76 keys in each catalogue.
+
+**Deviations from the brief, stated.** The creation gate (`config/creation.py`) is NOT asked: its five
+kinds are founding acts (a course, an event…), and submitting an exercise has never been one —
+`/submit` does not ask it either; the review split is the gate here. A `.zip` is not accepted:
+multiple files cost nothing and a zip would bring its own member-count/size/path checks for no gain.
+"409 if the world moved" became "re-validate and 400 with the report": a commit carries the files
+again, so there is no stale state for a 409 to describe.
+
+**Verified.** `manage.py test exercises moderation licensing provenance concepts --parallel 4
+--keepdb`: 567 tests, one failure — the seeded-flag-set test, which is meant to fail when a flag is
+added (`moderation/CLAUDE.md`); updated, and `FeatureFlagTests` + `test_bulk` re-run: 30 OK. The
+importer's own suites (`test_import_parts`, `exercises.tests`, `concepts.test_import`) green after
+the extraction, unchanged; `check` clean; `makemigrations --check` clean after 0057;
+`check_databases_declared` 0; `npm run check` 0/0; eslint on every changed file; `npm run build`;
+`e2e/bulk-upload.mjs` **31/31** against both servers on a copy of the dev DB, screenshots looked at in
+light and dark (the report, the published exercise with its two KaTeX parts and the 100% AI chip, the
+queue's batch button).
+
+**Left open.**
+- The parser's own refusal sentences (`format` detail: "unknown section heading …") are English
+  only — they are the operator's messages, reused. The page wraps them in a Polish/English label for
+  every OTHER word; translating the parser's ~20 sentences is its own change.
+- Tag-follower notifications fire once per exercise, as `/submit` does — a verified contributor's
+  50-file upload notifies a follower of a shared tag 50 times (the hourly digest folds them for those
+  who chose it).
+- One notification per approved row on a batch approve, likewise.
+- No figures (images) in an upload: inline SVG passes whatever `/submit` passes; a picture needs
+  `/inline-images/` and a person uploading files has no way to reference one yet.
+- No "my uploads" grouping on `/submit/mine` — the rows are there, one per file, without the batch.
+- Topic names in `batch.yaml` (`topic_names:`) are ignored with a warning; proposing a topic from an
+  upload would go through the taxonomy proposal queue and is not built.

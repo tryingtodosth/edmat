@@ -54,9 +54,12 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
             'reviewed_by',
             'review_note',
             'resulting_exercise',
+            'upload_batch',
             'created_at',
         ]
-        read_only_fields = ['submitted_by', 'status', 'reviewed_by', 'review_note', 'resulting_exercise']
+        read_only_fields = [
+            'submitted_by', 'status', 'reviewed_by', 'review_note', 'resulting_exercise', 'upload_batch',
+        ]
 
     def get_material_id(self, obj):
         return submission_material_id(obj.payload)
@@ -147,6 +150,20 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
         if reason:
             raise serializers.ValidationError([f'licence: {reason}'])
         value['licence'] = licence
+        # `parts` / `ai_assisted` / `bulk` — what a bulk upload's draft carries (`exercises/bulk.py`,
+        # 2026-10-22). `_apply_submission` turns `parts` into real parts and `ai_assisted` into the
+        # author's mark, so a hand-built `/submit` draft is held to the same shape here rather than
+        # handing that function something it has to guess about. `bulk` is the upload's own
+        # bookkeeping and is never a client's to write through this endpoint.
+        if 'parts' in value:
+            from exercises.parts import submission_parts_refusal
+
+            word = submission_parts_refusal(value['parts'])
+            if word:
+                raise serializers.ValidationError([f'parts: {word}'])
+        if 'ai_assisted' in value and not isinstance(value['ai_assisted'], bool):
+            raise serializers.ValidationError(['ai_assisted: must be true or false.'])
+        value.pop('bulk', None)
         return value
 
 

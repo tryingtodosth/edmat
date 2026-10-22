@@ -3454,3 +3454,37 @@ E2E_BASE=http://localhost:5251 E2E_API=http://127.0.0.1:8151 \
   LD_LIBRARY_PATH=… CHROME=<chrome-headless-shell> node e2e/licence-bulk.mjs
 ```
 
+## A person's bulk upload of exercise files (`exercises/bulk.py`, 2026-10-22, `HISTORY.md` §17CX.U)
+
+**`backend/exercises/test_bulk.py`.** The preview (writes nothing; says `queue` or `publish`), both
+switches closing it for a person and not for staff, every refusal word (`licence_not_selectable`,
+`published_false`, `topic_not_in_branch`, `format`, `not_markdown`, `not_utf8`), an unknown or
+unapproved branch, oversize / too many files / a 413 body, a traversal filename shown as its basename,
+`!!python` tags and an alias bomb refused, a mapping where a value belongs, `number:` ignored and
+never overwriting the exercise it names, `<script>`/`onerror` reported AND cut from the queued
+payload with the maths intact; the commit (one submission per file, one batch id, nothing written
+when one file is refused, a verified contributor's parts/licence/tags/AI mark, the AI mark keeping
+`verified` off, a minor minting no tag, the commit throttle); the moderator's batch approve (pinned
+part entries, idempotent second call, a governor of another branch skipped, a stranger 403, an
+unknown batch 404); and `/submit`'s serializer holding a hand-built draft's `parts`/`ai_assisted`
+to the same shape and stripping `bulk`.
+`../.venv/bin/python3 manage.py test exercises.test_bulk`.
+
+**`frontend/e2e/bulk-upload.mjs` — 31 checks, ~1.5 min.** Three tokens (an unverified account, a
+verified contributor, staff), a discipline/branch/topic from the env. Unverified: the link on
+`/submit`, one good and one refused file (unknown licence, a missing topic, an unknown heading,
+`<script>`) said as sentences, the send button off until a clean check and off again when the files
+change, "Sent 1 … to the moderation queue" and a pending submission with an `upload_batch` read
+back; the refused report in the dark theme. Verified: two files, one with two parts, the AI box →
+"Published 2", the exercise page opened from the result, two parts, unverified, `author_marked`.
+Staff: a batch queued through the API, "Approve all 2 from this upload" on the queue, both approved.
+The kill switch as the unverified account: no link on `/submit`, no Add… entry, no form, 403. Turns
+`exercise_bulk_upload` back on in a `finally`. Screenshots in `e2e/screens/bulk-upload/`.
+
+```bash
+E2E_BASE=http://localhost:5173 E2E_API=http://127.0.0.1:8000/api E2E_PLAIN_TOKEN=… \
+  E2E_VERIFIED_TOKEN=… E2E_STAFF_TOKEN=… E2E_DISCIPLINE=matematyka E2E_BRANCH=analiza-matematyczna \
+  E2E_TOPIC=szeregi LD_LIBRARY_PATH=… CHROME=<chrome-headless-shell> node e2e/bulk-upload.mjs
+```
+
+`e2e/add-menu.mjs`'s expected content group now carries `/submit/bulk` after `/submit`.

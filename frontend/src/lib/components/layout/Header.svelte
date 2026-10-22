@@ -67,6 +67,8 @@
 	// resolves asynchronously — anything read once at mount here would bake in the pre-fetch defaults
 	// and never correct itself.
 	let canSubmitExercise = $derived(can('exercise_submissions'));
+	// The bulk upload (exercises/bulk.py, 2026-10-22) answers to both switches, like its endpoint.
+	let canBulkUpload = $derived(canSubmitExercise && can('exercise_bulk_upload'));
 	let canSubmitMaterial = $derived(can('material_submissions'));
 	// Two abilities, two switches (COAUTHORING-BRIEF.md §0): `material_submissions` gates STARTING a
 	// material — the submit form and a new project alike — while `coauthoring` gates everything that
@@ -569,6 +571,12 @@
 			<a role={itemRole} class={itemClass} href={resolve('/submit')} {onclick}>
 				{m.nav_submit()}
 				<!-- "Submit exercise" -->
+			</a>
+		{/if}
+		{#if canBulkUpload}
+			<a role={itemRole} class={itemClass} href={resolve('/submit/bulk')} {onclick}>
+				{m.nav_submitBulk()}
+				<!-- "Upload exercises in bulk" -->
 			</a>
 		{/if}
 		{#if canSubmitMaterial}

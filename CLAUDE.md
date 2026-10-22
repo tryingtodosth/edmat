@@ -196,8 +196,8 @@ Learn these five and most of the schema reads itself.
   (and a request for it comes back 400 with the reason — house rule 10). A status people can set by
   hand is a status that stops meaning anything.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirty-nine exist today (counted with `FeatureFlag.objects.count()` on the dev
-  database, 2026-10-14, with `social_login` and `contests` both applied; thirty-nine since `client_errors`, moderation 0055, 2026-10-14 — this number had drifted twice before, so count it rather than increment it,
+  with an `is_staff` bypass. Forty exist today (counted with `FeatureFlag.objects.count()` on a copy of the dev
+  database, 2026-10-22, after `exercise_bulk_upload`, moderation 0057; thirty-nine since `client_errors`, moderation 0055, 2026-10-14 — this number had drifted twice before, so count it rather than increment it,
   which is how the "thirty-three" that preceded "thirty-four" turned out to be two short rather than one) — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
@@ -219,7 +219,10 @@ Learn these five and most of the schema reads itself.
   `/api/<kind>/<id>/attachments/` closes for a non-staff caller, the panel leaves every page it is
   mounted on, and "Attach something" goes with it) and `social_login` (0054, sign-in with an external provider — `sso/`; with no credentials configured
 it shows nothing anyway) and `client_errors` (0055, the first-party browser error reporter —
-  `analytics/client_errors.py`; off, the server drops every report and the dashboard section goes) and `contests` (0053, contests — `contests/`;
+  `analytics/client_errors.py`; off, the server drops every report and the dashboard section goes) and
+  `exercise_bulk_upload` (0057, a person's bulk upload of exercise files — `exercises/bulk.py`; off, or
+  with `exercise_submissions` off, `/api/exercise-imports/` closes for a non-staff caller and
+  `/submit/bulk`, its link on `/submit` and its Add… entry go) and `contests` (0053, contests — `contests/`;
   off, every `/api/contests/…` and `/api/contest-presets/` closes for a non-staff caller, the hub,
   the Add… entry, the account-menu item, the work-dashboard sections and the feed rows go with it,
   while a contest node's tasks, plans and goals stay reachable by id for its staff, because those
@@ -374,6 +377,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/exercises/{id}/  (PATCH)                                          the author's or staff's in-place edit (`exercises/editing.py`); no PUT, no DELETE
 /api/exercises/{id}/  (PATCH `parts`) /api/exercises/{id}/entries/ (`part`)  a set-shaped exercise's parts (`exercises/parts.py`, SUBEXERCISES-BRIEF.md): the whole list in order; a hint or solution for one part
 /api/exercise-submissions/ /api/edit-suggestions/ /api/moderation/…  the queues
+/api/exercise-imports/?mode=preview|commit /api/moderation/batches/{batch}/approve/  a person's bulk upload of exercise files, and a moderator deciding one upload (`exercises/bulk.py`)
 /api/courses/ /api/events/ /api/services/ /api/bookings/             user-run surfaces
 /api/material-projects/ /api/material-versions/ /api/project-invites/ co-authoring (COAUTHORING-BRIEF.md)
 /api/concepts/ /api/concept-articles/ /api/concept-revisions/ /api/concept-links/  concepts (CONCEPTS-BRIEF.md)
@@ -431,7 +435,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /concepts /concepts/[slug] … /articles/[id]/{edit,history}     concept wiki, articles per audience
 /messages … /notifications /activity /posts/[id]              inbox + feed
 /ask /tags/[slug]                                             ask a question in a tag, and the tag's own page (WP15)
-/my-set /sets/[id] /submit /submit/mine /submit-material /search   study + contribute (`/submit/mine`: what you sent, and what became of it)
+/my-set /sets/[id] /submit /submit/mine /submit/bulk /submit-material /search   study + contribute (`/submit/mine`: what you sent, and what became of it; `/submit/bulk`: many exercise files at once)
 /settings /settings/profile /users/[id] /login /register      account
 /forgot-password /reset-password /confirm-email                 the links in the mail (query-string tokens)
 /moderation /legal/queue /issues                              staff + reports

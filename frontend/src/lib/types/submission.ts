@@ -38,6 +38,11 @@ export interface ExerciseSubmissionDraft {
 	answer: string;
 	solution: string;
 	locale: string;
+	// What a BULK upload's draft carries beside the form's keys (backend `exercises/bulk.py`,
+	// 2026-10-22) — the queue reads them to say where a row came from and what it holds.
+	parts?: { label: string; statement: string; answer: string; hint: string; solution: string }[];
+	ai_assisted?: boolean;
+	bulk?: { batch: string; file: string };
 }
 
 export interface ExerciseSubmission {
@@ -53,6 +58,8 @@ export interface ExerciseSubmission {
 	reviewNote?: string;
 	createdAt: string;
 	resultingExerciseId?: string;
+	/** The bulk upload this came in with (`ExerciseSubmission.upload_batch`); absent for `/submit`. */
+	uploadBatch?: string;
 }
 
 // hint/solution are no longer translation fields — an edit to one targets its SolutionEntry row

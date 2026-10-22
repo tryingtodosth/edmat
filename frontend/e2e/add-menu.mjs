@@ -93,7 +93,8 @@ const LABELS = {
 // What each group carries for an adult account the gate lets found everything, every switch on.
 // `/tutoring/new` is `/korki/new` for a Polish reader (the localized address, 2026-10-01).
 const entries = (locale) => ({
-	'add-content': ['/submit', '/submit-material', '/activity'],
+	// `/submit/bulk` (2026-10-22) sits right under the one-exercise form it is the batch form of.
+	'add-content': ['/submit', '/submit/bulk', '/submit-material', '/activity'],
 	'add-run': [
 		'/courses/new',
 		'/events/new',
