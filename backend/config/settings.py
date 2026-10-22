@@ -758,6 +758,10 @@ REST_FRAMEWORK = {
         # shows on every chip, so this is much tighter than posting: a few honest new topics an hour,
         # never a script filling the tag list. Reusing an existing tag does not count.
         'tag_create': '5/hour',
+        # Widening many of your own items' licences at once (`licensing/bulk.py`). Each request may
+        # name up to 500 items, so 30 an hour is ~15000 changes — far more than any real account
+        # holds, while a loop hammering the endpoint stops quickly. Reading the list costs nothing.
+        'licence_bulk': '30/hour',
         # Saving a chemistry drawing decodes and re-encodes a picture (chem/serializers.py) — plenty
         # for somebody drawing a mechanism step by step, far too few for a CPU-exhaustion loop.
         'chem_drawing': '60/hour',

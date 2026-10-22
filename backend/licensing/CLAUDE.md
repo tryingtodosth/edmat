@@ -81,6 +81,25 @@ A dry run does the walk in a transaction and rolls it back. **`--author <usernam
 exercises (the corpus originals; `_belongs_to`), and must run BEFORE a wider sweep to a licence it is
 incomparable with — once BY-NC, a BY-SA sweep refuses it as `licence_narrowing` (pinned by a test).
 
+## A person's own content, in bulk — `bulk.py` (2026-10-22)
+
+Owner: *"improve the way user can decide/edit their contents' licence in bulk"*. `GET
+/api/licences/mine/` lists every POSTED item of the four kinds the caller is an author of
+(`Kind.authors` — so a solution on somebody else's exercise is listed, and a material's project
+owners count), with `allowed` (the rules' own `allowed_targets`) and, when that is empty, a
+`blocked_reason` asked of the rules against `cc0-1.0` (`licence_other_contributors`, or the
+module's `licence_already_most_open`). Bounded at `MINE_LIMIT_PER_KIND` = 2000 LISTED items per kind,
+newest first, with `truncated` — iterated, not sliced, so drafts in the queryset never eat a place.
+`POST /api/licences/bulk/ {to, items:[{kind,id}]}` (≤ `BULK_MAX_ITEMS` = 500, deduplicated) puts each
+through `rules.change_licence` as the caller, one WHERE-anchored UPDATE each, **no transaction around
+the loop** (SQLite rule 2) — partial success is the answer, a result per item with the rules' reason.
+**Authorship only, staff included**: an item that is missing, not posted, or not the caller's is the
+same `licence_not_found` (a list of ids must not probe for unpublished ones), so staff get no extra
+reach here — the staff sweep is `relicense_content`. 400 for a malformed request (the
+`licence_bulk_*` words), 401 anonymous, 429 past `licence_bulk` (30/hour, a `UserRateThrottle`
+subclass, never `ScopedRateThrottle`). The page is `/settings/licences`; every word has a sentence in
+`labels.ts: licenceReasonLabel` (mirror, house rule 13). Tests: `licensing/test_bulk.py`.
+
 ## Data migration (2026-10-14)
 
 `exercises 0015`, `materials 0019`, `coauthoring 0004`, `concepts 0002` — classification and counts

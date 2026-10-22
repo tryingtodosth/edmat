@@ -257,6 +257,12 @@
 				{m.account_settingsLink()}
 				<!-- "Your data and deleting your account" -->
 			</a>
+			<!-- The licence of everything you posted, in one list (`licensing/bulk.py`) — next to "your
+			     data" because both answer "what happens to what I put here". -->
+			<a class="view-public" href={resolve('/settings/licences')} data-testid="licences-link">
+				{m.licbulk_settingsLink()}
+				<!-- "Licences of everything you have posted" -->
+			</a>
 		</section>
 
 		<!-- Its own section, deliberately outside the `edit-form` below: the avatar has its own

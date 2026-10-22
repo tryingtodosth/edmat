@@ -48,3 +48,37 @@ export interface LicenceReading {
 	/** Every licence the caller could move this item to right now (only ever wider). */
 	allowed: Licence[];
 }
+
+/** One of the caller's own posted items in `GET /api/licences/mine/` (`licensing/bulk.py`). */
+export interface MyLicensedItem {
+	kind: LicensedKind;
+	id: string;
+	title: string;
+	licence: Licence;
+	/** What the rules would let the caller move it to right now — only ever wider. */
+	allowed: Licence[];
+	/** Why `allowed` is empty (`licence_other_contributors`, `licence_already_most_open`, …). */
+	blockedReason: string;
+	/** Where it lives: the exercise (for an exercise, a hint or a solution), the material, the concept. */
+	exerciseId: string;
+	materialId: string;
+	conceptSlug: string;
+	/** A hint or a solution, and the part it belongs to. */
+	entryKind: string;
+	partLabel: string;
+}
+
+export interface MyLicences {
+	byKind: Record<LicensedKind, { items: MyLicensedItem[]; truncated: boolean }>;
+	limitPerKind: number;
+	maxPerRequest: number;
+}
+
+/** One item's outcome in `POST /api/licences/bulk/`. */
+export interface BulkLicenceResult {
+	kind: LicensedKind;
+	id: string;
+	ok: boolean;
+	/** Set when `ok` is false — the rules' own word. */
+	reason: string;
+}

@@ -17931,3 +17931,69 @@ included) in 16 chunks ≤ 600 rows → `check:katex` 0 problems in every chunk.
 this branch's frontend against the copy): one exercise with an SVG and concept links per new branch
 and one concept page with an SVG, light and dark — SVG text follows the theme, links resolve to
 titles, no KaTeX errors, no console errors.
+
+## 17CX — Licences in bulk: `/settings/licences` (2026-10-22, `feat/bulk-licence`)
+
+Owner, 2026-10-22, while preparing the paczka5 deploy kit: *"in this deploy kit, we should also
+improve the way user can decide/edit their contents' licence in bulk"*. Until today a person could
+widen a licence only from each item's own page (`LicenceNotice`'s "Change licence"), one at a time;
+an author with forty exercises and their solutions had eighty clicks-and-confirms ahead of them, and
+no single place even showed what licence each of their pieces carried.
+
+**What was built.** `licensing/bulk.py` and two endpoints on it. `GET /api/licences/mine/` — every
+posted item of the four licensed kinds the caller is an author of, with its current licence, what the
+rules would let it become (`rules.allowed_targets`) and, when nothing, why (asked of the rules against
+the most open key, so the reason is the rules' own word — chiefly `licence_other_contributors` for a
+co-authored material). `POST /api/licences/bulk/` — `{to, items}`, each item through
+`rules.change_licence` as the caller, a result per item. The page `/settings/licences` (linked from
+Settings, next to "Your data", and from `/submit/mine`): the list grouped by kind, three filters
+(kind, current licence, title), select-all per kind, a target picker that says for each licence how
+many of the chosen items can move to it ("Can move to it: 2 of 3" — BY-NC cannot become BY-SA), a
+confirm step that states the irrevocability plainly before anything is sent, and the result with a
+sentence per refused item.
+
+**Decisions, each with its reason.**
+
+- **It adds no authority.** The module finds items and loops; `rules.py` decides each one, exactly as
+  the item page's control does (house boundary #2). The forecast on the confirm step is the server's
+  `allowed` list, not a client-side copy of the partial order.
+- **Authorship only — staff included.** An id that is missing, not posted, or not the caller's comes
+  back as one reason, `licence_not_found`, with nothing else in the answer: a POST taking a list of ids
+  is a cheap probe for unpublished rows, and the per-item endpoint's honest 403-for-a-readable-item
+  would leak exactly that at scale. Staff therefore get no extra reach here; their sweep is
+  `relicense_content` (§17CU), which keeps its note and its dry run.
+- **No transaction around the loop.** One WHERE-anchored UPDATE per item (backend/CLAUDE.md SQLite
+  rule 2). Partial success is the honest outcome: one co-authored material refused does not undo the
+  twenty exercises that moved.
+- **Bounded both ways.** The list holds at most 2000 listed items per kind, newest first, and says
+  `truncated` (iterated rather than sliced — the first version sliced, and a draft at the top of the
+  queryset ate a place and hid that there were more; the bound test found it). A POST takes at most
+  500 items; the page sends a bigger selection in chunks, and a 429 or 400 midway keeps what was
+  already done and says so.
+- **Its own throttle**, `licence_bulk` 30/hour, a `UserRateThrottle` subclass — not the
+  `ScopedRateThrottle` shape that silently never counts (`activity/views.py: TagCreateThrottle`
+  explains why). Reading your list does not spend it.
+- **No migration.** The optional "default licence for my new contributions" preselect would need a
+  `Profile` column, and a parallel branch (bulk upload) was adding migrations the same afternoon; left
+  open below rather than squeezed into a JSON field it does not belong in.
+
+**Verified.** `manage.py test licensing --parallel 4 --keepdb` 50 OK (12 new in `test_bulk.py`),
+`check` clean, `makemigrations --check --dry-run` no changes, `check_databases_declared` 0;
+`npm run check` 0/0, eslint and prettier clean on every changed file, `npm run build` green;
+`e2e/licence-bulk.mjs` 21/21 against both dev servers on a copy of the dev database, screenshots
+looked at — light, dark, a 390px phone (no horizontal scroll) and the Polish default. One thing the
+screenshots changed: the licences none of the chosen items can move to were dimmed with `opacity`,
+which `frontend/CLAUDE.md` forbids on content; they now read in `--text-secondary`.
+
+**Left open, not built.**
+
+- **A default licence for new contributions** (a preselect on `/submit`, the composer, a material
+  project, a concept article). Needs a `Profile` field + migration.
+- **`/submit/mine` links here only when the account has submissions** — the link sits under the list
+  of what was sent. An account whose content arrived by import (e.g. `todoonet`) reaches the page from
+  Settings.
+- **Items listed in the language of the interface** (`?lang=`), falling back to the original; a
+  concept article shows its newest published revision's title, which is in the article's own language.
+- **No undo, by design** — only widening exists, and the confirm step says so.
+- **A translation somebody else wrote keeps its stamped licence** when the exercise widens
+  (`rules._carry_to_own_text`, unchanged); the page does not list translations as items of their own.

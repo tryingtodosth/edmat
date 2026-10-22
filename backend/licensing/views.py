@@ -8,11 +8,14 @@ from __future__ import annotations
 
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
-from . import rules
+from config.i18n_utils import request_locale
+
+from . import bulk, rules
 from .targets import kind_for
 
 
@@ -74,3 +77,46 @@ class LicenceView(APIView):
             code = status.HTTP_409_CONFLICT if reason in rules.CONFLICT_REASONS else status.HTTP_400_BAD_REQUEST
             return Response({'detail': reason}, status=code)
         return Response(reading(obj, request.user))
+
+
+class LicenceBulkThrottle(UserRateThrottle):
+    """The bulk change, per account. A `UserRateThrottle` with its own scope, NOT a
+    `ScopedRateThrottle` — the scoped class reads the VIEW's `throttle_scope` and allows everything
+    when the view has none (`activity/views.py: TagCreateThrottle` says the same). Only the POST
+    spends it; reading your own list does not."""
+
+    scope = 'licence_bulk'
+
+
+class MyLicencesView(APIView):
+    """`GET /api/licences/mine/` — every posted item the caller is an author of, its licence, what
+    it could move to now and, when nothing, why (`licensing/bulk.py: my_items`).
+
+    `POST /api/licences/mine/` is not a thing; the change is `/api/licences/bulk/`."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(bulk.my_items(request.user, request_locale({'request': request})))
+
+
+class BulkLicenceView(APIView):
+    """`POST /api/licences/bulk/ {"to": "<key>", "items": [{"kind", "id"}, …]}` — each item through
+    `rules.change_licence` as the caller; 200 with a result per item (partial success is normal),
+    400 for a malformed request, 429 past the hourly bound."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_throttles(self):
+        return [LicenceBulkThrottle()] if self.request.method == 'POST' else []
+
+    def post(self, request):
+        to = request.data.get('to')
+        if not isinstance(to, str) or not to:
+            return Response({'detail': 'licence_unknown_key'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            items = bulk.parse_items(request.data.get('items'))
+            result = bulk.apply_bulk(request.user, to, items)
+        except bulk.BulkRequestError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)

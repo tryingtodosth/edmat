@@ -165,6 +165,14 @@
 					<a href={resolve('/submit')}>{m.wp14a_mine_addAnother()}</a>
 					<!-- "Add another exercise →" -->
 				</p>
+				<!-- The licence of every accepted one at once (`/settings/licences`) — what the item page's
+				     own "Change licence" does, many items in one go. -->
+				<p class="muted small">
+					<a href={resolve('/settings/licences')} data-testid="mine-licences-link"
+						>{m.licbulk_mineLink()}</a
+					>
+					<!-- "Change the licence of several at once" -->
+				</p>
 			{/if}
 
 			{#if materialsReachable}

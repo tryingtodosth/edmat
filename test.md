@@ -3420,3 +3420,37 @@ Screenshots in `e2e/screens/exercise-parts/`.
 E2E_BASE=http://localhost:5173 E2E_API=http://127.0.0.1:8000/api \
   LD_LIBRARY_PATH=… CHROME=<chrome-headless-shell> node e2e/exercise-parts.mjs
 ```
+
+## Licences in bulk — `/settings/licences` (2026-10-22, `HISTORY.md` §17CX)
+
+### `licensing/test_bulk.py` — 12 tests
+
+The list is the caller's own POSTED items only (a draft and a stranger's exercise absent; a solution
+on somebody else's exercise present), BY-NC offers only BY and CC0, a co-authored material offers
+nothing and says `licence_other_contributors`; the bound sets `truncated`. The POST moves what the
+rules allow and refuses narrowing and a co-author's work with their reasons (a duplicate counts once,
+a `LicenceChange` row each, the exercise's own-language text follows); a second run is
+`licence_unchanged`; a stranger's id, a draft and a missing id are all `licence_not_found` with no
+licence in the answer; staff get no extra reach; `unknown` and `edmat-only` as targets are refused;
+seven malformed shapes are 400 and change nothing; 501 items is 400 whole; the POST throttle is its
+own scope and reading the list does not spend it. `manage.py test licensing --parallel 4 --keepdb`:
+50 tests, OK (2026-10-22).
+
+### `frontend/e2e/licence-bulk.mjs` — 21 checks
+
+WRITES — run it against a COPY of the dev database. Registers one throwaway account, attributes three
+unattributed published exercises (two EdMat-only, one BY-NC) and a new co-authored material to it
+through `E2E_MANAGE`, then: Settings → the page; three exercises and one blocked material with its
+reason; the licence filter; select-all; "Can move to it: 2 of 3" for BY-SA, "3 of 3" for BY; the
+confirm step's irrevocability line and forecast; the result (2 changed, the BY-NC one kept with the
+narrowing sentence); the API agrees and the item's own history shows the change; dark theme; a 390px
+phone with no horizontal scroll; the Polish default; anonymous 401; zero console errors.
+Screenshots in `e2e/screenshots/licence-bulk-*.png` (list/confirm/results light, list/confirm dark,
+phone, pl).
+
+```bash
+E2E_BASE=http://localhost:5251 E2E_API=http://127.0.0.1:8151 \
+  E2E_MANAGE='cd ../backend && ../../../../.venv/bin/python3 manage.py' \
+  LD_LIBRARY_PATH=… CHROME=<chrome-headless-shell> node e2e/licence-bulk.mjs
+```
+

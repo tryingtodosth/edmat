@@ -2010,7 +2010,9 @@ export function licenceShort(licence: Licence): string {
 	return LICENCE_FACTS[licence].code;
 }
 
-/** The refusal reasons `licensing/rules.py` returns, each with its own sentence (house rule 6). */
+/** The refusal reasons `licensing/rules.py` and `licensing/bulk.py` return, each with its own sentence
+ *  (house rule 6). The bulk words (`licence_not_found`, `licence_already_most_open`, the two
+ *  `licence_bulk_*`) mirror `licensing/bulk.py`, which names this function back. */
 export function licenceReasonLabel(reason: string): string {
 	switch (reason) {
 		case 'licence_narrowing':
@@ -2024,6 +2026,16 @@ export function licenceReasonLabel(reason: string): string {
 			return m.licence_reason_notSelectable(); // "That licence cannot be chosen."
 		case 'licence_conflict':
 			return m.licence_reason_conflict(); // "Somebody changed the licence in the meantime. …"
+		case 'licence_unchanged':
+			return m.licence_reason_unchanged(); // "It already has this licence."
+		case 'licence_not_found':
+			return m.licence_reason_notFound(); // "Not found among your posted content."
+		case 'licence_already_most_open':
+			return m.licence_reason_alreadyMostOpen(); // "It is already as open as a licence gets."
+		case 'licence_bulk_throttled':
+			return m.licence_reason_bulkThrottled(); // "Too many changes in the last hour. …"
+		case 'licence_bulk_too_many':
+			return m.licence_reason_bulkTooMany(); // "Too many items in one request."
 		default:
 			return m.licence_reason_generic(); // "The licence could not be changed."
 	}

@@ -399,6 +399,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/courses/{id}/materials/ /api/courses/?parent=<id>                 a course's materials, its whole subtree's included; one course's versions AND subcourses (`parent_relation` tells them apart)
 /api/auth/sso/{providers,<p>/start,<p>/callback,exchange,ticket,complete,identities,link/…}/  sign-in with Google / Apple / GitHub / Facebook / Microsoft
 /api/auth/me/{export,erasure,password}/ /api/auth/erasure/cancel/   GDPR self-service and the password form
+/api/licences/{kind}/{id}/ /api/licences/mine/ /api/licences/bulk/   one item's licence; everything the caller posted, and widening many at once (`licensing/bulk.py`)
 ```
 
 - **Public GET, owner-scoped writes.** Reads are open where the content is public; writes are scoped
@@ -438,6 +439,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /moderation/analytics                                         usage statistics (staff)
 /auth/sso/done /auth/sso/complete /auth/sso/link                the provider sign-in's return, signup and confirm-and-link pages
 /settings/account /cancel-deletion                             download my data, delete my account, change my mind
+/settings/licences                                            the licence of everything you posted, widened many at a time
 /about                                                        the project itself: the EdMat organisation's page (goals, needs, open board), the research thread, the showcase index
 /about/<feature> /about/guide /about/guide/[chapter]          the showcase (sample data + real screenshots, fourteen pages) and the manual
 ```
