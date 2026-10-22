@@ -331,6 +331,10 @@ REGISTRY: list[Rule] = [
     R('exercises.ExerciseMaterialLink', 'added_by', ANONYMISE, 'contributions'),
     R('exercises.ExerciseTranslation', 'translated_by', ANONYMISE, 'contributions'),
     R('exercises.ExerciseTranslation', 'reviewed_by', KEEP, 'records'),
+    # A part's text in another language (§17CV) is the same contribution as a whole exercise's
+    # translation, one level down — anonymised the same way. Missed when parts landed; the
+    # completeness test found it (2026-10-22).
+    R('exercises.ExercisePartTranslation', 'translated_by', ANONYMISE, 'contributions'),
     _licensed('exercises.SolutionEntry', 'author'),
     R('exercises.SolutionEntry', 'reviewed_by', KEEP, 'records'),
     R('exercises.SolutionEntryVote', 'voter', KEEP, 'votes'),
