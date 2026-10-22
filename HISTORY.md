@@ -17891,3 +17891,43 @@ and `\Bigl` delimiters intact; no console errors. Nothing needed fixing for dark
 Left open: `[[slug]]` links in the page bodies render their slug as words ("wzor de moivrea"), not
 the target's title (the algebra pages use bare `[[slug]]`; `[[slug|tekst]]` would fix it per link) — a
 content/renderer choice, not touched here.
+
+### Follow-up: paczka5 wired into the FUW scripts, rehearsed end to end (2026-10-22, same branch)
+
+`Database-of-Student-Exercise/paczka5/prepared/` — 557 exercises in seven NEW physics branches
+(teoria-wzglednosci 13, optyka-i-materia-skondensowana 44, mechanika-kwantowa 42, termodynamika 140,
+elektrycznosc-i-magnetyzm 112, mechanika-klasyczna 95, elektrodynamika 111; 357 parts, licence
+cc-by-nc-4.0 by the owner's decision), the 64 algebra/fale exercises rewritten (updates, licence still
+`unknown`) and 242 concept pages. Two trees, `zadania/<branch>/` and `pojecia/<branch>/`, because the
+DEPLOYED `import_exercises` reads every `.md` below its directory (the `pojecia/` skip is on this
+branch only). `deploy/fuw/` is gitignored, so the script changes live in the main checkout
+(backup `FUW/script-backups/fuw-scripts-20261022-064618-paczka5/`), not in this commit:
+
+- `pack.sh` packs paczka5 unless it carries `IMPORTED` (or `EDMAT_SKIP_PACZKA5=1`); refuses a backend
+  without `import_concepts` / without the `pojecia/` skip, a kit without README/PRODUCTION/preflight,
+  a batch without `batch.yaml`, a `pojecia/` inside `zadania/`, or a new branch without its create
+  script. MANIFEST names it.
+- `apply-on-server.sh` step 11 (after paczka4's step 10, on an explicit yes; skipped if
+  `import_concepts` or `exercises.0017` is missing): its own snapshot
+  `~/edmat-db-backup-<ts>-before-paczka5.sqlite3`; preflight (GET-only); the seven branch scripts;
+  every batch as a dry run, real only if new branches say `N created, 0 updated` and algebra/fale say
+  `0 created, N updated` with `parts: 0 created, … 0 removed`; `declare_ai_assisted --author todoonet
+  --note …`; a per-branch exercises/verified count; ONE `import_concepts pojecia --ai-assisted …`
+  dry run that must say `242 created, 0 revised, 0 unchanged, 0 new article(s) …, 0 skipped`, then
+  real on a yes; writes `IMPORTED`. Dry-run captures now end in `|| true`, so a failing command
+  prints its tail and fails the check instead of killing the script silently under `set -e`.
+
+Rehearsed by running step 11 VERBATIM (extracted with sed, `sudo -u www-data` stubbed, prompts
+answered `y`) against a copy of the dev DB brought to production's state first (algebra + fale
+branches, todoonet, paczka3 then paczka4, step 9's mark), this branch's backend: every line as
+predicted — new branches `N created, 0 updated`, algebra `0 created, 23 updated; parts: 0 created,
+17 updated, 0 removed`, fale `0 created, 41 updated; parts: 0 created, 26 updated, 0 removed`;
+`exercise: 621 … 557 marked, 64 re-marked`, `solution_entry: 1607 … 1435 marked, 172 re-marked`;
+0 verified in all nine branches; concepts `242 created … 0 skipped`, `links: 1753 added, 47
+re-filed, 203 already there`, `AI-assisted: 242 marked`. Second run of everything: `0 created`,
+`parts: 0 created, 0 updated, 0 removed` ×9, `2228 already marked`, `0 created, 0 revised, 242
+unchanged`, `links: 0 added, 0 re-filed, 2003 already there`. `dump_text_fields` (5143 rows, parts
+included) in 16 chunks ≤ 600 rows → `check:katex` 0 problems in every chunk. Browser (Playwright,
+this branch's frontend against the copy): one exercise with an SVG and concept links per new branch
+and one concept page with an SVG, light and dark — SVG text follows the theme, links resolve to
+titles, no KaTeX errors, no console errors.
