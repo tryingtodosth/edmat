@@ -530,6 +530,26 @@ class RelicenseCommandTests(TestCase):
         self.assertIn('0 changed to cc-by-sa-4.0', again)
         self.assertEqual(LicenceChange.objects.count(), 3)
 
+    def test_author_narrows_the_walk_to_that_accounts_content(self):
+        # rel-author's exercise is unknown here (an imported one credited to a person) — the staff
+        # exception moves it; the nobody's corpus row and the staff caller's own stay put
+        Exercise.objects.filter(pk=self.theirs.pk).update(licence='unknown')
+        out = StringIO()
+        call_command(
+            'relicense_content', to='cc-by-nc-4.0', by='rel-staff', note='Agreed with the author',
+            author='rel-author', stdout=out,
+        )
+        self.assertIn('exercise: 1 changed (1 from unknown); 0 already as open or more; 0 refused', out.getvalue())
+        self.assertIn('solution_entry: 0 changed', out.getvalue())
+        self.assertEqual(self.licences(), {1: 'unknown', 2: 'cc-by-nc-4.0', 3: 'edmat-only', 4: 'cc-by-4.0', 5: 'unknown'})
+        # a later CC BY-SA sweep cannot turn BY-NC into BY-SA: the two are incomparable
+        swept = self.run_it()
+        self.assertIn('licence_narrowing (1): ' + str(self.theirs.pk), swept)
+        self.theirs.refresh_from_db()
+        self.assertEqual(self.theirs.licence, 'cc-by-nc-4.0')
+        with self.assertRaises(CommandError):
+            call_command('relicense_content', to='cc-by-nc-4.0', by='rel-staff', note='x', author='nobody', stdout=StringIO())
+
     def test_it_refuses_a_narrowing_target_a_missing_note_and_a_non_staff_caller(self):
         with self.assertRaises(CommandError):
             call_command('relicense_content', to='unknown', by='rel-staff', note='x', stdout=StringIO())

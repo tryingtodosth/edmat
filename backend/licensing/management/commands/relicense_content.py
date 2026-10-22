@@ -1,4 +1,4 @@
-"""`manage.py relicense_content --to <key> --by <staff username> --note "<why>" [--dry-run]`
+"""`manage.py relicense_content --to <key> --by <staff username> --note "<why>" [--author <username>] [--dry-run]`
 
 Move every piece of POSTED content the caller may relicense to one licence, through the same rules
 the item page's "change licence" control asks (`licensing/rules.py`, house boundary #2), recording
@@ -19,6 +19,11 @@ licence at least as open as `--to` (CC BY under a CC BY-SA run) is left alone an
 refused. `--dry-run` does the whole walk inside a transaction and rolls it back, printing exactly
 what a real run would do. Only visible content is touched: unpublished, removed or auto-hidden items
 are not "posted" and keep whatever they have.
+
+`--author <username>` (2026-10-22, owner: "cc-by-nc-4.0 for Marysia's work — update her content with
+this licence") narrows the walk to items that account is an author of (`Kind.authors`, the same
+set the rules ask) — one contributor's content to one licence, while the rest is left to a separate
+run. It adds no authority either: the same rules decide each item.
 """
 
 from __future__ import annotations
@@ -70,6 +75,12 @@ class Command(BaseCommand):
             default=','.join(LICENSED_KINDS),
             help=f'Comma-separated subset of {", ".join(LICENSED_KINDS)}. Default: all four.',
         )
+        parser.add_argument(
+            '--author',
+            default='',
+            help='Only the items this account is an author of (exercises it submitted, solutions it '
+            'wrote, its materials, concept articles it started).',
+        )
         parser.add_argument('--dry-run', action='store_true', help='Walk, report, change nothing.')
         parser.add_argument(
             '--list-limit',
@@ -100,13 +111,20 @@ class Command(BaseCommand):
         if not user.is_staff:
             raise CommandError(f'{user.username} is not staff; this command acts with staff authority.')
 
+        author_id = None
+        if options['author']:
+            try:
+                author_id = get_user_model().objects.get(username=options['author']).pk
+            except get_user_model().DoesNotExist as exc:
+                raise CommandError(f'no account {options["author"]!r}') from exc
+
         dry = options['dry_run']
         limit = options['list_limit']
         totals = Counter()
         try:
             with transaction.atomic():
                 for kind_name in kinds:
-                    self._run_kind(kind_name, to, user, note, limit, totals)
+                    self._run_kind(kind_name, to, user, note, limit, totals, author_id)
                 if dry:
                     raise _Rollback
         except _Rollback:
@@ -117,13 +135,15 @@ class Command(BaseCommand):
             f'{totals["refused"]} refused, across {len(kinds)} kind(s).'
         )
 
-    def _run_kind(self, kind_name, to, user, note, limit, totals):
+    def _run_kind(self, kind_name, to, user, note, limit, totals, author_id=None):
         kind, qs = _posted(kind_name)
         changed = Counter()
         already = 0
         refused: dict[str, list[int]] = defaultdict(list)
         for obj in qs.iterator(chunk_size=500):
             if not kind.visible(obj):
+                continue
+            if author_id is not None and author_id not in kind.authors(obj):
                 continue
             old = obj.licence
             if at_least_as_open(old, to):
