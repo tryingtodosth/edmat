@@ -534,13 +534,24 @@ class RelicenseCommandTests(TestCase):
         # rel-author's exercise is unknown here (an imported one credited to a person) — the staff
         # exception moves it; the nobody's corpus row and the staff caller's own stay put
         Exercise.objects.filter(pk=self.theirs.pk).update(licence='unknown')
+        # the corpus's own (authorless) solution on rel-author's exercise goes with it; one written by
+        # somebody else on the same exercise does not
+        orphan = SolutionEntry.objects.create(
+            exercise=self.theirs, kind='solution', body='o', status='published', licence='unknown'
+        )
+        other = SolutionEntry.objects.create(
+            exercise=self.theirs, kind='solution', body='s', status='published', licence='unknown', author=self.staff
+        )
         out = StringIO()
         call_command(
             'relicense_content', to='cc-by-nc-4.0', by='rel-staff', note='Agreed with the author',
             author='rel-author', stdout=out,
         )
         self.assertIn('exercise: 1 changed (1 from unknown); 0 already as open or more; 0 refused', out.getvalue())
-        self.assertIn('solution_entry: 0 changed', out.getvalue())
+        self.assertIn('solution_entry: 1 changed (1 from unknown)', out.getvalue())
+        orphan.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual((orphan.licence, other.licence), ('cc-by-nc-4.0', 'unknown'))
         self.assertEqual(self.licences(), {1: 'unknown', 2: 'cc-by-nc-4.0', 3: 'edmat-only', 4: 'cc-by-4.0', 5: 'unknown'})
         # a later CC BY-SA sweep cannot turn BY-NC into BY-SA: the two are incomparable
         swept = self.run_it()

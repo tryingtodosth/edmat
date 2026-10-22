@@ -76,7 +76,10 @@ least as open, and **refuses another person's `edmat-only` content** (`licence_o
 listed by id): `/terms` § 9 point 2 gave the operator an operating licence, not the right to grant
 the world one — those authors widen it themselves from the item page, or a CLA (LEGAL.md §3 item 4)
 is written first. Unpublished, removed and auto-hidden items are not posted and keep what they have.
-A dry run does the walk in a transaction and rolls it back.
+A dry run does the walk in a transaction and rolls it back. **`--author <username>`** (2026-10-22, owner: Marysia's work →
+`cc-by-nc-4.0`) narrows the walk to that account's content plus the authorless hints/solutions on its own
+exercises (the corpus originals; `_belongs_to`), and must run BEFORE a wider sweep to a licence it is
+incomparable with — once BY-NC, a BY-SA sweep refuses it as `licence_narrowing` (pinned by a test).
 
 ## Data migration (2026-10-14)
 

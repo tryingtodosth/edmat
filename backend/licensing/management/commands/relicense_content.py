@@ -22,8 +22,9 @@ are not "posted" and keep whatever they have.
 
 `--author <username>` (2026-10-22, owner: "cc-by-nc-4.0 for Marysia's work — update her content with
 this licence") narrows the walk to items that account is an author of (`Kind.authors`, the same
-set the rules ask) — one contributor's content to one licence, while the rest is left to a separate
-run. It adds no authority either: the same rules decide each item.
+set the rules ask), plus the unattributed hints/solutions on that account's own exercises (the
+corpus's originals, `_belongs_to`) — one contributor's content to one licence, while the rest is left
+to a separate run. It adds no authority either: the same rules decide each item.
 """
 
 from __future__ import annotations
@@ -57,6 +58,17 @@ def _posted(kind_name: str):
     elif kind_name == 'concept_article':
         qs = qs.filter(is_removed=False)
     return kind, qs
+
+
+def _belongs_to(kind_name, kind, obj, author_id) -> bool:
+    """`--author`'s walk: what the account authored, plus — for a hint or solution — an entry with NO
+    author on an exercise the account submitted. Those are the corpus's own originals, which came in
+    with the exercise as one piece of work (the 2026-10-14 data migration classified them the same
+    way, `licensing/CLAUDE.md`); leaving them out would let a later sweep give the solutions of a
+    BY-NC exercise a different, irrevocable licence. An entry somebody ELSE wrote is never included."""
+    if author_id in kind.authors(obj):
+        return True
+    return kind_name == 'solution_entry' and obj.author_id is None and obj.exercise.submitted_by_id == author_id
 
 
 class Command(BaseCommand):
@@ -143,7 +155,7 @@ class Command(BaseCommand):
         for obj in qs.iterator(chunk_size=500):
             if not kind.visible(obj):
                 continue
-            if author_id is not None and author_id not in kind.authors(obj):
+            if author_id is not None and not _belongs_to(kind_name, kind, obj, author_id):
                 continue
             old = obj.licence
             if at_least_as_open(old, to):
