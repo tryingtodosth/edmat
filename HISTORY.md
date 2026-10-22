@@ -17973,9 +17973,9 @@ sentence per refused item.
 - **Its own throttle**, `licence_bulk` 30/hour, a `UserRateThrottle` subclass — not the
   `ScopedRateThrottle` shape that silently never counts (`activity/views.py: TagCreateThrottle`
   explains why). Reading your list does not spend it.
-- **No migration.** The optional "default licence for my new contributions" preselect would need a
-  `Profile` column, and a parallel branch (bulk upload) was adding migrations the same afternoon; left
-  open below rather than squeezed into a JSON field it does not belong in.
+- **No migration in the first commit.** The "default licence for my new contributions" preselect
+  needed a `Profile` column while a parallel branch (bulk upload) was adding migrations; it was left
+  open, and the owner asked for it the same afternoon — the next part.
 
 **Verified.** `manage.py test licensing --parallel 4 --keepdb` 50 OK (12 new in `test_bulk.py`),
 `check` clean, `makemigrations --check --dry-run` no changes, `check_databases_declared` 0;
@@ -17985,10 +17985,53 @@ looked at — light, dark, a 390px phone (no horizontal scroll) and the Polish d
 screenshots changed: the licences none of the chosen items can move to were dimmed with `opacity`,
 which `frontend/CLAUDE.md` forbids on content; they now read in `--text-secondary`.
 
+### The default licence for new content (same day, same branch — `accounts 0028_profile_default_licence`)
+
+Owner, via the coordinator: the user picks a default licence in Settings, and every form where they
+create new content starts with it already selected, still changeable per item.
+
+- **`Profile.default_licence`, BLANK by default — a deliberate departure from the brief's "default
+  `edmat-only`".** Blank means "none chosen": each form keeps its own suggestion. Storing
+  `edmat-only` for everybody would have silently overturned the owner's own 2026-10-14 call that a
+  person's own work written on EdMat is *suggested* CC BY 4.0 (`LicencePicker`'s `suggested`) for
+  every account that never opens the setting, and would have made "I explicitly want EdMat only
+  everywhere" indistinguishable from "never chose". The server's own default for a write that sends
+  nothing is unchanged: `edmat-only`. `licensing.rules.default_licence_for(user)` resolves blank,
+  anonymous and a stale stored value to `edmat-only` — for a server path that creates content without
+  a form (the bulk-upload branch).
+- Exposed and patched through `/api/auth/me/` like every other preference; `ProfileUpdateSerializer.
+  validate_default_licence` refuses `unknown` and a made-up key with `licence_validation_error`'s own
+  reasons (400 `{default_licence: ['licence_not_selectable']}`). Not on the public profile.
+- **One place in the frontend: `LicencePicker`.** It reads `authStore.user.defaultLicence` and starts
+  from it instead of the form's suggestion, so all five forms that mount it — `/submit` (the exercise
+  and its founding hint/solution share one choice), the hint/solution composer, `/submit-material`,
+  `/material-projects/new`, a new concept article — got the default without a line changed in any of
+  them. It says so ("This starts with your default licence, CC BY-SA 4.0. Change your default") and
+  tags the option "Your default". **The source guard stays:** once a form says the work names a
+  source (`reason="source"`), "EdMat only" is the starting choice whatever the default says, with a
+  line saying the default is not applied here — the default is about the author's OWN work. A click
+  makes the choice theirs, as before; the server validates what it is sent, unchanged.
+- The setting sits at the top of `/settings/licences` (Settings' link now reads "Licences: your
+  default, and everything you have posted"): "No default" plus every selectable licence with its
+  name, summary and deed link from `LICENCE_FACTS`.
+
+Verified: `test accounts licensing --parallel 4 --keepdb` (5 new in `licensing/test_default_licence.py`),
+`check`, `makemigrations --check`, `check_databases_declared` 0, `npm run check` 0/0, eslint, prettier,
+build; `e2e/licence-default.mjs` 22/22 (no default → CC BY suggested; set BY-SA in Settings → `/submit`
+prefilled, says so, one click to CC0, a fresh form starts at BY-SA again; a source moves it to EdMat
+only and says the default is not applied; clearing the source brings it back; the hint composer on an
+exercise page starts at BY-SA in dark mode; clearing the default restores the suggestion; `unknown`
+refused; anonymous 401) and `e2e/licence-bulk.mjs` 21/21 again (one selector scoped to `name="target"`
+— the new form's radios share values with the target picker, frontend e2e trap 6). Screenshots looked
+at: the settings form light and dark, `/submit`'s picker with and without a source, the composer
+dark, the whole page in Polish; they caught a missing space ("CC0 1.0— …") and a "Change your
+default" link that did not read as a link.
+
 **Left open, not built.**
 
-- **A default licence for new contributions** (a preselect on `/submit`, the composer, a material
-  project, a concept article). Needs a `Profile` field + migration.
+- **The default is not applied to a form that names a source** — by design (above); and
+  `/submit-material` (a file or a link, `reason="notFromScratch"`) DOES start from it, with its "a
+  file or a link may be somebody else's work" line kept beside it.
 - **`/submit/mine` links here only when the account has submissions** — the link sits under the list
   of what was sent. An account whose content arrived by import (e.g. `todoonet`) reaches the page from
   Settings.

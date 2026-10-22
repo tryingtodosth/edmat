@@ -91,6 +91,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'editor_mode',
             'text_size',
             'high_contrast',
+            'default_licence',
             'is_minor',
             'guardian_of',
             'guardians',
@@ -172,6 +173,18 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('A list of locale codes.')
         return sorted({v.lower() for v in value})
 
+    def validate_default_licence(self, value):
+        # Blank = "no default; let each form suggest". Anything else is a choice a PERSON makes, so
+        # it passes the same gate as every create form's licence (`unknown` is never selectable).
+        from licensing.licences import licence_validation_error
+
+        value = (value or '').strip()
+        if value:
+            reason = licence_validation_error(value)
+            if reason:
+                raise serializers.ValidationError(reason, code=reason)
+        return value
+
     def validate_audience_filter(self, value):
         if not isinstance(value, list) or any(v not in AUDIENCE_VALUES for v in value):
             raise serializers.ValidationError('Unknown audience band.')
@@ -206,6 +219,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'editor_mode',
             'text_size',
             'high_contrast',
+            'default_licence',
             'offers_tutoring',
             'tutoring_note',
         ]

@@ -150,3 +150,20 @@ def licence_since(obj):
 
 def history(obj):
     return LicenceChange.objects.filter(content_type=content_type_of(obj), object_id=obj.pk)
+
+
+def default_licence_for(user) -> str:
+    """The licence a create form should START with for `user`: their own default from Settings
+    (`accounts.Profile.default_licence`), or `edmat-only` when they chose none, are anonymous, or
+    the stored value is not (or no longer) selectable. A prefill, never an authority — a write
+    still validates what it is sent. The frontend reads the profile field directly; this is for a
+    server path that creates content without a form (a bulk upload)."""
+    from .licences import DEFAULT_LICENCE, licence_validation_error
+
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return DEFAULT_LICENCE
+    profile = getattr(user, 'profile', None)
+    chosen = getattr(profile, 'default_licence', '') or ''
+    if chosen and licence_validation_error(chosen) is None:
+        return chosen
+    return DEFAULT_LICENCE

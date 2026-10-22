@@ -15,7 +15,15 @@
 	 * line explains it. Until the author touches the list, the selection FOLLOWS the suggestion (so
 	 * naming a source mid-form moves it back to "EdMat only"); after a click it is theirs and never
 	 * moves again. The server default stays `edmat-only`: a client that sends nothing opens
-	 * nothing — the suggestion exists only where a person can see it. */
+	 * nothing — the suggestion exists only where a person can see it.
+	 *
+	 * **The author's own default comes first** (owner, 2026-10-22, HISTORY §17CX): a default licence
+	 * chosen in Settings (`/settings/licences`, `Profile.default_licence`) replaces the form's
+	 * suggestion as the starting choice on every form that mounts this picker — with ONE exception,
+	 * the source guard: once the work names a source (`reason="source"`), "EdMat only" is the
+	 * starting choice whatever the default says, because the default is about the author's OWN work
+	 * and a named source says this may not be. Either way it is a prefill: one click changes it, and
+	 * the server validates what it is sent exactly as before. */
 	import type { Licence } from '$lib/types/licence';
 	import {
 		LICENCE_FACTS,
@@ -25,6 +33,8 @@
 		licenceShort
 	} from '$lib/utils/labels';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { resolve } from '$app/paths';
+	import { authStore } from '$lib/state/auth.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 
 	let {
@@ -47,8 +57,13 @@
 	// Set by the author's own click, never by the suggestion. Reading it here and writing `value`
 	// (which this effect never reads) is what keeps it from re-running itself (frontend trap 4).
 	let touched = $state(false);
+	// The author's own default (blank = none chosen). Read from the session, so a hard reload that
+	// resolves the session after mount still moves an untouched picker to it.
+	const preferred = $derived<Licence | undefined>(authStore.user?.defaultLicence || undefined);
+	const guarded = $derived(reason === 'source');
+	const start = $derived<Licence | undefined>(guarded ? suggested : (preferred ?? suggested));
 	$effect(() => {
-		if (!touched && suggested) value = suggested;
+		if (!touched && start) value = start;
 	});
 
 	function legalCode(licence: Licence): string {
@@ -65,12 +80,28 @@
 {#snippet options()}
 	<p class="licence-picker__hint">{m.licence_pickerHint()}</p>
 	<!-- "Who else may reuse what you publish here? …" -->
-	{#if reason === 'own'}
+	{#if preferred && !guarded}
+		<p class="licence-picker__why" data-testid="licence-from-default">
+			{m.licence_fromDefault({ licence: licenceShort(preferred) })}
+			<!-- "This starts with your default licence, {licence}." -->
+			<a href={resolve('/settings/licences')}>{m.licence_fromDefaultLink()}</a>
+			<!-- "Change your default" -->
+		</p>
+		{#if reason === 'notFromScratch'}
+			<p class="licence-picker__why">{m.licence_suggestNotFromScratch()}</p>
+		{/if}
+	{:else if reason === 'own'}
 		<p class="licence-picker__why" data-testid="licence-why">{m.licence_suggestOwn()}</p>
 		<!-- "Suggested: CC BY 4.0, because this is your own work written on EdMat …" -->
 	{:else if reason === 'source'}
 		<p class="licence-picker__why" data-testid="licence-why">{m.licence_suggestSource()}</p>
 		<!-- "It names a source, so it may be somebody else’s work …" -->
+		{#if preferred && preferred !== suggested}
+			<p class="licence-picker__why" data-testid="licence-default-not-applied">
+				{m.licence_defaultNotApplied({ licence: licenceShort(preferred) })}
+				<!-- "Your default licence, {licence}, is not applied here, because this names a source." -->
+			</p>
+		{/if}
 	{:else if reason === 'notFromScratch'}
 		<p class="licence-picker__why" data-testid="licence-why">{m.licence_suggestNotFromScratch()}</p>
 		<!-- "A file or a link may be somebody else’s work …" -->
@@ -93,6 +124,12 @@
 								>{m.licence_suggestedTag()}</span
 							>
 							<!-- "Suggested" -->
+						{/if}
+						{#if preferred === licence}
+							<span class="licence-option__suggested" data-testid="licence-your-default"
+								>{m.licence_yourDefaultTag()}</span
+							>
+							<!-- "Your default" -->
 						{/if}
 						{#if LICENCE_FACTS[licence].code}
 							<span class="licence-option__full">{LICENCE_NAMES[licence]()}</span>
@@ -169,6 +206,9 @@
 	.licence-picker__why {
 		font-size: var(--font-size-sm);
 		margin: 0 0 0.5rem;
+		a {
+			color: var(--accent);
+		}
 	}
 
 	.licence-option__suggested {

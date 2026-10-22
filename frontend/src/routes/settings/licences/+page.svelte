@@ -22,6 +22,7 @@
 	} from '$lib/types/licence';
 	import {
 		LICENCE_NAMES,
+		LICENCE_FACTS,
 		LICENCE_SUMMARIES,
 		SELECTABLE_LICENCES,
 		licenceReasonLabel,
@@ -54,6 +55,33 @@
 	let busy = $state(false);
 	let results = $state<BulkLicenceResult[]>([]);
 	let wholeError = $state('');
+
+	// ---- the default licence for NEW content (`Profile.default_licence`, §17CX) -------------------
+	// A prefill for every create form's LicencePicker, nothing more: blank = none chosen, each form
+	// keeps its own suggestion. Seeded from the session once it is there; saved through the same
+	// PATCH /api/auth/me/ every other preference uses.
+	let defaultChoice = $state<Licence | ''>('');
+	let defaultSeeded = false;
+	let defaultState = $state<'idle' | 'busy' | 'saved' | 'error'>('idle');
+	$effect(() => {
+		const user = authStore.user;
+		if (!user || defaultSeeded) return;
+		defaultSeeded = true;
+		defaultChoice = user.defaultLicence ?? '';
+	});
+	const defaultDirty = $derived((authStore.user?.defaultLicence ?? '') !== defaultChoice);
+
+	async function saveDefault(event: SubmitEvent) {
+		event.preventDefault();
+		defaultState = 'busy';
+		const res = await authStore.updateProfile({ defaultLicence: defaultChoice });
+		defaultState = res.ok ? 'saved' : 'error';
+	}
+
+	function deedHref(lic: Licence): string {
+		const url = LICENCE_FACTS[lic].deedUrl;
+		return url ? `${url}deed.${getLocale()}` : '';
+	}
 
 	const key = (item: { kind: string; id: string }) => `${item.kind}:${item.id}`;
 
@@ -180,6 +208,73 @@
 	<!-- "Licences of your content" -->
 	<p class="intro">{m.licbulk_intro()}</p>
 	<!-- "Everything you have posted, with the licence each piece carries. Choose several and open them up in one go." -->
+
+	{#if authStore.isAuthenticated && authStore.user && step === 'pick'}
+		<form class="card default" onsubmit={saveDefault} data-testid="default-licence-form">
+			<h2>{m.licdefault_heading()}</h2>
+			<!-- "Your default licence for new content" -->
+			<p class="hint">{m.licdefault_body()}</p>
+			<!-- "Every form where you add something new — an exercise, a hint or solution, a material, a concept article — starts with this licence. You can still change it on each one." -->
+			<fieldset class="licences">
+				<legend class="visually-hidden">{m.licdefault_heading()}</legend>
+				<label class="radio">
+					<input type="radio" name="default-licence" value="" bind:group={defaultChoice} />
+					<span>
+						<span class="name"><strong>{m.licdefault_none()}</strong></span>
+						<!-- "No default" -->
+						<span class="summary">{m.licdefault_noneSummary()}</span>
+						<!-- "Each form suggests one: CC BY 4.0 for your own work, EdMat only once it names a source." -->
+					</span>
+				</label>
+				{#each SELECTABLE_LICENCES as lic (lic)}
+					<label class="radio">
+						<input
+							type="radio"
+							name="default-licence"
+							value={lic}
+							bind:group={defaultChoice}
+							data-testid="default-licence-{lic}"
+						/>
+						<span>
+							<span class="name"
+								><strong>{licenceShort(lic)}</strong>{#if LICENCE_FACTS[lic].code}&nbsp;— {LICENCE_NAMES[
+										lic
+									]()}{/if}</span
+							>
+							<span class="summary">{LICENCE_SUMMARIES[lic]()}</span>
+							{#if deedHref(lic)}
+								<!-- eslint-disable svelte/no-navigation-without-resolve -- creativecommons.org, not an app route -->
+								<a class="deed" href={deedHref(lic)} target="_blank" rel="noopener noreferrer"
+									>{m.licence_readDeed()}</a
+								>
+								<!-- "What it means" -->
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+							{/if}
+						</span>
+					</label>
+				{/each}
+			</fieldset>
+			<div class="row">
+				<button
+					type="submit"
+					class="primary"
+					disabled={!defaultDirty || defaultState === 'busy'}
+					data-testid="default-licence-save"
+				>
+					{m.licdefault_save()}
+					<!-- "Save default" -->
+				</button>
+				{#if defaultState === 'saved' && !defaultDirty}
+					<span class="ok" role="status" data-testid="default-licence-saved"
+						>{m.licdefault_saved()}</span
+					>
+					<!-- "Saved. New forms start with it." -->
+				{:else if defaultState === 'error'}
+					<span class="error" role="alert">{m.common_error()}</span>
+				{/if}
+			</div>
+		</form>
+	{/if}
 
 	{#if authStore.restoring}
 		<p>{m.common_loading()}</p>
@@ -538,6 +633,9 @@
 		&.dim .name strong {
 			color: var(--text-secondary);
 		}
+	}
+	.default .deed {
+		font-size: var(--font-size-sm);
 	}
 	.visually-hidden {
 		@include mix.visually-hidden;

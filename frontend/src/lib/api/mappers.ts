@@ -1088,6 +1088,7 @@ export interface RawProfile {
 	editor_mode?: string;
 	text_size?: string;
 	high_contrast?: boolean;
+	default_licence?: string;
 	is_verified_contributor: boolean;
 	is_minor?: boolean;
 	guardian_of?: { id: number; username: string; display_name: string }[];
@@ -1159,6 +1160,11 @@ export function mapUser(json: RawProfile): User {
 		editorMode: json.editor_mode === 'rich' ? 'rich' : 'source',
 		textSize: json.text_size === 'large' || json.text_size === 'larger' ? json.text_size : 'normal',
 		highContrast: json.high_contrast ?? false,
+		// Only a key a person could pick survives the trip; anything else reads as "none chosen".
+		defaultLicence:
+			json.default_licence && json.default_licence !== 'unknown'
+				? mapLicence(json.default_licence, 'edmat-only')
+				: '',
 		notifyOnCourseActivity: json.notify_on_course_activity,
 		notifyOnBooking: json.notify_on_booking,
 		notifyOnEvent: json.notify_on_event,

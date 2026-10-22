@@ -100,6 +100,15 @@ reach here — the staff sweep is `relicense_content`. 400 for a malformed reque
 subclass, never `ScopedRateThrottle`). The page is `/settings/licences`; every word has a sentence in
 `labels.ts: licenceReasonLabel` (mirror, house rule 13). Tests: `licensing/test_bulk.py`.
 
+## A person's default for new content (2026-10-22)
+
+`accounts.Profile.default_licence` (`accounts 0028`), blank = none chosen (each form keeps its own
+suggestion). Patched through `/api/auth/me/`, validated with `licence_validation_error` (`unknown`
+refused). The frontend reads it in ONE place, `LicencePicker.svelte`, which starts from it on every
+create form except one that names a source (the source guard keeps `edmat-only`). A prefill only —
+no write path reads it to decide anything; `rules.default_licence_for(user)` is the server-side
+reader for a path with no form, and resolves blank/anonymous/stale to `edmat-only`.
+
 ## Data migration (2026-10-14)
 
 `exercises 0015`, `materials 0019`, `coauthoring 0004`, `concepts 0002` — classification and counts

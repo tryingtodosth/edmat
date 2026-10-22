@@ -5846,7 +5846,7 @@
 	"parts_suggestAnswer": "Part {label} — answer",
 	"licbulk_pageTitle": "Licences of your content",
 	"licbulk_intro": "Everything you have posted, with the licence each piece carries. Choose several and open them up in one go.",
-	"licbulk_settingsLink": "Licences of everything you have posted",
+	"licbulk_settingsLink": "Licences: your default, and everything you have posted",
 	"licbulk_mineLink": "Change the licence of several at once",
 	"licbulk_kind_exercise": "Exercises",
 	"licbulk_kind_solutionEntry": "Hints and solutions",
@@ -5959,5 +5959,15 @@
 	"moderation_bulkApprove": "Approve all {count} from this upload",
 	"moderation_bulkApproved": "Approved {approved}; skipped {skipped}.",
 	"moderation_bulkParts": "{count} part(s)",
-	"moderation_bulkAiAssisted": "The author marked this AI-assisted"
+	"moderation_bulkAiAssisted": "The author marked this AI-assisted",
+	"licence_fromDefault": "This starts with your default licence, {licence}.",
+	"licence_fromDefaultLink": "Change your default",
+	"licence_defaultNotApplied": "Your default licence, {licence}, is not applied here, because this names a source.",
+	"licence_yourDefaultTag": "Your default",
+	"licdefault_heading": "Your default licence for new content",
+	"licdefault_body": "Every form where you add something new — an exercise, a hint or solution, a material, a concept article — starts with this licence. You can still change it on each one.",
+	"licdefault_none": "No default",
+	"licdefault_noneSummary": "Each form suggests one: CC BY 4.0 for your own work, EdMat only once it names a source.",
+	"licdefault_save": "Save default",
+	"licdefault_saved": "Saved. New forms start with it."
 }

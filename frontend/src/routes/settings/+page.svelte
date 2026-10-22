@@ -261,7 +261,7 @@
 			     data" because both answer "what happens to what I put here". -->
 			<a class="view-public" href={resolve('/settings/licences')} data-testid="licences-link">
 				{m.licbulk_settingsLink()}
-				<!-- "Licences of everything you have posted" -->
+				<!-- "Licences: your default, and everything you have posted" -->
 			</a>
 		</section>
 

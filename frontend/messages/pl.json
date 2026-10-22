@@ -5812,7 +5812,7 @@
 	"parts_suggestAnswer": "Podpunkt {label} — odpowiedź",
 	"licbulk_pageTitle": "Licencje twoich treści",
 	"licbulk_intro": "Wszystkie twoje opublikowane treści, każda ze swoją licencją. Zaznacz kilka i otwórz je jednym ruchem.",
-	"licbulk_settingsLink": "Licencje twoich opublikowanych treści",
+	"licbulk_settingsLink": "Licencje: domyślna i wszystkie twoje opublikowane treści",
 	"licbulk_mineLink": "Zmień licencję kilku naraz",
 	"licbulk_kind_exercise": "Zadania",
 	"licbulk_kind_solutionEntry": "Wskazówki i rozwiązania",
@@ -5925,5 +5925,15 @@
 	"moderation_bulkApprove": "Przyjmij wszystkie z tego przesłania ({count})",
 	"moderation_bulkApproved": "Przyjęto: {approved}; pominięto: {skipped}.",
 	"moderation_bulkParts": "Podpunkty: {count}",
-	"moderation_bulkAiAssisted": "Autor oznaczył to jako napisane z pomocą AI"
+	"moderation_bulkAiAssisted": "Autor oznaczył to jako napisane z pomocą AI",
+	"licence_fromDefault": "Zaczyna się od twojej domyślnej licencji: {licence}.",
+	"licence_fromDefaultLink": "Zmień domyślną",
+	"licence_defaultNotApplied": "Twoja domyślna licencja, {licence}, nie jest tu użyta, bo podano źródło.",
+	"licence_yourDefaultTag": "Twoja domyślna",
+	"licdefault_heading": "Twoja domyślna licencja dla nowych treści",
+	"licdefault_body": "Każdy formularz, w którym dodajesz coś nowego — zadanie, wskazówkę lub rozwiązanie, materiał, artykuł o pojęciu — zacznie od tej licencji. Przy każdej rzeczy nadal możesz ją zmienić.",
+	"licdefault_none": "Bez domyślnej",
+	"licdefault_noneSummary": "Każdy formularz sam coś podpowie: CC BY 4.0 dla twojej własnej pracy, „Tylko EdMat”, gdy podasz źródło.",
+	"licdefault_save": "Zapisz domyślną",
+	"licdefault_saved": "Zapisano. Nowe formularze zaczną od niej."
 }

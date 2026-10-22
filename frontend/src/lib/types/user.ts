@@ -1,6 +1,7 @@
 import type { Audience } from './audience';
 import type { DonationLink } from './donationLink';
 import type { NotificationType } from './notification';
+import type { Licence } from './licence';
 
 export interface User {
 	id: string;
@@ -90,4 +91,7 @@ export interface User {
 	editorMode?: 'rich' | 'source';
 	textSize?: 'normal' | 'large' | 'larger';
 	highContrast?: boolean;
+	/** The licence every create form starts with (`Profile.default_licence`, HISTORY §17CX); `''`
+	 *  means none chosen — each form keeps its own suggestion. A prefill only. */
+	defaultLicence?: Licence | '';
 }

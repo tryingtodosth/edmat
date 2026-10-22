@@ -192,6 +192,14 @@ class Profile(models.Model):
     # real settings that follow the account rather than one browser.
     text_size = models.CharField(max_length=6, choices=[('normal', 'Normal'), ('large', 'Large'), ('larger', 'Larger')], default='normal')
     high_contrast = models.BooleanField(default=False)
+    # The licence every create form starts with (owner, 2026-10-22; `licensing/`, HISTORY §17CX).
+    # BLANK means "not chosen": each form keeps its own suggestion (CC BY for your own work, EdMat
+    # only once it names a source — the owner's 2026-10-14 call), and a client that sends nothing is
+    # still stored `edmat-only` server-side. A prefill only, never an authority: every create path
+    # validates the licence it is SENT, exactly as before. `unknown` is refused like everywhere a
+    # person chooses (`licensing.licences.licence_validation_error`). Read it through
+    # `licensing.rules.default_licence_for(user)`, which resolves blank to `edmat-only`.
+    default_licence = models.CharField(max_length=20, blank=True, default='')
     # Under the consent age (16 in Poland, GDPR Art. 8) — the account was made by a guardian
     # (`Guardianship`) and every rule in accounts/minors.py applies. Only the flag is stored, never
     # a birth date: the year is asked at registration purely to branch, then discarded.

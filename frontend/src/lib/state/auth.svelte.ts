@@ -3,6 +3,7 @@ import { contentLocalesStore } from './contentLocales.svelte';
 import { editorPrefsStore } from './editorPrefs.svelte';
 import { a11yPrefsStore } from './a11yPrefs.svelte';
 import type { Audience } from '$lib/types/audience';
+import type { Licence } from '$lib/types/licence';
 // Session state — a Svelte 5 rune module. Phase 3: real auth against the Django backend's
 // TokenAuthentication (CLAUDE.md Section 18, resolved in Phase 2). The raw token itself lives in
 // token.svelte.ts, not here — see that file's own header comment for why (breaks a circular import
@@ -248,6 +249,7 @@ export const authStore = {
 			editorMode: 'rich' | 'source';
 			textSize: 'normal' | 'large' | 'larger';
 			highContrast: boolean;
+			defaultLicence: Licence | '';
 			notifyOnCommentReply: boolean;
 			notifyOnModerationDecision: boolean;
 			notifyOnContentAction: boolean;
@@ -274,6 +276,7 @@ export const authStore = {
 		if (patch.editorMode !== undefined) body.editor_mode = patch.editorMode;
 		if (patch.textSize !== undefined) body.text_size = patch.textSize;
 		if (patch.highContrast !== undefined) body.high_contrast = patch.highContrast;
+		if (patch.defaultLicence !== undefined) body.default_licence = patch.defaultLicence;
 		if (patch.notifyOnCommentReply !== undefined)
 			body.notify_on_comment_reply = patch.notifyOnCommentReply;
 		if (patch.notifyOnModerationDecision !== undefined) {

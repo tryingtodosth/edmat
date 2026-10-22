@@ -155,7 +155,7 @@ check(
 	'Select all ticks the three exercises',
 	(await exGroup.locator('input[type="checkbox"]:checked').count()) === 4
 );
-await p.locator('input[type="radio"][value="cc-by-sa-4.0"]').check();
+await p.locator('input[name="target"][value="cc-by-sa-4.0"]').check();
 const fit = await p.locator('[data-testid="licences-fit-cc-by-sa-4.0"]').innerText();
 check('BY-SA fits 2 of the 3 (BY-NC cannot become BY-SA)', fit.includes('2 of 3'), fit);
 const fitBy = await p.locator('[data-testid="licences-fit-cc-by-4.0"]').innerText();
@@ -203,7 +203,7 @@ p = await page({ colorScheme: 'dark' });
 await p.goto(`${BASE}/settings/licences`, { waitUntil: 'load' });
 await p.locator('[data-testid="licences-group-exercise"]').waitFor({ timeout: 30000 });
 await p.locator('[data-testid="licences-select-all-exercise"]').check();
-await p.locator('input[type="radio"][value="cc-by-4.0"]').check();
+await p.locator('input[name="target"][value="cc-by-4.0"]').check();
 await p.screenshot({ path: `${SHOTS}/licence-bulk-list-dark.png`, fullPage: true });
 await p.locator('[data-testid="licences-next"]').click();
 await p.locator('[data-testid="licences-confirm"]').waitFor();

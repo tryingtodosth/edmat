@@ -3488,3 +3488,24 @@ E2E_BASE=http://localhost:5173 E2E_API=http://127.0.0.1:8000/api E2E_PLAIN_TOKEN
 ```
 
 `e2e/add-menu.mjs`'s expected content group now carries `/submit/bulk` after `/submit`.
+### `licensing/test_default_licence.py` — 5 tests
+
+`Profile.default_licence` round-trips through `/api/auth/me/` and blank clears it; `unknown` and a
+made-up key are 400 with `licence_not_selectable` / `licence_unknown_key` and change nothing;
+anonymous GET and PATCH are 401; a stranger's public profile does not carry it;
+`rules.default_licence_for` resolves anonymous, blank and a stale `unknown` to `edmat-only`.
+
+### `frontend/e2e/licence-default.mjs` — 22 checks
+
+Changes one throwaway account's profile only. No default → `/submit` suggests CC BY; set CC BY-SA on
+`/settings/licences` (saved, API agrees) → `/submit` prefilled, says so, tags "Your default", one
+click changes it, a fresh form starts at the default again; naming a source moves it to EdMat only and
+says the default is not applied, clearing the source brings it back; the hint composer on an exercise
+page starts with it (dark mode); clearing the default restores the form's own suggestion; `unknown`
+refused; anonymous 401; zero console errors. Screenshots `e2e/screenshots/licence-default-*.png`.
+
+```bash
+E2E_BASE=http://localhost:5251 E2E_API=http://127.0.0.1:8151 \
+  LD_LIBRARY_PATH=… CHROME=<chrome-headless-shell> node e2e/licence-default.mjs
+```
+
