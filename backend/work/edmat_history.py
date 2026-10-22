@@ -155,11 +155,26 @@ SUBPROJECT_BY_REF = {
     # 17CQ is what the first live analytics dashboard showed: an import counted as submissions, a
     # slow plans list, the worst-day percentile. `platform`: operator tooling and query counts.
     '17CQ': 'platform',
+    # 17CV.A–C and 17CV are sub-exercises: the rules, the importer's part sections, the page, the
+    # integration. All `corpus` — a set-shaped exercise is still an exercise.
+    '17CV.A': 'corpus', '17CV.B': 'corpus', '17CV.C': 'corpus', '17CV': 'corpus',
+    # 17CW is `import_concepts`, concept pages in bulk. `concepts`.
+    '17CW': 'concepts',
+    # 17CX is licences in bulk and a person's default licence; 17CX.U a person's bulk upload of
+    # exercise files; 17CY the paczka5 kit (licences, the STW rewrites, Marysia's BY-NC). All three are
+    # about the content and its rights, so `corpus`.
+    '17CX': 'corpus', '17CX.U': 'corpus', '17CY': 'corpus',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,
 #: and the second use of a reference).
 SUBPROJECT_BY_HEADING = {
+    # Four sections of 2026-10-17..21 were headed `§17Cx — …`, which `_REF` does not read as a
+    # reference, so they are filed by their heading.
+    '§17CR — The homepage follows the mission': 'interface',
+    '§17CS — Courses inside courses': 'courses',
+    '§17CT — Lists instead of pasted ids': 'interface',
+    '§17CU — Four things the owner asked for': 'corpus',
     'The one-time corpus migration': 'corpus',
     'Courses, overhauled': 'courses',
     'Resolved open questions': 'platform',

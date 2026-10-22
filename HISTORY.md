@@ -18143,3 +18143,67 @@ queue's batch button).
 - No "my uploads" grouping on `/submit/mine` — the rows are there, one per file, without the batch.
 - Topic names in `batch.yaml` (`topic_names:`) are ignored with a warning; proposing a topic from an
   upload would go through the taxonomy proposal queue and is not built.
+
+## 17CY — The paczka5 deploy kit: the owner's content decisions, Marysia's licence, the integration (2026-10-22, `fix/analytics-after-deploy`)
+
+The handoff from the presentations session (`paczka5/DEPLOY-HANDOFF.md`) asked for the owner's
+decisions before anything was packed. They came in one sitting, and three of them changed files.
+
+- **Kept as assembled:** MK 39–42 (the 2024 exam photo), mechanika-klasyczna 70/72 (the statements
+  rebuilt from handwritten solutions), the seven branch slugs and names, and `announce=False` on
+  `publish_revision`.
+- **Licence `cc-by-4.0` on all seven new branches** (557 exercises and their 197 concept pages), in
+  place of the `cc-by-nc-4.0` decided the day before. algebra and fale keep `unknown` on their exercises
+  and `cc-by-nc-4.0` on their 45 concept pages. It was asked twice on purpose, because a licence can
+  only be widened after import, never narrowed. The change was made in the source of truth
+  (`~/Projects/presentations/*/edmat/`, backed up first to
+  `FUW/script-backups/content-20261022-073623-before-licence-cc-by/`), then re-checked
+  (`global_check.py`: 0 errors) and re-assembled (621 / 242 / 7).
+- **STW 1, 7, 8, 10, 12 (the probable Halliday–Resnick–Walker adaptations) rewritten.** The owner's
+  rule: formulas and data are not protected, the wording and the story are. So each got a new story:
+  - 1: a mezon from an accelerator;
+  - 7: a transport capsule and a probe;
+  - 8: a chain of probes and a service drone;
+  - 10: a probe's laser signal;
+  - 12: a beam proton crossing a scintillator plate.
+
+  The numbers, the answers and every solution step are unchanged. `source.name` credits the book:
+  "Dane liczbowe i pomysł zadania: D. Halliday, R. Resnick, J. Walker, Podstawy fizyki (treść napisana
+  od nowa)". The 0008 figure's labels and the 13 concept-page lines that quoted the old stories
+  (armada, kurier, rakieta, meteoroid, the page being read) were changed with them.
+- **Marysia's content (`m.nazarczuk-y5esej`, the owner of paczka2 and the account the corpus is
+  credited to) goes to `cc-by-nc-4.0`.** `relicense_content --author <username>` narrows the bulk walk
+  to that account's content, plus the authorless corpus hints/solutions on its own exercises. Without
+  those, a later sweep would have given a BY-NC exercise's own solutions a different, irrevocable
+  licence. `apply-on-server.sh` step 9 asks about it **before** the CC BY-SA sweep. BY-NC and BY-SA are
+  incomparable, so once her content is BY-NC the sweep refuses it as `licence_narrowing`. That order is
+  the whole mechanism, and a test pins it.
+
+**Rehearsal**, on a copy of the previous session's prod-state DB, with the corpus credited to a
+stand-in `m.nazarczuk-y5esej` the way production has it:
+
+- exercise counts 13 / 44 / 42 / 140 / 112 / 95 / 111 created, parts 18 / 26 / 41 / 63 / 102 / 41 / 66;
+- algebra `0 created, 23 updated`, parts `0 created, 17 updated, 0 removed`; fale `0 created, 41 updated`;
+- 0 verified in all 9 branches;
+- concepts 242 created, "Nothing was announced";
+- `check:katex` 0 issues on the 70 teoria-wzglednosci rows;
+- Marysia: 726 exercises + 1451 entries to BY-NC, a second run 0, then the BY-SA dry run refusing them
+  all as `licence_narrowing`.
+
+**Integration.** `fix/analytics-after-deploy` was fast-forwarded to `feat/import-concepts`, then
+`feat/bulk-licence` (§17CX, twice: the editor, then the default licence) and `feat/bulk-upload`
+(§17CX.U) were merged. Both features were built the same day by two parallel sessions in their own
+worktrees.
+
+- **Conflicts:** only appends, in HISTORY, test.md, settings' throttle rates and the two message
+  catalogues. Both sides were kept, with a comma restored at the seam; 5629 keys each, identical sets.
+- **Found by the full suite on the merged branch:**
+  - `accounts.test_erasure.RegistryCompletenessTests` failed. `ExercisePartTranslation.translated_by`
+    (§17CV) had no erasure rule; it now has `ANONYMISE`, like `ExerciseTranslation`'s.
+  - `work.tests.EdmatHistoryTests` failed. `work/edmat_history.json` was 11 sections behind, from §17CR
+    onward, already drifted before today; it was re-exported.
+
+**Left open**
+- The preflight has never run against production. It runs inside step 11, after the code is deployed.
+- `paczka4/prepared/IMPORTED` was written on the owner's word, not from the server's marker.
+- algebra/fale exercises stay `unknown` unless the step-9 BY-SA sweep is answered `y`.

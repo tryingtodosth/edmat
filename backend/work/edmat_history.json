@@ -1560,5 +1560,137 @@
   "summary": "The 2026-10-15 deploy's step 3f ran the 90-day analytics backfill BEFORE step 4's permission fix, so it died on \"attempt to write a readonly database\" (paczka2's step 3d had died the same way the day before). The owner ran it by hand afterwards and sent two screenshots of /moderation/analytics. The script now runs it as step 4a, after the fix; pack.sh no longer packs an import kit that carries an…",
   "subproject": "platform",
   "listed": true
+ },
+ {
+  "ref": null,
+  "title": "§17CR — The homepage follows the mission",
+  "heading": "§17CR — The homepage follows the mission (2026-10-17)",
+  "line": 17224,
+  "date": "2026-10-17",
+  "date_source": "heading",
+  "summary": "The owner: \"change our homepage to follow our mission statement of sth like 'let's cooperate on education materials'\". The mission already had the owner's own words, written on 2026-10-14 for the organisation's page on /about (§17CJ-era, \"The organisation's description is the owner's sentence\"): \"EdMat.net to otwarte miejsce współpracy nad materiałami edukacyjnymi i oprogramowaniem: buduje je…",
+  "subproject": "interface",
+  "listed": true
+ },
+ {
+  "ref": null,
+  "title": "§17CS — Courses inside courses, outside content in a programme, and a board on every course",
+  "heading": "§17CS — Courses inside courses, outside content in a programme, and a board on every course (2026-10-21)",
+  "line": 17273,
+  "date": "2026-10-21",
+  "date_source": "heading",
+  "summary": "Owner: \"make it so that courses can have their own courses (subcourses). incorporated in the ui and having parent-child relationship. besides we want external courses (from edmat itself or as a link) to be able to be linked to course's content. also lets have some sort of discussion board (maybe lets utilize current portal's tags page for that) for poeple to be able to post pdfs, imgs, notes…",
+  "subproject": "courses",
+  "listed": true
+ },
+ {
+  "ref": null,
+  "title": "§17CT — Lists instead of pasted ids",
+  "heading": "§17CT — Lists instead of pasted ids (2026-10-21, the same afternoon)",
+  "line": 17345,
+  "date": "2026-10-21",
+  "date_source": "heading",
+  "summary": "Owner: \"lets improve the course picker, and other places where we could instead of text input requirement give user a list instead.\" An inventory first: the tree's move field and the content editor took a pasted address (§17CS, hours old); the course and event staff panels, the organisation roster and the moderation governors tab took an account id; the organisation link form took a node id; the…",
+  "subproject": "interface",
+  "listed": true
+ },
+ {
+  "ref": null,
+  "title": "§17CU — Four things the owner asked for in one afternoon",
+  "heading": "§17CU — Four things the owner asked for in one afternoon (2026-10-21, after the second bundle)",
+  "line": 17417,
+  "date": "2026-10-21",
+  "date_source": "heading",
+  "summary": "1. CC BY-SA 4.0 on everything posted (\"i want to add CC BY-SA 4.0 to all currently posted content\"). manage.py relicensecontent --to cc-by-sa-4.0 --by <staff> --note \"<basis>\" (licensing/management/commands/) walks every posted exercise, hint/solution, material and concept article and calls rules.changelicence on each — the same function the item page's control calls, so it adds no authority. On…",
+  "subproject": "corpus",
+  "listed": true
+ },
+ {
+  "ref": "17CV.A",
+  "title": "Sub-exercises, step A — the rules and the writes",
+  "heading": "17CV.A Sub-exercises, step A — the rules and the writes (2026-10-21, `parts/a-backend`)",
+  "line": 17475,
+  "date": "2026-10-21",
+  "date_source": "heading",
+  "summary": "The prep commit made parts readable (ExercisePart, ExercisePartTranslation, SolutionEntry.part, EditSuggestion.part, parts on the detail, part on an entry POST). This step made them REAL on the write side and in every derived rule, so that C's page and B's importer have a backend that keeps its promises. Brief: prompts/20-parts-a-backend.md; design: SUBEXERCISES-BRIEF.md.",
+  "subproject": "corpus",
+  "listed": true
+ },
+ {
+  "ref": "17CV.B",
+  "title": "The importer's part sections, and paczka4: fifteen paczka3 sets rewritten with parts",
+  "heading": "17CV.B — The importer's part sections, and paczka4: fifteen paczka3 sets rewritten with parts (2026-10-21, `parts/b-import`)",
+  "line": 17554,
+  "date": "2026-10-21",
+  "date_source": "heading",
+  "summary": "Step B of SUBEXERCISES-BRIEF.md §6 (brief prompts/21-parts-b-import.md). Two halves: the import format learns parts, and the set-shaped files of paczka3 are rewritten by hand with them.",
+  "subproject": "corpus",
+  "listed": true
+ },
+ {
+  "ref": "17CV.C",
+  "title": "Sub-exercises, the page: part blocks, \"For:\" on the composer, the part on \"Suggest an edit\", the Parts editor",
+  "heading": "17CV.C — Sub-exercises, the page: part blocks, \"For:\" on the composer, the part on \"Suggest an edit\", the Parts editor (2026-10-21, `parts/c-page`)",
+  "line": 17640,
+  "date": "2026-10-21",
+  "date_source": "heading",
+  "summary": "Step C of SUBEXERCISES-BRIEF.md (brief prompts/22-parts-c-page.md), on top of the prep's types, mappers and submitSolutionEntry(…, {partId}). Everything here is under frontend/.",
+  "subproject": "corpus",
+  "listed": true
+ },
+ {
+  "ref": "17CV",
+  "title": "Sub-exercises: the integration",
+  "heading": "17CV — Sub-exercises: the integration (2026-10-21, `fix/analytics-after-deploy`)",
+  "line": 17724,
+  "date": "2026-10-21",
+  "date_source": "heading",
+  "summary": "The three branches of prompts/README.md §12 came back the same afternoon and were merged in the order the plan named — A (75fa99c + 84a52b9), B (07f98b6), C (fb4e16e) — with the only conflicts the expected \"both appended\" ones at the end of this file and of test.md. What the integration itself changed, beyond the merges:",
+  "subproject": "corpus",
+  "listed": true
+ },
+ {
+  "ref": "17CW",
+  "title": "manage.py import_concepts: concept pages in bulk",
+  "heading": "17CW — `manage.py import_concepts`: concept pages in bulk (2026-10-21, `feat/import-concepts`)",
+  "line": 17783,
+  "date": "2026-10-21",
+  "date_source": "heading",
+  "summary": "The concept (wiki) counterpart of importexercises, for the kit pages being written into <kit>/<branch>/pojecia/ (format fixed by the orchestrator in advance; what the importer enforces beyond its text is listed in the procedure doc). Same CLI shape — <dir>, --dry-run (validate, write, roll back), --author, --licence, --locale, --audience — plus --skip-missing-exercises and --ai-assisted [NOTE].…",
+  "subproject": "concepts",
+  "listed": true
+ },
+ {
+  "ref": "17CX",
+  "title": "Licences in bulk: /settings/licences",
+  "heading": "17CX — Licences in bulk: `/settings/licences` (2026-10-22, `feat/bulk-licence`)",
+  "line": 17935,
+  "date": "2026-10-22",
+  "date_source": "heading",
+  "summary": "Owner, 2026-10-22, while preparing the paczka5 deploy kit: \"in this deploy kit, we should also improve the way user can decide/edit their contents' licence in bulk\". Until today a person could widen a licence only from each item's own page (LicenceNotice's \"Change licence\"), one at a time; an author with forty exercises and their solutions had eighty clicks-and-confirms ahead of them, and no…",
+  "subproject": "corpus",
+  "listed": true
+ },
+ {
+  "ref": "17CX.U",
+  "title": "A person's bulk upload of exercise files",
+  "heading": "17CX.U — A person's bulk upload of exercise files (2026-10-22, `feat/bulk-upload`)",
+  "line": 18043,
+  "date": "2026-10-22",
+  "date_source": "heading",
+  "summary": "The ask. The owner, the morning paczka5 was being packed: \"we also want to empower users to feed the DB with their own exercises in bulk: we are doing it by uploading .md and executing a script on them, so it should also work (with bunch of security checks and sanitization) for every user, or am i wrong?\" — and, asked how such files should land: a verified contributor's publish at once, everybody…",
+  "subproject": "corpus",
+  "listed": true
+ },
+ {
+  "ref": "17CY",
+  "title": "The paczka5 deploy kit: the owner's content decisions, Marysia's licence, the integration",
+  "heading": "17CY — The paczka5 deploy kit: the owner's content decisions, Marysia's licence, the integration (2026-10-22, `fix/analytics-after-deploy`)",
+  "line": 18147,
+  "date": "2026-10-22",
+  "date_source": "heading",
+  "summary": "The handoff from the presentations session (paczka5/DEPLOY-HANDOFF.md) asked for the owner's decisions before anything was packed. They came in one sitting, and three of them changed files.",
+  "subproject": "corpus",
+  "listed": true
  }
 ]
