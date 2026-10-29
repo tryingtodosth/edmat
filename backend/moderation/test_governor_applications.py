@@ -216,7 +216,9 @@ class DecidingTests(APITestCase):
         self.assertEqual(response.data['decision_note'], 'Already looked after.')
         self.assertFalse(NodeGovernor.objects.filter(user=self.applicant).exists())
 
-    def test_the_applicant_cannot_decide_their_own(self):
+    def test_a_plain_user_cannot_decide_even_their_own(self):
+        # The refusal is `decide()`'s staff check, not an "own application" rule — there is none, so
+        # a STAFF applicant could approve themselves. Named for what it pins, not what it hoped to.
         response = self.decide(self.applicant)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 

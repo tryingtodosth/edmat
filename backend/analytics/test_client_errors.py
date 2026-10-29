@@ -123,11 +123,10 @@ class IngestTests(IngestBase):
         self.assertEqual(DailyClientError.objects.get().count, 1)
 
     def test_a_signed_in_callers_token_is_never_read(self):
-        user = make_user('reporter')
-        from rest_framework.authtoken.models import Token
-
-        token = Token.objects.create(user=user)
-        response = self.send(report(), HTTP_AUTHORIZATION=f'Token {token.key}')
+        # A token that does not exist: TokenAuthentication would answer 401 for it, so a 204 is the
+        # proof that nothing read it. (A valid token answered 204 either way, and no stored column
+        # records the user, so that version could not fail.)
+        response = self.send(report(), HTTP_AUTHORIZATION='Token not-a-real-token')
         self.assertEqual(response.status_code, 204)
         self.assertEqual(ClientErrorReport.objects.count(), 1)
 

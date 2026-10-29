@@ -59,11 +59,6 @@ class CommentRevisionCreationTests(APITestCase):
         )
         self.assertEqual(bodies, ['Original wording.', 'Second wording.'])
 
-    def test_a_never_edited_comment_has_no_revisions(self):
-        """The honest baseline "previous version not available" case — no snapshot was ever taken,
-        not a placeholder standing in for a missing one."""
-        self.assertEqual(CommentRevision.objects.filter(comment=self.comment).count(), 0)
-
     def test_tombstoning_a_comment_creates_no_revision(self):
         self.client.delete(reverse('comment-detail', kwargs={'pk': self.comment.pk}))
 

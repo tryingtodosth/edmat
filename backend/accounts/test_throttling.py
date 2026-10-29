@@ -92,8 +92,14 @@ class LoginIpThrottleTests(ThrottleTestCase):
         """DRF throttles REQUESTS, not failures — worth pinning down as the real, documented
         behavior rather than leaving a future reader to assume a failed-attempt lockout. It is also
         exactly the limitation accounts/throttles.py names as a follow-up."""
-        for _ in range(3):
-            self._attempt()
+        # Successes only: a lockout that counted failures would let all four through, which is what
+        # tells the two designs apart (three failures then a success could not).
+        for i in range(3):
+            self.assertEqual(
+                self._attempt(password='right-password').status_code,
+                status.HTTP_200_OK,
+                msg=f'login {i + 1} should succeed',
+            )
 
         response = self._attempt(password='right-password')
 

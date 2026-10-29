@@ -639,14 +639,17 @@ class RequestTests(ApiTestCase):
         self.assertEqual(self.ask(service, 14, user=self.tutor).status_code, 400)
 
     def test_a_past_slot_is_refused(self):
+        # A slot the rule really offers (Tuesday 14:00), two weeks back — an arbitrary past instant
+        # is refused for not being a slot at all, whatever the past-time check does.
         service = self.make_service()
-        past = timezone.now() - timedelta(days=7)
+        past = self.at(self.tuesday - timedelta(days=14), 14)
         response = self.as_(self.student).post(
             '/api/bookings/',
             {'service': service.pk, 'starts_at': past.isoformat()},
             format='json',
         )
         self.assertEqual(response.status_code, 400)
+        self.assertIn('already passed', str(response.data))
 
     def test_booking_requires_an_account(self):
         service = self.make_service()

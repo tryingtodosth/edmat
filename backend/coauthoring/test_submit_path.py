@@ -359,12 +359,6 @@ class VerifiedContributorUploadGateTests(SubmitPathBase):
             key='material_uploads_verified_only', defaults={'is_enabled': enabled}
         )
 
-    def test_flag_defaults_to_off_and_a_plain_user_can_upload(self):
-        # No explicit _set_flag call — this is the real, migration-seeded default (0011), not a
-        # value this test itself sets up, so it doubles as a regression test for that seed.
-        self.client.force_authenticate(self.student)
-        self.assertEqual(self.submit().status_code, status.HTTP_201_CREATED)
-
     def test_when_enabled_a_plain_user_is_blocked(self):
         self._set_flag(True)
         self.client.force_authenticate(self.student)
@@ -1188,11 +1182,6 @@ class LinkOnlyMaterialTests(SubmitPathBase):
         self.assertFalse(head['file_url'])
         self.assertEqual(head['kind'], 'link')
 
-    def test_a_file_alone_is_still_accepted(self):
-        """The path that existed before this, unchanged."""
-        self.client.force_authenticate(self.student)
-        self.assertEqual(self.submit().status_code, status.HTTP_201_CREATED)
-
     def test_neither_is_refused_and_says_so(self):
         self.client.force_authenticate(self.student)
         response = self.submit(kind=None, file=None)
@@ -1203,9 +1192,13 @@ class LinkOnlyMaterialTests(SubmitPathBase):
     def test_a_link_costs_no_quota(self):
         """It occupies no disk, so it cannot be what fills an account's byte cap. Falls out of
         `material_upload_bytes` skipping a row with no file, rather than needing its own rule."""
-        self._submit_link(url='https://example.edu/lecture-4')
+        linked = self._submit_link(url='https://example.edu/lecture-4')
+        self.assertEqual(linked.status_code, status.HTTP_201_CREATED, linked.data)
 
         self.assertEqual(self.student.profile.material_upload_bytes, 0)
+        # The counter does count a file, so the zero above is about the link.
+        self.assertEqual(self.submit().status_code, status.HTTP_201_CREATED)
+        self.assertGreater(self.student.profile.material_upload_bytes, 0)
 
     def test_publishing_one_produces_a_material_that_is_the_link(self):
         submitted = self._submit_link(url='https://example.edu/lecture-5')

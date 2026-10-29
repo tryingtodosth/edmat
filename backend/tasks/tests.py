@@ -285,10 +285,21 @@ class TransitionTests(TaskTestCase):
         """The WHERE-anchored `update()` (backend/CLAUDE.md SQLite rule 1): the loser's row no
         longer has the status their request was anchored to, so they get the same 409 a wrong move
         gets — which by then is what it is."""
+        from unittest import mock
+
+        # The other request lands BETWEEN this one's check and its update — the only window the
+        # anchor guards. (Moving a row that is already `in_progress` to `in_progress` was refused by
+        # the rule module's "same status" check, so the anchor was never reached.)
+        def the_other_request_wins(task, target, user):
+            Task.objects.filter(pk=task.pk).update(status='in_progress')
+            return None
+
         self.client.force_authenticate(self.host)
-        Task.objects.filter(pk=self.task.pk).update(status='in_progress')
-        response = self.move('in_progress')  # anchored on a `todo` that is already gone
+        with mock.patch.object(rules, 'transition_block_reason', side_effect=the_other_request_wins):
+            response = self.move('in_progress')  # anchored on a `todo` that is already gone
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.task.refresh_from_db()
+        self.assertIsNone(self.task.done_at)
 
 
 # ---- one level of subtasks -----------------------------------------------------------------------

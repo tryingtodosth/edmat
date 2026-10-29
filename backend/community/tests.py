@@ -505,6 +505,11 @@ class SavedCommentTests(APITestCase):
     def test_the_list_is_only_ever_your_own(self):
         self.client.force_authenticate(self.keeper)
         self.client.post(self.save_url(), {}, format='json')
+        # The keeper sees it — otherwise the stranger's empty list below holds for a list that is
+        # always empty.
+        mine = self.client.get(reverse('comment-saved'))
+        self.assertEqual(mine.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mine.data), 1)
 
         self.client.force_authenticate(self.stranger)
         response = self.client.get(reverse('comment-saved'))

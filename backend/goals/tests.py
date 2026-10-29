@@ -316,13 +316,6 @@ class VisibilityTests(GoalsBase):
         self.assertEqual(listed.status_code, status.HTTP_200_OK)
         self.assertEqual([row['id'] for row in listed.data], [goal.pk])
 
-    def test_a_closed_board_does_not_hide_a_goal_the_way_it_hides_a_task(self):
-        """A task board is the inside of a team; a goal is the outside (`rules.py`)."""
-        self.assertFalse(self.org.open_board)
-        goal = self.goal()
-        self.client.force_authenticate(None)
-        self.assertEqual(self.client.get(self.detail_url(goal)).status_code, status.HTTP_200_OK)
-
     def test_a_dissolved_organisations_goals_are_404_to_everybody_else(self):
         goal = self.goal()
         self.org.is_active = False

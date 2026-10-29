@@ -202,10 +202,14 @@ class KeyConfigurationTests(APITestCase):
             with self.assertRaises(MessageDecryptionError):
                 decrypt_text(sealed)
 
-    @override_settings(EDMAT_MESSAGE_KEY=OTHER_KEY)
     def test_a_configured_key_is_used_in_preference_to_the_derived_one(self):
-        sealed = encrypt_text('Something private.')
-        self.assertEqual(decrypt_text(sealed), 'Something private.')
+        # Sealed under the configured key and read back without it: a round trip inside one override
+        # succeeded whichever key both halves used. The test above is the decrypt side of this.
+        with override_settings(EDMAT_MESSAGE_KEY=OTHER_KEY):
+            sealed = encrypt_text('Something private.')
+            self.assertEqual(decrypt_text(sealed), 'Something private.')
+        with self.assertRaises(MessageDecryptionError):
+            decrypt_text(sealed)
 
     @override_settings(EDMAT_MESSAGE_KEY=base64.urlsafe_b64encode(b'too short').decode())
     def test_a_key_of_the_wrong_length_is_refused_loudly(self):

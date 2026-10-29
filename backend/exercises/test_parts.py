@@ -161,12 +161,6 @@ class PartsVerifiedTests(APITestCase):
         last.save(update_fields=['reviewed_by'])
         self.assertTrue(self.verified())
 
-    def test_an_exercise_without_parts_behaves_exactly_as_before(self):
-        plain = make_exercise(self.branch, 2)
-        self.assertFalse(Exercise.objects.get(pk=plain.pk).verified)
-        solve(plain)
-        self.assertTrue(Exercise.objects.get(pk=plain.pk).verified)
-
 
 class PartsEditBase(APITestCase):
     databases = set(all_log_shards()) | {'default'}

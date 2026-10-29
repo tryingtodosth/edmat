@@ -113,9 +113,10 @@ class ContestPrepTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('kuratorium', [p['key'] for p in response.data['presets']])
 
-    def test_the_flag_is_seeded_on_and_a_contest_is_a_creation_kind(self):
+    def test_a_contest_is_a_creation_kind(self):
+        # That the flag is seeded ON is moderation.tests.FeatureFlagTests' whole-set check; here
+        # setUp has already written the row, so asserting it would prove nothing.
         self.assertIn('contest', CREATION_KINDS)
-        self.assertTrue(FeatureFlag.objects.filter(key='contests').exists())
 
     def test_description_is_sanitized_on_write(self):
         self.contest.description = '<p>ok</p><script>alert(1)</script>'

@@ -418,10 +418,6 @@ class EditSuggestionApprovalTests(ApiTestCase):
 
 
 class ModerationQueuePermissionTests(ApiTestCase):
-    def test_non_moderator_is_forbidden(self):
-        self.client.force_authenticate(make_user('visitor'))
-        response = self.client.get(reverse('moderation-queue'))
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_moderator_can_view_the_queue(self):
         self.client.force_authenticate(make_user('mod4', is_staff=True))
@@ -1396,53 +1392,13 @@ class FeatureFlagTests(ApiTestCase):
                 'material_uploads_verified_only',
             },
         )
-        # The plain kill switches are seeded on; `material_uploads_verified_only` is the one,
-        # deliberately-inverted-semantics exception (0011's own seed migration) — its own
-        # dedicated MaterialUploadVerifiedContributorGateTests covers its actual on/off behavior.
+        # Every switch is seeded ON — provisioning a kill switch must never be what takes a feature
+        # away — except `material_uploads_verified_only`, whose semantics are inverted (0011's own
+        # seed; MaterialUploadVerifiedContributorGateTests covers its on/off behaviour). This used to
+        # be a hand-kept tuple of the keys expected on, and it had silently fallen eleven keys behind
+        # the set above (`contests`, `goals`, `attachments`, …), so a new flag seeded OFF passed.
         by_key = {row['key']: row['is_enabled'] for row in response.data}
-        self.assertTrue(
-            all(
-                by_key[k]
-                for k in (
-                    'tutoring',
-                    'courses',
-                    'messaging',
-                    'exercise_submissions',
-                    'exercise_bulk_upload',
-                    'material_submissions',
-                    'events',
-                    'issues',
-                    # Seeded ON like the rest: provisioning the age gate's kill switch must not be
-                    # what turns the gate off. RegistrationAgeGateFlagTests (accounts/test_minors.py)
-                    # covers what flipping it actually does.
-                    'age_verification',
-                    # Also seeded ON: co-authoring gates the collaboration surface on a material,
-                    # never the material itself (moderation/models.py's own note on the key), so
-                    # provisioning it is not what takes a feature away from anybody.
-                    'coauthoring',
-                    # And concepts, for the plainest version of the same reason: there is no concept
-                    # on the platform the moment 0040 runs, so seeding the switch on removes nothing.
-                    'concepts',
-                    # And sketches, for exactly that reason again: 0042 seeds the switch on with no
-                    # sketch on the platform, so provisioning it takes nothing away.
-                    'sketches',
-                    # And social_login, 0054: with no client id in the environment there is no
-                    # button to show, so seeding it on changes nothing until credentials exist.
-                    'social_login',
-                    # And client_errors, 0055: the beacon was owner-approved on the day it landed.
-                    'client_errors',
-                    # And the learning cycle's two plain switches, 0047: there is no deck and no
-                    # shared learning record on the platform the moment it runs, so seeding them
-                    # on removes nothing from anybody.
-                    'flashcards',
-                    'learning_record',
-                    # And the standing pages' discussions, 0048, for the same reason again: no
-                    # location exists the moment it runs. What it switches on is the per-location
-                    # switches underneath it meaning anything at all.
-                    'about_discussions',
-                )
-            )
-        )
+        self.assertEqual({k for k, on in by_key.items() if not on}, {'material_uploads_verified_only'})
         self.assertFalse(by_key['material_uploads_verified_only'])
         # The cycle's inverted switch, seeded ON by owner decision (prompts/01-prep.md) — the one
         # place this set's "plain switches are on, the inverted one is off" shape does not hold,
@@ -1477,15 +1433,6 @@ class FeatureFlagTests(ApiTestCase):
         flag = FeatureFlag.objects.get(key='tutoring')
         self.assertFalse(flag.is_enabled)
         self.assertEqual(flag.updated_by, self.staff)
-
-    def test_exercise_submissions_flag_off_blocks_non_staff(self):
-        FeatureFlag.objects.filter(key='exercise_submissions').update(is_enabled=False)
-        branch = make_course(slug='uw-flag-am2')
-        self.client.force_authenticate(self.plain_user)
-
-        response = self.client.get(reverse('exercise-submission-list'))
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_exercise_submissions_flag_off_still_allows_staff(self):
         FeatureFlag.objects.filter(key='exercise_submissions').update(is_enabled=False)

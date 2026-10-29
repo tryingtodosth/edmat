@@ -296,7 +296,11 @@ class WeekEndpointTests(WeekScheduleFixtureMixin, ApiTestCase):
                 {'weekday': TUESDAY, 'start_time': '11:00', 'end_time': '12:00'},
             ],
         )
-        self.assertEqual(len(self.get_week(self.monday).data['windows']), 1)
+        # Exact, not a count: a failed PUT reads back the repeating pattern, which is one window too.
+        self.assertEqual(
+            self.get_week(self.monday).data['windows'],
+            [{'weekday': TUESDAY, 'start_time': '10:00', 'end_time': '12:00', 'service': None}],
+        )
 
     def test_windows_on_different_days_are_not_merged(self):
         self.put_week(
@@ -818,10 +822,15 @@ class TimeZoneTests(ApiTestCase):
         self.assertEqual(len(set(starts)), 4)
 
     def test_an_all_day_block_on_the_long_day_covers_all_25_hours(self):
+        # The opening sits in the 25th hour on purpose: a block built as local midnight + 24 REAL
+        # hours ends at 23:00 local that night, so it would cover an evening opening (the old
+        # 20:00–23:00 fixture, which therefore could not tell the two apart) and miss this one.
+        self.service = self.make_service(session_minutes=30)
         day = date(2027, 10, 31)
         AvailabilityException.objects.create(
-            tutor=self.tutor, date=day, kind='open', start_time=time(20), end_time=time(23)
+            tutor=self.tutor, date=day, kind='open', start_time=time(23), end_time=time(23, 59)
         )
+        self.assertEqual(self.starts(day), [_utc(2027, 10, 31, 22)])
         AvailabilityException.objects.create(tutor=self.tutor, date=day, kind='block')
         self.assertEqual(self.starts(day), [])
 

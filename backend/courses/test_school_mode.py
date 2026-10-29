@@ -150,6 +150,8 @@ class IsSchoolCourseTests(SchoolTestCase):
             'parent': self.klass.pk,
             'university': 'Uniwersytet Warszawski',
             'visibility': 'private',
+            # The version door, not the subcourse one (`test_subcourses` has that).
+            'kind': 'university',
         }
         response = self.as_(self.teacher).post('/api/courses/', body, format='json')
         self.assertEqual(response.status_code, 400)

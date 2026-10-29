@@ -633,7 +633,7 @@ class EdmatProjectSeedTests(APITestCase):
 
     def setUp(self):
         for key in ('organizations', 'tasks', 'needs', 'plans', 'decisions', 'work_dashboard', 'events', 'about_discussions'):
-            FeatureFlag.objects.update_or_create(key=key, defaults={'enabled': True})
+            FeatureFlag.objects.update_or_create(key=key, defaults={'is_enabled': True})
         self.owner = make_user('piotr')
 
     def _build(self, **overrides):
@@ -1007,8 +1007,6 @@ class EdmatHistoryTests(SimpleTestCase):
         self.assertEqual(classify({'ref': None, 'heading': '§17BQ — the owner\'s 2026-10-01 list'}), ('interface', True))
 
     def test_the_checked_in_table_is_current_and_whole(self):
-        from unittest import skipUnless
-
         from work.edmat_history import HISTORY_PATH, SUBPROJECT_BY_REF, load_table, parse_history
         from work.edmat_project import SUBPROJECTS
 
@@ -1021,7 +1019,9 @@ class EdmatHistoryTests(SimpleTestCase):
             self.assertTrue(entry['listed'], entry['heading'])
             self.assertIn(entry['subproject'], goals)
         if not HISTORY_PATH.exists():
-            return  # on a server there is no log; the table is what ships
+            # On a server there is no log; the table is what ships. A skip, not a silent pass, so
+            # the run says the currency half did not happen.
+            self.skipTest('HISTORY.md not present; the table-currency half was not checked')
         parsed = parse_history(HISTORY_PATH.read_text(encoding='utf-8'))
         key = lambda e: (e['ref'], e['heading'], e['line'], e['summary'], e['subproject'])  # noqa: E731
         self.assertEqual([key(e) for e in parsed], [key(e) for e in table],

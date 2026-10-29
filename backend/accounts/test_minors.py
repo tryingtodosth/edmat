@@ -87,8 +87,15 @@ class RegistrationAgeGateFlagTests(APITestCase):
         self.assertEqual(r.status_code, 201, r.content)
 
     def test_turning_the_gate_back_on_restores_the_refusal(self):
-        FeatureFlag.objects.filter(key='age_verification').update(is_enabled=True)
         year = timezone.now().year
+        # Off first (setUp), so "back on" is a real transition rather than the seeded state.
+        off = self.client.post(
+            reverse('auth-register'),
+            {'username': 'young-off', 'email': 'young-off@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12, 'accept_terms': True},
+            format='json',
+        )
+        self.assertEqual(off.status_code, 201, off.content)
+        FeatureFlag.objects.filter(key='age_verification').update(is_enabled=True)
 
         r = self.client.post(
             reverse('auth-register'),

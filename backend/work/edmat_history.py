@@ -164,6 +164,8 @@ SUBPROJECT_BY_REF = {
     # exercise files; 17CY the paczka5 kit (licences, the STW rewrites, Marysia's BY-NC). All three are
     # about the content and its rights, so `corpus`.
     '17CX': 'corpus', '17CX.U': 'corpus', '17CY': 'corpus',
+    # 17CZ is the test audit: tests that could not fail, and duplicates. `platform`.
+    '17CZ': 'platform',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

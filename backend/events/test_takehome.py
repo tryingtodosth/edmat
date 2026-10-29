@@ -166,7 +166,9 @@ class TakeHomeListTests(TakeHomeCase):
         self.assertEqual(sessions[0]['takehome_count'], len(listed))
         self.assertEqual(sessions[0]['takehome_count'], 3)
 
-    def test_the_rule_module_is_what_both_surfaces_ask(self):
+    def test_the_rule_module_lists_a_linked_exercise(self):
+        # A unit test of `session_exercises`; that both surfaces ask it is
+        # `test_the_session_serializers_count_agrees_with_the_endpoint`.
         self.link_exercise(self.first)
         rows = session_exercises(Session.objects.get(pk=self.session.pk))
         self.assertEqual([e.pk for e in rows], [self.first.pk])
@@ -297,5 +299,11 @@ class RelatedCoursesListTests(RelatedCoursesCase):
             content_type=ContentType.objects.get_for_model(material.__class__),
             object_id=material.pk,
             kind='runs',
+        )
+        # A public course that happens to share the material's pk. Without it, a lost
+        # `content_type=course` filter would look the material's pk up among courses, find nothing,
+        # and still answer `[]`.
+        Course.objects.create(
+            pk=material.pk, instructor=self.teacher, title='Same pk', visibility='public'
         )
         self.assertEqual(self.client.get(self.url()).data, [])

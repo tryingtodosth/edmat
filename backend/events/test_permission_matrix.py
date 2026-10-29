@@ -234,6 +234,13 @@ class PermissionMatrixTests(APITestCase):
             uploaded_by=organiser, content_type='application/pdf', byte_size=len(_PDF),
         )
         documents['public'].file.save('programme.pdf', ContentFile(_PDF), save=True)
+        # A staff-tier document WITH bytes, so the file endpoint's tier check has something to
+        # refuse: against a link document every caller gets 404 for having no bytes.
+        documents['staff_file'] = EventDocument.objects.create(
+            event=event, title='Floor plan', kind='file', visibility='staff',
+            uploaded_by=organiser, content_type='application/pdf', byte_size=len(_PDF),
+        )
+        documents['staff_file'].file.save('floor-plan.pdf', ContentFile(_PDF), save=True)
         # Everybody who holds the staff tier has read the briefing EXCEPT `clerk` — see above.
         for reader in (organiser, built['reviewer'], built['volunteer']):
             DocumentAcknowledgement.objects.create(
@@ -572,6 +579,7 @@ class PermissionMatrixTests(APITestCase):
             'doc_public': documents['public'].pk,
             'doc_attendees': documents['attendees'].pk,
             'doc_staff': documents['staff'].pk,
+            'doc_staff_file': documents['staff_file'].pk,
             'doc_organisers': documents['organisers'].pk,
             'doc_venue': documents['venue'].pk,
             'cloak_station': cloak_station.pk,
@@ -1326,7 +1334,8 @@ MATRIX = [
     ('venue_admin', 'GET', '/documents/{doc_staff}/', None, 404, 'the building is not event staff'),
 
     ('anonymous', 'GET', '/documents/{doc_public}/file/', None, 200, 'the bytes are as public as the tier'),
-    ('attendee', 'GET', '/documents/{doc_staff}/file/', None, 404, 'the file endpoint re-checks the tier'),
+    ('attendee', 'GET', '/documents/{doc_staff_file}/file/', None, 404, 'the file endpoint re-checks the tier'),
+    ('volunteer', 'GET', '/documents/{doc_staff_file}/file/', None, 200, 'and lets the tier through'),
     ('volunteer', 'GET', '/documents/{doc_staff}/file/', None, 404, 'a link document has no bytes'),
 
     ('anonymous', 'PATCH', '/documents/{doc_staff}/', {'title': 'x'}, 401, 'a write needs a sign-in'),

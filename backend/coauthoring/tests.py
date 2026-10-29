@@ -603,14 +603,6 @@ class FileTests(CoauthoringBase):
         self.assertEqual(version.file_size, 1500)
         self.assertEqual(version.decision_note, 'Already covered by version 1.')
 
-    def test_a_published_versions_file_is_never_reclaimed(self):
-        self.publish_first()
-        self.project.refresh_from_db()
-        published = self.project.published_version
-        services.reclaim_version_file(published)
-        published.refresh_from_db()
-        self.assertIsNone(published.file_reclaimed_at)
-
 
 class TeamTests(CoauthoringBase):
     def test_adding_removing_and_leaving(self):

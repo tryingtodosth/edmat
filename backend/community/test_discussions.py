@@ -292,20 +292,6 @@ class DiscussionEndpointTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(response.data['detail'], 'verification_required')
 
-    def test_a_reply_cannot_cross_into_another_thread(self):
-        """The check `community/CLAUDE.md` says every new comment surface must repeat."""
-        self.client.force_authenticate(self.plain)
-        self._post('First')
-        other = Comment.objects.get()
-        payload = {
-            'page': PAGE,
-            'section': 'a-different-section',
-            'body': 'Reply',
-            'parent': other.pk,
-        }
-        response = self.client.post(self.thread_url, payload, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
     def test_a_reply_inside_the_same_thread_is_fine(self):
         self.client.force_authenticate(self.plain)
         self._post('First')
@@ -350,7 +336,8 @@ class DiscussionEndpointTests(APITestCase):
         self.assertEqual(DiscussionLocation.objects.count(), 0)
 
     def test_a_reply_into_another_thread_creates_no_row_for_the_section_it_named(self):
-        """The regression this rule exists for: the row used to be created one line above the
+        """The check `community/CLAUDE.md` says every new comment surface must repeat, and the
+        regression it exists for: the row used to be created one line above the
         parent check, so a refused reply left a location nobody had written at."""
         self.client.force_authenticate(self.plain)
         self._post('First')

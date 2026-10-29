@@ -454,6 +454,10 @@ class AiAssistedVerifiedTests(APITestCase):
         recount_verified(self.exercise.pk)
         self.assertTrue(self.verified())
         SolutionEntry.objects.filter(pk=self.solution.pk).update(reviewed_by=None)
+        # Back to "marked, unreviewed" — recounted, because `update()` fires no signal and the True
+        # above would otherwise still be standing when the mark goes, proving nothing about it.
+        recount_verified(self.exercise.pk)
+        self.assertFalse(self.verified())
         mark.delete()
         self.assertTrue(self.verified())
 

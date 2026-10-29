@@ -58,7 +58,8 @@ class MaterialListingTests(ApiTestCase):
         self.assertEqual(response.data[0]['slug'], 'skrypt')
 
     def test_search_matches_on_title(self):
-        make_material(self.branch, 'exam-collection', title='Exam collection', description='Past exams.')
+        # The description does not say "exam", so only the title can be what matched.
+        make_material(self.branch, 'exam-collection', title='Exam collection', description='Past papers.')
 
         response = self.client.get(reverse('material-list'), {'q': 'exam'})
 
@@ -204,25 +205,6 @@ class MaterialCoverageVoteTests(ApiTestCase):
         self.assertFalse(MaterialCoverageVote.objects.filter(coverage=self.coverage, voter=voter).exists())
 
 
-class MaterialCoverageCommentTests(ApiTestCase):
-    def test_authenticated_user_can_comment_on_a_coverage_claim(self):
-        branch = make_course()
-        material = make_material(branch, 'skrypt')
-        topic = make_topic(branch)
-        coverage = MaterialCoverage.objects.create(
-            material=material, topic=topic, level=60, proposed_by=make_user('proposer3')
-        )
-        self.client.force_authenticate(make_user('commenter'))
-
-        response = self.client.post(
-            reverse('material-coverage-comments', kwargs={'pk': coverage.pk}),
-            {'body': 'This level seems too high.'},
-            format='json',
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-
 class MaterialFilterSortTests(ApiTestCase):
     """The search/filter/sort overhaul's own structured query params (`type`, `topic_id`,
     `min_level`, `sort`) — none of these had any real test coverage before this class."""
@@ -272,9 +254,13 @@ class MaterialFilterSortTests(ApiTestCase):
         self.assertEqual(slugs, {'skrypt', 'exam-set'})  # skrypt@90, exam-set@95 (other_topic)
 
     def test_sort_alphabetical(self):
+        # Created last but sorting first: the fixture's own insertion order is already alphabetical,
+        # so without this an ignored `sort` passed.
+        make_material(self.branch, 'analiza', title='Analiza notes')
         response = self.client.get(reverse('material-list'), {'sort': 'alphabetical'})
 
         titles = [row['title'] for row in response.data]
+        self.assertEqual(titles[0], 'Analiza notes')
         self.assertEqual(titles, sorted(titles, key=str.casefold))
 
     def test_sort_level_orders_by_best_coverage_depth(self):
@@ -820,11 +806,6 @@ class MaterialCommentsTests(ApiTestCase):
         if parent is not None:
             data['parent'] = parent
         return self.client.post(reverse('material-comments', kwargs={'pk': self.material.pk}), data, format='json')
-
-    def test_authenticated_user_can_post_a_root_comment(self):
-        self.client.force_authenticate(make_user('mat-commenter'))
-        response = self._post('Is this script up to date?')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_anonymous_comment_is_rejected(self):
         response = self._post('Trying to comment while logged out')

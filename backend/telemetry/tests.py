@@ -274,35 +274,21 @@ class ConsentBoundaryTests(TestCase):
         no cookie involved. `request_id` is therefore random per REQUEST; if a future change makes it
         (or any added field) a function of the visitor rather than the request, this fails.
         """
-        rows = [
-            RequestLog.objects.using('logs_anon').create(
-                method='GET', path='/', status_code=200, duration_ms=1,
-                ip_address='203.0.113.1',
-                user_agent='Mozilla/5.0 (identical browser)',
-                request_id=f'request-{index}',
+        # Through the real middleware, which is what mints `request_id`. (This used to create the two
+        # rows itself with ids it chose, so the middleware's uuid4 was never involved. The field
+        # checks that followed are `test_ip_is_the_only_directly_identifying_field` below and
+        # analytics.tests.NoPersonalColumnsTests, which both say more.)
+        before = RequestLog.objects.using('logs_anon').count()
+        for _ in range(2):
+            self.client.get(
+                '/api/disciplines/', REMOTE_ADDR='203.0.113.1',
+                HTTP_USER_AGENT='Mozilla/5.0 (identical browser)',
             )
-            for index in range(2)
-        ]
+        rows = list(RequestLog.objects.using('logs_anon').order_by('-id')[:2])
+        self.assertEqual(RequestLog.objects.using('logs_anon').count(), before + 2)
         # Same visitor, same browser, two requests — and nothing stored links them to each other.
+        self.assertTrue(rows[0].request_id and rows[1].request_id)
         self.assertNotEqual(rows[0].request_id, rows[1].request_id)
-
-        identifying_fields = {f.name for f in RequestLog._meta.get_fields()}
-        for banned in ('visitor_id', 'fingerprint', 'device_id', 'session_hash'):
-            self.assertNotIn(
-                banned,
-                identifying_fields,
-                f'{banned} would make this a fingerprint and require a consent banner',
-            )
-
-        # The aggregates built FROM this table (analytics/, 2026-10-14) must not carry the visitor
-        # back in either: no identifying column, no per-visitor key, in any of them.
-        from django.apps import apps
-
-        for model in apps.get_app_config('analytics').get_models():
-            names = {f.name for f in model._meta.get_fields()}
-            for banned in ('visitor_id', 'fingerprint', 'device_id', 'session_hash', 'ip_address',
-                           'user_agent', 'user_id', 'user', 'request_id'):
-                self.assertNotIn(banned, names, f'analytics.{model.__name__}.{banned}')
 
     def test_ip_is_the_only_directly_identifying_field(self):
         """Anything else identifying would need its own entry in the privacy policy and its own

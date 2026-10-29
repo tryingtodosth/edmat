@@ -387,8 +387,7 @@ class ActivityFeedTests(RegistryBase):
 
 
 class LearningRecordTests(RegistryBase):
-    """The third block, with a monkeypatched provider — step A owns the rows it reads, so on this
-    branch `placements_for` answers `[]` and the block is honestly empty."""
+    """The third block: the real provider end to end, then a monkeypatched one for the ordering."""
 
     def setUp(self):
         super().setUp()
@@ -398,11 +397,25 @@ class LearningRecordTests(RegistryBase):
         self.profile.share_activity = True
         self.profile.save()
 
-    def test_it_is_empty_on_this_branch_and_that_is_not_a_failure(self):
+    def test_a_published_result_reaches_the_record_through_the_registered_provider(self):
+        """This used to assert `[]` from the step-B days when `placements_for` had no rows to read —
+        which held whether or not the provider was wired at all."""
+        from django.utils import timezone
+
+        from contests.models import ContestRegistration, ContestResult
         from identity.record import learning_record
 
-        record = learning_record(self.organiser, self.stranger)
-        self.assertEqual(record['placements'], [])
+        self.assertEqual(learning_record(self.organiser, self.stranger)['placements'], [])
+        registration = ContestRegistration.objects.create(
+            contest=self.live, user=self.organiser, status='accepted'
+        )
+        ContestResult.objects.create(
+            contest=self.live, registration=registration, rank=1, title='laureate',
+            published_at=timezone.now(),
+        )
+        placements = learning_record(self.organiser, self.stranger)['placements']
+        self.assertEqual([(p['title'], p['result_title']) for p in placements],
+                         [('Konkurs ogłoszony', 'laureate')])
 
     def test_a_provider_that_answers_is_shown_newest_first_with_undated_last(self):
         from identity import record as record_module

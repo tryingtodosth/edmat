@@ -14,7 +14,7 @@ from moderation.models import FeatureFlag, Report
 from moderation.services import build_report_queue
 from services.models import Service, ServiceWatch
 from telemetry.routers import all_log_shards
-from testing.factories import make_course, make_user
+from testing.factories import make_branch, make_course, make_exercise, make_user
 
 
 class ApiTestCase(APITestCase):
@@ -334,11 +334,16 @@ class ServiceReportingTests(ApiTestCase):
         # since a listing has no viewer-pool denominator to measure against at all.
         for i in range(10):
             self.client.force_authenticate(make_user(f'many-reporters{i}'))
-            self.client.post(
+            response = self.client.post(
                 reverse('report-list'), {'kind': 'service', 'object_id': self.service.pk}, format='json'
             )
-        self.service.refresh_from_db()
-        self.assertTrue(self.service.is_active)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Report.objects.filter(object_id=self.service.pk, status='pending').count(), 10)
+        # Asked the way a reader meets it — the public list — rather than through `is_active`, which
+        # auto-hide never writes, so asserting it alone could not fail.
+        self.client.force_authenticate(None)
+        listed = self.client.get(reverse('service-list'))
+        self.assertIn(self.service.pk, [row['id'] for row in listed.data])
 
     def test_reported_listing_appears_in_the_unscoped_report_queue(self):
         self.client.force_authenticate(self.reporter)
@@ -357,13 +362,19 @@ class ServiceReportingTests(ApiTestCase):
         # so it's safely excluded for them (the same "hide rather than show something we can't
         # verify is theirs" default build_report_queue already documents), while still showing up
         # for real global staff (branch_ids=None, the case above).
+        # A governor of a real branch, the listing tagged with that very branch, and an exercise
+        # report in it as the positive control — with `branch_ids=set()` every row of every kind was
+        # excluded, so "the listing is excluded" proved nothing about listings.
+        branch = make_branch('report-scope-branch')
+        self.service.branches.add(branch)
+        exercise = make_exercise(branch, 1)
         self.client.force_authenticate(self.reporter)
         self.client.post(reverse('report-list'), {'kind': 'service', 'object_id': self.service.pk}, format='json')
+        self.client.post(reverse('report-list'), {'kind': 'exercise', 'object_id': exercise.pk}, format='json')
 
-        queue = build_report_queue(branch_ids=set())
+        queue = build_report_queue(branch_ids={branch.pk})
 
-        matching = [row for row in queue if row['kind'] == 'service']
-        self.assertEqual(matching, [])
+        self.assertEqual([row['kind'] for row in queue], ['exercise'])
 
     def test_moderator_removing_a_reported_listing_deactivates_it(self):
         self.client.force_authenticate(self.reporter)

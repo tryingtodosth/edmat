@@ -70,14 +70,6 @@ class RefusalTests(ExportCase):
     answer to "you may not have this" is 403 — the 404 case is a draft, which `get_queryset`
     already answers and `events/tests.py` already covers."""
 
-    def test_the_needs_summary_is_organisers_only(self):
-        url = reverse('event-exports-needs', args=[self.event.pk])
-        self.assertEqual(as_(self.stranger).get(url).status_code, 403)
-        self.assertEqual(as_(self.attendee).get(url).status_code, 403)
-        self.assertEqual(as_(self.volunteer).get(url).status_code, 403)
-        self.assertEqual(as_(self.reviewer).get(url).status_code, 403)
-        self.assertEqual(as_(self.host).get(url).status_code, 200)
-
     def test_the_export_log_is_organisers_only(self):
         url = reverse('event-exports-log', args=[self.event.pk])
         self.assertEqual(as_(self.stranger).get(url).status_code, 403)
@@ -98,13 +90,6 @@ class RefusalTests(ExportCase):
         self.assertEqual(as_(self.volunteer).get(url).status_code, 403)
         self.assertEqual(as_(self.reviewer).get(url).status_code, 403)
         self.assertEqual(as_(self.host).get(url).status_code, 200)
-
-    def test_signing_out_refuses_all_three(self):
-        for name in ('event-exports-needs', 'event-exports-log', 'event-exports-door-list'):
-            with self.subTest(name=name):
-                self.assertEqual(
-                    APIClient().get(reverse(name, args=[self.event.pk])).status_code, 401
-                )
 
 
 class MinimisationTests(ExportCase):
@@ -328,6 +313,8 @@ class PurgeTests(ExportCase):
         self.assertIn('0 accessibility notes and 0 free-text answers blanked', text)
 
     def test_it_prints_the_tables_it_does_not_yet_know(self):
+        # `ScanEvent` and `CloakroomItem` used to be the unknown ones and this asserted their names,
+        # which kept passing once both moved under "Covered". What is still left alone is the note.
         text = self.run_command('--dry-run')
-        self.assertIn('ScanEvent', text)
-        self.assertIn('CloakroomItem', text)
+        left_alone = text[text.index('deliberately left alone'):]
+        self.assertIn('EventAttendance.note', left_alone)

@@ -365,22 +365,6 @@ class TaxonomyDecisionTests(APITestCase):
         res = self._decide({'decision': 'move', 'target': 'matematyka'}, kind='discipline', pk=pending.pk)
         self.assertEqual(res.status_code, 400)
 
-    def test_an_ordinary_user_cannot_decide(self):
-        client = APIClient()
-        client.force_authenticate(self.user)
-        res = client.post(
-            reverse(
-                'moderation-taxonomy-action',
-                kwargs={'kind': 'branch', 'pk': self.proposed.pk},
-            ),
-            {'decision': 'approve'},
-            format='json',
-        )
-        self.assertIn(res.status_code, (403, 404))
-
-    def test_a_nonsense_decision_is_refused(self):
-        self.assertEqual(self._decide({'decision': 'maybe'}).status_code, 400)
-
 
 class TaxonomyDecisionReplyTests(APITestCase):
     """Every decision answers the person who proposed it.

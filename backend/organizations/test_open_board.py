@@ -31,7 +31,7 @@ class OpenBoardTests(APITestCase):
 
     def setUp(self):
         for key in ('organizations', 'tasks', 'decisions'):
-            FeatureFlag.objects.update_or_create(key=key, defaults={'enabled': True})
+            FeatureFlag.objects.update_or_create(key=key, defaults={'is_enabled': True})
         self.owner = make_user('owner')
         self.stranger = make_user('stranger')
         self.open = _found(self.owner, slug='open-circle', open_board=True)

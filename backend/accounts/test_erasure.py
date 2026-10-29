@@ -137,12 +137,6 @@ class AskingTests(_Base):
         r = self.ask(self.user)
         self.assertEqual((r.status_code, r.data['reason']), (400, 'password_required'))
 
-    def test_a_child_asks_their_guardian(self):
-        self.user.profile.is_minor = True
-        self.user.profile.save()
-        r = self.ask(self.user)
-        self.assertEqual((r.status_code, r.data['reason']), (400, 'guardian_managed'))
-
     def test_asking_switches_the_account_off_at_once(self):
         from mail.models import ConfirmedEmail
 

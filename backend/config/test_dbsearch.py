@@ -85,7 +85,7 @@ class UcontainsLookupTests(TestCase):
         self.assertEqual(ExerciseTranslation.objects.filter(title__ucontains='0% zb').count(), 1)
         self.assertEqual(ExerciseTranslation.objects.filter(title__ucontains='0_ zb').count(), 0)
 
-    def test_matches_nothing_rather_than_erroring_on_a_null_column(self):
+    def test_matches_nothing_rather_than_erroring_on_a_blank_column(self):
         # `answer` is blank rather than NULL in this schema, but the lookup has to survive either.
         # (Was `hint`, until hints/solutions moved off the translation table into the SolutionEntry
         # pool — root CLAUDE.md §17AH.)

@@ -310,8 +310,10 @@ class MessagingKillSwitchTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_turning_it_back_on_restores_access(self):
-        FeatureFlag.objects.filter(key='messaging').update(is_enabled=True)
+        # Refused while off first, so "back on" is a transition rather than the seeded state.
         self.client.force_authenticate(self.recipient)
+        self.assertEqual(self.client.get(reverse('message-list')).status_code, status.HTTP_403_FORBIDDEN)
+        FeatureFlag.objects.filter(key='messaging').update(is_enabled=True)
 
         response = self.client.get(reverse('message-list'))
 

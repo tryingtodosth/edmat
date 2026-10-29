@@ -73,7 +73,9 @@ class SortTests(APITestCase):
         self.assertEqual(ids(self.client.get(self.url, {'sort': 'rating', 'dir': 'asc'})), [self.c.pk, self.b.pk, self.a.pk])
 
     def test_an_unknown_key_keeps_the_default_order(self):
-        self.assertEqual(self.client.get(self.url, {'sort': 'bogus'}).status_code, 200)
+        default = ids(self.client.get(self.url))
+        self.assertEqual(default, [self.a.pk, self.b.pk, self.c.pk])
+        self.assertEqual(ids(self.client.get(self.url, {'sort': 'bogus'})), default)
 
 
 class ContentLocaleTests(APITestCase):

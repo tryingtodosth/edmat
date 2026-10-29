@@ -11,7 +11,6 @@ live here, so that the shared file's own suite is not something six branches edi
 """
 
 from django.contrib.contenttypes.models import ContentType
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -61,21 +60,6 @@ class FoundingTests(OrganizationTestCase):
         # `config/test_creation.py` owns that rule, including the refusal at this exact
         # endpoint; these tests are about founding itself, so the founder is verified.
         self.adult = make_user('ola', is_verified_contributor=True)
-
-    def test_an_anonymous_visitor_cannot_found_one(self):
-        res = self.client.post('/api/organizations/', {'name': 'X'}, format='json')
-        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_a_minor_is_refused_with_the_word_minor(self):
-        """Founding a body means standing publicly behind it and being the person a stranger writes
-        to — the same reasoning that closes event hosting and tutoring to an under-16."""
-        child = make_user('mika')
-        child.profile.is_minor = True
-        child.profile.save(update_fields=['is_minor'])
-        self.client.force_authenticate(child)
-        res = self.client.post('/api/organizations/', {'name': 'Koło'}, format='json')
-        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(res.data['detail'], 'minor')
 
     def test_a_nameless_organisation_is_a_400(self):
         self.client.force_authenticate(self.adult)
@@ -319,12 +303,6 @@ class RosterTests(OrganizationTestCase):
         res = self.client.delete(f'/api/organization-members/{self.plain_row.pk}/')
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(is_member(self.plain, self.org))
-
-    def test_leaving_still_cannot_strand_the_organisation(self):
-        owner_row = OrganizationMember.objects.get(organization=self.org, user=self.owner)
-        self.client.force_authenticate(self.owner)
-        res = self.client.delete(f'/api/organization-members/{owner_row.pk}/')
-        self.assertEqual(res.status_code, status.HTTP_409_CONFLICT)
 
     def test_a_member_of_another_organisation_is_404_not_403(self):
         """The queryset is scoped to organisations this reader can see; a row on a dissolved body
@@ -707,6 +685,3 @@ class SlugResolutionTests(OrganizationTestCase):
 
     def test_an_unknown_slug_is_an_empty_list_not_an_error(self):
         self.assertEqual(self.client.get('/api/organizations/?slug=nie-ma').data, [])
-
-    def test_created_at_is_a_real_timestamp(self):
-        self.assertLessEqual(self.org.created_at, timezone.now())

@@ -98,12 +98,6 @@ class WaitingListTests(RegistrationCase):
         self.assertEqual(self.status_of(self.c, ev), 'waitlisted')
         self.assertEqual(Notification.objects.filter(type='registration_waitlisted', note='capacity_reduced').count(), 2)
 
-    def test_the_seat_count_never_exceeds_capacity_under_a_race(self):
-        ev = self.event(capacity=1)
-        self.attend(self.a, ev)
-        self.attend(self.b, ev)
-        self.assertEqual(ev.seat_holder_count(), 1)
-
 
 class ApprovalTests(RegistrationCase):
     def test_approval_mode_queues_and_the_organiser_decides(self):

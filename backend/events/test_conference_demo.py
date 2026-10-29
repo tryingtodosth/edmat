@@ -31,7 +31,7 @@ from testing.conference_demo import (
     make_conference_demo,
     seeded_accounts,
 )
-from testing.personas import FAKE_PREFIX, SANDBOX_TITLE
+from testing.personas import FAKE_PREFIX
 from venues.models import RoomBooking, VenueStaff
 
 #: Day one of the frozen conference, and the frozen instant: 15:00 on day one (`TIME_ZONE` is UTC),
@@ -177,12 +177,7 @@ class DemoIsMarkedAsFakeTests(TestCase):
                 f'seeded event {title!r} does not start with {FAKE_PREFIX!r} — it reads as a real conference',
             )
 
-    def test_both_seeders_agree_on_one_marker(self):
-        # Two modules, one literal: `conference_demo` imports the prefix rather than repeating it.
-        self.assertTrue(DEMO_TITLE.startswith(FAKE_PREFIX))
-        self.assertTrue(SANDBOX_TITLE.startswith(FAKE_PREFIX))
-
-    def test_the_marker_survives_a_polish_interface(self):
+    def test_the_marker_is_fixed_ascii_rather_than_translated_text(self):
         # Not a translated string and not punctuation a locale rewrites: the same bytes everywhere.
         self.assertEqual(FAKE_PREFIX, 'TEST=FAKE ')
         self.assertTrue(FAKE_PREFIX.isascii())

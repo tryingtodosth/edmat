@@ -1692,5 +1692,16 @@
   "summary": "The handoff from the presentations session (paczka5/DEPLOY-HANDOFF.md) asked for the owner's decisions before anything was packed. They came in one sitting, and three of them changed files.",
   "subproject": "corpus",
   "listed": true
+ },
+ {
+  "ref": "17CZ",
+  "title": "The test audit: tests that could not fail, and tests that said something twice",
+  "heading": "17CZ — The test audit: tests that could not fail, and tests that said something twice (2026-10-29, `fix/analytics-after-deploy`)",
+  "line": 18211,
+  "date": "2026-10-29",
+  "date_source": "heading",
+  "summary": "The owner asked for every test we run to be checked for redundant or fake ones. Two passes:",
+  "subproject": "platform",
+  "listed": true
  }
 ]

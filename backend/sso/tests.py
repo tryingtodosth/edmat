@@ -347,8 +347,10 @@ class IdTokenTests(SsoTestCase):
         self.assertRefused(iss='https://evil.example')
 
     def test_expired(self):
+        # Recent enough for the MAX_AGE check, so only `exp` can refuse it (an iat an hour back was
+        # refused by the age check alone — `test_issued_long_ago` — and hid a lost exp check).
         now = int(time.time())
-        self.assertRefused(iat=now - 4000, exp=now - 3000)
+        self.assertRefused(iat=now - 300, exp=now - 120)
 
     def test_issued_long_ago(self):
         now = int(time.time())
@@ -654,9 +656,17 @@ class LinkTests(SsoTestCase):
         self.assertEqual(self.exchange(query['code'], key, user=self.user).status_code, 200)
 
     def test_an_attempt_cannot_be_turned_into_a_link_for_another_account(self):
-        # Ola starts a LOGIN; whoever finishes it cannot redirect it onto Ala's account.
+        # Somebody starts a LOGIN; whoever finishes it cannot redirect it onto Ala's account — not even
+        # Ala, signed in, finishing it in her own session. A login ticket makes a NEW account or
+        # nothing. (This used to stop at the redirect, which is plain signup and proved nothing.)
         where, query, key = self.full(email='new@example.com')
         self.assertEqual(where, f'{FRONT}/auth/sso/complete')
+        self.client.force_authenticate(self.user)
+        res = self.complete(query['ticket'], key, username='newcomer')
+        self.client.force_authenticate(None)
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertFalse(SsoIdentity.objects.filter(user=self.user).exists())
+        self.assertEqual(SsoIdentity.objects.get().user.username, 'newcomer')
 
 
 class UnlinkTests(SsoTestCase):

@@ -100,28 +100,6 @@ class TicketIssueTests(TicketCase):
 
 
 class ScanRefusalTests(TicketCase):
-    def test_an_attendee_may_not_post_scans(self):
-        self.attend(self.attendee)
-        r = self.scan(self.attendee, [self.entry(self.token_of(self.attendee), 'a')])
-        self.assertEqual(r.status_code, 403)
-
-    def test_a_stranger_may_not_read_the_checkin_list(self):
-        self.assertEqual(
-            as_(self.stranger).get(reverse('event-checkin-list', args=[self.event.pk])).status_code, 403
-        )
-
-    def test_a_volunteer_may_not_read_the_scan_log(self):
-        self.assertEqual(
-            as_(self.volunteer).get(reverse('event-scans', args=[self.event.pk])).status_code, 403
-        )
-        self.assertEqual(
-            as_(self.host).get(reverse('event-scans', args=[self.event.pk])).status_code, 200
-        )
-
-    def test_a_volunteer_may_not_read_the_badge_sheet(self):
-        self.assertEqual(
-            as_(self.volunteer).get(reverse('event-badge-sheet', args=[self.event.pk])).status_code, 403
-        )
 
     def test_an_unknown_token_is_refused_and_still_logged(self):
         results = self.scan(self.volunteer, [self.entry('nosuchtokenatall', 'u')]).json()['results']
@@ -129,17 +107,19 @@ class ScanRefusalTests(TicketCase):
         self.assertEqual(results[0]['name'], '')
         self.assertEqual(ScanEvent.objects.filter(event=self.event, result='unknown').count(), 1)
 
-    def test_a_waitlisted_row_holds_a_ticket_but_is_refused_at_the_door(self):
+    def test_a_waitlisted_row_is_minted_no_ticket(self):
+        # This used to scan a made-up token and assert `unknown`, which holds for any made-up token
+        # (`test_an_unknown_token_is_refused_and_still_logged`). What is true of the waitlisted row
+        # is that it never got a token to scan — while the seated one did.
         self.event.capacity = 1
         self.event.save()
-        self.attend(make_user('tik-seat'))
+        seated = make_user('tik-seat')
+        self.attend(seated)
         self.attend(self.attendee)  # waitlisted — no seat
         row = self.event.attendances.get(attendee=self.attendee)
         self.assertEqual(row.status, 'waitlisted')
-        # No seat, so no ticket was ever minted; the door is asked with the short code somebody
-        # read off a friend's screen, and answers about the token rather than the person.
-        results = self.scan(self.volunteer, [self.entry('whatever12', 'w')]).json()['results']
-        self.assertEqual(results[0]['result'], 'unknown')
+        self.assertTrue(self.token_of(seated))
+        self.assertFalse(row.ticket_token)
 
     def test_a_withdrawn_seat_holder_keeps_the_token_and_is_answered_not_going(self):
         self.attend(self.attendee)

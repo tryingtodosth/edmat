@@ -667,6 +667,9 @@ class TagCreationTests(ActivityTestCase):
         post_id = picked.data['id']
         response = self.client.patch(f'/api/posts/{post_id}/', {'tag_name': 'nowy z edycji'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # Refused by the edit guard itself — the post already having a tag would also be a 400, for
+        # "two anchors", which is not the rule this names.
+        self.assertIn('tag_name', response.data)
         self.assertFalse(Tag.objects.filter(slug='nowy-z-edycji').exists())
 
 

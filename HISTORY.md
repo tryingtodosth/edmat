@@ -18207,3 +18207,89 @@ worktrees.
 - The preflight has never run against production. It runs inside step 11, after the code is deployed.
 - `paczka4/prepared/IMPORTED` was written on the owner's word, not from the server's marker.
 - algebra/fale exercises stay `unknown` unless the step-9 BY-SA sweep is answered `y`.
+
+## 17CZ — The test audit: tests that could not fail, and tests that said something twice (2026-10-29, `fix/analytics-after-deploy`)
+
+The owner asked for every test we run to be checked for redundant or fake ones. Two passes:
+
+- **A mechanical pass** over the AST of all 105 backend `test*.py` files. It found no shadowed duplicate
+  method names, no `assertTrue(x, 200)`, no undiscovered classes, and only "does not raise" tests
+  without an assertion.
+- **A read** of every backend test and every `frontend/e2e/*.mjs`, split eight ways. Each finding was
+  checked against the code under test before it was acted on.
+
+**Backend: fixed or deleted (41 files, 397 lines out, 266 in).** Each rewritten test now fails if the
+regression it is named for comes back.
+
+Rewritten because the assertion could not fail:
+- **Five course-notification tests** (`courses/tests.py`: the pending request, `announce_new_lessons`,
+  muting one course, the account-wide switch, one muted type) posted a lesson with no chapter. That is
+  a 400 before anybody is notified, so "0 notifications" held whatever the rule did. They now file the
+  lesson in a chapter and assert the 201. All five pass, so the rules were right and only the tests were
+  blind.
+- **The seeded-flags test** (`moderation/tests.py`) checked a hand-kept tuple of keys that should be
+  on, and it had fallen eleven keys behind the seeds (`contests`, `goals`, `attachments`, …). It now
+  asserts that the set of keys seeded OFF is exactly `{material_uploads_verified_only}`.
+- **SSO:** `test_expired` was refused by the MAX_AGE check alone. "A login cannot be turned into a link"
+  stopped at the signup redirect; it now completes the ticket inside Ala's own session and asserts that
+  nothing attached to her.
+- **Booking:**
+  - The 25-hour all-day block's opening was inside the first 24 real hours; it is now in the 25th.
+  - "A past slot is refused" used an instant that was not a slot at all; it now uses a real past slot.
+  - "Touching windows merge" counted 1, which a failed PUT also reads back; it now asserts the window.
+- **The tasks race** never reached the WHERE-anchored update. The concurrent write now lands between
+  the check and the update.
+- **Events:**
+  - The matrix's "the file endpoint re-checks the tier" row hit a link document, which 404s for
+    everyone. It now has a staff-tier file document, with a volunteer 200 row beside it.
+  - The calendar "draws windows whole" test had no window; it now has one.
+  - Related courses had no course sharing the material's pk.
+  - The waitlisted-ticket test scanned a made-up token.
+- **Smaller ones:**
+  - the throttle "successes count" test (it made three failures);
+  - the saved-comments list (only a stranger's empty list was checked);
+  - the age gate and messaging "back on" tests (they never saw the switch off);
+  - the client-error token test (a valid token);
+  - the message-key test (a round trip inside one override);
+  - the telemetry fingerprint test (it wrote its own request ids);
+  - the activity tag-edit guard (a 400 for an unrelated reason);
+  - the services report tests (`is_active` is never written; `branch_ids=set()` excludes everything);
+  - the material title search and alphabetical sort;
+  - the contest learning record (the step-B `[]`);
+  - the export-retention note, the link quota, the provenance mark removal and the unknown sort key;
+  - the version door of a school class;
+  - `work.EdmatHistoryTests` now skips, rather than silently passing, when HISTORY.md is absent;
+  - two `setUp`s wrote `defaults={'enabled': True}` to a field called `is_enabled`.
+
+Deleted as exact duplicates of a stronger twin, about 40 in all:
+- hand-written events refusals that `test_permission_matrix.py` rows already make;
+- copies across `events/tests.py` and `test_registration.py`;
+- the coauthoring upload copies;
+- `organizations`' founding refusals, which `config/test_creation.py` makes for every kind;
+- taxonomy's second ordinary-user and nonsense-decision tests;
+- the moderation queue and flag-off copies;
+- a discussion cross-thread copy, a goal visibility copy, an erasure minor copy;
+- materials comment copies, course search and item copies;
+- the parts "behaves as before" test;
+- two tautologies: the demo-marker check, and the never-edited-comment check.
+
+Verified: courses + exercises 682, the second batch (accounts, contests, moderation, community, events,
+coauthoring) 1061, the third (sso, work, booking, materials, services, organizations, tasks,
+analytics, messaging, activity, telemetry, goals, taxonomy, config, provenance) 947. All OK, plus
+`check` 0 and `check_databases_declared` 0. The full suite was not re-run as one piece.
+
+**The browser scripts were not edited.** Every `check()` helper counts properly and every script exits
+non-zero on a failure. But two causes have made a long list of checks either vacuous or unreachable:
+- the Polish default (trap 24), with English absence checks on a context that reads Polish;
+- panels moving into `FoldSection` on 10-08, so absence checks run against a fold that was never opened.
+
+On top of those come about twenty individual checks that cannot fail. All of them are on `todo.md` with
+the fix for each. A browser fix has to be checked in a browser, so none was guessed at.
+
+**Left open**
+- Every e2e finding (`todo.md`, "Browser scripts that cannot fail").
+- A staff member can approve their own governor application; there is no rule against it. The test
+  that claimed one was renamed.
+- `testing/check_databases_declared.py` does not see a request made through a module-level `as_()`
+  helper.
+- Five plausible backend findings (`todo.md`), and the sixteen e2e scripts test.md never mentions.
