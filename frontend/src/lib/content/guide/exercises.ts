@@ -4,27 +4,27 @@ import type { GuideChapterDoc } from './types';
 const EN: GuideChapterDoc = {
 	title: 'Finding and reading exercises',
 	lead: [
-		'The database is browsed in four steps — discipline, subject, topic, exercise — and read one exercise at a time, with the hint, the answer and the solution kept behind a click each. What you want to keep goes into a set you can print or share.'
+		'The database is browsed in four steps — discipline, branch, topic, exercise — and read one exercise at a time, with the hint, the answer and the solution kept behind a click each. What you want to keep goes into a set you can print or share.'
 	],
 	steps: [
 		{
 			heading: 'Start with a discipline',
 			tryHref: '/disciplines',
 			body: [
-				'A discipline is a field of study — mathematics, physics, computer science. Each card says how many subjects sit under it. Disciplines somebody has proposed but a moderator has not yet accepted are listed separately, under "Others".'
+				'A discipline is the broadest level — mathematics, physics, computer science. Each card says how many branches sit under it. Disciplines somebody has proposed but a moderator has not yet accepted are listed separately, under "Others".'
 			],
 			screenshot: {
 				src: '/guide/exercises/01-disciplines.png',
-				alt: 'The disciplines page: cards for Fizyka, Informatyka and Matematyka, each with a count of the subjects under it.'
+				alt: 'The disciplines page: cards for Fizyka, Informatyka and Matematyka, each with a count of the branches under it.'
 			}
 		},
 		{
-			heading: 'A subject, and its filters',
+			heading: 'A branch, and its filters',
 			tryHref: '/branches/analiza-matematyczna',
 			body: [
-				'A subject page is the working view: the filter column on the left narrows by topic, difficulty and source — an exercise sheet, a midterm, an exam — and the search box inside it searches only this subject. The count under the filters is how many exercises match.',
+				'A branch page is the working view: the filter column on the left narrows by topic, difficulty and source — an exercise sheet, a midterm, an exam — and the search box inside it searches only this branch. The count under the filters is how many exercises match.',
 				'If the page says that items in other languages are hidden, that is the content-language setting, not an empty database. "Show them" lifts it for this list.',
-				'Concept pages for the subject sit above the list, and the Materials tab beside it holds its scripts, formula sheets and past papers.'
+				'Concept pages for the branch sit above the list, and the Materials tab beside it holds its scripts, formula sheets and past papers.'
 			],
 			screenshot: {
 				src: '/guide/exercises/02-branch.png',
@@ -94,43 +94,43 @@ const EN: GuideChapterDoc = {
 const PL: GuideChapterDoc = {
 	title: 'Jak znaleźć i czytać zadania',
 	lead: [
-		'Bazę przegląda się w czterech krokach — kierunek, przedmiot, dział, zadanie — a czyta po jednym zadaniu, trzymając wskazówkę, odpowiedź i rozwiązanie każde za osobnym kliknięciem. To, co chcesz zachować, trafia do zestawu, który można wydrukować albo udostępnić.'
+		'Bazę przegląda się w czterech krokach — dziedzina, dział, temat, zadanie — a czyta po jednym zadaniu, trzymając wskazówkę, odpowiedź i rozwiązanie każde za osobnym kliknięciem. To, co chcesz zachować, trafia do zestawu, który można wydrukować albo udostępnić.'
 	],
 	steps: [
 		{
-			heading: 'Zacznij od kierunku',
+			heading: 'Zacznij od dziedziny',
 			tryHref: '/disciplines',
 			body: [
-				'Kierunek to dziedzina — matematyka, fizyka, informatyka. Każdy kafelek mówi, ile przedmiotów się pod nim kryje. Kierunki zaproponowane, ale jeszcze nieprzyjęte przez moderatora, są wypisane osobno, pod nagłówkiem „Others”.'
+				'Dziedzina to najszerszy poziom — matematyka, fizyka, informatyka. Każdy kafelek mówi, ile działów się pod nią kryje. Dziedziny zaproponowane, ale jeszcze nieprzyjęte przez moderatora, są wypisane osobno, pod nagłówkiem „Others”.'
 			],
 			screenshot: {
 				src: '/guide/exercises/01-disciplines.png',
-				alt: 'Strona kierunków: kafelki Fizyka, Informatyka i Matematyka, każdy z liczbą przedmiotów.'
+				alt: 'Strona dziedzin: kafelki Fizyka, Informatyka i Matematyka, każdy z liczbą działów.'
 			}
 		},
 		{
-			heading: 'Przedmiot i jego filtry',
+			heading: 'Dział i jego filtry',
 			tryHref: '/branches/analiza-matematyczna',
 			body: [
-				'Strona przedmiotu to widok roboczy: kolumna filtrów po lewej zawęża po dziale, trudności i źródle — ćwiczenia, kolokwium, egzamin — a wyszukiwarka w niej przeszukuje tylko ten przedmiot. Liczba pod filtrami to liczba pasujących zadań.',
+				'Strona działu to widok roboczy: kolumna filtrów po lewej zawęża po temacie, trudności i źródle — ćwiczenia, kolokwium, egzamin — a wyszukiwarka w niej przeszukuje tylko ten dział. Liczba pod filtrami to liczba pasujących zadań.',
 				'Jeśli strona pisze, że ukryto pozycje w innych językach, to ustawienie języka treści, a nie pusta baza. Przycisk „Show them” zdejmuje je dla tej listy.',
-				'Nad listą są pojęcia związane z przedmiotem, a w zakładce obok — materiały: skrypty, zestawy wzorów i dawne egzaminy.'
+				'Nad listą są pojęcia związane z działem, a w zakładce obok — materiały: skrypty, zestawy wzorów i dawne egzaminy.'
 			],
 			screenshot: {
 				src: '/guide/exercises/02-branch.png',
-				alt: 'Lista zadań z Analizy matematycznej: kolumna filtrów z wyszukiwarką, działem, trudnością i źródłem, sortowanie oraz kafelki zadań z plakietkami trudności, odbiorcy i „Verified solution”.'
+				alt: 'Lista zadań z Analizy matematycznej: kolumna filtrów z wyszukiwarką, tematem, trudnością i źródłem, sortowanie oraz kafelki zadań z plakietkami trudności, odbiorcy i „Verified solution”.'
 			}
 		},
 		{
 			heading: 'Samo zadanie',
 			body: [
 				'Treść jest zawsze, złożona jak matematyka. Nad nią: trudność, skąd zadanie pochodzi, czy rozwiązanie zostało sprawdzone („Verified solution”), ocena innych czytelników i wybór języka dla tego jednego zadania.',
-				'„+ Save” wrzuca zadanie do zestawu. Działy i tagi poniżej są odnośnikami — to po nich znajdziesz pozostałe zadania o tym samym.',
+				'„+ Save” wrzuca zadanie do zestawu. Tematy i tagi poniżej są odnośnikami — to po nich znajdziesz pozostałe zadania o tym samym.',
 				'Wiersz pod treścią mówi, na jakich zasadach wolno z niej korzystać. Przy większości zadań z bazy startowej brzmi „Rights not yet clarified — shown here for study only”, bo nie ustalono jeszcze, kto może je publikować dalej; to, co ktoś napisał tutaj, ma za to licencję wybraną przez autora.'
 			],
 			screenshot: {
 				src: '/guide/exercises/03-exercise.png',
-				alt: 'Strona zadania: tytuł ze wzorem, plakietki Medium / Exercise sheet / Verified solution, wybór języka i przycisk Save, działy, tagi, treść w karcie zakończona wierszem „Rights not yet clarified — shown here for study only. Do not copy it elsewhere.” i początek sekcji Hints.'
+				alt: 'Strona zadania: tytuł ze wzorem, plakietki Medium / Exercise sheet / Verified solution, wybór języka i przycisk Save, tematy, tagi, treść w karcie zakończona wierszem „Rights not yet clarified — shown here for study only. Do not copy it elsewhere.” i początek sekcji Hints.'
 			}
 		},
 		{

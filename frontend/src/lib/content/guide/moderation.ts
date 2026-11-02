@@ -13,7 +13,7 @@ const EN: GuideChapterDoc = {
 			tryFor: 'moderators',
 			body: [
 				'Reports, new exercises, materials, edit suggestions, translations, concepts, solutions and hints, governors, applications — and Flags, Page discussions and Analytics, which are not queues at all. Each tab carries the number waiting, so the page says at a glance where the work is.',
-				'Above the tabs sit the proposed taxonomy entries: a discipline, a subject or a material type somebody needed and typed in. Each can be accepted, merged into an existing one, moved under a different parent, or rejected.'
+				'Above the tabs sit the proposed taxonomy entries: a discipline, a branch or a material type somebody needed and typed in. Each can be accepted, merged into an existing one, moved under a different parent, or rejected.'
 			],
 			screenshot: {
 				src: '/guide/moderation/01-queue.png',
@@ -25,7 +25,7 @@ const EN: GuideChapterDoc = {
 			tryHref: '/moderation?tab=submissions',
 			tryFor: 'moderators',
 			body: [
-				'A submission shows its title, who sent it and for which subject, and its text as it stands. A note is optional and goes to the person who sent it, which is what makes a rejection useful rather than merely final.',
+				'A submission shows its title, who sent it and for which branch, and its text as it stands. A note is optional and goes to the person who sent it, which is what makes a rejection useful rather than merely final.',
 				'A rejected submission is kept, not deleted. The record of what was offered and what was decided is part of the trust model, not clutter.'
 			],
 			screenshot: {
@@ -76,7 +76,7 @@ const PL: GuideChapterDoc = {
 			tryFor: 'moderators',
 			body: [
 				'Zgłoszenia naruszeń, nowe zadania, materiały, propozycje poprawek, tłumaczenia, pojęcia, rozwiązania i wskazówki, zarządcy, podania — oraz Flags, Page discussions i Analytics, które kolejkami wcale nie są. Każda zakładka niesie liczbę oczekujących, więc strona od razu mówi, gdzie jest robota.',
-				'Nad zakładkami stoją propozycje taksonomii: kierunek, przedmiot albo typ materiału, którego ktoś potrzebował i wpisał. Każdą można przyjąć, scalić z istniejącą, przenieść pod inny element albo odrzucić.'
+				'Nad zakładkami stoją propozycje taksonomii: dziedzina, dział albo typ materiału, którego ktoś potrzebował i wpisał. Każdą można przyjąć, scalić z istniejącą, przenieść pod inny element albo odrzucić.'
 			],
 			screenshot: {
 				src: '/guide/moderation/01-queue.png',
@@ -88,12 +88,12 @@ const PL: GuideChapterDoc = {
 			tryHref: '/moderation?tab=submissions',
 			tryFor: 'moderators',
 			body: [
-				'Zgłoszenie pokazuje tytuł, kto je przysłał i do którego przedmiotu, oraz treść w obecnej postaci. Notatka jest opcjonalna i trafia do autora — i to ona sprawia, że odrzucenie jest przydatne, a nie tylko ostateczne.',
+				'Zgłoszenie pokazuje tytuł, kto je przysłał i do którego działu, oraz treść w obecnej postaci. Notatka jest opcjonalna i trafia do autora — i to ona sprawia, że odrzucenie jest przydatne, a nie tylko ostateczne.',
 				'Odrzucone zgłoszenie zostaje, a nie znika. Zapis tego, co zaproponowano i co postanowiono, jest częścią modelu zaufania, a nie śmieciem.'
 			],
 			screenshot: {
 				src: '/guide/moderation/02-new-exercises.png',
-				alt: 'Zakładka New exercises z jednym oczekującym zgłoszeniem: tytuł „Granica ciągu zadanego rekurencyjnie” od Ani Kowalczyk do przedmiotu Analiza matematyczna, treść zadania, licencja, na jakiej je zgłoszono (CC BY 4.0), pole notatki oraz przyciski Approve i Reject.'
+				alt: 'Zakładka New exercises z jednym oczekującym zgłoszeniem: tytuł „Granica ciągu zadanego rekurencyjnie” od Ani Kowalczyk do działu Analiza matematyczna, treść zadania, licencja, na jakiej je zgłoszono (CC BY 4.0), pole notatki oraz przyciski Approve i Reject.'
 			}
 		},
 		{

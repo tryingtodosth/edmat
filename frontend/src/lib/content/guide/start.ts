@@ -24,7 +24,7 @@ const EN: GuideChapterDoc = {
 		{
 			heading: 'The bar at the top',
 			body: [
-				'Left: the sections — exercises, materials, courses, a rosette for contests, help wanted, tutoring, an "i" for about, and a calendar icon for events. On a narrower screen more of them turn into icons, and on a phone they move into the menu behind the ☰ button. Right: the theme switch, the reading-size button marked "Aa", the language picker, and your saved set under the bookmark.',
+				'Left: the sections — "Browse", materials, courses, a rosette for contests, help wanted, tutoring, an "i" for about, and a calendar icon for events. On a narrower screen more of them turn into icons, and on a phone they move into the menu behind the ☰ button. Right: the theme switch, the reading-size button marked "Aa", the language picker, and your saved set under the bookmark.',
 				'The language picker changes the interface only. Which languages of content you are shown is a separate setting, and the two are deliberately independent: you may well want the English interface and the Polish original of an exercise.'
 			],
 			screenshot: {
@@ -94,7 +94,7 @@ const PL: GuideChapterDoc = {
 		{
 			heading: 'Pasek u góry',
 			body: [
-				'Po lewej działy: zadania, materiały, kursy, rozeta prowadząca do konkursów, szukamy pomocy, korepetycje, „i” prowadzące do strony o nas i ikona kalendarza prowadząca do wydarzeń. Na węższym ekranie więcej z nich zamienia się w ikony, a na telefonie przenoszą się do menu pod przyciskiem ☰. Po prawej przełącznik motywu, przycisk wielkości tekstu („Aa”), wybór języka i Twój zestaw pod ikoną zakładki.',
+				'Po lewej sekcje: „Przeglądaj”, materiały, kursy, rozeta prowadząca do konkursów, szukamy pomocy, korepetycje, „i” prowadzące do strony o nas i ikona kalendarza prowadząca do wydarzeń. Na węższym ekranie więcej z nich zamienia się w ikony, a na telefonie przenoszą się do menu pod przyciskiem ☰. Po prawej przełącznik motywu, przycisk wielkości tekstu („Aa”), wybór języka i Twój zestaw pod ikoną zakładki.',
 				'Wybór języka zmienia tylko interfejs. To, w jakich językach widzisz treści, jest osobnym ustawieniem — i to rozdzielenie jest celowe: można chcieć angielskiego interfejsu i polskiego oryginału zadania.'
 			],
 			screenshot: {

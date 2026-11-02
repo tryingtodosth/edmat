@@ -11,7 +11,7 @@ const EN: GuideChapterDoc = {
 			heading: 'The form',
 			tryHref: '/submit',
 			body: [
-				'Discipline, then subject, then a title. Difficulty, who it is for, and what kind of source it came from — an exercise sheet, a midterm, an exam. The language is the language the exercise is written in, not your interface language: it starts on the language you are reading the site in, so change it if you are writing in another one.',
+				'Discipline, then branch, then a title. Difficulty, who it is for, and what kind of source it came from — an exercise sheet, a midterm, an exam. The language is the language the exercise is written in, not your interface language: it starts on the language you are reading the site in, so change it if you are writing in another one.',
 				'The line under the heading tells you what will happen when you press Submit. For most accounts it says the exercise will be reviewed first; for a verified contributor it says it publishes straight away.'
 			],
 			screenshot: {
@@ -85,12 +85,12 @@ const PL: GuideChapterDoc = {
 			heading: 'Formularz',
 			tryHref: '/submit',
 			body: [
-				'Kierunek, potem przedmiot, potem tytuł. Trudność, dla kogo jest zadanie i z jakiego źródła pochodzi — ćwiczenia, kolokwium, egzamin. Język to język, w którym zadanie jest napisane, a nie język Twojego interfejsu: na start ustawia się na język, w którym czytasz serwis, więc zmień go, jeśli piszesz w innym.',
+				'Dziedzina, potem dział, potem tytuł. Trudność, dla kogo jest zadanie i z jakiego źródła pochodzi — ćwiczenia, kolokwium, egzamin. Język to język, w którym zadanie jest napisane, a nie język Twojego interfejsu: na start ustawia się na język, w którym czytasz serwis, więc zmień go, jeśli piszesz w innym.',
 				'Zdanie pod nagłówkiem mówi, co się stanie po wysłaniu. Dla większości kont: zadanie najpierw trafi do sprawdzenia; dla zweryfikowanego autora: publikuje się od razu.'
 			],
 			screenshot: {
 				src: '/guide/submit/01-form-top.png',
-				alt: 'Góra formularza zgłoszenia: informacja, że nowe zadania sprawdza moderator, a niżej kierunek, przedmiot, tytuł, trudność, odbiorca, typ źródła i język — jeszcze ustawiony na EN, język interfejsu.'
+				alt: 'Góra formularza zgłoszenia: informacja, że nowe zadania sprawdza moderator, a niżej dziedzina, dział, tytuł, trudność, odbiorca, typ źródła i język — jeszcze ustawiony na EN, język interfejsu.'
 			}
 		},
 		{
@@ -102,7 +102,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/submit/02-filled.png',
-				alt: 'Wypełniony formularz: kierunek Matematyka, przedmiot Analiza matematyczna, polski tytuł, odbiorca University i treść napisana w LaTeX-u w widoku Source.'
+				alt: 'Wypełniony formularz: dziedzina Matematyka, dział Analiza matematyczna, polski tytuł, odbiorca University i treść napisana w LaTeX-u w widoku Source.'
 			}
 		},
 		{
@@ -136,7 +136,7 @@ const PL: GuideChapterDoc = {
 			],
 			screenshot: {
 				src: '/guide/submit/05-material.png',
-				alt: 'Formularz dodawania materiału: kierunek, przedmiot, nazwa, typ, język, odbiorca, opis i ramka „Where is it?” z wyborem pliku albo odnośnika.'
+				alt: 'Formularz dodawania materiału: dziedzina, dział, nazwa, typ, język, odbiorca, opis i ramka „Where is it?” z wyborem pliku albo odnośnika.'
 			}
 		},
 		{

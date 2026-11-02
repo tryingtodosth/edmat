@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
 	import { contentLocalesStore } from '$lib/state/contentLocales.svelte';
 	import AppearsInSessions from '$lib/components/event/AppearsInSessions.svelte';
 	import { page } from '$app/state';
@@ -48,6 +49,11 @@
 
 	let exercise = $state<ResolvedExercise | undefined>(undefined);
 	let branch = $state<Branch | undefined>(undefined);
+	// From the preloaded tree (root layout), so the breadcrumb's middle link costs no request; it
+	// simply waits for the tree on a cold deep link rather than holding the page up.
+	let breadcrumbDiscipline = $derived(
+		branch ? taxonomyStore.disciplineById(branch.disciplineId) : undefined
+	);
 	let topics = $state<Topic[]>([]);
 	// One batched "AI-assisted" request for every chip on this page — the statement, every hint and
 	// solution, every review and every comment register themselves and this coalesces them (see
@@ -313,6 +319,13 @@
 			<!-- "Breadcrumb" -->
 			<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
 				<a href={resolve('/disciplines')}>{m.common_home()}</a> ›
+				<!-- Home › discipline › branch, as on a material's page — until 2026-11-02 this one
+				     skipped the discipline, so the two detail pages disagreed about the hierarchy. -->
+				{#if breadcrumbDiscipline}
+					<a href={resolve('/disciplines/[discipline]', { discipline: breadcrumbDiscipline.id })}
+						>{breadcrumbDiscipline.name}</a
+					> ›
+				{/if}
 				<a href={resolve('/branches/[branch]', { branch: branch.id })}>{branch.name}</a>
 			</nav>
 		{/if}

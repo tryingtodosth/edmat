@@ -18293,3 +18293,112 @@ the fix for each. A browser fix has to be checked in a browser, so none was gues
 - `testing/check_databases_declared.py` does not see a request made through a module-level `as_()`
   helper.
 - Five plausible backend findings (`todo.md`), and the sixteen e2e scripts test.md never mentions.
+
+## 17DE — Browse by audience first, and one glossary for the taxonomy (2026-11-02, `ux/audience-taxonomy`)
+
+The owner asked: "lets improve branch ←→ discipline. we need to serve it by audience primarily",
+then "we want the audience to be the primary way of serving materials inside". Two research agents
+went first: an exhaustive inventory of every discipline/branch/audience surface (backend, every
+route and component, ~150 message keys, the manual) and a design note. The owner then took four
+decisions, all the recommended defaults:
+
+1. **The audience is a lens, not a URL segment.** The band chips lead the browse pages, the choice
+   follows the reader (localStorage, `Profile.audience_filter`), and `?audience=` in the address is
+   shareable. Every slug link stays valid, and a detail page still never narrows.
+2. **A node with nothing for the lens is greyed and folded, never hidden** — under "Dla innych grup".
+3. **One glossary for every audience:** *dziedzina / dział / temat / podtemat* ↔ discipline / branch /
+   topic / subtopic.
+4. **The nav link reads "Przeglądaj" / "Browse"**, not "Zadania", which now means exercises only.
+
+Asked along the way and answered **no**: should audience become a level of the tree, or a many-to-many
+on nodes or on authored content? A branch is not "for" anybody; the exercises under it are. Stored on
+the node, that fact would be a derived one written by hand. Reopening one-band-per-row (AUDIENCE-BRIEF
+§1) would also weaken every minor-safety read, because each tests one scalar against
+`MINOR_AUDIENCES`. Exercise and Material keep their one required branch.
+
+**What changed**
+- **`taxonomy/counts.py`** — `counts` on every discipline and branch:
+  `{exercises|materials|courses: {band: n}}`, sparse, for EVERY band whatever `?audience=` says. That
+  keeps the node lists one cache entry per `?lang=` and lets the browser compute "N for other groups".
+  It counts what an anonymous reader can open, kind by kind, through each kind's own rule:
+  `published=True` for exercises and materials, `courses.rules.visible_courses(qs, None)` for courses.
+  A course counts under each subject branch and once per discipline, whether through a subject or
+  through `Course.field`. Computed once per serializer context: four queries per response, whatever
+  its length. A test holds that.
+- **The lens in the browser:** `lib/utils/audienceCounts.ts` mirrors `apply_audience_filter`
+  (the bands plus `all`). `BrowseLens.svelte` is the chips, asked as "Dla kogo szukasz?", plus one
+  line: "Pokazuję to, co jest dla grupy „X”. Dla innych grup: jeszcze N." or "Dla grupy „X” nic tu
+  jeszcze nie ma. Najwięcej jest dla grupy „Studia”: 771.", with "Pokaż wszystko". It is the audience
+  twin of `HiddenLanguagesNotice`. It sits on `/disciplines`, `/disciplines/<d>` and `/branches/<b>`.
+  A `?audience=` on arrival sets the lens on this device (not on the profile: opening a link is not
+  choosing a preference), and a chip writes it back into the address.
+- **`/disciplines` and `/disciplines/<d>`:** cards lead with what the lens admits, biggest first, and
+  count per kind through it ("Zadania: 749 · Materiały: 22 · Kursy: 2"). Everything else folds under
+  "Dla innych grup (n)": cards with content for somebody first, saying who ("Studia: 770 · Najmłodsi:
+  3"); empty ones last. The fold opens by itself when the lens admits nothing. The discipline page no
+  longer downloads every exercise of every branch to count them (~750 rows a visit). Because that
+  download carried `?audience=`, a primary-school reader used to see a grid of zeros with nothing
+  saying why — the first-visitor audit's finding 1.
+- **`/branches/<b>`:** the lens under the title. Both tab lists now re-ask when it changes. Before,
+  they read only their own filters, so a chip change elsewhere left them stale.
+- **The exercise page's breadcrumb** is Home › discipline › branch, like the material page's. It had
+  skipped the discipline.
+- **The glossary pass:** 70 Polish and 29 English values. "Dział" for a topic became "Temat" (~25
+  keys, including the coverage forms and "Poddział" → "Podtemat"). "Kierunek/przedmiot" for a
+  taxonomy level became "dziedzina/dział" (activity filter, post anchors, analytics, governor
+  applications, bulk upload, concepts, the learning record, the course form, SEO). English "Subject"
+  and "Field of study" became Branch and Discipline. A course chapter is "Rozdział". The prose in
+  `about.ts`, `guide/*.ts` and the showcase follows. *Kierunek* survives only for a degree programme,
+  *przedmiot* only for a taught offering, plus the legal names "konkurs/olimpiada przedmiotowa".
+  `/disciplines` is headed "Dziedziny"; `/search` heads its taxonomy hits "Dziedziny i działy".
+
+**Found by looking at the screenshot.** The first lens rule kept a node with nothing published
+anywhere in the main grid, on the reasoning that an empty node is not "for other groups". The
+picture under "Szkoła podstawowa" was three empty disciplines leading the page while Matematyka, with
+771 items, sat folded underneath. Now everything the lens admits nothing of folds, sorted by how much
+it has for anybody.
+
+**A stale dev server mimicked a regression.** After many edits, the branch's Vite server served
+`/settings` with the band checkboxes ignoring the profile, so `audience-bands.mjs` failed two
+Settings checks that pass on the base commit. A freshly started server passes them. The same probe
+was run against both servers, and the restart was the only difference. test.md now says to run the
+new script on a fresh server.
+
+**Verified**
+- **Backend:** the full suite, `--parallel 4 --keepdb`: 3627 tests, one failure —
+  `work.tests.EdmatHistoryTests`, because this section had not been mapped and the history table
+  not re-exported. Mapped (`'17DE': 'interface'`) and re-exported, that class passes (4/4); the
+  whole suite was not re-run after that. `taxonomy` 40/40, five of them new: per kind and band, only
+  what is public; a discipline sums its branches but counts a course once, including via `field`;
+  `?audience=` does not narrow the counts; the branch detail carries them; constant query count as
+  nodes are added. Plus `check` 0, `makemigrations --check` clean, `check_databases_declared` 0.
+- **Frontend:** `npm run check` 0/0, eslint clean on every touched file, `check:plain` ok, en/pl key
+  sets identical (5640 each), `npm run build` with `PUBLIC_API_BASE_URL=/api` passes, and the
+  prerendered `/disciplines` carries the lens.
+- **Browser:** `e2e/audience-browse.mjs` 47/47 on a copy of the dev database (both widths, both
+  languages), and every screenshot looked at. `taxonomy-preload.mjs` (5/7), `audience-radio.mjs`
+  (40/41) and `audience-bands.mjs` (dies at the tutoring form) fail identically on the base commit
+  `6b7403c`, served by a second dev server against the same backend, so none of those failures is
+  this change. The first two are the Polish-default trap and a cleanup that cannot delete; all
+  three are already on `todo.md`.
+
+**Left open**
+- **Counts cover exercises, materials and courses only.** Events (`subjects`, `discipline`), tutoring
+  (`Service.branches`) and concepts (`Concept.branches`, audience on the article) are not counted.
+  The branch page still has no Courses tab (audit finding 10).
+- **The home tabs and the hubs** (`/materials`, `/courses`, `/korki`) have no lens line yet. The
+  server-side `X-EdMat-Hidden-Audiences` header that would feed it is not built.
+- **Search** still does not match branch or topic names (audit finding 2), and its taxonomy hits ignore
+  the lens.
+- **Data, not code:** the seeded `DisciplineTranslation` rows still say "do przedmiotów prowadzonych
+  na kierunku matematyka". A moderator edit, or a data migration if the owner wants one.
+- **`terms.ts` and `privacy.ts`** still say "kierunki, przedmioty i działy". They are versioned legal
+  documents, so changing their words is the owner's call, not a copy pass.
+- **Screenshots in the manual and the showcase** still show "Zadania" in the nav, and some alt texts
+  describe that. They need re-shooting (`guide-screenshots.mjs`).
+- **A word per audience** (*przedmiot* for school readers at the discipline level) was offered and
+  declined in favour of one glossary. It stays possible as one `levelLabels(audience)` helper.
+- **School branches** (geometria, funkcje…) are not seeded. The lens surfaces them the day school
+  content is filed under them (the import skill's rule: never create a branch to make an import fit).
+- **The home tab id `branches` still shows `courses.Course`.** It is a misnomer that this pass did not
+  rename.

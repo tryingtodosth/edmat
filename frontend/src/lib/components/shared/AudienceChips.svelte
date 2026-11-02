@@ -24,6 +24,10 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 
+	/** The row's caption. The home hero says "Show content for"; the browse pages ask the reader
+	 * "Who are you looking for?", because there the choice comes FIRST (BrowseLens). */
+	let { label = m.audience_chips_label }: { label?: () => string } = $props();
+
 	/** `'all'` is the clear-the-filter option, not the `all` band a submitter marks content with —
 	 * the backend reads an empty `?audience=` as "no narrowing" either way. */
 	type Option = { value: Audience | 'none'; label: () => string };
@@ -83,7 +87,7 @@
 </script>
 
 <div class="chips">
-	<span class="chips__label">{m.audience_chips_label()}</span>
+	<span class="chips__label">{label()}</span>
 	<!-- `tabindex="-1"` on the group itself, with the roving tabindex living on the chips: the
 	     container must be focusable for the keydown handler to be a legitimate place to put one, but
 	     focus should land on a CHIP, never on the strip around them — the same shape as the tab
@@ -92,7 +96,7 @@
 		class="chips__row"
 		role="radiogroup"
 		tabindex="-1"
-		aria-label={m.audience_chips_label()}
+		aria-label={label()}
 		onkeydown={onKeydown}
 	>
 		{#each options as option, i (option.value)}

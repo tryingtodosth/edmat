@@ -216,7 +216,7 @@
 				<form class="form" onsubmit={(e) => (e.preventDefault(), check())}>
 					<div class="pickers">
 						<label>
-							<span>{m.bulkUpload_discipline()}<!-- "Field of study" --></span>
+							<span>{m.bulkUpload_discipline()}<!-- "Discipline" --></span>
 							<select
 								value={disciplineId}
 								onchange={(e) => pickDiscipline(e.currentTarget.value)}
@@ -229,7 +229,7 @@
 							</select>
 						</label>
 						<label>
-							<span>{m.bulkUpload_branch()}<!-- "Subject" --></span>
+							<span>{m.bulkUpload_branch()}<!-- "Branch" --></span>
 							<select bind:value={branchId} disabled={!branches.length} data-testid="bulk-branch">
 								<option value="">{m.bulkUpload_pick()}<!-- "Choose…" --></option>
 								{#each branches as b (b.id)}

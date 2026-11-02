@@ -24,7 +24,7 @@ const EN: ShowcaseModuleDoc = {
 	description:
 		'How teaching materials work on EdMat: a file, a link or a text with the topics it covers, a team that publishes it one accepted version at a time, attachments on the work around it, and the licence every item carries.',
 	lead: [
-		'A material is anything you teach or learn from that is not a single exercise: lecture notes, a course script, past papers, a formula sheet. It is a file, a link or a text written on the site, filed under a subject, and it says which topics it covers and which it assumes you already know.',
+		'A material is anything you teach or learn from that is not a single exercise: lecture notes, a course script, past papers, a formula sheet. It is a file, a link or a text written on the site, filed under a branch, and it says which topics it covers and which it assumes you already know.',
 		'Every material has a team behind it, even if the team is one person. A change is a new version that somebody on the team accepted, and the history of versions stays readable.'
 	],
 	points: [
@@ -75,7 +75,7 @@ const EN: ShowcaseModuleDoc = {
 			key: 'material',
 			heading: 'What a material carries',
 			body: [
-				'A material has a type, a level, a subject, an author and a source, and either a file — PDF, an image, LaTeX source or a word-processor document, up to 25 MB — a link, or a text written on the site. A hosted PDF can be previewed in the page, loaded only when you ask for it.',
+				'A material has a type, a level, a branch, an author and a source, and either a file — PDF, an image, LaTeX source or a word-processor document, up to 25 MB — a link, or a text written on the site. A hosted PDF can be previewed in the page, loaded only when you ask for it.',
 				'Under it sit claims about what it covers and what it requires, each a topic at a depth. Anybody signed in can add one; others vote on whether it is accurate and how much it matters, and each claim has its own discussion. Readers can also rate the material and talk under it.'
 			]
 		},
@@ -152,7 +152,7 @@ const PL: ShowcaseModuleDoc = {
 	description:
 		'Jak działają materiały dydaktyczne w EdMacie: plik, link albo tekst z tematami, które omawia, zespół, który publikuje go po jednej zaakceptowanej wersji, załączniki do pracy wokół niego i licencja, którą ma każda rzecz.',
 	lead: [
-		'Materiał to wszystko, z czego się uczy albo czego się uczy, a co nie jest pojedynczym zadaniem: notatki z wykładu, skrypt, stare kolokwia, ściąga ze wzorami. To plik, link albo tekst napisany w serwisie, przypisany do przedmiotu, z informacją, które tematy omawia i co trzeba wiedzieć wcześniej.',
+		'Materiał to wszystko, z czego się uczy albo czego się uczy, a co nie jest pojedynczym zadaniem: notatki z wykładu, skrypt, stare kolokwia, ściąga ze wzorami. To plik, link albo tekst napisany w serwisie, przypisany do działu, z informacją, które tematy omawia i co trzeba wiedzieć wcześniej.',
 		'Za każdym materiałem stoi zespół, nawet jeśli to jedna osoba. Zmiana to nowa wersja, którą ktoś z zespołu zaakceptował, a historia wersji zostaje do przeczytania.'
 	],
 	points: [
@@ -202,7 +202,7 @@ const PL: ShowcaseModuleDoc = {
 			key: 'material',
 			heading: 'Co niesie materiał',
 			body: [
-				'Materiał ma typ, poziom, przedmiot, autora i źródło, a do tego plik — PDF, obraz, źródło LaTeX-a albo dokument edytora tekstu, do 25 MB — link albo tekst napisany w serwisie. PDF trzymany w serwisie można obejrzeć na stronie; podgląd ładuje się dopiero, gdy o niego poprosisz.',
+				'Materiał ma typ, poziom, dział, autora i źródło, a do tego plik — PDF, obraz, źródło LaTeX-a albo dokument edytora tekstu, do 25 MB — link albo tekst napisany w serwisie. PDF trzymany w serwisie można obejrzeć na stronie; podgląd ładuje się dopiero, gdy o niego poprosisz.',
 				'Pod materiałem są deklaracje, co omawia i czego wymaga — każda to temat na określonym poziomie. Każda zalogowana osoba może dodać deklarację; inni głosują, czy jest trafna i jak bardzo ważna, a każda deklaracja ma własną dyskusję. Materiał można też ocenić i o nim porozmawiać.'
 			]
 		},

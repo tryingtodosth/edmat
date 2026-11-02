@@ -94,7 +94,7 @@ const EN: AboutDoc = {
 	ctaBrowse: 'Browse disciplines',
 	ctaRegister: 'Create an account',
 	ctaSubmit: 'Submit an exercise',
-	path: ['Discipline', 'Subject', 'Topic', 'Exercise'],
+	path: ['Discipline', 'Branch', 'Topic', 'Exercise'],
 	pathLabel: 'How the database is organised',
 	fields: [
 		{ label: 'Statement', note: 'Always. The problem itself, typeset as mathematics.' },
@@ -117,7 +117,7 @@ const EN: AboutDoc = {
 			{
 				key: 'catalogue',
 				title: 'Materials are catalogued and reviewed',
-				body: 'Everything is filed where it can be found again — discipline, subject, topic — and nothing is published merely because somebody uploaded it. A submission is read by another person first, a solution earns “verified” only once it has been reviewed, and a coverage claim says what a material actually teaches rather than what its title suggests.'
+				body: 'Everything is filed where it can be found again — discipline, branch, topic — and nothing is published merely because somebody uploaded it. A submission is read by another person first, a solution earns “verified” only once it has been reviewed, and a coverage claim says what a material actually teaches rather than what its title suggests.'
 			},
 			{
 				key: 'tutoring',
@@ -140,14 +140,14 @@ const EN: AboutDoc = {
 		{
 			key: 'exercises',
 			title: 'Exercises with solutions',
-			body: 'Browse discipline → subject → topic, filter by difficulty and source, and read the statement, hint, answer and solution. Build your own study set and print it.',
+			body: 'Browse discipline → branch → topic, filter by difficulty and source, and read the statement, hint, answer and solution. Build your own study set and print it.',
 			href: '/disciplines',
 			flag: null
 		},
 		{
 			key: 'materials',
 			title: 'Teaching materials',
-			body: 'Lecture notes, formula sheets, past exams and scripts, filed by subject and topic, with coverage claims that say what a material actually teaches.',
+			body: 'Lecture notes, formula sheets, past exams and scripts, filed by branch and topic, with coverage claims that say what a material actually teaches.',
 			href: '/materials',
 			flag: null
 		},
@@ -182,7 +182,7 @@ const EN: AboutDoc = {
 		{
 			key: 'tutoring',
 			title: 'Tutoring you can book',
-			body: 'Tutors publish their subjects and availability; you book a real slot. EdMat handles the calendar and nothing else — no payment passes through it.',
+			body: 'Tutors publish their branches and availability; you book a real slot. EdMat handles the calendar and nothing else — no payment passes through it.',
 			href: '/tutoring',
 			flag: 'tutoring'
 		},
@@ -283,7 +283,7 @@ const PL: AboutDoc = {
 	ctaBrowse: 'Przeglądaj dziedziny',
 	ctaRegister: 'Załóż konto',
 	ctaSubmit: 'Dodaj zadanie',
-	path: ['Dziedzina', 'Przedmiot', 'Temat', 'Zadanie'],
+	path: ['Dziedzina', 'Dział', 'Temat', 'Zadanie'],
 	pathLabel: 'Jak uporządkowana jest baza',
 	fields: [
 		{ label: 'Treść', note: 'Zawsze. Samo zadanie, złożone jako matematyka.' },
@@ -306,7 +306,7 @@ const PL: AboutDoc = {
 			{
 				key: 'catalogue',
 				title: 'Materiały są katalogowane i recenzowane',
-				body: 'Wszystko trafia tam, gdzie da się to potem znaleźć — dziedzina, przedmiot, temat — i nic nie jest publikowane tylko dlatego, że ktoś to wgrał. Zgłoszenie czyta najpierw druga osoba, rozwiązanie dostaje „zweryfikowane” dopiero po recenzji, a deklaracja zakresu mówi, czego materiał naprawdę uczy, a nie co sugeruje jego tytuł.'
+				body: 'Wszystko trafia tam, gdzie da się to potem znaleźć — dziedzina, dział, temat — i nic nie jest publikowane tylko dlatego, że ktoś to wgrał. Zgłoszenie czyta najpierw druga osoba, rozwiązanie dostaje „zweryfikowane” dopiero po recenzji, a deklaracja zakresu mówi, czego materiał naprawdę uczy, a nie co sugeruje jego tytuł.'
 			},
 			{
 				key: 'tutoring',
@@ -329,14 +329,14 @@ const PL: AboutDoc = {
 		{
 			key: 'exercises',
 			title: 'Zadania z rozwiązaniami',
-			body: 'Przeglądaj dziedzina → przedmiot → temat, filtruj po trudności i źródle, czytaj treść, wskazówkę, odpowiedź i rozwiązanie. Ułóż własny zestaw i wydrukuj go.',
+			body: 'Przeglądaj dziedzina → dział → temat, filtruj po trudności i źródle, czytaj treść, wskazówkę, odpowiedź i rozwiązanie. Ułóż własny zestaw i wydrukuj go.',
 			href: '/disciplines',
 			flag: null
 		},
 		{
 			key: 'materials',
 			title: 'Materiały dydaktyczne',
-			body: 'Notatki z wykładów, ściągi ze wzorami, stare egzaminy i skrypty, uporządkowane po przedmiocie i temacie, z deklaracjami zakresu mówiącymi, czego materiał naprawdę uczy.',
+			body: 'Notatki z wykładów, ściągi ze wzorami, stare egzaminy i skrypty, uporządkowane po dziale i temacie, z deklaracjami zakresu mówiącymi, czego materiał naprawdę uczy.',
 			href: '/materials',
 			flag: null
 		},
@@ -371,7 +371,7 @@ const PL: AboutDoc = {
 		{
 			key: 'tutoring',
 			title: 'Korepetycje z rezerwacją',
-			body: 'Korepetytorzy publikują przedmioty i dostępność; ty rezerwujesz prawdziwy termin. EdMat prowadzi kalendarz i nic więcej — nie przechodzi przez niego żadna płatność.',
+			body: 'Korepetytorzy publikują działy i dostępność; ty rezerwujesz prawdziwy termin. EdMat prowadzi kalendarz i nic więcej — nie przechodzi przez niego żadna płatność.',
 			href: '/tutoring',
 			flag: 'tutoring'
 		},

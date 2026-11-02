@@ -57,6 +57,7 @@ import type {
 	ServiceWatch,
 	Subtopic,
 	TaxonomyStatus,
+	NodeCounts,
 	TagFollowState,
 	TutorSchedule,
 	Topic,
@@ -89,6 +90,16 @@ export interface RawDiscipline {
 	status: TaxonomyStatus;
 	name: string;
 	description: string;
+	counts?: Partial<NodeCounts>;
+}
+
+/** Sparse and possibly absent — an older saved copy (offlineCache) predates the field. */
+export function mapNodeCounts(raw: Partial<NodeCounts> | undefined): NodeCounts {
+	return {
+		exercises: raw?.exercises ?? {},
+		materials: raw?.materials ?? {},
+		courses: raw?.courses ?? {}
+	};
 }
 
 export function mapDiscipline(json: RawDiscipline): Discipline {
@@ -97,7 +108,8 @@ export function mapDiscipline(json: RawDiscipline): Discipline {
 		name: json.name,
 		description: json.description,
 		published: json.published,
-		status: json.status ?? 'approved'
+		status: json.status ?? 'approved',
+		counts: mapNodeCounts(json.counts)
 	};
 }
 
@@ -151,6 +163,7 @@ export interface RawBranch {
 	name: string;
 	description: string;
 	topics: RawTopic[];
+	counts?: Partial<NodeCounts>;
 }
 
 export function mapBranch(json: RawBranch): Branch {
@@ -162,7 +175,8 @@ export function mapBranch(json: RawBranch): Branch {
 		published: json.published,
 		status: json.status ?? 'approved',
 		order: json.order,
-		topics: json.topics.map((t) => mapTopic(t, json.slug))
+		topics: json.topics.map((t) => mapTopic(t, json.slug)),
+		counts: mapNodeCounts(json.counts)
 	};
 }
 

@@ -69,11 +69,24 @@ also restates its own rules at the top, so an agent that opens one needs nothing
 
 `HISTORY.md` and anything written before mid-2026 use the old names. These are the current ones:
 
-| Concept (Polish) | Current model | Old name in the history |
+| Concept (Polish, as the UI says it) | Current model | Old name in the history |
 |---|---|---|
-| Field of study (*kierunek*) | `taxonomy.Discipline` | `taxonomy.Field` |
-| University subject (*przedmiot*) | `taxonomy.Branch` | `taxonomy.Course` |
+| Discipline (*dziedzina*) | `taxonomy.Discipline` | `taxonomy.Field` (*kierunek*) |
+| Branch (*dział*) | `taxonomy.Branch` | `taxonomy.Course` (*przedmiot*) |
+| Topic (*temat*), subtopic (*podtemat*) | `taxonomy.Topic`, `taxonomy.Subtopic` | — |
 | A course a user runs (*kurs*) | `courses.Course` | the `classroom` app |
+
+**One glossary for every audience** (owner, 2026-11-02, `HISTORY.md` §17DE): *dziedzina / dział /
+temat / podtemat* ↔ discipline / branch / topic / subtopic, in every message and every manual page.
+*Kierunek* now means only a degree programme (USOS), *przedmiot* only a taught offering (a
+`courses.Course`, a subject on a transcript). Before that day the UI used three vocabularies at once
+and *dział* meant both a branch and a topic in the same form.
+
+**Browse is audience-first** (same day, §17DE): the band chips lead `/disciplines`,
+`/disciplines/<d>` and `/branches/<b>` (`BrowseLens.svelte`); every discipline and branch carries
+`counts` per kind and band, DERIVED by `taxonomy/counts.py` and never stored; a node with nothing
+for the reader's band folds under "For other groups". Audience stays one value per content row and
+never goes on a taxonomy node — a branch is not "for" anybody, the exercises under it are.
 
 `/api/courses/` is the **user-run** course API; `/api/disciplines/` and `/api/branches/` are the
 taxonomy. An untracked `backend/classroom/` directory may still exist on disk — the live app is
@@ -544,12 +557,14 @@ Long-standing, still true. Feature-level gaps live in each `HISTORY.md` section'
 
 | Polish | EdMat |
 |---|---|
-| kierunek | discipline (`taxonomy.Discipline`) |
-| przedmiot | branch (`taxonomy.Branch`) — a university subject |
+| dziedzina | discipline (`taxonomy.Discipline`) — matematyka |
+| dział | branch (`taxonomy.Branch`) — analiza matematyczna, geometria |
+| temat / podtemat | topic / subtopic (`taxonomy.Topic` / `Subtopic`) |
+| kierunek | a degree programme (USOS) — NOT a taxonomy level any more (§17DE) |
+| przedmiot | a taught offering — a `courses.Course`, a subject on a transcript; NOT a taxonomy level |
 | kurs (prowadzony przez użytkownika) | course (`courses.Course`) — something a person runs and others join |
 | wydarzenie | event (`events.Event`) — a one-off happening, neither a course nor a booking |
 | aktualność | update (`events.EventPost`) — a dated note a host appends after announcing |
-| dział / temat | topic |
 | zadanie | exercise |
 | materiał (dydaktyczny) | material |
 | zestaw | set (as in "my set" / study sheet) |

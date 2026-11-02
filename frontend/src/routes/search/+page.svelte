@@ -212,7 +212,8 @@
 		{/if}
 
 		{#if disciplines.length || branches.length}
-			<h2>{m.nav_browse()}</h2>
+			<h2>{m.browse_taxonomyHeading()}</h2>
+			<!-- "Disciplines and branches" -->
 			<!-- Plain link rows rather than cards: a discipline or branch is a place to go, not a
 			     content item, and its browse page is one click away. -->
 			<ul class="taxonomy-hits">

@@ -181,7 +181,7 @@ const EN: ExercisesShowcase = {
 			route: '/disciplines',
 			alt: 'Screenshot of a branch page: a filter panel with search, topic, difficulty and source on the left, and exercise cards on the right — “Całka Gaussa”, “Granica ciągu”, “Normy ℓ¹ i ℓ∞” and more — each with difficulty, level and source badges, a star rating and a plus button.',
 			caption:
-				'A branch page: every exercise of one subject as a card, with the filters on the left and a plus on each card to put it in your set.',
+				'A branch page: every exercise of one branch as a card, with the filters on the left and a plus on each card to put it in your set.',
 			linkLabel: 'Browse to a branch'
 		},
 		{
@@ -250,7 +250,7 @@ const PL: ExercisesShowcase = {
 		}
 	],
 	cardsCaption:
-		'Dwa przykładowe zadania w karcie, której używają strony przedmiotu i wyszukiwania. Drugie nie ma odpowiedzi — to „wykaż, że”, a jego rozwiązanie jest całością.',
+		'Dwa przykładowe zadania w karcie, której używają strony działu i wyszukiwania. Drugie nie ma odpowiedzi — to „wykaż, że”, a jego rozwiązanie jest całością.',
 	facesHeading: 'Cztery części jednego zadania',
 	faces: [
 		{
@@ -309,10 +309,10 @@ const PL: ExercisesShowcase = {
 			width: 1280,
 			height: 820,
 			route: '/disciplines',
-			alt: 'Zrzut ekranu strony przedmiotu: po lewej panel filtrów z wyszukiwarką, tematem, trudnością i źródłem, po prawej karty zadań — „Całka Gaussa”, „Granica ciągu”, „Normy ℓ¹ i ℓ∞” i kolejne — każda z oznaczeniem trudności, poziomu i źródła, oceną w gwiazdkach i przyciskiem plusa.',
+			alt: 'Zrzut ekranu strony działu: po lewej panel filtrów z wyszukiwarką, tematem, trudnością i źródłem, po prawej karty zadań — „Całka Gaussa”, „Granica ciągu”, „Normy ℓ¹ i ℓ∞” i kolejne — każda z oznaczeniem trudności, poziomu i źródła, oceną w gwiazdkach i przyciskiem plusa.',
 			caption:
-				'Strona przedmiotu: każde zadanie jako karta, filtry po lewej i plus na każdej karcie, żeby dodać zadanie do zestawu.',
-			linkLabel: 'Przejdź do przedmiotu'
+				'Strona działu: każde zadanie jako karta, filtry po lewej i plus na każdej karcie, żeby dodać zadanie do zestawu.',
+			linkLabel: 'Przejdź do działu'
 		},
 		{
 			src: '/guide/exercises/06-my-set.png',

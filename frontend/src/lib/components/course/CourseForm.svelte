@@ -225,7 +225,7 @@
 	{/if}
 
 	<label class="field">
-		<span>{m.course_form_subject()}<!-- "Subject in the exercise database (optional)" --></span>
+		<span>{m.course_form_subject()}<!-- "Branch in the exercise database (optional)" --></span>
 		<select bind:value={subject} name="subject">
 			<option value="">{m.course_form_subjectNone()}<!-- "— none —" --></option>
 			{#each branches as branch (branch.id)}
@@ -233,7 +233,7 @@
 			{/each}
 		</select>
 		<span class="hint"
-			>{m.course_form_subjectHint()}<!-- "Puts the course on that subject's page…" --></span
+			>{m.course_form_subjectHint()}<!-- "Ties the course to a branch here…" --></span
 		>
 	</label>
 

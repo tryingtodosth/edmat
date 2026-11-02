@@ -2,6 +2,9 @@
 	import { onMount } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import DisciplineCard from '$lib/components/discipline/DisciplineCard.svelte';
+	import BrowseLens from '$lib/components/shared/BrowseLens.svelte';
+	import { audienceFilterStore } from '$lib/state/audienceFilter.svelte';
+	import { splitByLens } from '$lib/utils/audienceCounts';
 	import Loading from '$lib/components/shared/Loading.svelte';
 	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
 	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
@@ -15,9 +18,12 @@
 	// It also replaces a real N+1: the branch count per card used to be one request PER discipline,
 	// which is the whole point of having every branch already in hand.
 	let fields = $derived(taxonomyStore.disciplines);
-	let courseCounts = $derived(
+	let branchCounts = $derived(
 		Object.fromEntries(fields.map((f) => [f.id, taxonomyStore.branchesFor(f.id).length]))
 	);
+	// Audience first (owner, 2026-11-02): the reader's lens decides what leads — disciplines with
+	// something for it, biggest first — and what folds under "For other groups". Nothing is hidden.
+	let bands = $derived(audienceFilterStore.bands);
 	let loading = $derived(!taxonomyStore.loaded);
 	// A saved copy paints on the first frame, so this page opens with the disciplines you saw last
 	// time rather than an empty grid — and says so if the network never answers.
@@ -30,18 +36,20 @@
 	// useless until somebody wakes up — they are grouped under "Others", so the settled vocabulary
 	// reads as settled while a suggestion is still findable and filable against.
 	let grouped = $derived(splitByStatus(fields));
-	let settled = $derived(grouped.settled);
+	let lens = $derived(splitByLens(grouped.settled, bands));
 	let proposed = $derived(grouped.proposed);
 
 	onMount(() => taxonomyStore.preload());
 </script>
 
 <svelte:head>
-	<title>{pageTitle(m.nav_browse())}</title>
+	<title>{pageTitle(m.browse_heading())}</title>
+	<!-- "Disciplines" -->
 </svelte:head>
 
 <div class="page">
-	<h1>{m.nav_browse()}</h1>
+	<h1>{m.browse_heading()}</h1>
+	<BrowseLens nodes={fields} />
 	{#if loading}
 		<Loading variant="card" count={3} />
 	{:else}
@@ -49,18 +57,41 @@
 			<SavedCopyNotice {savedAt} {stale} />
 		{/if}
 		<div class="grid">
-			{#each settled as field (field.id)}
-				<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} />
+			{#each lens.shown as discipline (discipline.id)}
+				<DisciplineCard {discipline} {bands} branchCount={branchCounts[discipline.id] ?? 0} />
 			{/each}
 		</div>
+
+		{#if lens.folded.length > 0}
+			<details class="folded" data-testid="browse-folded" open={lens.shown.length === 0}>
+				<summary>{m.browse_otherGroups({ count: lens.folded.length })}</summary>
+				<!-- "For other groups ({count})" -->
+				<p class="hint">{m.browse_otherGroupsHint()}</p>
+				<div class="grid">
+					{#each lens.folded as discipline (discipline.id)}
+						<DisciplineCard
+							{discipline}
+							{bands}
+							folded
+							branchCount={branchCounts[discipline.id] ?? 0}
+						/>
+					{/each}
+				</div>
+			</details>
+		{/if}
 
 		{#if proposed.length > 0}
 			<section class="proposed">
 				<h2>{m.taxonomy_others()}</h2>
 				<p class="hint">{m.taxonomy_propose_pending()}</p>
 				<div class="grid">
-					{#each proposed as field (field.id)}
-						<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} showPending={false} />
+					{#each proposed as discipline (discipline.id)}
+						<DisciplineCard
+							{discipline}
+							{bands}
+							branchCount={branchCounts[discipline.id] ?? 0}
+							showPending={false}
+						/>
 					{/each}
 				</div>
 			</section>
@@ -94,6 +125,25 @@
 		padding-top: var(--space-4);
 		border-top: 1px dashed var(--border-color);
 	}
+	/* "For other groups": folded, not hidden (owner, 2026-11-02). Open by itself only when the lens
+	   admits nothing at all, so the page is never a heading over an empty grid. */
+	.folded {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		summary {
+			cursor: pointer;
+			min-height: 44px;
+			display: flex;
+			align-items: center;
+			color: var(--text-secondary);
+			font-weight: 600;
+		}
+		.grid {
+			margin-top: var(--space-2);
+		}
+	}
+	.folded .hint,
 	.proposed .hint {
 		font-size: var(--font-size-sm);
 		color: var(--text-secondary);

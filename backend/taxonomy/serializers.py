@@ -8,16 +8,24 @@ from rest_framework import serializers
 
 from config.i18n_utils import request_locale, resolve_translation
 
+from .counts import counts_for
 from .models import Branch, Chapter, Discipline, Subtopic, Topic
 
 
 class DisciplineSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
+    # How much is published under this node, per kind and audience band — every band, whatever the
+    # reader's `?audience=`, so one cached list serves every lens (taxonomy/counts.py). Language-
+    # agnostic: a row counts whichever language it is published in.
+    counts = serializers.SerializerMethodField()
 
     class Meta:
         model = Discipline
-        fields = ['id', 'slug', 'published', 'status', 'name', 'description']
+        fields = ['id', 'slug', 'published', 'status', 'name', 'description', 'counts']
+
+    def get_counts(self, obj):
+        return counts_for(self.context, 'discipline', obj.pk)
 
     def get_name(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))
@@ -32,10 +40,14 @@ class BranchSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     discipline = serializers.SlugRelatedField(slug_field='slug', read_only=True)
+    counts = serializers.SerializerMethodField()  # same shape and rule as DisciplineSerializer's
 
     class Meta:
         model = Branch
-        fields = ['id', 'slug', 'discipline', 'published', 'status', 'order', 'name', 'description']
+        fields = ['id', 'slug', 'discipline', 'published', 'status', 'order', 'name', 'description', 'counts']
+
+    def get_counts(self, obj):
+        return counts_for(self.context, 'branch', obj.pk)
 
     def get_name(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))

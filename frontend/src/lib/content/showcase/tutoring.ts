@@ -27,7 +27,7 @@ import type { ShowcaseModuleDoc } from './index';
 const EN: ShowcaseModuleDoc = {
 	title: 'Tutoring you can book',
 	description:
-		'How tutoring works on EdMat: a listing with the subjects and hours a tutor offers, a calendar of free slots, and a booking that is a request until the tutor confirms it — with no payment through the site.',
+		'How tutoring works on EdMat: a listing with the branches and hours a tutor offers, a calendar of free slots, and a booking that is a request until the tutor confirms it — with no payment through the site.',
 	lead: [
 		'A tutor publishes a listing — what they teach, at what level, online or in person, and the rate they ask — and the hours they are available. A student picks a free slot on the listing’s calendar and sends a request; the tutor confirms it or declines it.',
 		'EdMat handles the calendar and nothing else. No money passes through the site: the rate on a listing is what the tutor tells you to expect, and you settle it between yourselves.'
@@ -61,9 +61,9 @@ const EN: ShowcaseModuleDoc = {
 			width: 1280,
 			height: 760,
 			route: '/tutoring',
-			alt: 'Screenshot of “Tutoring listings”: filters by subject and by format, then three listing cards — “Analiza — dyżur konsultacyjny” at 60 PLN/h online, “Mechanika klasyczna — zajęcia na miejscu” at 80 PLN/h in person at the Physics Faculty, and “Korepetycje z analizy — poziom licencjacki” online with one five-star review — each with its tutor’s name.',
+			alt: 'Screenshot of “Tutoring listings”: filters by branch and by format, then three listing cards — “Analiza — dyżur konsultacyjny” at 60 PLN/h online, “Mechanika klasyczna — zajęcia na miejscu” at 80 PLN/h in person at the Physics Faculty, and “Korepetycje z analizy — poziom licencjacki” online with one five-star review — each with its tutor’s name.',
 			caption:
-				'The listings: subject, level, online or in person, the rate the tutor asks, and their reviews.'
+				'The listings: branch, level, online or in person, the rate the tutor asks, and their reviews.'
 		},
 		{
 			src: '/guide/tutoring/02-listing.png',
@@ -92,8 +92,8 @@ const EN: ShowcaseModuleDoc = {
 			key: 'listing',
 			heading: 'A listing',
 			body: [
-				'A listing has a title, a description that may contain mathematics, the subjects it covers, the level it is for, the language, an hourly rate in złoty, euro or dollars, and whether lessons are online, in person or either. An in-person listing carries a place, found on a map from the address the tutor types. A tutor can pause a listing to take it off the board; a listing that still has a booking coming up cannot be deleted, only paused.',
-				'Students filter the board by subject and by format, write to a tutor through the site’s messages, keep a watchlist of listings to compare, and leave one rating with an optional review per listing.'
+				'A listing has a title, a description that may contain mathematics, the branches it covers, the level it is for, the language, an hourly rate in złoty, euro or dollars, and whether lessons are online, in person or either. An in-person listing carries a place, found on a map from the address the tutor types. A tutor can pause a listing to take it off the board; a listing that still has a booking coming up cannot be deleted, only paused.',
+				'Students filter the board by branch and by format, write to a tutor through the site’s messages, keep a watchlist of listings to compare, and leave one rating with an optional review per listing.'
 			]
 		},
 		{
@@ -138,7 +138,7 @@ const EN: ShowcaseModuleDoc = {
 const PL: ShowcaseModuleDoc = {
 	title: 'Korepetycje z rezerwacją',
 	description:
-		'Jak działają korepetycje w EdMacie: ogłoszenie z przedmiotami i godzinami korepetytora, kalendarz wolnych terminów i rezerwacja, która jest prośbą, dopóki korepetytor jej nie potwierdzi — bez żadnych płatności przez serwis.',
+		'Jak działają korepetycje w EdMacie: ogłoszenie z działami i godzinami korepetytora, kalendarz wolnych terminów i rezerwacja, która jest prośbą, dopóki korepetytor jej nie potwierdzi — bez żadnych płatności przez serwis.',
 	lead: [
 		'Korepetytor publikuje ogłoszenie — czego uczy, na jakim poziomie, zdalnie czy na miejscu i jaką stawkę proponuje — oraz godziny, w których jest dostępny. Uczeń albo studentka wybiera wolny termin w kalendarzu ogłoszenia i wysyła prośbę; korepetytor ją potwierdza albo odrzuca.',
 		'EdMat zajmuje się kalendarzem i niczym więcej. Przez serwis nie przechodzą żadne pieniądze: stawka w ogłoszeniu to informacja, czego się spodziewać, a rozliczacie się między sobą.'
@@ -170,9 +170,9 @@ const PL: ShowcaseModuleDoc = {
 			width: 1280,
 			height: 760,
 			route: '/tutoring',
-			alt: 'Zrzut ekranu „Tutoring listings”: filtry według przedmiotu i formy, a pod nimi trzy karty ogłoszeń — „Analiza — dyżur konsultacyjny” za 60 zł/h zdalnie, „Mechanika klasyczna — zajęcia na miejscu” za 80 zł/h na Wydziale Fizyki i „Korepetycje z analizy — poziom licencjacki” zdalnie, z jedną recenzją na pięć gwiazdek — każde z nazwiskiem korepetytora.',
+			alt: 'Zrzut ekranu „Tutoring listings”: filtry według działu i formy, a pod nimi trzy karty ogłoszeń — „Analiza — dyżur konsultacyjny” za 60 zł/h zdalnie, „Mechanika klasyczna — zajęcia na miejscu” za 80 zł/h na Wydziale Fizyki i „Korepetycje z analizy — poziom licencjacki” zdalnie, z jedną recenzją na pięć gwiazdek — każde z nazwiskiem korepetytora.',
 			caption:
-				'Ogłoszenia: przedmiot, poziom, zdalnie czy na miejscu, stawka, której oczekuje korepetytor, i recenzje.'
+				'Ogłoszenia: dział, poziom, zdalnie czy na miejscu, stawka, której oczekuje korepetytor, i recenzje.'
 		},
 		{
 			src: '/guide/tutoring/02-listing.png',
@@ -201,8 +201,8 @@ const PL: ShowcaseModuleDoc = {
 			key: 'listing',
 			heading: 'Ogłoszenie',
 			body: [
-				'Ogłoszenie ma tytuł, opis, w którym może być matematyka, przedmioty, których dotyczy, poziom, język, stawkę godzinową w złotych, euro albo dolarach i informację, czy zajęcia są zdalnie, na miejscu, czy tak i tak. Ogłoszenie stacjonarne ma miejsce, odnalezione na mapie z adresu, który wpisuje korepetytor. Ogłoszenie można wstrzymać, żeby zniknęło z tablicy; ogłoszenia z nadchodzącą rezerwacją nie da się usunąć, można je tylko wstrzymać.',
-				'Uczniowie filtrują tablicę według przedmiotu i formy, piszą do korepetytora przez wiadomości w serwisie, trzymają listę obserwowanych ogłoszeń do porównania i wystawiają jedną ocenę z opcjonalną recenzją na ogłoszenie.'
+				'Ogłoszenie ma tytuł, opis, w którym może być matematyka, działy, których dotyczy, poziom, język, stawkę godzinową w złotych, euro albo dolarach i informację, czy zajęcia są zdalnie, na miejscu, czy tak i tak. Ogłoszenie stacjonarne ma miejsce, odnalezione na mapie z adresu, który wpisuje korepetytor. Ogłoszenie można wstrzymać, żeby zniknęło z tablicy; ogłoszenia z nadchodzącą rezerwacją nie da się usunąć, można je tylko wstrzymać.',
+				'Uczniowie filtrują tablicę według działu i formy, piszą do korepetytora przez wiadomości w serwisie, trzymają listę obserwowanych ogłoszeń do porównania i wystawiają jedną ocenę z opcjonalną recenzją na ogłoszenie.'
 			]
 		},
 		{

@@ -11,12 +11,12 @@ const EN: GuideChapterDoc = {
 			heading: 'The listings',
 			tryHref: '/tutoring',
 			body: [
-				"Filter by subject and by whether the tutor works online or in person. Each card carries the rate the tutor quotes, the age band, the subject, the rating other students left, and the tutor's name.",
+				"Filter by branch and by whether the tutor works online or in person. Each card carries the rate the tutor quotes, the age band, the branch, the rating other students left, and the tutor's name.",
 				'In Polish the page is at /korki, which is the word a Polish reader would search for; in English it is /tutoring. Both are the same page.'
 			],
 			screenshot: {
 				src: '/guide/tutoring/01-listings.png',
-				alt: 'The tutoring listings page: filters by branch and by format, and three listing cards with prices of 60 and 80 PLN per hour, their subjects and their tutors.'
+				alt: 'The tutoring listings page: filters by branch and by format, and three listing cards with prices of 60 and 80 PLN per hour, their branches and their tutors.'
 			}
 		},
 		{
@@ -72,12 +72,12 @@ const PL: GuideChapterDoc = {
 			heading: 'Lista ogłoszeń',
 			tryHref: '/tutoring',
 			body: [
-				'Filtr po przedmiocie i po tym, czy korepetytor uczy online czy na miejscu. Każdy kafelek niesie podaną stawkę, przedział wiekowy, przedmiot, ocenę od innych uczniów i nazwisko korepetytora.',
+				'Filtr po dziale i po tym, czy korepetytor uczy online czy na miejscu. Każdy kafelek niesie podaną stawkę, przedział wiekowy, dział, ocenę od innych uczniów i nazwisko korepetytora.',
 				'Po polsku strona jest pod /korki — bo takiego słowa szuka polski czytelnik — a po angielsku pod /tutoring. To ta sama strona.'
 			],
 			screenshot: {
 				src: '/guide/tutoring/01-listings.png',
-				alt: 'Strona ogłoszeń korepetycyjnych: filtry po przedmiocie i formie oraz trzy kafelki z cenami 60 i 80 PLN za godzinę, przedmiotami i nazwiskami korepetytorów.'
+				alt: 'Strona ogłoszeń korepetycyjnych: filtry po dziale i formie oraz trzy kafelki z cenami 60 i 80 PLN za godzinę, działami i nazwiskami korepetytorów.'
 			}
 		},
 		{

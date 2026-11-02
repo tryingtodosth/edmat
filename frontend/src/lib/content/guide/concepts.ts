@@ -11,12 +11,12 @@ const EN: GuideChapterDoc = {
 			heading: 'The list',
 			tryHref: '/concepts',
 			body: [
-				'Search, filter by subject or tag, sort, or jump by first letter. Each card says which readers its article was written for, which language it is in, and how many articles the concept has.',
+				'Search, filter by branch or tag, sort, or jump by first letter. Each card says which readers its article was written for, which language it is in, and how many articles the concept has.',
 				'A concept with no article for your kind of reader says so on its card rather than opening into an empty page.'
 			],
 			screenshot: {
 				src: '/guide/concepts/01-hub.png',
-				alt: 'The concepts page: search, subject, tag and order controls, an A–Z strip, and cards for Integral, Mechanika kwantowa, Limit and Derivative, each with its audience, language and article count.'
+				alt: 'The concepts page: search, branch, tag and order controls, an A–Z strip, and cards for Integral, Mechanika kwantowa, Limit and Derivative, each with its audience, language and article count.'
 			}
 		},
 		{
@@ -63,12 +63,12 @@ const PL: GuideChapterDoc = {
 			heading: 'Lista',
 			tryHref: '/concepts',
 			body: [
-				'Wyszukiwarka, filtr po przedmiocie albo tagu, sortowanie i skok po pierwszej literze. Każdy kafelek mówi, dla jakich czytelników napisano artykuł, w jakim jest języku i ile artykułów ma pojęcie.',
+				'Wyszukiwarka, filtr po dziale albo tagu, sortowanie i skok po pierwszej literze. Każdy kafelek mówi, dla jakich czytelników napisano artykuł, w jakim jest języku i ile artykułów ma pojęcie.',
 				'Pojęcie, które nie ma artykułu dla Twojego rodzaju czytelnika, pisze to na kafelku, zamiast otwierać pustą stronę.'
 			],
 			screenshot: {
 				src: '/guide/concepts/01-hub.png',
-				alt: 'Strona pojęć: wyszukiwarka, przedmiot, tag i kolejność, pasek A–Z oraz kafelki Integral, Mechanika kwantowa, Limit i Derivative z odbiorcą, językiem i liczbą artykułów.'
+				alt: 'Strona pojęć: wyszukiwarka, dział, tag i kolejność, pasek A–Z oraz kafelki Integral, Mechanika kwantowa, Limit i Derivative z odbiorcą, językiem i liczbą artykułów.'
 			}
 		},
 		{

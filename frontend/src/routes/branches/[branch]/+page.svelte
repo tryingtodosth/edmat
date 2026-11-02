@@ -32,6 +32,8 @@
 	import { CONCEPTS_FLAG } from '$lib/components/concept/labels';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
+	import BrowseLens from '$lib/components/shared/BrowseLens.svelte';
+	import { audienceFilterStore } from '$lib/state/audienceFilter.svelte';
 
 	let branch = $state<Branch | undefined>(undefined);
 	let field = $state<Discipline | undefined>(undefined);
@@ -144,6 +146,9 @@
 	// hand-managed request counter.
 	$effect(() => {
 		if (!branch) return;
+		// Read so the effect re-runs when the lens changes: `client.ts` appends `?audience=` itself,
+		// and the chips now sit on this page (BrowseLens), so a list fetched before the click is stale.
+		void audienceFilterStore.param;
 		const topicId = filters.topicId;
 		const difficulty = filters.difficulty;
 		const sourceType = filters.sourceType;
@@ -179,6 +184,7 @@
 	// cross-branch /materials hub already uses.
 	$effect(() => {
 		if (!branch) return;
+		void audienceFilterStore.param; // the lens, as in the exercise effect above
 		const query = materialFilters.query;
 		const type = materialFilters.type;
 		const tag = materialFilters.tag;
@@ -224,6 +230,8 @@
 			</h1>
 			<p>{branch.description}</p>
 		</header>
+
+		<BrowseLens nodes={[branch]} />
 
 		<div class="tabs" role="tablist">
 			<button

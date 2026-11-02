@@ -282,8 +282,8 @@ export const SHOWCASE_PAGES: ShowcasePage[] = [
 		blurbFor: (l) =>
 			pick(
 				l,
-				'Two blocks on a profile: the grades somebody chose to share, and what they have done here — counted per subject, never mixed with the grades.',
-				'Dwa bloki w profilu: oceny, które ktoś zdecydował się pokazać, i to, co zrobił tutaj — zliczone per przedmiot i nigdy nie mieszane z ocenami.'
+				'Two blocks on a profile: the grades somebody chose to share, and what they have done here — counted per branch, never mixed with the grades.',
+				'Dwa bloki w profilu: oceny, które ktoś zdecydował się pokazać, i to, co zrobił tutaj — zliczone według działu i nigdy nie mieszane z ocenami.'
 			)
 	},
 	{

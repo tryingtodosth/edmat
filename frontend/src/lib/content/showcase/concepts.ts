@@ -180,7 +180,7 @@ const EN: ConceptsShowcase = {
 			width: 1280,
 			height: 780,
 			route: '/concepts',
-			alt: 'Screenshot of the Concepts page: search, subject, tag and order filters, an A to Z row, and concept cards — Integral, Mechanika kwantowa, Limit, Derivative — each with its level, language, number of articles, a one-line summary, its subject and tags.',
+			alt: 'Screenshot of the Concepts page: search, branch, tag and order filters, an A to Z row, and concept cards — Integral, Mechanika kwantowa, Limit, Derivative — each with its level, language, number of articles, a one-line summary, its subject and tags.',
 			caption:
 				'The concepts list: one card per idea, with its level, its language and how many articles it has.'
 		}
@@ -314,7 +314,7 @@ const PL: ConceptsShowcase = {
 			width: 1280,
 			height: 780,
 			route: '/concepts',
-			alt: 'Zrzut ekranu strony Pojęcia: filtry wyszukiwania, przedmiotu, tagu i kolejności, rząd liter od A do Z i karty pojęć — Integral, Mechanika kwantowa, Limit, Derivative — każda z poziomem, językiem, liczbą artykułów, jednozdaniowym opisem, przedmiotem i tagami.',
+			alt: 'Zrzut ekranu strony Pojęcia: filtry wyszukiwania, działu, tagu i kolejności, rząd liter od A do Z i karty pojęć — Integral, Mechanika kwantowa, Limit, Derivative — każda z poziomem, językiem, liczbą artykułów, jednozdaniowym opisem, przedmiotem i tagami.',
 			caption: 'Lista pojęć: jedna karta na jedną ideę, z poziomem, językiem i liczbą artykułów.'
 		}
 	]

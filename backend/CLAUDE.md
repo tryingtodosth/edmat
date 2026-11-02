@@ -8,8 +8,8 @@ live in `HISTORY.md` (which predates the taxonomy rename below, so its model nam
 
 | Concept | Current model | Old name in root CLAUDE.md |
 |---|---|---|
-| University subject (*przedmiot*) | `taxonomy.Branch` | `taxonomy.Course` |
-| Field of study (*kierunek*) | `taxonomy.Discipline` | `taxonomy.Field` |
+| Branch (*dział*; was "przedmiot") | `taxonomy.Branch` | `taxonomy.Course` |
+| Discipline (*dziedzina*; was "kierunek") | `taxonomy.Discipline` | `taxonomy.Field` |
 | User-run course (*kurs*) | `courses.Course` | app was `classroom` |
 
 `/api/courses/` is the **user-run** course API; `/api/branches/` + `/api/disciplines/` are the

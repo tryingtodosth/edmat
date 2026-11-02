@@ -46,7 +46,7 @@
 	const STEPS = [
 		{
 			key: 'exercises',
-			label: () => m.wp14b_welcome_stepExercises(), // "Find exercises for your subject"
+			label: () => m.wp14b_welcome_stepExercises(), // "Find exercises in your branch"
 			href: resolve('/disciplines')
 		},
 		{

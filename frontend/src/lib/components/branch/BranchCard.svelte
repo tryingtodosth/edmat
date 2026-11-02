@@ -1,23 +1,30 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Branch } from '$lib/types';
-	import { m } from '$lib/paraglide/messages.js';
+	import type { Audience, Branch } from '$lib/types';
 	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
+	import NodeCountsLine from '$lib/components/shared/NodeCountsLine.svelte';
 	import { isPending } from '$lib/utils/taxonomy';
 
-	// Off inside an "Others" section, where the heading has already said it — see DisciplineCard.
+	// Off inside an "Others" section, where the heading has already said it — see DisciplineCard,
+	// which also explains `folded`.
 	let {
 		branch,
-		exerciseCount,
+		bands,
+		folded = false,
 		showPending = true
-	}: { branch: Branch; exerciseCount: number; showPending?: boolean } = $props();
+	}: { branch: Branch; bands: Audience[]; folded?: boolean; showPending?: boolean } = $props();
 </script>
 
-<a class="branch-card" href={resolve('/branches/[branch]', { branch: branch.id })}>
+<a
+	class="branch-card"
+	class:branch-card--folded={folded}
+	data-testid="branch-card"
+	href={resolve('/branches/[branch]', { branch: branch.id })}
+>
 	<h3>{branch.name}</h3>
 	{#if showPending && isPending(branch)}<PendingBadge />{/if}
 	<p class="branch-card__description">{branch.description}</p>
-	<span class="branch-card__count">{m.branch_exerciseCount({ count: exerciseCount })}</span>
+	<NodeCountsLine counts={branch.counts} {bands} {folded} />
 </a>
 
 <style lang="scss">
@@ -34,14 +41,15 @@
 			border-color: var(--accent);
 		}
 	}
+	.branch-card--folded {
+		border-style: dashed;
+		h3 {
+			color: var(--text-secondary);
+		}
+	}
 	.branch-card__description {
 		font-size: var(--font-size-sm);
 		color: var(--text-secondary);
 		flex: 1;
-	}
-	.branch-card__count {
-		font-size: var(--font-size-xs);
-		color: var(--accent);
-		font-weight: 600;
 	}
 </style>

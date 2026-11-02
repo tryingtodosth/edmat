@@ -3,10 +3,11 @@
 	import { resolve } from '$app/paths';
 	import type { Branch, Discipline } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getLocale } from '$lib/paraglide/runtime';
 	import { getBranchesForDiscipline, getDisciplineById } from '$lib/services/taxonomy';
-	import { getExercisesForBranch } from '$lib/services/exercises';
 	import BranchCard from '$lib/components/branch/BranchCard.svelte';
+	import BrowseLens from '$lib/components/shared/BrowseLens.svelte';
+	import { audienceFilterStore } from '$lib/state/audienceFilter.svelte';
+	import { splitByLens } from '$lib/utils/audienceCounts';
 	import { isPending, splitByStatus } from '$lib/utils/taxonomy';
 	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
 	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
@@ -17,7 +18,12 @@
 	// Proposed branches are real and browsable, just grouped under "Others" until a moderator
 	// agrees — see lib/utils/taxonomy.ts for why they are neither hidden nor mixed in.
 	let grouped = $derived(splitByStatus(branches));
-	let exerciseCounts = $state<Record<string, number>>({});
+	// The lens decides the order and what folds under "For other groups" (see routes/disciplines).
+	// The counts ride on each branch (taxonomy/counts.py). Until 2026-11-02 this page fetched every
+	// exercise of every branch to count them — ~750 rows per visit — and because that request
+	// carried `?audience=`, a primary-school reader saw a grid of zeros with nothing saying why.
+	let bands = $derived(audienceFilterStore.bands);
+	let lens = $derived(splitByLens(grouped.settled, bands));
 	let loading = $state(true);
 	let notFound = $state(false);
 
@@ -39,17 +45,6 @@
 		const known = taxonomyStore.branchesFor(disciplineId);
 		branches = known.length > 0 ? known : await getBranchesForDiscipline(disciplineId);
 		loading = false;
-
-		// Exercise counts are genuinely per-branch and not part of the taxonomy, so they stay a
-		// fetch — but after `loading` is cleared, so the grid is on screen while they arrive rather
-		// than the whole page waiting on them.
-		const counts: Record<string, number> = {};
-		await Promise.all(
-			branches.map(async (c) => {
-				counts[c.id] = (await getExercisesForBranch(c.id, getLocale())).length;
-			})
-		);
-		exerciseCounts = counts;
 	}
 
 	// See routes/exercises/[id]/+page.svelte's own note on why this guard exists — an
@@ -88,12 +83,28 @@
 			</h1>
 			<p>{field.description}</p>
 		</header>
+		<!-- Under the title, as on the index and the branch page: the page says WHAT it is first,
+		     then through which lens it is drawn. -->
+		<BrowseLens nodes={branches} />
 		<h2>{m.discipline_branchesHeading()}</h2>
 		<div class="grid">
-			{#each grouped.settled as branch (branch.id)}
-				<BranchCard {branch} exerciseCount={exerciseCounts[branch.id] ?? 0} />
+			{#each lens.shown as branch (branch.id)}
+				<BranchCard {branch} {bands} />
 			{/each}
 		</div>
+
+		{#if lens.folded.length > 0}
+			<details class="folded" data-testid="browse-folded" open={lens.shown.length === 0}>
+				<summary>{m.browse_otherGroups({ count: lens.folded.length })}</summary>
+				<!-- "For other groups ({count})" -->
+				<p class="hint">{m.browse_otherGroupsHint()}</p>
+				<div class="grid">
+					{#each lens.folded as branch (branch.id)}
+						<BranchCard {branch} {bands} folded />
+					{/each}
+				</div>
+			</details>
+		{/if}
 
 		<!-- Same shape as the disciplines index: a suggestion stays findable and filable against,
 		     under a heading that says it has not been agreed to yet. -->
@@ -103,11 +114,7 @@
 				<p class="hint">{m.taxonomy_propose_pending()}</p>
 				<div class="grid">
 					{#each grouped.proposed as branch (branch.id)}
-						<BranchCard
-							{branch}
-							exerciseCount={exerciseCounts[branch.id] ?? 0}
-							showPending={false}
-						/>
+						<BranchCard {branch} {bands} showPending={false} />
 					{/each}
 				</div>
 			</section>
@@ -158,6 +165,24 @@
 		padding-top: var(--space-4);
 		border-top: 1px dashed var(--border-color);
 	}
+	/* "For other groups" — same shape as on routes/disciplines. */
+	.folded {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		summary {
+			cursor: pointer;
+			min-height: 44px;
+			display: flex;
+			align-items: center;
+			color: var(--text-secondary);
+			font-weight: 600;
+		}
+		.grid {
+			margin-top: var(--space-2);
+		}
+	}
+	.folded .hint,
 	.proposed .hint {
 		font-size: var(--font-size-sm);
 		color: var(--text-secondary);

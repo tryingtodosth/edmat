@@ -1,3 +1,5 @@
+import type { Audience } from './audience';
+
 // Discipline (dziedzina) -> Branch (dział) -> Topic (temat, BRANCH-SCOPED — topics are never a
 // global vocabulary, they're validated against one branch's own list).
 //
@@ -14,12 +16,24 @@
  * because a suggestion you cannot use until it is approved is no use to whoever needed the word. */
 export type TaxonomyStatus = 'pending' | 'approved';
 
+/** What a node's counts are counted over — backend `taxonomy/counts.py: KINDS`. */
+export type CountedKind = 'exercises' | 'materials' | 'courses';
+
+/** How much is published under a node, per kind and audience band, sparse (absent = 0).
+ *
+ * EVERY band, whatever the reader's lens: the node lists are cached once per language and the lens
+ * is applied here, in the browser, where the "showing for X · N for other groups" strip needs both
+ * numbers (`lib/utils/audienceCounts.ts`). Derived on the server from the content, never stored —
+ * a branch is not "for" anybody, the exercises under it are. Language-agnostic. */
+export type NodeCounts = Record<CountedKind, Partial<Record<Audience, number>>>;
+
 export interface Discipline {
 	id: string; // slug, e.g. 'matematyka'
 	name: string;
 	description: string;
 	published: boolean;
 	status: TaxonomyStatus;
+	counts: NodeCounts;
 }
 
 export interface Topic {
@@ -52,4 +66,5 @@ export interface Branch {
 	status: TaxonomyStatus;
 	order: number;
 	topics: Topic[];
+	counts: NodeCounts;
 }

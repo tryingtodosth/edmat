@@ -67,7 +67,7 @@ const EN: LearningRecordShowcase = {
 			body: 'What somebody has not shared is not in the response at all. A page cannot leak a grade it was never sent, and there is no “hidden” row for a reader to wonder about.'
 		},
 		{
-			heading: 'Counted per subject, never per item',
+			heading: 'Counted per branch, never per item',
 			body: 'The activity block says “14 lessons marked done in Analysis I”. It never says which lessons, which exercises or which cards, because that would be a log of somebody’s studying rather than a summary of it.'
 		},
 		{
@@ -146,7 +146,7 @@ const EN: LearningRecordShowcase = {
 	recordHeading: 'And the two blocks side by side',
 	gradeBlockHeading: 'Shared results',
 	gradeBlockNote: 'Awarded by a university, transferred with consent, weighted by ECTS.',
-	subjectColumn: 'Subject',
+	subjectColumn: 'Branch',
 	gradeColumns: { average: 'Weighted average', results: 'Results' },
 	gradeRows: [
 		{ branch: 'Mathematical Analysis I', average: '4.5', count: 1 },
@@ -163,7 +163,7 @@ const EN: LearningRecordShowcase = {
 		{ branch: 'Introduction to Programming', sets: 0, lessonsDone: 6, cardsReviewed: 0 }
 	],
 	recordCaption:
-		'Both blocks group by subject, which is exactly what lets them share a page without sharing a column: the subject is the only thing the two kinds of number genuinely have in common.',
+		'Both blocks group by branch, which is exactly what lets them share a page without sharing a column: the branch is the only thing the two kinds of number genuinely have in common.',
 	consentHeading: 'The four switches',
 	consentBody: [
 		'Each of these is a separate decision, asked once and changeable at any time. Turning one off takes the block off the profile immediately; it does not delete what was transferred, because a consent is permission to show something, not a copy of it.'
@@ -188,7 +188,7 @@ const EN: LearningRecordShowcase = {
 		{
 			label: 'Show what I have done on EdMat',
 			shares:
-				'Per subject: how many sets you made, how many lessons you marked done, how many cards you reviewed. Counts only — never which ones.',
+				'Per branch: how many sets you made, how many lessons you marked done, how many cards you reviewed. Counts only — never which ones.',
 			on: true
 		}
 	],
@@ -236,7 +236,7 @@ const PL: LearningRecordShowcase = {
 			body: 'To, czego ktoś nie udostępnił, w ogóle nie trafia do odpowiedzi. Strona nie wycieknie oceny, której nigdy nie dostała, i nie ma „ukrytego” wiersza, nad którym czytelnik miałby się zastanawiać.'
 		},
 		{
-			heading: 'Liczone per przedmiot, nigdy per rzecz',
+			heading: 'Liczone według działu, nigdy per rzecz',
 			body: 'Blok aktywności mówi „14 lekcji oznaczonych jako zrobione z Analizy I”. Nigdy nie mówi, które lekcje, które zadania ani które fiszki — bo to byłby dziennik czyjejś nauki, a nie jej podsumowanie.'
 		},
 		{
@@ -315,7 +315,7 @@ const PL: LearningRecordShowcase = {
 	recordHeading: 'I dwa bloki obok siebie',
 	gradeBlockHeading: 'Udostępnione wyniki',
 	gradeBlockNote: 'Wystawione przez uczelnię, przeniesione za zgodą, ważone punktami ECTS.',
-	subjectColumn: 'Przedmiot',
+	subjectColumn: 'Dział',
 	gradeColumns: { average: 'Średnia ważona', results: 'Wyników' },
 	gradeRows: [
 		{ branch: 'Analiza matematyczna I', average: '4,5', count: 1 },
@@ -336,7 +336,7 @@ const PL: LearningRecordShowcase = {
 		{ branch: 'Wstęp do programowania', sets: 0, lessonsDone: 6, cardsReviewed: 0 }
 	],
 	recordCaption:
-		'Oba bloki grupują po przedmiocie i właśnie to pozwala im dzielić stronę bez dzielenia kolumny: przedmiot jest jedyną rzeczą, którą te dwa rodzaje liczb naprawdę mają wspólną.',
+		'Oba bloki grupują po dziale i właśnie to pozwala im dzielić stronę bez dzielenia kolumny: dział jest jedyną rzeczą, którą te dwa rodzaje liczb naprawdę mają wspólną.',
 	consentHeading: 'Cztery przełączniki',
 	consentBody: [
 		'Każdy z nich jest osobną decyzją, pytaną raz i zmienialną w każdej chwili. Wyłączenie jednego natychmiast zdejmuje blok z profilu; nie usuwa tego, co zostało przeniesione, bo zgoda jest pozwoleniem na pokazanie czegoś, a nie kopią tego.'
@@ -360,7 +360,7 @@ const PL: LearningRecordShowcase = {
 		{
 			label: 'Pokazuj, co zrobiłem w EdMacie',
 			shares:
-				'Per przedmiot: ile zestawów ułożyłeś, ile lekcji oznaczyłeś jako zrobione, ile fiszek powtórzyłeś. Tylko liczby — nigdy które.',
+				'Według działu: ile zestawów ułożyłeś, ile lekcji oznaczyłeś jako zrobione, ile fiszek powtórzyłeś. Tylko liczby — nigdy które.',
 			on: true
 		}
 	],

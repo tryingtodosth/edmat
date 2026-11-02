@@ -469,6 +469,7 @@ E2E_ASKER_TOKEN=<ola> E2E_ANSWER_TOKEN=<michal> E2E_STAFF_TOKEN=<kasia> E2E_MINO
 node e2e/pdf-preview.mjs              # E2E_MATERIAL=<hosted-PDF material id>, default 1; signs nobody in
 node e2e/topic-threads.mjs            # E2E_MATERIAL=<material with covers claims>, default 1; ola (UI) + kasia (API); cleans its marker posts
 node e2e/audience-bands.mjs           # audience chips/badges/forms (§17AL); kasia (API) + ola (UI); creates and deletes one listing, resets ola's filter
+node e2e/audience-browse.mjs          # browse by audience first (§17DE): the lens on /disciplines, /disciplines/<d>, /branches/<b>; counts, the fold, ?audience= both ways; read-only guest, 390 + 1280, pl + en
 node e2e/audience-radio.mjs           # the chip row as a RADIO group (single-select); kasia submits + deletes two scratch exercises, ola gets two pinned bands and is restored; waits out the 60 s read cache first (E2E_NO_CACHE_WAIT=1 to skip)
 node e2e/event-programme.mjs          # the programme (§17AM); kasia builds it on the page, ola bookmarks/asks/exports; deletes the scratch event
 node e2e/event-registration.mjs       # registration (§17AN); kasia/ola/michał; clears the login throttle cache first if re-running (backend/cachedata)
@@ -1013,6 +1014,21 @@ reload, a signed-in click lands on `/api/auth/me/`'s `audience_filter` and shows
 Settings saves a different list, and all four submit forms carry a required "Who is this for?"
 select with no default. Cleanup is verified through an AUTHENTICATED request — the anonymous
 `?audience=` list URL is served from the 60 s read cache and can still show the deleted row.
+
+**`e2e/audience-browse.mjs` (47 checks)** — browse by audience first (owner, 2026-11-02; root
+`HISTORY.md` §17DE). Read-only, as a guest, at 1280 and 390 in Polish plus one English pass. Every
+expected number comes from the `counts` on `/api/disciplines/` and `/api/branches/` — the same
+API the page reads — with the lens rule mirrored from `lib/utils/audienceCounts.ts`, so it holds on
+any corpus that has `matematyka` → `analiza-matematyczna` and content in two bands. It covers:
+"Dziedziny" and the "Dla kogo szukasz?" chips; on a first visit no lens line and no fold; a band
+with nothing anywhere folds every card, the fold opens itself, Matematyka leads the fold, and a
+folded card names who it IS for; a small band leads with the lens's own counts and the line says how
+much it leaves out; "Pokaż wszystko" clears both the store and the address; a shared
+`?audience=` link sets the lens on arrival; the branch page asks its lists through the lens and a
+chip there refetches both tabs; the exercise breadcrumb is Home › Matematyka › Analiza; "Przeglądaj"
+in the nav. Screenshots go to `E2E_SHOTS` (default `/tmp`). **Run it on a freshly started dev
+server**: a Vite server that has lived through many edits served a Settings page whose checkboxes
+ignored the profile (§17DE), and that reads exactly like a regression.
 
 **`e2e/audience-radio.mjs` (41 checks)** — the chip row after it became single-select (Piotr,
 2026-09-23: "selecting one audience on the home page should display content only for the selected

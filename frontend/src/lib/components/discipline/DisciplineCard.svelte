@@ -1,31 +1,50 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Discipline } from '$lib/types';
+	import type { Audience, Discipline } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
+	import NodeCountsLine from '$lib/components/shared/NodeCountsLine.svelte';
 	import { isPending } from '$lib/utils/taxonomy';
 
 	// `showPending` is off when the card already sits inside an "Others" section — that heading and
 	// its hint have just said the same thing, and saying it twice in one glance is noise. It stays
 	// on everywhere else, which is every context where the grouping is not there to carry it.
+	//
+	// `folded`: the card sits under "For other groups" — nothing in it for the reader's lens. It is
+	// drawn quieter and its counts say which groups it IS for (NodeCountsLine).
 	let {
-		field,
-		courseCount,
+		discipline,
+		branchCount,
+		bands,
+		folded = false,
 		showPending = true
-	}: { field: Discipline; courseCount: number; showPending?: boolean } = $props();
+	}: {
+		discipline: Discipline;
+		branchCount: number;
+		bands: Audience[];
+		folded?: boolean;
+		showPending?: boolean;
+	} = $props();
 </script>
 
-<a class="field-card" href={resolve('/disciplines/[discipline]', { discipline: field.id })}>
-	<h3>{field.name}</h3>
-	{#if showPending && isPending(field)}<PendingBadge />{/if}
-	<p>{field.description}</p>
-	<span class="field-card__count">{m.discipline_branchCount({ count: courseCount })}</span>
+<a
+	class="discipline-card"
+	class:discipline-card--folded={folded}
+	data-testid="discipline-card"
+	href={resolve('/disciplines/[discipline]', { discipline: discipline.id })}
+>
+	<h3>{discipline.name}</h3>
+	{#if showPending && isPending(discipline)}<PendingBadge />{/if}
+	<p>{discipline.description}</p>
+	<NodeCountsLine counts={discipline.counts} {bands} {folded} />
+	<span class="discipline-card__branches">{m.discipline_branchCount({ count: branchCount })}</span>
+	<!-- "Branches: {count}" -->
 </a>
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
-	.field-card {
+	.discipline-card {
 		@include mix.card-surface;
 		display: flex;
 		flex-direction: column;
@@ -36,14 +55,20 @@
 			border-color: var(--accent);
 		}
 	}
+	// Quieter, never translucent (frontend/CLAUDE.md: no opacity on content) — a dashed edge and a
+	// secondary-coloured title, the same "not for you right now" shape a closed row gets.
+	.discipline-card--folded {
+		border-style: dashed;
+		h3 {
+			color: var(--text-secondary);
+		}
+	}
 	p {
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
 	}
-	// A count is a fact, not a link (2026-10-07 colour pass): weighted, not coloured.
-	.field-card__count {
+	.discipline-card__branches {
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
-		font-weight: 600;
 	}
 </style>

@@ -1703,5 +1703,16 @@
   "summary": "The owner asked for every test we run to be checked for redundant or fake ones. Two passes:",
   "subproject": "platform",
   "listed": true
+ },
+ {
+  "ref": "17DE",
+  "title": "Browse by audience first, and one glossary for the taxonomy",
+  "heading": "17DE — Browse by audience first, and one glossary for the taxonomy (2026-11-02, `ux/audience-taxonomy`)",
+  "line": 18297,
+  "date": "2026-11-02",
+  "date_source": "heading",
+  "summary": "The owner asked: \"lets improve branch ←→ discipline. we need to serve it by audience primarily\", then \"we want the audience to be the primary way of serving materials inside\". Two research agents went first: an exhaustive inventory of every discipline/branch/audience surface (backend, every route and component, ~150 message keys, the manual) and a design note. The owner then took four decisions…",
+  "subproject": "interface",
+  "listed": true
  }
 ]

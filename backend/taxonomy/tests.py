@@ -461,3 +461,97 @@ class TaxonomyDecisionReplyTests(APITestCase):
         profile.save(update_fields=['notify_on_moderation_decision'])
         self._decide({'decision': 'approve'})
         self.assertEqual(self._notifications(), [])
+
+
+class AudienceCountsTests(APITestCase):
+    """`counts` on every discipline and branch: what is published under it, per audience band
+    (taxonomy/counts.py, owner 2026-11-02 — the audience is the primary way content is served).
+
+    Every band is returned whatever `?audience=` says, because the lens is applied in the browser
+    and one cached list serves every lens."""
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        cache.clear()
+        from testing.factories import make_exercise, make_material, make_viewer
+
+        self.analiza = make_branch('analiza', discipline_slug='matematyka')
+        self.geometria = make_branch('geometria', discipline_slug='matematyka')
+        self.mechanika = make_branch('mechanika', discipline_slug='fizyka')
+        for number in (1, 2, 3):
+            make_exercise(self.analiza, number)  # university, the model default
+        primary = make_exercise(self.geometria, 1)
+        primary.audience = 'primary'
+        primary.save()
+        hidden = make_exercise(self.geometria, 2)
+        hidden.audience = 'primary'
+        hidden.published = False  # unpublished, or auto-hidden: not something a reader can open
+        hidden.save()
+        material = make_material(self.geometria, 'karta')
+        material.audience = 'all'
+        material.save()
+
+        from courses.models import Course
+
+        owner = make_viewer('teacher')
+        both = Course.objects.create(
+            instructor=owner, title='Both', visibility='public', audience='secondary'
+        )
+        both.subjects.set([self.analiza, self.geometria])  # two branches, ONE course per discipline
+        by_field = Course.objects.create(
+            instructor=owner, title='Field only', visibility='public', audience='adult',
+            field=self.mechanika.discipline,
+        )
+        private = Course.objects.create(
+            instructor=owner, title='Private', visibility='only_you', audience='secondary'
+        )
+        private.subjects.set([self.analiza])
+        self.by_field = by_field
+
+    def _by_slug(self, url):
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {row['slug']: row['counts'] for row in response.data}
+
+    def test_branch_counts_are_per_kind_and_band_and_only_what_is_public(self):
+        rows = self._by_slug(reverse('discipline-branches', kwargs={'slug': 'matematyka'}))
+        self.assertEqual(
+            rows['analiza'],
+            {'exercises': {'university': 3}, 'materials': {}, 'courses': {'secondary': 1}},
+        )
+        self.assertEqual(
+            rows['geometria'],
+            {'exercises': {'primary': 1}, 'materials': {'all': 1}, 'courses': {'secondary': 1}},
+        )
+
+    def test_a_discipline_sums_its_branches_but_counts_a_course_once(self):
+        rows = self._by_slug(reverse('discipline-list'))
+        self.assertEqual(rows['matematyka']['exercises'], {'university': 3, 'primary': 1})
+        self.assertEqual(rows['matematyka']['materials'], {'all': 1})
+        self.assertEqual(rows['matematyka']['courses'], {'secondary': 1})
+        # A course with no subject still reaches its discipline through `field`.
+        self.assertEqual(rows['fizyka']['courses'], {'adult': 1})
+
+    def test_the_audience_param_does_not_narrow_the_counts(self):
+        url = reverse('discipline-list')
+        self.assertEqual(self._by_slug(url), self._by_slug(url + '?audience=primary'))
+
+    def test_the_branch_detail_carries_them_too(self):
+        response = self.client.get(reverse('branch-detail', kwargs={'slug': 'geometria'}))
+        self.assertEqual(response.data['counts']['exercises'], {'primary': 1})
+
+    def test_a_list_costs_the_same_queries_however_many_nodes_it_has(self):
+        """The 149-query lesson (taxonomy/views.py): counts are computed once per response."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        url = reverse('discipline-branches', kwargs={'slug': 'matematyka'})
+        with CaptureQueriesContext(connection) as two_branches:
+            self.client.get(url)
+        make_branch('algebra', discipline_slug='matematyka')
+        make_branch('topologia', discipline_slug='matematyka')
+        cache.clear()
+        with CaptureQueriesContext(connection) as four_branches:
+            self.client.get(url)
+        self.assertEqual(len(two_branches), len(four_branches))

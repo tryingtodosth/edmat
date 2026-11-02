@@ -4,7 +4,7 @@ import type { GuideChapterDoc } from './types';
 const EN: GuideChapterDoc = {
 	title: 'Courses',
 	lead: [
-		'A course is something a person runs and other people join: a set of chapters and lessons built out of the exercises and materials that are already here. It is not the same thing as a university subject — that is the taxonomy you browse, and it lives under "Exercises".',
+		'A course is something a person runs and other people join: a set of chapters and lessons built out of the exercises and materials that are already here. It is not the same thing as a branch of the exercise database — the branches are the taxonomy you browse, under "Browse".',
 		'A course is also a community. A general course gathers everybody learning one subject, wherever they study it; under it, each university or faculty can keep its own version, and the materials of every version show up on the general course too, so they are all in one place.'
 	],
 	steps: [
@@ -13,7 +13,7 @@ const EN: GuideChapterDoc = {
 			tryHref: '/courses',
 			body: [
 				'The page is called "Courses & communities". The chips at the top choose what it lists: "General courses" (the default), "University versions", or "All". Once any university has a version, a university and a faculty picker appear beside them to narrow the list further.',
-				'Every course that is listed shows who runs it, how many people are taking part, which age band it is for and which subject it belongs to. The tick box narrows the list to courses you are already in.',
+				'Every course that is listed shows who runs it, how many people are taking part, which age band it is for and which branch of the database it is tied to. The tick box narrows the list to courses you are already in.',
 				'Not every course is here. A course starts out visible to nobody but its own staff, and the person running it decides when — and whether — to list it publicly. Some are only reachable by an invite link.'
 			],
 			screenshot: {
@@ -72,7 +72,7 @@ const EN: GuideChapterDoc = {
 const PL: GuideChapterDoc = {
 	title: 'Kursy',
 	lead: [
-		'Kurs to coś, co ktoś prowadzi, a inni do tego dołączają: rozdziały i lekcje zbudowane z zadań i materiałów, które już tu są. To nie to samo co przedmiot — przedmiot należy do taksonomii, którą się przegląda, i siedzi pod „Zadaniami”.',
+		'Kurs to coś, co ktoś prowadzi, a inni do tego dołączają: rozdziały i lekcje zbudowane z zadań i materiałów, które już tu są. To nie to samo co dział w bazie zadań — działy należą do taksonomii, którą się przegląda, i siedzą pod „Przeglądaj”.',
 		'Kurs to też społeczność. Kurs ogólny skupia wszystkich, którzy uczą się danego przedmiotu, gdziekolwiek studiują; pod nim każda uczelnia albo wydział może prowadzić własną wersję, a materiały ze wszystkich wersji widać też na kursie ogólnym — wszystko jest w jednym miejscu.'
 	],
 	steps: [
@@ -81,7 +81,7 @@ const PL: GuideChapterDoc = {
 			tryHref: '/courses',
 			body: [
 				'Strona nazywa się „Courses & communities”. Plakietki u góry wybierają, co jest na liście: „General courses” (domyślnie), „University versions” albo „All”. Gdy jakakolwiek uczelnia ma już swoją wersję, obok pojawia się wybór uczelni i wydziału, którym można listę jeszcze zawęzić.',
-				'Każdy wypisany kurs pokazuje, kto go prowadzi, ile osób bierze udział, dla jakiego wieku jest i do którego przedmiotu należy. Pole wyboru zawęża listę do kursów, w których już jesteś.',
+				'Każdy wypisany kurs pokazuje, kto go prowadzi, ile osób bierze udział, dla jakiego wieku jest i z którym działem bazy jest powiązany. Pole wyboru zawęża listę do kursów, w których już jesteś.',
 				'Nie każdy kurs tu jest. Kurs zaczyna jako widoczny tylko dla prowadzących, a osoba prowadząca decyduje, kiedy — i czy — wystawić go publicznie. Do niektórych wchodzi się wyłącznie z zaproszenia.'
 			],
 			screenshot: {
