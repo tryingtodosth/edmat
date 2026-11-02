@@ -1705,10 +1705,21 @@
   "listed": true
  },
  {
+  "ref": "17DA",
+  "title": "Videos from YouTube and Vimeo, played only on a click",
+  "heading": "17DA — Videos from YouTube and Vimeo, played only on a click (2026-11-02, `feat/video-embeds`)",
+  "line": 18297,
+  "date": "2026-11-02",
+  "date_source": "heading",
+  "summary": "The owner asked: \"we need to add videos from yt, vimeo\". Nothing existed for it. The sanitizer refuses <iframe> on both sides, and the manual's \"no video\" note was about the manual itself.",
+  "subproject": "interface",
+  "listed": true
+ },
+ {
   "ref": "17DE",
   "title": "Browse by audience first, and one glossary for the taxonomy",
   "heading": "17DE — Browse by audience first, and one glossary for the taxonomy (2026-11-02, `ux/audience-taxonomy`)",
-  "line": 18297,
+  "line": 18366,
   "date": "2026-11-02",
   "date_source": "heading",
   "summary": "The owner asked: \"lets improve branch ←→ discipline. we need to serve it by audience primarily\", then \"we want the audience to be the primary way of serving materials inside\". Two research agents went first: an exhaustive inventory of every discipline/branch/audience surface (backend, every route and component, ~150 message keys, the manual) and a design note. The owner then took four decisions…",

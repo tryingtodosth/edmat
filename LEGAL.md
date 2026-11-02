@@ -274,7 +274,11 @@ a processor (art. 28 — whether OVH's standard DPA has been accepted in the OVH
 servers** get the reader's IP from the browser (UK, adequacy decision); **Google, Apple, Microsoft**
 are separate controllers for their own sign-in, US groups under the DPF (the EU entities and the DPF
 status are from memory, **unverified**); organisers see what a registration or a contest entry
-needs; authorities on lawful request. Anything that changes this list changes that page.
+needs; authorities on lawful request; and since 2026-11-02 **YouTube (Google) and Vimeo**, only
+for a reader who presses play on an embedded video (`frontend/src/lib/utils/videoEmbed.ts`: nothing
+is fetched from them before the click, no thumbnail either, so no consent banner is needed under PKE
+art. 399 ust. 3 pkt 2 — the click is the request; they are separate controllers, US companies).
+Anything that changes this list changes that page.
 
 ### Cookies
 

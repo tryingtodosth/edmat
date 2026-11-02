@@ -102,7 +102,10 @@ for (const width of [1280, 390]) {
 		(await lensChip(page, 'Wszystko').getAttribute('aria-checked')) === 'true'
 	);
 	check('no lens line with no lens', (await page.locator('.lens__line').count()) === 0);
-	check('nothing folded with no lens', (await page.locator('[data-testid="browse-folded"]').count()) === 0);
+	check(
+		'nothing folded with no lens',
+		(await page.locator('[data-testid="browse-folded"]').count()) === 0
+	);
 	const allText = await matCard(page).locator('[data-testid="node-counts"]').innerText();
 	check(
 		`matematyka card counts everything (${allText})`,
@@ -122,12 +125,16 @@ for (const width of [1280, 390]) {
 		check('the address follows the chip', page.url().includes(`audience=${emptyBand}`), page.url());
 		check('the choice is stored', (await stored(page)) === JSON.stringify([emptyBand]));
 		const line = await page.locator('[data-testid="browse-lens-nothing"]').innerText();
-		check(`the line names the band and where most is (${line})`, line.includes(PL_LABEL[emptyBand]) && line.includes('Studia'));
+		check(
+			`the line names the band and where most is (${line})`,
+			line.includes(PL_LABEL[emptyBand]) && line.includes('Studia')
+		);
 		check(
 			'every card is folded, and the fold opens itself',
 			(await page.locator('[data-testid="browse-folded"]').getAttribute('open')) !== null &&
-				(await page.locator('[data-testid="browse-folded"] [data-testid="discipline-card"]').count()) ===
-					disciplines.filter((d) => d.status !== 'pending').length
+				(await page
+					.locator('[data-testid="browse-folded"] [data-testid="discipline-card"]')
+					.count()) === disciplines.filter((d) => d.status !== 'pending').length
 		);
 		const folded = await matCard(page).locator('[data-testid="node-counts"]').innerText();
 		check(`a folded card says who it IS for (${folded})`, folded.includes('Studia:'));
@@ -136,7 +143,10 @@ for (const width of [1280, 390]) {
 			.first()
 			.innerText();
 		check(`the fold leads with what has content (${firstFolded})`, firstFolded.trim() === mat.name);
-		await page.screenshot({ path: `${SHOTS}/audience-browse-${width}-${emptyBand}.png`, fullPage: true });
+		await page.screenshot({
+			path: `${SHOTS}/audience-browse-${width}-${emptyBand}.png`,
+			fullPage: true
+		});
 	}
 
 	if (smallBand) {
@@ -156,10 +166,20 @@ for (const width of [1280, 390]) {
 			return n > 0 ? shownText.includes(`${labelOf[k]}: ${n}`) : !shownText.includes(labelOf[k]);
 		});
 		check(`matematyka leads, counted through the lens (${shownText})`, lensRight);
-		const others = disciplines.reduce((s, d) => s + count(d.counts, []) - count(d.counts, [smallBand]), 0);
+		const others = disciplines.reduce(
+			(s, d) => s + count(d.counts, []) - count(d.counts, [smallBand]),
+			0
+		);
 		const line = await page.locator('[data-testid="browse-lens-showing"]').innerText();
-		check(`the line says how much the lens leaves out (${others})`, line.includes(String(others)), line);
-		await page.screenshot({ path: `${SHOTS}/audience-browse-${width}-${smallBand}.png`, fullPage: true });
+		check(
+			`the line says how much the lens leaves out (${others})`,
+			line.includes(String(others)),
+			line
+		);
+		await page.screenshot({
+			path: `${SHOTS}/audience-browse-${width}-${smallBand}.png`,
+			fullPage: true
+		});
 
 		await page.locator('[data-testid="browse-lens-showing"] button').click();
 		await page.waitForFunction(() => !location.search.includes('audience='));
@@ -174,19 +194,28 @@ for (const width of [1280, 390]) {
 			(await lensChip(page, PL_LABEL[smallBand]).getAttribute('aria-checked')) === 'true' &&
 				(await stored(page)) === JSON.stringify([smallBand])
 		);
-		const mathBranches = branches.filter((b) => b.discipline === 'matematyka' && b.status !== 'pending');
+		const mathBranches = branches.filter(
+			(b) => b.discipline === 'matematyka' && b.status !== 'pending'
+		);
 		const shownBranches = mathBranches.filter((b) => count(b.counts, [smallBand]) > 0);
 		check(
 			`${shownBranches.length} branch(es) lead, ${mathBranches.length - shownBranches.length} fold`,
-			(await page.locator('.grid').first().locator('[data-testid="branch-card"]').count()) === shownBranches.length &&
-				(await page.locator('[data-testid="browse-folded"] [data-testid="branch-card"]').count()) ===
+			(await page.locator('.grid').first().locator('[data-testid="branch-card"]').count()) ===
+				shownBranches.length &&
+				(await page
+					.locator('[data-testid="browse-folded"] [data-testid="branch-card"]')
+					.count()) ===
 					mathBranches.length - shownBranches.length
 		);
-		await page.screenshot({ path: `${SHOTS}/audience-browse-${width}-matematyka.png`, fullPage: true });
+		await page.screenshot({
+			path: `${SHOTS}/audience-browse-${width}-matematyka.png`,
+			fullPage: true
+		});
 
 		const requests = [];
 		page.on('request', (r) => {
-			if (/\/api\/branches\/analiza-matematyczna\/(exercises|materials)\//.test(r.url())) requests.push(r.url());
+			if (/\/api\/branches\/analiza-matematyczna\/(exercises|materials)\//.test(r.url()))
+				requests.push(r.url());
 		});
 		await page.goto(`${BASE}/branches/analiza-matematyczna`);
 		await page.locator('[data-testid="browse-lens"]').waitFor();
@@ -206,13 +235,20 @@ for (const width of [1280, 390]) {
 			requests.join(' ')
 		);
 		await page.locator('.exercises-column article, .exercises-column .empty').first().waitFor();
-		await page.screenshot({ path: `${SHOTS}/audience-browse-${width}-branch.png`, fullPage: false });
+		await page.screenshot({
+			path: `${SHOTS}/audience-browse-${width}-branch.png`,
+			fullPage: false
+		});
 		// Back to no lens for the next width's "first visit".
-		await page.locator('[data-testid="browse-lens"] [role="radio"]', { hasText: 'Wszystko' }).click();
+		await page
+			.locator('[data-testid="browse-lens"] [role="radio"]', { hasText: 'Wszystko' })
+			.click();
 	}
 
 	console.log(`[${width}px] an exercise's breadcrumb`);
-	const ex = (await (await fetch(`${API}/api/branches/analiza-matematyczna/exercises/?lang=pl`)).json())[0];
+	const ex = (
+		await (await fetch(`${API}/api/branches/analiza-matematyczna/exercises/?lang=pl`)).json()
+	)[0];
 	await page.goto(`${BASE}/exercises/${ex.id}`);
 	const crumbs = page.locator('nav.breadcrumb a');
 	await crumbs.nth(2).waitFor();
@@ -232,10 +268,15 @@ console.log('\n[1280px] English');
 	check('h1 is "Disciplines"', (await page.locator('h1').innerText()).trim() === 'Disciplines');
 	check(
 		'the chips ask "Who are you looking for?"',
-		(await page.locator('[data-testid="browse-lens"]').innerText()).includes('Who are you looking for?')
+		(await page.locator('[data-testid="browse-lens"]').innerText()).includes(
+			'Who are you looking for?'
+		)
 	);
 	if (emptyBand) {
-		await page.locator('[data-testid="browse-lens"] [role="radio"]').nth(everyBand.indexOf(emptyBand) + 1).click();
+		await page
+			.locator('[data-testid="browse-lens"] [role="radio"]')
+			.nth(everyBand.indexOf(emptyBand) + 1)
+			.click();
 		const line = await page.locator('[data-testid="browse-lens-nothing"]').innerText();
 		check(`the English line reads as a sentence (${line})`, line.startsWith('Nothing here for'));
 		await page.screenshot({ path: `${SHOTS}/audience-browse-en-${emptyBand}.png`, fullPage: true });

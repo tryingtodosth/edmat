@@ -39,7 +39,9 @@
 	let others = $derived(allCount(total) - inLens);
 	let bandNames = $derived(bands.map((b) => AUDIENCE_LABELS[b]()).join(', '));
 	/** The band with the most outside the lens — what "most is for Y" names. */
-	let biggestOther = $derived(bandTotals(total).find(([band]) => !bands.includes(band) && band !== 'all'));
+	let biggestOther = $derived(
+		bandTotals(total).find(([band]) => !bands.includes(band) && band !== 'all')
+	);
 
 	function showEverything() {
 		audienceFilterStore.set([]);
@@ -73,7 +75,11 @@
 	<!-- "Who are you looking for?" -->
 	{#if bands.length > 0 && inLens === 0 && biggestOther}
 		<p class="lens__line" role="status" data-testid="browse-lens-nothing">
-			{m.browse_lensNothing({ bands: bandNames, band: AUDIENCE_LABELS[biggestOther[0]](), count: biggestOther[1] })}
+			{m.browse_lensNothing({
+				bands: bandNames,
+				band: AUDIENCE_LABELS[biggestOther[0]](),
+				count: biggestOther[1]
+			})}
 			<!-- "Nothing here for “{bands}” yet. Most is for “{band}”: {count}." -->
 			<button type="button" onclick={showEverything}>{m.browse_showEverything()}</button>
 			<!-- "Show everything" -->

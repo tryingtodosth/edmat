@@ -48,6 +48,8 @@
 	// The renderer behind it is loaded on demand (lib/utils/mathRender.ts), so a material with no
 	// body — every one of them until co-authoring landed — still downloads no KaTeX from here.
 	import MathContent from '$lib/components/shared/MathContent.svelte';
+	import VideoEmbed from '$lib/components/shared/VideoEmbed.svelte';
+	import { parseVideoUrl } from '$lib/utils/videoEmbed';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 	import ReviewList from '$lib/components/review/ReviewList.svelte';
 	import ReviewForm from '$lib/components/review/ReviewForm.svelte';
@@ -79,6 +81,9 @@
 	// its own URL, and other file types have no in-browser story). Collapsed until asked for:
 	// PdfViewer only mounts on the click, which is also when its ~1.5 MB pdf.js chunk loads.
 	let showPreview = $state(false);
+	// A link-only material whose link is a YouTube or Vimeo video gets the player on its page, the
+	// way a PDF gets a preview — a recorded lecture IS the material (`lib/utils/videoEmbed.ts`).
+	let video = $derived(material?.url ? parseVideoUrl(material.url) : null);
 	let isPdf = $derived(Boolean(material?.fileUrl && /\.pdf($|\?)/i.test(material.fileUrl)));
 
 	// A picture, on the other hand, is shown straight away and never behind a toggle. The two are
@@ -305,6 +310,16 @@
 				{m.material_translationStale()}
 				<!-- "This description may be out of date: a newer version was published after it was translated." -->
 			</p>
+		{/if}
+
+		{#if video}
+			<!-- First under the card: for a recorded lecture the video IS the material, and the body (if
+			     any) is what goes with it. -->
+			<section class="content-section video-preview">
+				<h2>{m.video_heading()}</h2>
+				<!-- "Video" -->
+				<VideoEmbed {video} />
+			</section>
 		{/if}
 
 		{#if material.body}

@@ -166,6 +166,8 @@ SUBPROJECT_BY_REF = {
     '17CX': 'corpus', '17CX.U': 'corpus', '17CY': 'corpus',
     # 17CZ is the test audit: tests that could not fail, and duplicates. `platform`.
     '17CZ': 'platform',
+    # 17DA is videos from YouTube and Vimeo in any rendered content, played only on a click. `interface`.
+    '17DA': 'interface',
     # 17DE is browse by audience first (the lens, the derived per-band counts) and the one taxonomy
     # glossary. How the site is navigated and worded, so `interface`.
     '17DE': 'interface',
