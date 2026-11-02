@@ -61,7 +61,7 @@ export interface PrivacyPolicy {
 
 /** Change this whenever the policy's own substance changes, not on a typo fix. Readers who were
  * told one thing need to be able to tell that they are now being told another. */
-export const POLICY_LAST_UPDATED = '2026-10-15';
+export const POLICY_LAST_UPDATED = '2026-11-02';
 
 // Placeholders for data the law requires (GDPR art. 13(1)(a)–(b)) that the project does not have
 // yet. Visible on purpose; see the header.
@@ -311,6 +311,7 @@ const EN: PrivacyPolicy = {
 				'Other users see what you publish, and the people you deal with see what that needs: an event or course organiser sees what you gave when you registered, a contest organiser sees your entry (for contest entries the organiser decides what is collected and is responsible for it; we only provide the tool), a tutor sees your booking.',
 				'OVH SAS processes our e-mail on our behalf (above).',
 				'OpenStreetMap: map pictures on tutoring and event pages are loaded by your browser directly from the OpenStreetMap Foundation’s servers (United Kingdom), which therefore see your IP address. When somebody searches for an address while creating a listing, our server sends only the search text to OpenStreetMap’s Nominatim service — not who is asking. The UK has an EU adequacy decision.',
+				'YouTube (Google) and Vimeo: a video inside an exercise, a material or an article is shown as a box with a play button, and nothing is loaded from them until you press it. Pressing it loads their player in your browser — YouTube’s from youtube-nocookie.com, Vimeo’s with its “do not track” setting — and from then on that company sees your IP address and may store data on your device under its own privacy policy, as a separate controller. Both are US companies.',
 				'Google, Apple, GitHub, Facebook or Microsoft, only if you sign in through them (above).',
 				'Courts and public authorities, when the law obliges us to hand data over.'
 			],
@@ -624,6 +625,7 @@ const PL: PrivacyPolicy = {
 				'Inni użytkownicy widzą to, co publikujesz, a osoby, z którymi masz do czynienia, widzą to, czego to wymaga: organizator wydarzenia lub kursu widzi to, co podałeś przy zapisie, organizator konkursu widzi Twoje zgłoszenie (o tym, jakie dane zgłoszeń są zbierane, decyduje i odpowiada za nie organizator; my dostarczamy tylko narzędzie), korepetytor widzi Twoją rezerwację.',
 				'OVH SAS przetwarza naszą pocztę w naszym imieniu (powyżej).',
 				'OpenStreetMap: obrazy map na stronach korepetycji i wydarzeń Twoja przeglądarka pobiera bezpośrednio z serwerów OpenStreetMap Foundation (Wielka Brytania), które widzą więc Twój adres IP. Gdy ktoś wyszukuje adres przy tworzeniu ogłoszenia, nasz serwer wysyła do usługi Nominatim OpenStreetMap wyłącznie tekst wyszukiwania — nie informację, kto pyta. Wobec Wielkiej Brytanii obowiązuje decyzja UE stwierdzająca odpowiedni stopień ochrony.',
+				'YouTube (Google) i Vimeo: film w zadaniu, materiale lub artykule jest pokazywany jako pole z przyciskiem odtwarzania i nic nie jest od nich pobierane, dopóki go nie naciśniesz. Naciśnięcie wczytuje w Twojej przeglądarce ich odtwarzacz — YouTube z youtube-nocookie.com, Vimeo z ustawieniem „nie śledź” — i od tej chwili ta firma widzi Twój adres IP i może zapisywać dane na Twoim urządzeniu na zasadach własnej polityki prywatności, jako odrębny administrator. Obie są firmami amerykańskimi.',
 				'Google, Apple, GitHub, Facebook lub Microsoft — tylko jeśli logujesz się przez nich (powyżej).',
 				'Sądy i organy publiczne, gdy prawo zobowiązuje nas do przekazania danych.'
 			],

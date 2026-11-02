@@ -41,3 +41,68 @@ html[data-session='restoring'] [data-session-hidden] {
 	width: 1.25rem;
 	height: 1.25rem;
 }
+
+// A YouTube/Vimeo video inside content (`lib/utils/videoEmbed.ts`). Global because its markup is
+// produced in two places — `renderContent.ts` as an HTML string, and `VideoEmbed.svelte` for a
+// link-only material — and a component-scoped copy in each would drift. The frame keeps 16:9 before
+// and after the click, so loading the player never moves the page under the reader.
+.video-embed {
+	margin: var(--space-3) 0;
+	max-width: 720px;
+}
+.video-embed__frame {
+	position: relative;
+	aspect-ratio: 16 / 9;
+	border-radius: var(--radius-md);
+	overflow: hidden;
+	background: var(--bg-surface-alt);
+	border: 1px solid var(--border-color);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.video-embed__frame iframe {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+}
+.video-embed--playing .video-embed__frame {
+	background: #000;
+}
+.video-embed__play {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-4);
+	border-radius: 999px;
+	border: 0;
+	background: var(--accent);
+	color: var(--accent-contrast);
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+.video-embed__play:hover,
+.video-embed__play:focus-visible {
+	filter: brightness(1.1);
+}
+.video-embed__play::before {
+	content: '';
+	border-style: solid;
+	border-width: 0.45em 0 0.45em 0.75em;
+	border-color: transparent transparent transparent currentColor;
+}
+.video-embed .video-embed__note {
+	// Two classes deep so it outranks `.math-content p`'s paragraph margin.
+	margin: var(--space-1) 0 0 0;
+	font-size: var(--font-size-sm);
+	color: var(--text-secondary);
+}
+// The reset draws every anchor as plain text; inside content `MathContent` puts the link look back,
+// but `VideoEmbed` on a material page sits outside it, so the box carries its own.
+.video-embed__note a {
+	color: var(--accent);
+	text-decoration: underline;
+}

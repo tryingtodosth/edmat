@@ -3,6 +3,8 @@
 	// sanitized, math-typeset HTML, via lib/utils/renderContent.ts. See CLAUDE.md Section 11.
 	// The renderer is loaded on demand — see lib/utils/mathRender.ts for the SSR/client timings.
 	import { loadMath, mathModule, plainText } from '$lib/utils/mathRender';
+	import { m } from '$lib/paraglide/messages.js';
+	import { PROVIDER_NAMES, mountVideoPlayer, readVideoData } from '$lib/utils/videoEmbed';
 
 	let { source, tag = 'div' }: { source: string; tag?: 'div' | 'span' } = $props();
 	let math = $state(mathModule());
@@ -12,14 +14,35 @@
 		if (!math) loadMath().then((m) => (math = m));
 	});
 	let html = $derived(math ? math.renderContent(source) : plainText(source));
+
+	// A YouTube/Vimeo box in the rendered HTML (`renderContent.ts`, `videoEmbed.ts`) turns into a
+	// player only here, on the reader's click — one delegated listener, because the boxes live
+	// inside `{@html}` where no Svelte handler can be attached. A keyboard Enter/Space on the
+	// button is a click too.
+	let root: HTMLElement | undefined = $state();
+	$effect(() => {
+		const el = root;
+		if (!el) return;
+		function onClick(event: MouseEvent) {
+			const button = (event.target as HTMLElement | null)?.closest('.video-embed__play');
+			const box = button?.closest<HTMLElement>('.video-embed');
+			if (!box || !el!.contains(box)) return;
+			const ref = readVideoData(box);
+			if (!ref) return;
+			event.preventDefault();
+			mountVideoPlayer(box, m.video_frameTitle({ provider: PROVIDER_NAMES[ref.provider] })); // "{provider} video"
+		}
+		el.addEventListener('click', onClick);
+		return () => el.removeEventListener('click', onClick);
+	});
 </script>
 
 {#if tag === 'span'}
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- `html` is DOMPurify-sanitized in renderContent.ts (CLAUDE.md Section 11), or the escaped source text before the renderer arrives; this is the one deliberate, reviewed {@html} sink in the app -->
-	<span class="math-content">{@html html}</span>
+	<span class="math-content" bind:this={root}>{@html html}</span>
 {:else}
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -- see the sibling branch above -->
-	<div class="math-content">{@html html}</div>
+	<div class="math-content" bind:this={root}>{@html html}</div>
 {/if}
 
 <style lang="scss">

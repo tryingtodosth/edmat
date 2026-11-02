@@ -35,6 +35,9 @@
 import DOMPurify from 'isomorphic-dompurify';
 import katex from 'katex';
 import MarkdownIt from 'markdown-it';
+// Relative, not `$lib/…`: `npm run check:katex` imports this file through plain `tsx`, which has no alias.
+import { m } from '../paraglide/messages.js';
+import { PLAYER_HOSTS, PROVIDER_NAMES, parseVideoUrl, watchUrl, type VideoRef } from './videoEmbed';
 
 const md: MarkdownIt = new MarkdownIt({ html: true, linkify: true, breaks: false });
 
@@ -107,6 +110,83 @@ function linkConceptMentions(source: string): string {
 	});
 }
 
+// A paragraph that is NOTHING but a link → a YouTube/Vimeo click-to-play box (`videoEmbed.ts` holds
+// why it is click-to-play and why storage keeps the URL). Matched on markdown-it's OUTPUT, so all
+// three ways the line arrives look the same: a bare URL that `linkify` turned into an anchor, a
+// `<p><a href=…>url</a></p>` from the rich editor, and a `<p>url</p>` raw-HTML block, which
+// markdown-it passes through without linkifying. A URL inside a sentence, or a link with a label of
+// its own (`[the lecture](https://youtu.be/…)`), stays an ordinary link — the anchor's TEXT must
+// itself be the video's address. Maths is still behind its placeholders here, so this can never
+// reach into a formula.
+const LONE_LINK_PARAGRAPH =
+	/<p>\s*(?:<a\s[^>]*?href="([^"]*)"[^>]*>([^<]*)<\/a>|([^<\s]+))\s*<\/p>/g;
+
+function decodeEntities(s: string): string {
+	return s
+		.replace(/&quot;/g, '"')
+		.replace(/&#39;/g, "'")
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&amp;/g, '&');
+}
+
+function escapeHtml(s: string): string {
+	return s
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
+}
+
+/** `youtu.be/x` as linkify shows it has no scheme; the address check needs one. */
+function asVideo(text: string): VideoRef | null {
+	const t = decodeEntities(text.trim());
+	return parseVideoUrl(/^https?:\/\//i.test(t) ? t : `https://${t}`);
+}
+
+/** The box's markup. Every interpolated value is either validated by `parseVideoUrl` (ids, hash,
+ * start — digits and a fixed alphabet) or ours and escaped anyway (the catalogue strings). It goes
+ * through DOMPurify with everything else, which keeps `button` and `data-*`. */
+function videoBox(v: VideoRef): string {
+	const provider = PROVIDER_NAMES[v.provider];
+	const data =
+		`data-video-provider="${v.provider}" data-video-id="${escapeHtml(v.id)}"` +
+		(v.hash ? ` data-video-hash="${escapeHtml(v.hash)}"` : '') +
+		(v.start ? ` data-video-start="${v.start}"` : '');
+	return (
+		`<div class="video-embed" ${data}>` +
+		`<div class="video-embed__frame"><button type="button" class="video-embed__play">` +
+		escapeHtml(m.video_play({ provider })) + // "Play the {provider} video"
+		`</button></div>` +
+		`<p class="video-embed__note">` +
+		escapeHtml(m.video_note({ provider, host: PLAYER_HOSTS[v.provider] })) + // "Playing it loads {provider}'s player from {host}, which then sees your IP address."
+		` <a href="${escapeHtml(watchUrl(v))}" target="_blank" rel="noopener noreferrer nofollow">` +
+		escapeHtml(m.video_open({ provider })) + // "Open on {provider}"
+		`</a></p></div>`
+	);
+}
+
+function embedVideos(html: string): string {
+	return html.replace(LONE_LINK_PARAGRAPH, (whole, href?: string, text?: string, bare?: string) => {
+		if (bare !== undefined) {
+			const v = asVideo(bare);
+			return v ? videoBox(v) : whole;
+		}
+		const fromText = asVideo(text ?? '');
+		const fromHref = asVideo(href ?? '');
+		// The text must be the address, and the same video as the href: a label is a link.
+		if (
+			!fromText ||
+			!fromHref ||
+			fromText.id !== fromHref.id ||
+			fromText.provider !== fromHref.provider
+		) {
+			return whole;
+		}
+		return videoBox(fromHref);
+	});
+}
+
 // Purely alphanumeric, no markdown-significant punctuation (no `*_[]()` etc.) — CommonMark never
 // escapes, emphasizes, or otherwise transforms a plain run of letters/digits, so this token is
 // guaranteed to survive markdown-it's inline parsing completely unchanged, regardless of whether it
@@ -165,7 +245,7 @@ export function renderContent(source: string | undefined | null): string {
 	// which DOMPurify keeps, and `MathContent` already styles `a`.
 	const protectedSource = linkConceptMentions(extractMath(source, stash));
 
-	const html = md.render(protectedSource);
+	const html = embedVideos(md.render(protectedSource));
 	const withMath = html.replace(PLACEHOLDER_RE, (_m, i) => renderedSegments[Number(i)]);
 
 	return DOMPurify.sanitize(withMath, { USE_PROFILES: { html: true, svg: true, mathMl: true } });

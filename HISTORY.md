@@ -18293,3 +18293,72 @@ the fix for each. A browser fix has to be checked in a browser, so none was gues
 - `testing/check_databases_declared.py` does not see a request made through a module-level `as_()`
   helper.
 - Five plausible backend findings (`todo.md`), and the sixteen e2e scripts test.md never mentions.
+
+## 17DA — Videos from YouTube and Vimeo, played only on a click (2026-11-02, `feat/video-embeds`)
+
+The owner asked: "we need to add videos from yt, vimeo". Nothing existed for it. The sanitizer refuses
+`<iframe>` on both sides, and the manual's "no video" note was about the manual itself.
+
+**How somebody adds one: paste the video's address on a line of its own.** Exercises, hints,
+solutions, a material's body and concept articles all accept it, because every content field goes
+through `renderContent.ts`. A link inside a sentence stays a link, and so does one with its own label
+(`[the lecture](https://youtu.be/…)`). A link-only material whose link is a video gets the player as
+its first section, the way a PDF gets a preview. That's the natural home for the `recording` material
+type.
+
+**What is stored is the URL, never an iframe.** `renderContent.ts` matches a paragraph that is only a
+link in markdown-it's output. That covers three forms: the anchor `linkify` makes, the rich editor's
+`<p><a>`, and a raw `<p>url</p>`. It replaces that paragraph with a click-to-play box. The box carries
+validated `data-*` attributes, and DOMPurify keeps those. The iframe is built through the DOM, and
+only on the click: `MathContent` delegates the click, `VideoEmbed.svelte` uses component state.
+`config/sanitize.py` and DOMPurify were not widened. The same text still reads as a working link in a
+mail, an export, or a backend that knows nothing of this. Every value is re-validated at click time
+(`lib/utils/videoEmbed.ts`), because content allows raw HTML and anybody can write a fake box by hand.
+The worst a forged box can do is embed a different YouTube or Vimeo video.
+
+**Why click-to-play.** Loading a player sends the reader's IP address to Google or Vimeo, and lets
+them set storage. EdMat has no consent banner, so nothing loads before the reader asks. The click is
+the request, which is the PKE art. 399 ust. 3 pkt 2 exemption. There's no thumbnail either, because
+thumbnails come from the same companies. The player loads from `youtube-nocookie.com`, or from Vimeo
+with `dnt=1`. Neither makes the request anonymous, and the box says so. `/privacy` lists both
+companies under "Who else receives data", with `POLICY_LAST_UPDATED` set to 2026-11-02. `LEGAL.md`
+"Third parties" says the same.
+
+**Verified.** A real browser was driven against the dev servers (`runserver` + `vite dev`), on a
+temporary link-only material (YouTube with `&t=42s`) whose body had a Vimeo line plus a YouTube link
+inside prose. The material was deleted afterwards.
+- No request reached any YouTube or Vimeo host before the click.
+- After the click, both iframes had the expected `src`, `title`, `allow` and `referrerpolicy`.
+- YouTube played from 0:42.
+- A keyboard Enter mounts the player.
+- The prose link stayed a link.
+- Polish copy is right.
+- Screenshots were checked in light and dark themes, and at 390 px with no horizontal overflow.
+
+Vimeo's player showed "unsupported browser" inside chrome-headless-shell, which has no H.264. That is
+a limit of the test browser, not of the embed, but **Vimeo playback has not been seen working in a
+full browser.**
+
+A node probe covered the parser with 16 addresses: watch, youtu.be, shorts, nocookie, m., `t=1m30s`;
+Vimeo plain, unlisted hash, player, channels; and lookalike hosts, `javascript:`, short ids, channel
+pages. It also covered the renderer with 8 inputs, including a forged box with `onerror`/`onclick`.
+`npm run check` 0/0, eslint, prettier, `check:katex` (2273 rows, 0 issues; the corpus contains no
+video links, so no published text changed), `check:plain`, `npm run build`, and en/pl key sets
+identical (5634).
+
+The dev database was two migrations behind the code (`accounts` 0028, `moderation` 0057). Both were
+applied after a `db.sqlite3.bak-20261102-video` snapshot.
+
+**Left open**
+- **No committed browser script.** The probe needed a fixture material, and `e2e/` has no fixture
+  helper for one. The checks above belong in an `e2e/video-embeds.mjs` that creates its material
+  through the API.
+- **No add-a-video button in the rich editor.** Pasting the address works, and it is the documented
+  way. Nothing in `/submit` or the manual says so yet.
+- **An `<iframe>` embed code pasted from YouTube is still stripped** by the sanitizers, and
+  `exercises/bulk.py` refuses it. That is by design, but it could be turned into the URL on write
+  instead of being dropped.
+- **Only YouTube and Vimeo.** A third provider means a host check in `parseVideoUrl`, a `playerSrc`
+  branch, and a line on `/privacy`.
+- **No kill switch.** This is a rendering of a link, not a feature surface. A `FeatureFlag` would
+  have to fall back to the plain link.
