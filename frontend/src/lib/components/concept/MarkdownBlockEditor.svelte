@@ -16,9 +16,11 @@
 	import RichEditor from '$lib/components/editor/RichEditor.svelte';
 	import InsertStrip from '$lib/components/editor/InsertStrip.svelte';
 	import { m } from '$lib/paraglide/messages.js';
-	import type { ConceptMarkdownBlock } from '$lib/types/concept';
+	import type { MarkdownBlock } from '$lib/types/blocks';
 
-	let { block }: { block: ConceptMarkdownBlock } = $props();
+	// Shared by every notebook since 2026-11-04 (`blocks/NotebookEditor.svelte`); `placeholder` is
+	// how a comment's paragraph stops telling its writer about `[[concept-slug]]` mentions.
+	let { block, placeholder = undefined }: { block: MarkdownBlock; placeholder?: string } = $props();
 
 	let editorRef = $state<RichEditor | null>(null);
 	let strip = $state<InsertStrip | null>(null);
@@ -29,7 +31,7 @@
 		bind:this={editorRef}
 		bind:value={() => block.body, (v) => (block.body = v)}
 		rows={6}
-		placeholder={m.concept_block_markdownPlaceholder()}
+		placeholder={placeholder ?? m.concept_block_markdownPlaceholder()}
 		onChemEdit={(id) => strip?.editChem(id)}
 		onSketchEdit={(id) => strip?.editSketch(id)}
 	/>

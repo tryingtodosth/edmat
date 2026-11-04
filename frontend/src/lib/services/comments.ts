@@ -1,7 +1,10 @@
 import type { CommentAttachment, CommentRevision } from '$lib/types/comment';
 import type { Comment, CommentTargetType } from '$lib/types';
 import { apiClient } from '$lib/api/client';
+import type { CommentExtras, ContentBlock } from '$lib/types/blocks';
 import {
+	toRawAnchor,
+	toRawBlocks,
 	mapComment,
 	mapCommentRevision,
 	type RawComment,
@@ -77,13 +80,33 @@ export async function submitComment(
 	targetId: string,
 	_authorId: string,
 	body: string,
-	parentId?: string
+	parentId?: string,
+	extras: CommentExtras = {}
 ): Promise<Comment> {
-	const raw = await apiClient.post<RawComment>(targetPath(targetType, targetId), {
+	const raw = await apiClient.post<RawComment>(
+		targetPath(targetType, targetId),
+		commentPayload(body, parentId, extras)
+	);
+	return mapComment(raw, targetType, targetId);
+}
+
+/** The POST body of a new comment on ANY thread endpoint — they all save through one serializer,
+ *  so the notebook (`blocks`) and what it is about (`anchor`) are spelled once, here, for the
+ *  other services that post a comment through an endpoint of their own (a course, a material
+ *  project) to reuse. */
+export function commentPayload(
+	body: string,
+	parentId: string | undefined | null,
+	extras: CommentExtras = {}
+): Record<string, unknown> {
+	const payload: Record<string, unknown> = {
 		body,
 		parent: parentId ? Number(parentId) : undefined
-	});
-	return mapComment(raw, targetType, targetId);
+	};
+	if (extras.blocks && extras.blocks.length > 0) payload.blocks = toRawBlocks(extras.blocks);
+	const anchor = toRawAnchor(extras.anchor);
+	if (anchor) payload.anchor = anchor;
+	return payload;
 }
 
 /** Edit your own comment. The backend refuses anybody else's (403) and a comment that is already
@@ -92,11 +115,14 @@ export async function updateComment(
 	commentId: string,
 	body: string,
 	targetType: CommentTargetType,
-	targetId: string
+	targetId: string,
+	/** The edited notebook; absent or empty turns it back into a plain comment. */
+	blocks?: ContentBlock[]
 ): Promise<Comment> {
-	const raw = await apiClient.patch<RawComment>(`/comments/${encodeURIComponent(commentId)}/`, {
-		body
-	});
+	const raw = await apiClient.patch<RawComment>(
+		`/comments/${encodeURIComponent(commentId)}/`,
+		blocks && blocks.length > 0 ? { body, blocks: toRawBlocks(blocks) } : { body }
+	);
 	return mapComment(raw, targetType, targetId);
 }
 

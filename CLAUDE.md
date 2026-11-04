@@ -175,7 +175,7 @@ every change a `LicenceChange` row.
    `lib/api/client.ts` is the only `fetch()`. This is what let the entire mocked Phase-1 frontend be
    pointed at a real backend without touching a single route file, and it still pays off.
 2. **A rule that more than one endpoint needs lives in one module, and the endpoints ask it.**
-   `accounts/minors.py`, `exercises/entries.py`, `config/audience.py`, `config/creation.py`, `contests/access.py`, `galleries/visibility.py`,
+   `accounts/minors.py`, `exercises/entries.py`, `config/audience.py`, `config/creation.py`, `config/blocks.py`, `community/anchors.py`, `contests/access.py`, `galleries/visibility.py`,
    `moderation/services.py`, `booking/availability.py` are all this shape. An endpoint that
    re-implements the rule is how two surfaces start disagreeing.
 
@@ -188,7 +188,7 @@ client-side against a separate-origin API, so nothing needs SSR. The hub and sta
 
 ## Shapes that repeat across the data model
 
-Learn these five and most of the schema reads itself.
+Learn these six and most of the schema reads itself.
 
 - **Text lives in a translation table, including the original.** `ExerciseTranslation` is one row
   per (exercise, locale) with a `status`, and a partial unique constraint allows exactly one
@@ -200,6 +200,14 @@ Learn these five and most of the schema reads itself.
   its own allowlist of legal targets (`community/targets.py`, `REPORT_KIND_MODELS`,
   `GOVERNABLE_NODE_MODELS`, `galleries/visibility.py`). **The registries are deliberately
   different lengths** — a thread makes sense on a coverage claim; a photo album does not.
+- **Written content may be a NOTEBOOK** (2026-11-04, §17DI): `blocks`, an ordered list of
+  paragraph / formula / code / chemistry / sketch / picture blocks shaped by `config/blocks.py`, on
+  `Comment`, `SolutionEntry`, `activity.Post` and (as its own profile) `ConceptRevision`. Every block
+  has a stable `id`; the owner's `body` is DERIVED from the blocks in `save()`, so every reader of
+  `body` keeps working; a one-paragraph notebook is stored as a plain body. A comment may be about
+  ONE block or a quoted passage in it (`Comment.anchor`, validated only in `community/anchors.py`):
+  a reply's anchor names its parent's block, a top-level one the target's; plain text answers to
+  implicit ids (`body`, `statement`, `answer`, `part-<id>`). Never key anything on a block's position.
 - **A claim is a `ClaimBase` subclass** (`materials.ClaimBase` → material / course / exercise
   claims), with shared vote, importance and thread handling in `materials/claims.py`.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state

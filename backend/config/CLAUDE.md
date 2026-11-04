@@ -81,6 +81,25 @@ enrolments, attendance, bookings and everything already created never ask it.
   verification_required)`). If a seventh suite starts failing with `403 verification_required`, that
   is this rule, not a regression in the app under test.
 
+## blocks.py — what a notebook may hold (2026-11-04, `HISTORY.md` §17DI)
+
+The one module that says what a block is, for every owner: `COMMENT_PROFILE`, `SOLUTION_PROFILE`,
+`POST_PROFILE`, and concepts' own `CONCEPT_PROFILE` (`concepts/blocks.py`). Kinds: `markdown`,
+`latex`, `code`, `chem` (→ `chem.ChemDrawing`), `sketch` (→ `sketches.Sketch`), `image`
+(→ `community.InlineImage`; a concept's is a `ConceptAsset`). Mirrored in
+`frontend/src/lib/types/blocks.ts`.
+
+- **Every block has an `id`**: kept when a client sends a well-formed unused one, allocated
+  otherwise, a duplicate re-rolled. It is what a `Comment.anchor` points at — never key anything on
+  a block's position.
+- **`apply_notebook` in each owner's `save()`** sanitizes the blocks and DERIVES `body`
+  (`flatten`); a single paragraph collapses into a plain body with `blocks=[]`. `with_blocks` widens
+  `update_fields`.
+- `latex` and `code` sources are stored RAW — never rendered as HTML, and the sanitizer would eat
+  them. `clean_blocks_for_api` accepts a JSON string (multipart posts).
+- `expand_blocks` + `prefetch` with a shared `cache`: one query per referenced table for a whole
+  thread.
+
 ## Verify
 
 `manage.py check`, `manage.py test config telemetry` (cachemw tests live in telemetry),

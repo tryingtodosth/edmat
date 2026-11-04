@@ -1,3 +1,4 @@
+import type { Anchor, ContentBlock } from './blocks';
 // 'material' — a WHOLE material's own top-level discussion (materials/views.py's
 // MaterialViewSet.comments, GET /api/materials/{id}/comments/) — genuinely became a real backend
 // target ("add discussions... to materials"); this comment used to say otherwise (no call site had
@@ -93,7 +94,12 @@ export interface Comment {
 	/** What to put above it. Blanked by the server on a tombstone or a held comment, exactly as
 	 *  the body is, so a reader is never shown a name attached to text they cannot see. */
 	authorDisplayName: string;
+	/** Derived from `blocks` by the server when there are any — draw `blocks` first. */
 	body: string;
+	/** A notebook comment (`types/blocks.ts`); `[]` for a plain one. */
+	blocks: ContentBlock[];
+	/** What part of the parent (a reply) or of the target (top level) this is about; null = all. */
+	anchor: Anchor | null;
 	createdAt: string;
 	isRemoved: boolean; // tombstone, not hard-delete — preserves thread structure, mirrors CLAUDE.md's model
 	/** Pictures and small PDFs on the comment (AUDIENCE-BRIEF.md §6); empty on a tombstone. */

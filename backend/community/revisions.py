@@ -23,19 +23,25 @@ def record_revision(comment: Comment, *, edited_by) -> CommentRevision:
     """Snapshot `comment.body` as it stood BEFORE the caller applies a new one. Call this, then
     assign the new body and save — never the other way around, or the snapshot records the
     version that is about to become current instead of the one being superseded."""
-    return CommentRevision.objects.create(comment=comment, body=comment.body, edited_by=edited_by)
+    return CommentRevision.objects.create(
+        comment=comment, body=comment.body, blocks=comment.blocks or [], edited_by=edited_by
+    )
 
 
-def apply_comment_edit(comment: Comment, body: str, *, edited_by) -> Comment:
+def apply_comment_edit(comment: Comment, body: str, *, edited_by, blocks=None) -> Comment:
     """The one place `Comment.body` is overwritten after creation. Records the pre-edit body as a
-    revision and stamps `edited_at` in the same transaction."""
+    revision and stamps `edited_at` in the same transaction.
+
+    `blocks` is the new notebook (already cleaned by the caller), or `None` for a plain edit — which
+    also turns a notebook back into a plain comment, because the person was handed one text box."""
     from django.utils import timezone
 
     with transaction.atomic():
         record_revision(comment, edited_by=edited_by)
         comment.body = body
+        comment.blocks = blocks or []
         comment.edited_at = timezone.now()
-        comment.save(update_fields=['body', 'edited_at'])
+        comment.save(update_fields=['body', 'blocks', 'edited_at'])
     return comment
 
 

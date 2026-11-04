@@ -1,4 +1,8 @@
 <script lang="ts">
+	import type { Anchor, CommentExtras } from '$lib/types/blocks';
+	import BlockContent from '$lib/components/blocks/BlockContent.svelte';
+	import { anchorCounts, type Annotate } from '$lib/components/blocks/anchoring';
+	import { implicitBlockLabel } from '$lib/components/blocks/labels';
 	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
 	import { contentLocalesStore } from '$lib/state/contentLocales.svelte';
 	import AppearsInSessions from '$lib/components/event/AppearsInSessions.svelte';
@@ -213,6 +217,26 @@
 		document.getElementById('exercise-discussion')?.scrollIntoView({ behavior: 'smooth' });
 	}
 
+	// Commenting on ONE part of the exercise — a sentence of the statement, the answer, one part's
+	// sub-statement (owner, 2026-11-04). The statement and the answer are not notebooks, so they are
+	// drawn as one implicit block each (`statement`, `answer`, `part-<id>`) that a passage can be
+	// selected in; the comment goes into this page's own thread, with an "On the statement: …" line.
+	let commentAnchor = $state<Anchor | null>(null);
+	let focusBlock = $state<string | null>(null);
+	const exerciseAnnotate = $derived<Annotate>({
+		counts: anchorCounts(comments.filter((c) => !c.parentId)),
+		onComment: (anchor) => {
+			commentAnchor = anchor;
+			focusBlock = null;
+			scrollToDiscussion();
+		},
+		onShow: (block) => {
+			focusBlock = block;
+			document.getElementById('exercise-discussion')?.scrollIntoView({ behavior: 'smooth' });
+		}
+	});
+	const exerciseScope = $derived(exercise ? `exercise-${exercise.id}` : '');
+
 	/** After a moderator's quick remove/restore from the statement's menu: refetch, because the
 	 *  decision changes `published` and with it everything this page draws. */
 	function reload() {
@@ -246,9 +270,20 @@
 		submissionNotice = 'review';
 	}
 
-	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
+	async function handleCommentSubmit(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		if (!exercise || !authStore.user) return;
-		const comment = await submitComment('exercise', exercise.id, authStore.user.id, body, parentId);
+		const comment = await submitComment(
+			'exercise',
+			exercise.id,
+			authStore.user.id,
+			body,
+			parentId,
+			extras
+		);
 		comments = [...comments, comment];
 		return comment;
 	}
@@ -441,7 +476,11 @@
 						onModerated={reload}
 					/>
 				</div>
-				<MathContent source={exercise.statement} />
+				<BlockContent
+					blocks={[{ id: 'statement', kind: 'markdown', body: exercise.statement }]}
+					scope={exerciseScope}
+					annotate={exerciseAnnotate}
+				/>
 				<!-- The licence of the statement and answer (backend licensing/). Keyed on the id so a
 				     client-side move to another exercise re-asks for "since" and the change control. -->
 				{#key exercise.id}
@@ -486,7 +525,11 @@
 					<section class="content-section">
 						<h2 class="part__heading">{m.parts_blockHeading({ label: part.label })}</h2>
 						<!-- "Part {label}" -->
-						<MathContent source={part.statement} />
+						<BlockContent
+							blocks={[{ id: `part-${part.id}`, kind: 'markdown', body: part.statement }]}
+							scope={exerciseScope}
+							annotate={exerciseAnnotate}
+						/>
 					</section>
 					<div class="part__stages">
 						<SolutionEntrySection
@@ -547,7 +590,11 @@
 						{showAnswer ? m.exercise_hideAnswer() : m.exercise_showAnswer()}
 					</button>
 					{#if showAnswer}
-						<MathContent source={exercise.answer} />
+						<BlockContent
+							blocks={[{ id: 'answer', kind: 'markdown', body: exercise.answer }]}
+							scope={exerciseScope}
+							annotate={exerciseAnnotate}
+						/>
 					{/if}
 				</section>
 			{/if}
@@ -717,6 +764,12 @@
 					{comments}
 					{usersById}
 					bind:composing={composingComment}
+					bind:anchor={commentAnchor}
+					bind:focusBlock
+					scope={exerciseScope}
+					anchorLabel={commentAnchor
+						? (implicitBlockLabel(commentAnchor.block) ?? undefined)
+						: undefined}
 					onSubmit={handleCommentSubmit}
 				/>
 			</section>

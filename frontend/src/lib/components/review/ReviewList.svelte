@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	import type { Comment, CommentTargetType, ReportKind, User } from '$lib/types';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
@@ -105,9 +106,9 @@
 		if (nowOpen && threads[reviewId] === undefined) await loadThread(reviewId);
 	}
 
-	async function post(reviewId: string, body: string, parentId?: string) {
+	async function post(reviewId: string, body: string, parentId?: string, extras?: CommentExtras) {
 		if (!commentTarget) return;
-		await submitComment(commentTarget, reviewId, authStore.user?.id ?? '', body, parentId);
+		await submitComment(commentTarget, reviewId, authStore.user?.id ?? '', body, parentId, extras);
 		// Re-read rather than appending locally: the reply has to land in the right place in the
 		// tree, and the server already knows where that is.
 		await loadThread(reviewId);
@@ -175,7 +176,7 @@
 								comments={threads[review.id] ?? []}
 								usersById={allUsers}
 								bind:composing={composing[review.id]}
-								onSubmit={(body, parentId) => post(review.id, body, parentId)}
+								onSubmit={(body, parentId, extras) => post(review.id, body, parentId, extras)}
 							/>
 						{/if}
 					</div>

@@ -99,6 +99,12 @@ class CommentSerializer(serializers.ModelSerializer):
     downvotes = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     current_user_vote = serializers.SerializerMethodField()
+    # A notebook comment (`config/blocks.py`). Written as the raw list, read EXPANDED (each picture's
+    # URL and size); blanked with the body on a removed or held comment.
+    blocks = serializers.JSONField(required=False)
+    # What part of the parent / the target this is about (`community/anchors.py`). Written once, at
+    # creation; read with `state`.
+    anchor = serializers.JSONField(required=False)
 
     class Meta:
         model = Comment
@@ -111,6 +117,8 @@ class CommentSerializer(serializers.ModelSerializer):
             'author',
             'author_display_name',
             'body',
+            'blocks',
+            'anchor',
             'created_at',
             'is_removed',
             'is_auto_hidden',
@@ -130,6 +138,37 @@ class CommentSerializer(serializers.ModelSerializer):
             'is_removed',
             'removed_by_author',
         ]
+        extra_kwargs = {'body': {'required': False, 'allow_blank': True}}
+
+    def validate_blocks(self, value):
+        return clean_comment_blocks(value)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        blocks = attrs.get('blocks') or []
+        if not blocks and not (attrs.get('body') or '').strip():
+            raise serializers.ValidationError({'body': ['This field may not be blank.']})
+        return attrs
+
+    def create(self, validated_data):
+        """The anchor is checked HERE, not in `validate()`, because the target is only known once
+        the view hands over `content_type`/`object_id` — every thread endpoint calls
+        `serializer.save(content_type=…, object_id=…)`, so this is the one place all of them pass
+        through. A refusal raised here is still a 400: nothing has been written yet."""
+        from .anchors import clean_anchor
+
+        raw_anchor = validated_data.pop('anchor', None)
+        target = None
+        if raw_anchor:
+            ct = validated_data.get('content_type')
+            if ct is not None:
+                target = ct.model_class()._default_manager.filter(pk=validated_data.get('object_id')).first()
+        validated_data['anchor'] = clean_anchor(raw_anchor, target=target, parent=validated_data.get('parent'))
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data.pop('anchor', None)  # never edited after posting — see the model field
+        return super().update(instance, validated_data)
 
     def _votes(self, obj):
         # `.all()` so a caller's `prefetch_related('votes')` is honoured; a caller without one pays
@@ -177,10 +216,35 @@ class CommentSerializer(serializers.ModelSerializer):
         return comment_author_display(obj)
 
     def to_representation(self, instance):
+        from config.blocks import COMMENT_PROFILE, expand_blocks
+
+        from .anchors import reading
+
         rep = super().to_representation(instance)
-        if instance.is_removed or instance.auto_hidden_at is not None:
+        hidden = instance.is_removed or instance.auto_hidden_at is not None
+        # One cache per serialization, shared by every row of a thread: the referenced pictures and
+        # each anchor's subject are read once for the whole list, not once per comment.
+        caches = self.context.setdefault('_notebook_caches', {'refs': {}, 'anchors': {}})
+        if hidden:
             rep['body'] = ''
+            rep['blocks'] = []
+            rep['anchor'] = None
+        else:
+            rep['blocks'] = expand_blocks(
+                instance.blocks or [],
+                profile=COMMENT_PROFILE,
+                request=self.context.get('request'),
+                cache=caches['refs'],
+            )
+            rep['anchor'] = reading(instance, cache=caches['anchors'])
         return rep
+
+
+def clean_comment_blocks(value):
+    """`config/blocks.clean_blocks_for_api` for a comment — the serializer's and the edit path's."""
+    from config.blocks import COMMENT_PROFILE, clean_blocks_for_api
+
+    return clean_blocks_for_api(value, profile=COMMENT_PROFILE)
 
 
 def _user_display_name(user) -> str:
@@ -203,6 +267,7 @@ class CommentRevisionSerializer(serializers.ModelSerializer):
     is_hidden_by_moderator = serializers.SerializerMethodField()
     is_sealed = serializers.SerializerMethodField()
     body = serializers.SerializerMethodField()
+    blocks = serializers.SerializerMethodField()
 
     class Meta:
         model = CommentRevision
@@ -211,6 +276,7 @@ class CommentRevisionSerializer(serializers.ModelSerializer):
             'created_at',
             'edited_by_display_name',
             'body',
+            'blocks',
             'is_hidden_by_moderator',
             'is_sealed',
         ]
@@ -242,6 +308,14 @@ class CommentRevisionSerializer(serializers.ModelSerializer):
                 return obj.body
             return None
         return obj.body
+
+    def get_blocks(self, obj):
+        # Exactly `get_body`'s matrix — the notebook IS the body, so it is masked with it.
+        if self.get_body(obj) is None:
+            return []
+        from config.blocks import COMMENT_PROFILE, expand_blocks
+
+        return expand_blocks(obj.blocks or [], profile=COMMENT_PROFILE, request=self.context.get('request'))
 
 
 class SavedCommentSerializer(serializers.ModelSerializer):

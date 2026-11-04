@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	// The cooperation page of one material: the same overview the material page carries, at full
 	// size, plus everything the panel only points at — the team and its queue, the history, the
 	// team thread and (for a manager) the policy. `/materials/<id>/coop` rather than a project id,
@@ -150,10 +151,14 @@
 		}
 	}
 
-	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
+	async function handleCommentSubmit(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		threadError = '';
 		try {
-			const comment = await postCoopComment(materialId, body, parentId);
+			const comment = await postCoopComment(materialId, body, parentId, extras);
 			comments = [...comments, comment];
 			await resolveUsers([comment.authorId]);
 			return comment;

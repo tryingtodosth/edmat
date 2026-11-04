@@ -434,6 +434,11 @@ class SolutionEntry(models.Model):
     kind = models.CharField(max_length=10, choices=ENTRY_KIND_CHOICES)
     locale = models.CharField(max_length=8)
     body = models.TextField()
+    #: A NOTEBOOK solution: paragraphs, formulas, code, drawings, sketches, pictures, in order
+    #: (`config/blocks.py: SOLUTION_PROFILE`). Empty for a plain one; when not, `body` is DERIVED
+    #: from it in `save()`. Each block's id is what a comment under this solution may point at
+    #: ("your step 3 is wrong") — `community/anchors.py`.
+    blocks = models.JSONField(default=list, blank=True)
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -467,9 +472,13 @@ class SolutionEntry(models.Model):
     def save(self, *args, **kwargs):
         # Same one-choke-point server-side sanitization every ExerciseTranslation write already
         # gets — see that model's own save() for why this lives here and not at each call site.
+        from config.blocks import SOLUTION_PROFILE, apply_notebook, with_blocks
         from config.sanitize import sanitize_content
 
+        apply_notebook(self, profile=SOLUTION_PROFILE)
         self.body = sanitize_content(self.body)
+        if 'update_fields' in kwargs:
+            kwargs['update_fields'] = with_blocks(kwargs['update_fields'])
         super().save(*args, **kwargs)
 
     def is_visible_to_readers(self) -> bool:

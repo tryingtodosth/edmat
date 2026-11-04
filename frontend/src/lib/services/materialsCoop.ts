@@ -3,6 +3,8 @@
 // stays in `materialProjects.ts`; this seam only answers "what does the team look like" and "how
 // open is it".
 
+import { commentPayload } from '$lib/services/comments';
+import type { CommentExtras } from '$lib/types/blocks';
 import { ApiError, apiClient } from '$lib/api/client';
 import {
 	mapComment,
@@ -73,12 +75,13 @@ export async function listCoopComments(materialId: string): Promise<Comment[]> {
 export async function postCoopComment(
 	materialId: string,
 	body: string,
-	parentId?: string
+	parentId?: string,
+	extras: CommentExtras = {}
 ): Promise<Comment> {
 	try {
 		const raw = await apiClient.post<RawComment>(
 			`/materials/${encodeURIComponent(materialId)}/coop/comments/`,
-			{ body, parent: parentId ? Number(parentId) : undefined }
+			commentPayload(body, parentId, extras)
 		);
 		return mapComment(raw, 'materialProject', materialId);
 	} catch (e) {

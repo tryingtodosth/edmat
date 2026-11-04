@@ -23,6 +23,7 @@ class PostSerializer(serializers.ModelSerializer):
 
     author_display_name = serializers.SerializerMethodField()
     body = serializers.SerializerMethodField()
+    blocks = serializers.SerializerMethodField()
     image = serializers.SerializerMethodField()
     author = serializers.SerializerMethodField()
     discipline = serializers.SlugRelatedField(slug_field='slug', read_only=True)
@@ -48,6 +49,7 @@ class PostSerializer(serializers.ModelSerializer):
             'author',
             'author_display_name',
             'body',
+            'blocks',
             'audience',
             'language',
             'image',
@@ -77,6 +79,19 @@ class PostSerializer(serializers.ModelSerializer):
 
     def get_author_display_name(self, obj):
         return '' if self._hidden(obj) else _display_name(obj.author)
+
+    def get_blocks(self, obj):
+        # Tombstoned with the body: a removed post shows nothing of what was in it.
+        if self._hidden(obj):
+            return []
+        from config.blocks import POST_PROFILE, expand_blocks
+
+        return expand_blocks(
+            obj.blocks or [],
+            profile=POST_PROFILE,
+            request=self.context.get('request'),
+            cache=self.context.setdefault('_notebook_refs', {}),
+        )
 
     def get_body(self, obj):
         return '' if self._hidden(obj) else obj.body
@@ -194,7 +209,8 @@ class PostCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ['body', 'audience', 'language', 'discipline', 'branch', 'tag', 'tag_name', 'topic', 'ref_exercise', 'ref_material', 'ref_course', 'image']
+        fields = ['body', 'blocks', 'audience', 'language', 'discipline', 'branch', 'tag', 'tag_name', 'topic', 'ref_exercise', 'ref_material', 'ref_course', 'image']
+        extra_kwargs = {'body': {'required': False, 'allow_blank': True}}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -207,13 +223,25 @@ class PostCreateSerializer(serializers.ModelSerializer):
             queryset=Course.objects.exclude(status='draft'), required=False, allow_null=True
         )
 
-    def validate_body(self, value):
-        if not value.strip():
-            raise serializers.ValidationError('This field may not be blank.')
-        return value
+    #: A notebook post (`config/blocks.py`); absent or `[]` is a plain one.
+    blocks = serializers.JSONField(required=False)
+
+    def validate_blocks(self, value):
+        from config.blocks import POST_PROFILE, clean_blocks_for_api
+
+        return clean_blocks_for_api(value, profile=POST_PROFILE)
 
     def validate(self, attrs):
         instance = self.instance
+        # A body OR a notebook (the notebook's body is derived in `Post.save()`); a PATCH that sends
+        # neither keeps what the post has, and a plain edit of a notebook makes it plain.
+        has_blocks = bool(attrs.get('blocks'))
+        if instance is None and not has_blocks and not (attrs.get('body') or '').strip():
+            raise serializers.ValidationError({'body': ['This field may not be blank.']})
+        if instance is not None and 'body' in attrs and not has_blocks:
+            if not attrs['body'].strip():
+                raise serializers.ValidationError({'body': ['This field may not be blank.']})
+            attrs.setdefault('blocks', [])
         tag_name = (attrs.get('tag_name') or '').strip()
         if not tag_name:
             attrs.pop('tag_name', None)

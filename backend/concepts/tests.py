@@ -22,7 +22,7 @@ import tempfile
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 from rest_framework import status
@@ -657,7 +657,8 @@ class BlockTests(ConceptBase):
 
     def test_unknown_keys_are_dropped(self):
         cleaned = clean_blocks([{'kind': 'markdown', 'body': 'hi', 'evil': '<x>'}])
-        self.assertEqual(cleaned, [{'kind': 'markdown', 'body': 'hi'}])
+        self.assertEqual(set(cleaned[0]), {'id', 'kind', 'body'})
+        self.assertEqual((cleaned[0]['kind'], cleaned[0]['body']), ('markdown', 'hi'))
 
     def test_plain_text_gathers_bodies_formulas_and_captions(self):
         text = plain_text(
@@ -1652,3 +1653,21 @@ class PathTests(ConceptBase):
             ).status_code,
             status.HTTP_403_FORBIDDEN,
         )
+
+
+class BlockIdTests(SimpleTestCase):
+    """Block ids (2026-11-04, `HISTORY.md` §17DI): kept on a revision written without them when the
+    block at that position is the same kind, so comments on an imported page survive a re-import."""
+
+    def test_inherit_ids_copies_same_kind_ids_by_position(self):
+        from concepts.blocks import inherit_ids
+
+        before = [{'id': 'aaaa1111', 'kind': 'markdown', 'body': 'x'}, {'id': 'bbbb2222', 'kind': 'latex', 'source': 'y'}]
+        after = inherit_ids([{'kind': 'markdown', 'body': 'x!'}, {'kind': 'markdown', 'body': 'z'}], before)
+        self.assertEqual(after[0]['id'], 'aaaa1111')
+        self.assertNotIn('id', after[1])  # a different kind at that position is a different block
+
+    def test_without_ids_is_the_text_alone(self):
+        from concepts.blocks import without_ids
+
+        self.assertEqual(without_ids([{'id': 'abcd1234', 'kind': 'latex', 'source': 'x'}]), [{'kind': 'latex', 'source': 'x'}])

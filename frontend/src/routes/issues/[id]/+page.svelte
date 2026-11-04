@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	// One issue report and the discussion under it. Same route shape as every other detail page
 	// (an `$effect` keyed off `page.params.id` with the id-changed guard). Staff get a small panel
 	// to move the status, leave a note the reporter is sent, or pull it off the public list.
@@ -71,9 +72,16 @@
 		load(page.params.id!);
 	});
 
-	async function onSubmitComment(body: string, parentId?: string) {
+	async function onSubmitComment(body: string, parentId?: string, extras?: CommentExtras) {
 		if (!issue || !authStore.user) return;
-		const comment = await submitComment('issue', issue.id, authStore.user.id, body, parentId);
+		const comment = await submitComment(
+			'issue',
+			issue.id,
+			authStore.user.id,
+			body,
+			parentId,
+			extras
+		);
 		comments = [...comments, comment];
 		await resolveUsers([comment.authorId]);
 		issue = { ...issue, commentCount: issue.commentCount + 1 };

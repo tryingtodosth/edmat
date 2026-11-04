@@ -103,6 +103,7 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
             'kind',
             'locale',
             'body',
+            'blocks',
             'author',
             'author_display_name',
             'status',
@@ -140,6 +141,18 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
         profile = getattr(obj.author, 'profile', None)
         return (profile.display_name if profile and profile.display_name else obj.author.username)
 
+    def to_representation(self, instance):
+        from config.blocks import SOLUTION_PROFILE, expand_blocks
+
+        rep = super().to_representation(instance)
+        rep['blocks'] = expand_blocks(
+            instance.blocks or [],
+            profile=SOLUTION_PROFILE,
+            request=self.context.get('request'),
+            cache=self.context.setdefault('_notebook_refs', {}),
+        )
+        return rep
+
     def get_vote_summary(self, obj):
         from materials.services import build_vote_summary
 
@@ -172,8 +185,30 @@ class SolutionEntryCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = SolutionEntry
         # `licence` optional: absent is the model default `edmat-only`, which opens nothing.
-        fields = ['kind', 'locale', 'body', 'licence', 'part']
-        extra_kwargs = {'licence': {'required': False}}
+        fields = ['kind', 'locale', 'body', 'blocks', 'licence', 'part']
+        extra_kwargs = {'licence': {'required': False}, 'body': {'required': False, 'allow_blank': True}}
+
+    #: A notebook solution (`config/blocks.py`); absent or `[]` is a plain one.
+    blocks = serializers.JSONField(required=False)
+
+    def validate_blocks(self, value):
+        from config.blocks import SOLUTION_PROFILE, clean_blocks_for_api
+
+        return clean_blocks_for_api(value, profile=SOLUTION_PROFILE)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        # A body OR a notebook: the body of a notebook is derived in `SolutionEntry.save()`. On a
+        # PATCH that sends neither, the row keeps what it has.
+        has_blocks = bool(attrs.get('blocks'))
+        if self.instance is None and not has_blocks and not (attrs.get('body') or '').strip():
+            raise serializers.ValidationError({'body': ['This field may not be blank.']})
+        if self.instance is not None and 'body' in attrs and not has_blocks:
+            if not attrs['body'].strip():
+                raise serializers.ValidationError({'body': ['This field may not be blank.']})
+            # A plain edit of a notebook makes it plain: the person was handed one text box.
+            attrs.setdefault('blocks', [])
+        return attrs
 
     def validate_part(self, value):
         from .parts import part_refusal
@@ -199,11 +234,6 @@ class SolutionEntryCreateSerializer(serializers.ModelSerializer):
         reason = licence_validation_error(value)
         if reason:
             raise serializers.ValidationError(reason)
-        return value
-
-    def validate_body(self, value):
-        if not value.strip():
-            raise serializers.ValidationError('This field may not be blank.')
         return value
 
     def validate_locale(self, value):

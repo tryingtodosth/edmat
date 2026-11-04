@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	// A discussion and a rating panel for one lesson or one chapter.
 	//
 	// One component for both, because the two differ only in which endpoint they call and which
@@ -110,8 +111,8 @@
 		if (open) void load();
 	}
 
-	async function postComment(body: string, parentId?: string) {
-		await postCourseTargetComment(courseId, target, targetId, body, parentId);
+	async function postComment(body: string, parentId?: string, extras?: CommentExtras) {
+		await postCourseTargetComment(courseId, target, targetId, body, parentId, extras);
 		const rows = await getCourseTargetComments(courseId, target, targetId);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		comments = (rows as unknown[]).map((raw) => mapComment(raw as any, targetType, targetId));

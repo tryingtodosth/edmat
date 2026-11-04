@@ -1,3 +1,4 @@
+import type { ContentBlock } from './blocks';
 import type { Audience } from './audience';
 import type { Licence } from './licence';
 import type { CoverageVoteSummary } from './material';
@@ -119,6 +120,9 @@ export interface SolutionEntry {
 	/** Its own licence — a solution is its author's work, not a derivative of the statement. */
 	licence: Licence;
 	body: string; // Markdown + LaTeX source, same pipeline as every other content field
+	/** A notebook solution (`types/blocks.ts`); `[]` for a plain one, whose body is then the text.
+	 *  When not empty the body is the server's derivation of it — draw the blocks. */
+	blocks: ContentBlock[];
 	authorId?: string; // absent for the migrated corpus originals
 	authorDisplayName: string;
 	status: TranslationStatus;

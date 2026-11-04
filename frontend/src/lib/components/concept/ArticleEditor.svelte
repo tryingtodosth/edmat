@@ -150,11 +150,13 @@
 		blocks.some((block) =>
 			block.kind === 'markdown'
 				? block.body.trim().length > 0
-				: block.kind === 'latex'
+				: block.kind === 'latex' || block.kind === 'code'
 					? block.source.trim().length > 0
 					: block.kind === 'chem'
 						? Boolean(block.drawingId)
-						: Boolean(block.assetId)
+						: block.kind === 'sketch'
+							? Boolean(block.sketchId)
+							: Boolean(block.assetId)
 		)
 	);
 	const canSubmit = $derived(

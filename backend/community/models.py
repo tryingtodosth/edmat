@@ -65,6 +65,19 @@ class Comment(models.Model):
     # no retention story of its own (`LEGAL.md`).
     anon_ip_hash = models.CharField(max_length=64, blank=True)
     body = models.TextField()
+    #: A NOTEBOOK comment: an ordered list of blocks (a paragraph, a formula, code, a drawing, a
+    #: sketch, a picture), shaped by `config/blocks.py: COMMENT_PROFILE`. Empty for a plain comment,
+    #: which is every comment written before 2026-11-04 and every one-paragraph comment since — when
+    #: it is NOT empty, `body` is derived from it in `save()` and nothing else writes `body`
+    #: (`config/blocks.py` point 2: every reader that only knows `body` keeps working).
+    blocks = models.JSONField(default=list, blank=True)
+    #: What PART of what it answers this comment is about: `{block, quote, prefix, suffix}` —
+    #: a block id of the parent comment (a reply) or of the target (a top-level comment), and
+    #: optionally the passage inside it somebody selected. `{}` is the whole thing, which is every
+    #: comment before 2026-11-04. Validated by `community/anchors.py`, the one module that knows
+    #: which targets have blocks to point at; never edited after posting — what a comment was
+    #: written about is a fact about when it was written.
+    anchor = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_removed = models.BooleanField(default=False)  # tombstone, not hard-delete
     # See Review.auto_hidden_at's own doc comment just above for the full reasoning — same field,
@@ -89,9 +102,13 @@ class Comment(models.Model):
         """Sanitized on write like every translatable field (config/sanitize.py) — a comment is
         rendered through the same Markdown+KaTeX pipeline now that the rich editor (§17AS) writes
         HTML into it, and the frontend's DOMPurify pass was never meant to be the only layer."""
+        from config.blocks import COMMENT_PROFILE, apply_notebook, with_blocks
         from config.sanitize import sanitize_content
 
+        apply_notebook(self, profile=COMMENT_PROFILE)
         self.body = sanitize_content(self.body)
+        if 'update_fields' in kwargs:
+            kwargs['update_fields'] = with_blocks(kwargs['update_fields'])
         super().save(*args, **kwargs)
 
     def __str__(self) -> str:
@@ -184,6 +201,9 @@ class CommentRevision(models.Model):
 
     comment = models.ForeignKey(Comment, related_name='revisions', on_delete=models.CASCADE)
     body = models.TextField()
+    #: The notebook as it stood, beside the body derived from it; `[]` for a plain comment. Masked
+    #: by `CommentRevisionSerializer` exactly like `body`.
+    blocks = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     edited_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+'

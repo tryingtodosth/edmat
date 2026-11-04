@@ -1,5 +1,8 @@
 <script lang="ts">
-	import MathContent from '$lib/components/shared/MathContent.svelte';
+	import BlockContent from '$lib/components/blocks/BlockContent.svelte';
+	import AnchorChip from '$lib/components/blocks/AnchorChip.svelte';
+	import { anchorCounts } from '$lib/components/blocks/anchoring';
+	import type { Anchor, CommentExtras, ContentBlock } from '$lib/types/blocks';
 	import PdfViewer from '$lib/components/material/PdfViewer.svelte';
 	// Self-imports for recursion — one component renders both a comment and its nested replies.
 	import type { CommentNode as CommentNodeT } from '$lib/utils/commentTree';
@@ -34,13 +37,24 @@
 		// `anyone` takes them from a visitor, and a public course discussion a non-member may read
 		// takes none at all. Before this prop the reply box was offered in every one of those cases
 		// and the refusal arrived after somebody had written their reply.
-		canReply = true
+		canReply = true,
+		// Whose blocks a TOP-LEVEL comment's anchor names (the thread's target, `exercise-12`); a
+		// reply's names its parent's, `comment-<parentId>` — `community/anchors.py`.
+		targetScope = '',
+		// Offer notebook mode in the reply and edit boxes, and replies on one block of this comment
+		// (`DiscussionThread`'s `notebook`). Off under a standing page, whose endpoint has neither.
+		allowNotebook = false
 	}: {
 		node: CommentNodeT;
 		usersById: Record<string, User>;
-		onReply: (parentId: string, body: string, files?: File[]) => void;
+		onReply: (parentId: string, body: string, files?: File[], extras?: CommentExtras) => void;
 		canReply?: boolean;
+		targetScope?: string;
+		allowNotebook?: boolean;
 	} = $props();
+
+	// What the open reply box will be about, when it was opened from one of this comment's blocks.
+	let replyAnchor = $state<Anchor | null>(null);
 
 	// MeatballsMenu declares this shape in its own instance script, which cannot be imported as a
 	// type — so it is restated here rather than left unannotated.
@@ -173,11 +187,45 @@
 		}
 	}
 
-	async function saveEdit(body: string) {
+	// A plain comment is one implicit block, `body`, so a sentence of it can be quoted too.
+	const shownBlocks = $derived<ContentBlock[]>(
+		comment.blocks.length > 0
+			? comment.blocks
+			: [{ id: 'body', kind: 'markdown', body: comment.body }]
+	);
+	const replyCounts = $derived(anchorCounts(node.replies.map((r) => r.comment)));
+	const anchorScope = $derived(comment.parentId ? `comment-${comment.parentId}` : targetScope);
+
+	function replyOn(anchor: Anchor) {
+		editing = false;
+		replyAnchor = anchor;
+		replying = true;
+	}
+
+	/** Bring the replies about one block into view, and mark them. */
+	function showReplies(block: string) {
+		const about = node.replies.filter((r) => r.comment.anchor?.block === block);
+		about.forEach((r, i) => {
+			const el = document.getElementById(commentAnchorId(r.comment.id));
+			if (!el) return;
+			if (i === 0) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			el.classList.remove('nb-block--flash');
+			void el.offsetWidth;
+			el.classList.add('nb-block--flash');
+		});
+	}
+
+	async function saveEdit(body: string, _files?: File[], extras?: CommentExtras) {
 		busy = true;
 		error = null;
 		try {
-			local = await updateComment(comment.id, body, comment.targetType, comment.targetId);
+			local = await updateComment(
+				comment.id,
+				body,
+				comment.targetType,
+				comment.targetId,
+				extras?.blocks
+			);
 			editing = false;
 		} catch {
 			error = m.common_error_generic();
@@ -300,15 +348,29 @@
 				<CommentForm
 					placeholder={m.discussion_composerPlaceholder()}
 					submitLabel={m.comment_saveEdit()}
-					initialBody={comment.body}
+					initialBody={comment.blocks.length > 0 ? '' : comment.body}
+					initialBlocks={comment.blocks}
+					{allowNotebook}
 					onSubmit={saveEdit}
 					onCancel={() => (editing = false)}
 				/>
 			</div>
 		{:else}
+			{#if comment.anchor}
+				<AnchorChip anchor={comment.anchor} scope={anchorScope} />
+			{/if}
 			<!-- Through the same sanitized Markdown+KaTeX pipeline as every content field: a comment
-			     written in the rich editor (§17AS) is HTML, and maths in either mode is KaTeX. -->
-			<div class="comment__body"><MathContent source={comment.body} /></div>
+			     written in the rich editor (§17AS) is HTML, and maths in either mode is KaTeX. A
+			     notebook comment draws its blocks; either way each block takes a reply of its own. -->
+			<div class="comment__body">
+				<BlockContent
+					blocks={shownBlocks}
+					scope={`comment-${comment.id}`}
+					annotate={canReply && allowNotebook
+						? { counts: replyCounts, onComment: replyOn, onShow: showReplies }
+						: undefined}
+				/>
+			</div>
 		{/if}
 		{#if !hidden && comment.attachments.length > 0}
 			<ul class="comment__attachments">
@@ -369,11 +431,15 @@
 					placeholder={m.discussion_replyPlaceholder()}
 					submitLabel={m.discussion_post()}
 					allowFiles={true}
-					onSubmit={(body, files) => {
-						onReply(comment.id, body, files);
+					{allowNotebook}
+					bind:anchor={replyAnchor}
+					anchorLabel={m.notebook_thisComment()}
+					onSubmit={(body, files, extras) => {
+						onReply(comment.id, body, files, extras);
 						replying = false;
+						replyAnchor = null;
 					}}
-					onCancel={() => (replying = false)}
+					onCancel={() => ((replying = false), (replyAnchor = null))}
 				/>
 			</div>
 		{/if}
@@ -381,7 +447,14 @@
 		{#if node.replies.length > 0}
 			<ul class="comment__replies">
 				{#each node.replies as reply (reply.comment.id)}
-					<CommentNode node={reply} {usersById} {onReply} {canReply} />
+					<CommentNode
+						node={reply}
+						{usersById}
+						{onReply}
+						{canReply}
+						{targetScope}
+						{allowNotebook}
+					/>
 				{/each}
 			</ul>
 		{/if}

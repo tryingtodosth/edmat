@@ -187,7 +187,36 @@ It is **not** the board ceiling `todo.md` asks for. This row is the organisation
 switch over the threads of its tasks and plans; making it both is one branch in `effective_policy`
 and a decision nobody has taken.
 
+## Notebooks and anchors — `Comment.blocks`, `Comment.anchor`, `anchors.py` (2026-11-04, §17DI)
+
+A comment may be a NOTEBOOK (`blocks`, shaped by `config/blocks.py: COMMENT_PROFILE`), and may be
+about one PART of what it answers (`anchor = {block, quote, prefix, suffix}`).
+
+- **`body` is derived from `blocks` in `save()`** whenever blocks exist; nothing else writes it.
+  Every reader of `body` keeps working; every page that DRAWS a comment reads `blocks` first. A
+  one-paragraph notebook is stored as a plain body with `blocks=[]`.
+- **`anchors.py` is the one rule** for which anchors are legal. A reply's anchor names a block of
+  its PARENT; a top-level one names a block of the target. `ADDRESSABLE` is the registry of targets
+  that have blocks (comment, solution entry, post, exercise — `statement`/`answer`/`part-<id>` —,
+  concept article, review, issue); anything else is `not_addressable`. Deliberately shorter than
+  `targets.py`. Refusal words: `malformed`, `not_addressable`, `no_such_block`, `quote_too_long` —
+  mirrored in `frontend/src/lib/components/blocks/labels.ts` (house rule 13).
+- **Checked in `CommentSerializer.create()`**, not `validate()`, because the target arrives from
+  the view's `serializer.save(content_type=…, object_id=…)` — the one call all eighteen thread
+  endpoints already make. An anchor is never edited (`update()` drops it).
+- **The quote is not checked against the text**: the reader selected RENDERED text. Read side adds
+  `state` (`attached`/`detached`), and blanks the quote when the subject comment is removed or held.
+  One cache per serialization, so a thread reads each subject once.
+- **`signals.py`'s minor-band picture hold asks `config/blocks.has_pictures` too** — a derived body
+  writes a picture block as words.
+- `CommentRevision.blocks` keeps the notebook beside the derived body, masked like `body`.
+- `DiscussionCommentDraftSerializer` (standing pages) takes neither: the section is the anchor.
+
 ## Verify
+
+`manage.py test community.test_notebook` — the block module, notebook comments, every anchor
+refusal word, `detached`, the removed-parent quote, the query counts; browser half
+`e2e/notebook-anchors.mjs`.
 
 `manage.py test community` — tombstone blanking, resubmit-updates, threading, anonymous
 rejection, and the saved-comment privacy/idempotency rules are all pinned there.

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import type { Comment, MaterialCoverage, User } from '$lib/types';
@@ -89,14 +90,19 @@
 		onVoteChange?.(coverage);
 	}
 
-	async function handleComment(body: string, parentId?: string): Promise<Comment | void> {
+	async function handleComment(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		if (!authStore.user) return;
 		const comment = await submitComment(
 			threadTarget,
 			coverage.id,
 			authStore.user.id,
 			body,
-			parentId
+			parentId,
+			extras
 		);
 		comments = [...comments, comment];
 		return comment;

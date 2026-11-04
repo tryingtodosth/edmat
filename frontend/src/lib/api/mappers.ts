@@ -267,6 +267,7 @@ export interface RawSolutionEntry {
 	kind: 'hint' | 'solution';
 	locale: string;
 	body: string;
+	blocks?: RawBlock[];
 	author: number | null;
 	author_display_name: string;
 	status: 'published' | 'pending' | 'rejected';
@@ -321,6 +322,7 @@ export function mapSolutionEntry(json: RawSolutionEntry): SolutionEntry {
 		kind: json.kind,
 		locale: json.locale,
 		body: json.body,
+		blocks: mapContentBlocks(json.blocks),
 		authorId: idOrUndefined(json.author),
 		authorDisplayName: json.author_display_name,
 		status: json.status,
@@ -751,6 +753,9 @@ export interface RawComment {
 	downvotes: number;
 	score: number;
 	current_user_vote: number | null;
+	/** Absent from an older backend; `[]` on a plain comment. */
+	blocks?: RawBlock[];
+	anchor?: RawAnchor | null;
 }
 
 /** `targetType`/`targetId` come from the calling context (every comment fetch/post in this app is
@@ -777,6 +782,8 @@ export function mapComment(
 		// no entry there by construction, so the byline it typed had nowhere to come from.
 		authorDisplayName: json.author_display_name ?? '',
 		body: json.body,
+		blocks: mapContentBlocks(json.blocks),
+		anchor: mapAnchor(json.anchor),
 		createdAt: json.created_at,
 		isRemoved: json.is_removed,
 		attachments: (json.attachments ?? []).map((a) => ({
@@ -2295,6 +2302,7 @@ export function mapExerciseMaterialLink(
 //    a newer backend that grows a sixth kind renders as a gap in an older frontend, never as a
 //    crash (the `_KIND_MODELS` "unknown → 404, never 500" reasoning, one layer up).
 
+import type { Anchor, ContentBlock } from '$lib/types/blocks';
 import type {
 	Concept,
 	ConceptArticle,
@@ -2320,11 +2328,22 @@ import type {
 	ConceptRevisionSummary
 } from '$lib/types/concept';
 
-export interface RawConceptBlock {
+/* --- notebooks (backend/config/blocks.py; `types/blocks.ts`) --------------------------------
+ * One mapper for every owner's blocks — a comment's, a solution's, a post's and a concept
+ * article's. Two directions, and the write one is the stored shape only: the read shape's
+ * expansions (`drawing`, `sketch`, `image`, `asset`) are the server's, and sending them back would
+ * be this frontend asserting something it does not own. An unknown kind from a newer backend
+ * becomes an empty paragraph — a gap, never a crash. */
+
+export interface RawBlock {
+	id?: string;
 	kind: string;
 	body?: string;
 	source?: string;
+	language?: string;
 	drawing_id?: number | string;
+	sketch_id?: number | string;
+	image_id?: number | string;
 	asset_id?: number | string;
 	alt?: string;
 	caption?: string;
@@ -2335,6 +2354,8 @@ export interface RawConceptBlock {
 		height?: number;
 		source_format?: string;
 	} | null;
+	sketch?: { image_url?: string; label?: string; width?: number; height?: number } | null;
+	image?: { url?: string; width?: number; height?: number } | null;
 	asset?: {
 		url?: string;
 		original_name?: string;
@@ -2344,12 +2365,20 @@ export interface RawConceptBlock {
 	} | null;
 }
 
-export function mapConceptBlock(json: RawConceptBlock): ConceptBlock {
+/** @deprecated name kept for the concept call sites; it is the same shape. */
+export type RawConceptBlock = RawBlock;
+
+/** The kinds every owner shares; `null` for a kind only a concept has (`pdf`, an asset `image`). */
+function mapSharedBlock(json: RawBlock): ContentBlock | null {
+	const id = json.id ?? '';
 	switch (json.kind) {
 		case 'latex':
-			return { kind: 'latex', source: json.source ?? '' };
+			return { id, kind: 'latex', source: json.source ?? '' };
+		case 'code':
+			return { id, kind: 'code', language: json.language ?? '', source: json.source ?? '' };
 		case 'chem':
 			return {
+				id,
 				kind: 'chem',
 				drawingId: String(json.drawing_id ?? ''),
 				caption: json.caption ?? '',
@@ -2363,28 +2392,78 @@ export function mapConceptBlock(json: RawConceptBlock): ConceptBlock {
 						}
 					: undefined
 			};
-		case 'pdf':
+		case 'sketch':
 			return {
-				kind: 'pdf',
-				assetId: String(json.asset_id ?? ''),
+				id,
+				kind: 'sketch',
+				sketchId: String(json.sketch_id ?? ''),
 				caption: json.caption ?? '',
-				asset: json.asset ? mapConceptBlockAsset(json.asset) : undefined
+				sketch: json.sketch
+					? {
+							imageUrl: json.sketch.image_url ?? '',
+							label: json.sketch.label ?? '',
+							width: json.sketch.width ?? 0,
+							height: json.sketch.height ?? 0
+						}
+					: undefined
 			};
 		case 'image':
+			if (json.image_id === undefined) return null;
 			return {
+				id,
 				kind: 'image',
-				assetId: String(json.asset_id ?? ''),
+				imageId: String(json.image_id ?? ''),
 				alt: json.alt ?? '',
 				caption: json.caption ?? '',
-				asset: json.asset ? mapConceptBlockAsset(json.asset) : undefined
+				image: json.image
+					? {
+							url: json.image.url ?? '',
+							width: json.image.width ?? 0,
+							height: json.image.height ?? 0
+						}
+					: undefined
 			};
-		// `markdown`, and anything a newer backend has grown that this build has never heard of.
+		case 'markdown':
+			return { id, kind: 'markdown', body: json.body ?? '' };
 		default:
-			return { kind: 'markdown', body: json.kind === 'markdown' ? (json.body ?? '') : '' };
+			return null;
 	}
 }
 
-function mapConceptBlockAsset(asset: NonNullable<RawConceptBlock['asset']>) {
+/** A comment's, a solution's or a post's notebook. */
+export function mapContentBlocks(raw: RawBlock[] | null | undefined): ContentBlock[] {
+	return (raw ?? []).map(
+		(json) => mapSharedBlock(json) ?? { id: json.id ?? '', kind: 'markdown', body: '' }
+	);
+}
+
+export function mapConceptBlock(json: RawBlock): ConceptBlock {
+	const id = json.id ?? '';
+	if (json.kind === 'pdf') {
+		return {
+			id,
+			kind: 'pdf',
+			assetId: String(json.asset_id ?? ''),
+			caption: json.caption ?? '',
+			asset: json.asset ? mapConceptBlockAsset(json.asset) : undefined
+		};
+	}
+	if (json.kind === 'image') {
+		return {
+			id,
+			kind: 'image',
+			assetId: String(json.asset_id ?? ''),
+			alt: json.alt ?? '',
+			caption: json.caption ?? '',
+			asset: json.asset ? mapConceptBlockAsset(json.asset) : undefined
+		};
+	}
+	const shared = mapSharedBlock(json);
+	if (shared && shared.kind !== 'image') return shared;
+	return { id, kind: 'markdown', body: '' };
+}
+
+function mapConceptBlockAsset(asset: NonNullable<RawBlock['asset']>) {
 	return {
 		url: asset.url ?? '',
 		originalName: asset.original_name ?? '',
@@ -2394,29 +2473,71 @@ function mapConceptBlockAsset(asset: NonNullable<RawConceptBlock['asset']>) {
 	};
 }
 
-/** The WRITE shape: exactly the stored keys, with the read-only expansions dropped. The backend
- *  drops unknown keys anyway (`clean_blocks`), but sending a whole expanded drawing back up would
- *  be this frontend asserting something it does not own. */
-export function toRawConceptBlocks(blocks: ConceptBlock[]): Record<string, unknown>[] {
+/** The WRITE shape of any notebook: exactly the stored keys, ids included (`''` is left out so the
+ *  server allocates one). */
+export function toRawBlocks(blocks: (ContentBlock | ConceptBlock)[]): Record<string, unknown>[] {
 	return blocks.map((block) => {
+		const id = block.id ? { id: block.id } : {};
 		switch (block.kind) {
 			case 'markdown':
-				return { kind: 'markdown', body: block.body };
+				return { ...id, kind: 'markdown', body: block.body };
 			case 'latex':
-				return { kind: 'latex', source: block.source };
+				return { ...id, kind: 'latex', source: block.source };
+			case 'code':
+				return { ...id, kind: 'code', language: block.language, source: block.source };
 			case 'chem':
-				return { kind: 'chem', drawing_id: Number(block.drawingId), caption: block.caption };
+				return { ...id, kind: 'chem', drawing_id: Number(block.drawingId), caption: block.caption };
+			case 'sketch':
+				return { ...id, kind: 'sketch', sketch_id: Number(block.sketchId), caption: block.caption };
 			case 'pdf':
-				return { kind: 'pdf', asset_id: Number(block.assetId), caption: block.caption };
+				return { ...id, kind: 'pdf', asset_id: Number(block.assetId), caption: block.caption };
 			case 'image':
-				return {
-					kind: 'image',
-					asset_id: Number(block.assetId),
-					alt: block.alt,
-					caption: block.caption
-				};
+				return 'imageId' in block
+					? {
+							...id,
+							kind: 'image',
+							image_id: Number(block.imageId),
+							alt: block.alt,
+							caption: block.caption
+						}
+					: {
+							...id,
+							kind: 'image',
+							asset_id: Number(block.assetId),
+							alt: block.alt,
+							caption: block.caption
+						};
 		}
 	});
+}
+
+/** The concept editor's name for `toRawBlocks`. */
+export const toRawConceptBlocks = (blocks: ConceptBlock[]) => toRawBlocks(blocks);
+
+export interface RawAnchor {
+	block: string;
+	quote?: string;
+	prefix?: string;
+	suffix?: string;
+	state?: 'attached' | 'detached';
+}
+
+export function mapAnchor(raw: RawAnchor | null | undefined): Anchor | null {
+	if (!raw || !raw.block) return null;
+	return {
+		block: raw.block,
+		quote: raw.quote ?? '',
+		prefix: raw.prefix ?? '',
+		suffix: raw.suffix ?? '',
+		state: raw.state
+	};
+}
+
+export function toRawAnchor(anchor: Anchor | null | undefined): RawAnchor | undefined {
+	if (!anchor) return undefined;
+	return anchor.quote
+		? { block: anchor.block, quote: anchor.quote, prefix: anchor.prefix, suffix: anchor.suffix }
+		: { block: anchor.block };
 }
 
 export interface RawConceptAsset {

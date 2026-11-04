@@ -18,6 +18,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from activity.models import ActivityEvent
+from concepts.blocks import without_ids
 from concepts.models import Concept, ConceptArticle, ConceptLink, ConceptRevision
 from concepts.services import create_concept, create_revision, publish_revision
 from exercises.models import Exercise
@@ -204,7 +205,8 @@ class RerunTests(ImportConceptsBase):
         out = self.run_import()
         self.assertIn('1 created, 0 revised, 0 unchanged, 1 new article(s)', out)
         self.assertEqual(concept.articles.count(), 2)
-        self.assertEqual(theirs.revisions.get().blocks, [{'kind': 'markdown', 'body': 'Ich tekst.'}])
+        # Compared without ids: every stored block carries one since 2026-11-04 (§17DI).
+        self.assertEqual(without_ids(theirs.revisions.get().blocks), [{'kind': 'markdown', 'body': 'Ich tekst.'}])
         # Somebody else's concept: the file adds its branch and takes none away.
         self.assertEqual(set(concept.branches.values_list('slug', flat=True)), {'fale', 'analiza-matematyczna'})
         ours = concept.articles.get(created_by=self.author)

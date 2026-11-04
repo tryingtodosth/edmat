@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	// One course: what it is, what is in it, and — depending entirely on who is looking — the way in,
 	// the way out, or the controls for running it.
 	import { page } from '$app/state';
@@ -155,8 +156,15 @@
 		}
 	}
 
-	async function postComment(body: string, parentId?: string) {
-		await submitComment('taughtCourse', page.params.id!, authStore.user?.id ?? '', body, parentId);
+	async function postComment(body: string, parentId?: string, extras?: CommentExtras) {
+		await submitComment(
+			'taughtCourse',
+			page.params.id!,
+			authStore.user?.id ?? '',
+			body,
+			parentId,
+			extras
+		);
 		await loadDiscussion(page.params.id!, true);
 	}
 

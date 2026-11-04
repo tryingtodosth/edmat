@@ -7,6 +7,10 @@
 <script lang="ts">
 	import RichEditor from '$lib/components/editor/RichEditor.svelte';
 	import InsertStrip from '$lib/components/editor/InsertStrip.svelte';
+	import NotebookEditor from '$lib/components/blocks/NotebookEditor.svelte';
+	import BlockContent from '$lib/components/blocks/BlockContent.svelte';
+	import { NOTEBOOK_LIMITS, type ContentBlock } from '$lib/types/blocks';
+	import { blockHasContent, filledBlocks, notebookFrom } from '$lib/components/blocks/notebook';
 	import type { ExercisePart, SolutionEntry, SolutionEntryKind } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -67,6 +71,16 @@
 	let strip = $state<InsertStrip | null>(null);
 	let composerFiles = $state<File[]>([]);
 	let fileError = $state('');
+	// A notebook solution (2026-11-04): text, formulas, code, drawings, sketches and pictures as
+	// blocks of their own, each of which a reader can then comment on. Off by default — most hints
+	// are a sentence — and what was already typed becomes the first block when it is switched on.
+	let composerNotebook = $state(false);
+	let composerBlocks = $state<ContentBlock[]>([]);
+	function startNotebook() {
+		composerBlocks = notebookFrom(composerBody);
+		composerNotebook = true;
+	}
+	const notebookHasContent = $derived(composerBlocks.some(blockHasContent));
 	const MAX_ENTRY_FILES = 3; // mirrors MAX_ATTACHMENTS_PER_COMMENT, which the endpoint enforces
 	const MAX_ENTRY_FILE_BYTES = 5 * 1024 * 1024; // mirrors MAX_ATTACHMENT_BYTES
 
@@ -100,14 +114,15 @@
 	}
 
 	async function submitEntry() {
-		if (!composerBody.trim() || composerBusy) return;
+		if ((composerNotebook ? !notebookHasContent : !composerBody.trim()) || composerBusy) return;
 		composerBusy = true;
 		composerError = null;
 		try {
 			const entry = await submitSolutionEntry(exerciseId, {
 				kind,
 				locale: (composerLocale || contentLocale).trim(),
-				body: composerBody,
+				body: composerNotebook ? '' : composerBody,
+				blocks: composerNotebook ? filledBlocks(composerBlocks) : undefined,
 				licence: composerLicence,
 				partId: composerPartId || undefined
 			});
@@ -127,6 +142,8 @@
 			composerNotice = entry.status === 'published' ? 'published' : 'pending';
 			fileError = failed > 0 ? m.entry_attachmentFailed({ count: failed }) : '';
 			composerBody = '';
+			composerBlocks = [];
+			composerNotebook = false;
 			composerFiles = [];
 			showComposer = false;
 			revealed = true;
@@ -202,20 +219,29 @@
 						</select>
 					</label>
 				{/if}
-				<RichEditor
-					bind:this={editorRef}
-					bind:value={composerBody}
-					placeholder={m.entry_composerPlaceholder()}
-					rows={6}
-					onChemEdit={(id) => strip?.editChem(id)}
-					onSketchEdit={(id) => strip?.editSketch(id)}
-				/>
-				<InsertStrip
-					bind:this={strip}
-					editor={editorRef}
-					allowFiles={composerFiles.length < MAX_ENTRY_FILES}
-					onFiles={addFiles}
-				/>
+				{#if composerNotebook}
+					<NotebookEditor
+						bind:blocks={composerBlocks}
+						maxBlocks={NOTEBOOK_LIMITS.solution.maxBlocks}
+						paragraphPlaceholder={m.entry_composerPlaceholder()}
+						emptyHint={m.notebook_emptyHint()}
+					/>
+				{:else}
+					<RichEditor
+						bind:this={editorRef}
+						bind:value={composerBody}
+						placeholder={m.entry_composerPlaceholder()}
+						rows={6}
+						onChemEdit={(id) => strip?.editChem(id)}
+						onSketchEdit={(id) => strip?.editSketch(id)}
+					/>
+					<InsertStrip
+						bind:this={strip}
+						editor={editorRef}
+						allowFiles={composerFiles.length < MAX_ENTRY_FILES}
+						onFiles={addFiles}
+					/>
+				{/if}
 				<LicencePicker bind:value={composerLicence} name="licence-{kind}" compact />
 				{#if composerFiles.length > 0 || fileError}
 					<div class="composer__files">
@@ -233,6 +259,12 @@
 					</div>
 				{/if}
 				<div class="composer__actions">
+					{#if !composerNotebook}
+						<button type="button" class="secondary" onclick={startNotebook}
+							>{m.notebook_start()}</button
+						>
+						<!-- "Write as a notebook" -->
+					{/if}
 					<button
 						type="button"
 						class="secondary"
@@ -243,7 +275,11 @@
 						>{m.entry_submit()}</button
 					>
 				</div>
-				{#if composerPreview && composerBody.trim()}
+				{#if composerPreview && composerNotebook && notebookHasContent}
+					<div class="composer__preview">
+						<BlockContent blocks={composerBlocks} scope="solution-preview" />
+					</div>
+				{:else if composerPreview && composerBody.trim()}
 					<div class="composer__preview"><MathContent source={composerBody} /></div>
 				{/if}
 				{#if composerError}

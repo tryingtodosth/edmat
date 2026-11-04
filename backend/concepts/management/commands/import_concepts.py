@@ -73,7 +73,7 @@ from exercises.management.commands.import_exercises import FRONT_MATTER, check_m
 from licensing.licences import LICENCE_VALUES, UNKNOWN, at_least_as_open
 
 from ...access import can_view, link_block_reason
-from ...blocks import MAX_BLOCKS, MAX_MARKDOWN_CHARS, clean_blocks, sanitize_blocks
+from ...blocks import MAX_BLOCKS, MAX_MARKDOWN_CHARS, clean_blocks, inherit_ids, sanitize_blocks, without_ids
 from ...models import (
     MAX_SUMMARY_LENGTH,
     MAX_TITLE_LENGTH,
@@ -178,8 +178,15 @@ def stored_form(title: str, summary: str, blocks: list[dict]) -> tuple[str, str,
     return (
         sanitize_content(title or '')[:MAX_TITLE_LENGTH],
         _flatten(summary)[:MAX_SUMMARY_LENGTH],
-        sanitize_blocks(blocks),
+        # Block ids are left OUT of the key (2026-11-04): `save()` allocates a fresh id for every
+        # block a file arrives without, so with them in, no file could ever be unchanged.
+        without_ids(sanitize_blocks(blocks)),
     )
+
+
+def stored_key(revision) -> tuple[str, str, list[dict]]:
+    """`stored_form`'s counterpart for a row that is already stored."""
+    return (revision.title, revision.summary, without_ids(revision.blocks))
 
 
 def _as_list(value) -> tuple[list[str], bool]:
@@ -597,7 +604,7 @@ class Command(BaseCommand):
 
         head = head_of(article)
         wanted = stored_form(item.title, item.summary, item.blocks)
-        if head is not None and (head.title, head.summary, head.blocks) == wanted:
+        if head is not None and stored_key(head) == wanted:
             stats['unchanged'] += 1
             return concept, article, 'unchanged'
 
@@ -613,7 +620,7 @@ class Command(BaseCommand):
                 .first()
             )
             stats['skipped'] += 1
-            if ours is not None and (ours.title, ours.summary, ours.blocks) == wanted:
+            if ours is not None and stored_key(ours) == wanted:
                 return concept, article, (
                     f'unchanged (revision {head.number} by '
                     f'{head.created_by.username if head.created_by else "somebody"} is the head)'
@@ -631,7 +638,9 @@ class Command(BaseCommand):
                 author,
                 title=item.title,
                 summary=item.summary,
-                blocks=item.blocks,
+                # The head's ids, position by position, so a comment on a paragraph of the page
+                # stays on that paragraph when the file is re-imported with a typo fixed.
+                blocks=inherit_ids(item.blocks, head.blocks if head is not None else []),
                 change_note=f'import_concepts: {item.path.name}'[:500],
                 based_on=head,
                 submit=False,

@@ -45,13 +45,23 @@ export const REVISION_STATUS_LABELS: Record<ConceptRevisionStatus, () => string>
 export const BLOCK_KIND_LABELS: Record<ConceptBlockKind, () => string> = {
 	markdown: m.concept_block_markdown, // "Text"
 	latex: m.concept_block_latex, // "Formula"
+	code: m.notebook_kind_code, // "Code"
 	chem: m.concept_block_chem, // "Chemistry"
+	sketch: m.notebook_kind_sketch, // "Sketch"
 	pdf: m.concept_block_pdf, // "PDF"
 	image: m.concept_block_image // "Picture"
 };
 
 /** The order the "Add block" menu offers them in — text first, because most blocks are text. */
-export const BLOCK_KINDS: ConceptBlockKind[] = ['markdown', 'latex', 'chem', 'pdf', 'image'];
+export const BLOCK_KINDS: ConceptBlockKind[] = [
+	'markdown',
+	'latex',
+	'code',
+	'chem',
+	'sketch',
+	'pdf',
+	'image'
+];
 
 export const RELATION_LABELS: Record<ConceptRelation, () => string> = {
 	related: m.concept_relation_related, // "Related"

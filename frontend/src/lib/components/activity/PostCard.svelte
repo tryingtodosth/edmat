@@ -3,6 +3,9 @@
      content reference, a lazy comment thread, report, and the author's own delete. A tombstoned
      post renders its shell honestly ("removed") so permalinks and threads survive. -->
 <script lang="ts">
+	import type { Anchor, CommentExtras, ContentBlock } from '$lib/types/blocks';
+	import BlockContent from '$lib/components/blocks/BlockContent.svelte';
+	import { anchorCounts, type Annotate } from '$lib/components/blocks/anchoring';
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { localizedPath } from '$lib/utils/localizedPath';
@@ -14,7 +17,6 @@
 	import { deletePost } from '$lib/services/activity';
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
 	import { getUserById } from '$lib/services/users';
-	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 
@@ -103,9 +105,39 @@
 		}
 	});
 
-	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
+	// Commenting on ONE block of the post, or a passage in it (2026-11-04). A plain post is one
+	// implicit block, `body`. The counts appear once the thread is open (it is fetched lazily).
+	let commentAnchor = $state<Anchor | null>(null);
+	let composingComment = $state(false);
+	let focusBlock = $state<string | null>(null);
+	const postBlocks = $derived<ContentBlock[]>(
+		post.blocks.length > 0 ? post.blocks : [{ id: 'body', kind: 'markdown', body: post.body }]
+	);
+	const postAnnotate = $derived<Annotate | undefined>(
+		authStore.isAuthenticated
+			? {
+					counts: anchorCounts(comments.filter((c) => !c.parentId)),
+					onComment: async (anchor) => {
+						commentAnchor = anchor;
+						focusBlock = null;
+						composingComment = true;
+						if (!showComments) await toggleComments();
+					},
+					onShow: async (block) => {
+						focusBlock = block;
+						if (!showComments) await toggleComments();
+					}
+				}
+			: undefined
+	);
+
+	async function handleCommentSubmit(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		if (!authStore.user) return;
-		const comment = await submitComment('post', post.id, authStore.user.id, body, parentId);
+		const comment = await submitComment('post', post.id, authStore.user.id, body, parentId, extras);
 		comments = [...comments, comment];
 		await resolveUsers([comment.authorId]);
 		return comment;
@@ -130,7 +162,7 @@
 	{#if hidden}
 		<p class="post__tombstone">{m.post_removed()}</p>
 	{:else}
-		<MathContent source={post.body} />
+		<BlockContent blocks={postBlocks} scope={`post-${post.id}`} annotate={postAnnotate} />
 		{#if post.imageUrl}
 			<!-- Empty alt on purpose: the author is never asked for a description, and an invented
 			     one read aloud on every post would be worse than marking it decorative — the same
@@ -185,7 +217,16 @@
 
 	{#if showComments}
 		<div class="post__discussion">
-			<DiscussionThread {comments} {usersById} onSubmit={handleCommentSubmit} />
+			<DiscussionThread
+				{comments}
+				{usersById}
+				bind:composing={composingComment}
+				bind:anchor={commentAnchor}
+				bind:focusBlock
+				scope={`post-${post.id}`}
+				anchorLabel={m.notebook_thisPost()}
+				onSubmit={handleCommentSubmit}
+			/>
 		</div>
 	{/if}
 </article>

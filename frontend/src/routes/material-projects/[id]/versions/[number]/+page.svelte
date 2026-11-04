@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	// One version, with the conversation about it.
 	//
 	// Addressed by NUMBER rather than by id, because a version's number is what everybody says out
@@ -140,10 +141,14 @@
 		}
 	}
 
-	async function submitComment(body: string, parentId?: string): Promise<Comment | void> {
+	async function submitComment(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		const current = version;
 		if (!current || !authStore.isAuthenticated) return;
-		const comment = await postVersionComment(current.id, body, parentId);
+		const comment = await postVersionComment(current.id, body, parentId, extras);
 		comments = [...comments, comment];
 		await resolveUsers([comment.authorId]);
 		return comment;

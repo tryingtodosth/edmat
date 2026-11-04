@@ -18895,3 +18895,106 @@ and A3 of `ai-assist-and-bilingual.mjs` re-run clean. `npm run check` 0/0, `chec
   because the type and level pills share the heading row — present before this change, not fixed.
 - **No write-time choice** in `/submit` and `/submit-material`; the author marks from the content's
   menu afterwards (already open since §17BX).
+
+## 17DI — Notebooks, and comments on one part of something (2026-11-04, `feat/notebook-blocks`)
+
+The owner's ask, verbatim: *"adjust all of our eg comment apps to be able to include multiple
+different inputs from different input widgets into a single article like or even a notebook kind of
+wide single comment/solution/article/but for others to be able to attach comment also to one of
+these blocks (maybe be even more specific)"*.
+
+Two features, built together because the second needs the first's ids:
+
+1. **A notebook**: a comment, a hint or solution, a board post and a concept article may be an
+   ordered list of BLOCKS — a paragraph (the rich editor and the insert strip, as before), a display
+   formula (with its live preview), code, a chemistry drawing (Ketcher), a whiteboard sketch
+   (Excalidraw), a picture. "Write as a notebook" on the comment, reply, solution and post
+   composers; the concept editor always was one.
+2. **Comments on a part**: a reader can comment on ONE block, or select a passage inside one and
+   comment on that ("even more specific"). The comment carries an anchor, shows "On the formula: “…”"
+   above it, and pressing that line scrolls to the block, flashes it and marks the passage. Each
+   block's gutter counts what is said about it, and pressing the count narrows the thread to it.
+
+### The shape, and why
+
+- **`config/blocks.py` is the one module that says what a block is.** It is `concepts/blocks.py`
+  generalised — concepts had the only notebook for a year — and concepts became one PROFILE of it
+  (its own `pdf`, and an `image` backed by `ConceptAsset` instead of `InlineImage`). Four profiles:
+  comment (40 blocks), solution (100), post (60), concept (200). One query per referenced table
+  however many blocks a whole thread holds (`prefetch`, pinned by a test).
+- **Every block has an id**, allocated by the server and kept whenever the client sends it back —
+  so editing a paragraph does not detach the comments on it, and inserting one above it does not
+  renumber anything. A duplicate (a copied block) is re-rolled, not refused. Existing concept
+  revisions were given ids by a data migration (`concepts/0003_block_ids`), deterministic per
+  `(article, position)` so consecutive revisions share them; `RevisionView` now pairs blocks by id,
+  which closes the todo that said "an insert at the top reads as changed all the way down; block ids
+  fix it".
+- **The body is DERIVED from the blocks** (`apply_notebook` in each owner's `save()`): paragraphs
+  verbatim, a formula as `\[ … \]`, code fenced (with a fence longer than any backtick run inside
+  it), a picture as "*[Sketch: caption]*". That is what kept every reader of `Comment.body` —
+  notifications, the moderation queue, search, feed excerpts, course reports, saved comments —
+  working without one of them changing. A one-paragraph notebook is stored as a plain body with
+  `blocks=[]`, so nothing was migrated and a plain comment is byte-for-byte what it was.
+- **An anchor is `{block, quote, prefix, suffix}`** — the W3C Web Annotation `TextQuoteSelector`,
+  not character offsets, because an offset is wrong after the first edit above it while a quote
+  either still appears or honestly does not. A REPLY's anchor names a block of its parent; a
+  top-level comment's names a block of the thread's target. Content that is not a notebook answers
+  to implicit ids — `body` for a plain comment, solution or post, `statement` / `answer` /
+  `part-<id>` for an exercise — so a sentence of an exercise statement can be commented on like
+  any block. `community/anchors.py` validates it in ONE place, from `CommentSerializer.create()`,
+  which every one of the eighteen thread endpoints saves through: none of them changed.
+- **The server checks the block, not the quote.** A reader selects RENDERED text, which the server
+  cannot reproduce, so the quote is bounded and stripped of markup and the browser — which has the
+  rendering — says whether it can still be found (`blocks/anchoring.ts`: maths reads as its TeX,
+  whitespace collapses, a selection inside a formula widens to the whole formula). A block that has
+  been deleted reads `state: 'detached'` and the comment says "On a part that has since been
+  removed" instead of pointing nowhere. A quote taken from a comment that is now removed or held is
+  blanked, so an anchor never keeps a removed comment's words on the page.
+- **`import_concepts` compares TEXT, not ids**: its "is the file unchanged since the head?" key
+  (`stored_form`) now leaves block ids out — with them in, every re-import would have been a new
+  revision, because `save()` gives a file's blocks fresh ids — and a changed file's new revision
+  inherits the head's ids position by position (`concepts.blocks.inherit_ids`), so a comment on a
+  paragraph survives a re-import with a typo fixed. Found by the wider test run, as was a constant
+  the rewritten `concepts/blocks.py` had stopped exporting.
+- **The minor-band picture hold asks the blocks too** (`config/blocks.has_pictures`): a derived body
+  names a sketch in words, so `'<img' in body` alone would have let every notebook picture past the
+  rule that holds pictures on a children's thread.
+
+### Where it shows
+
+Comment threads everywhere (`DiscussionThread` → `CommentNode` → `BlockContent`; the fourteen hosts
+forward the notebook and the anchor through `CommentExtras`, three of them through their own
+services), the exercise page (statement, answer and each part's sub-statement are commentable),
+solution entries (notebook composer, notebook edit, comments on a step into the entry's own
+thread), concept articles (the article's blocks into its thread), board posts (notebook composer,
+comments on a block). Standing-page discussions (`/about`, the manual) are deliberately NOT
+notebooks: their endpoint has its own serializer and the section is already the anchor.
+
+**Verified:** `manage.py test community.test_notebook` (29: the block module, notebook comments, the
+anchors and their refusal words, solutions and posts, the query counts), `concepts` (adjusted for
+ids); `npm run check` 0/0, `eslint .` clean; `e2e/notebook-anchors.mjs` 35/35 against both dev
+servers — a passage of a statement selected, commented on, highlighted and counted; a three-block
+notebook comment stored and drawn (the formula typeset, a `<b>` in the code shown as text); a reply
+on its formula block; editing that notebook keeps every block id, so the reply stays attached; a notebook solution and a comment on its second step. Looked at the five
+screenshots.
+
+### Left open
+
+- **The quote is not re-located after an edit by fuzzy matching** — it is found exactly (with its
+  context, then alone) or the reader is told it has changed. A diff-match-patch search would find
+  a passage with one word changed.
+- **Standing-page discussions take no notebooks and no anchors** (`DiscussionCommentDraftSerializer`).
+- **Anchors on the remaining targets** — a material, a coverage claim, a course — are refused as
+  `not_addressable`: they have no text a reader would quote. A material's description and a
+  material version's body are the obvious next ones.
+- **Counts on a solution or a post appear only once its thread is open** (it is fetched lazily; a
+  per-row fetch to draw a number is what those cards have always avoided). A `anchor_counts` field
+  on the entry serializer would fix it in one grouped query.
+- **`CommentRevision` keeps the notebook**, but `CommentHistoryModal` still draws the derived body
+  (drawings as their captions).
+- **The dev build logs `ownership_invalid_mutation`** for each edit in a block editor — inherited
+  from the concept editor; `bind:` on an `{#each}` item is not allowed in runes mode and binding
+  `blocks[i]` loses the per-kind type. Dev-only.
+- **The two `0010` migrations**: `community/0010_comment_blocks_anchor` here and
+  `community/0010_organization_locations_open` on `feat/open-organisations` — whichever merges
+  second needs `makemigrations --merge`.

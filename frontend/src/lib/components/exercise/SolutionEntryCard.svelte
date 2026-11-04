@@ -3,6 +3,11 @@
      report button. The page owns the entry list; every action here reports back through
      onUpdated/onDeleted rather than mutating shared state. -->
 <script lang="ts">
+	import type { Anchor, CommentExtras, ContentBlock } from '$lib/types/blocks';
+	import { NOTEBOOK_LIMITS } from '$lib/types/blocks';
+	import BlockContent from '$lib/components/blocks/BlockContent.svelte';
+	import NotebookEditor from '$lib/components/blocks/NotebookEditor.svelte';
+	import { anchorCounts, type Annotate } from '$lib/components/blocks/anchoring';
 	import { resolve } from '$app/paths';
 	import type { Comment, EditSuggestion, SolutionEntry, User } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
@@ -117,18 +122,26 @@
 	// --- author's own edit / delete --------------------------------------------------------------
 	let showEditForm = $state(false);
 	let editBody = $state('');
+	// A notebook entry is edited as a notebook — a textarea over its derived body would turn every
+	// formula and drawing into text on save. Copies, so an abandoned edit changes nothing.
+	let editBlocks = $state<ContentBlock[]>([]);
 
 	function openEdit() {
 		editBody = entry.body;
+		editBlocks = entry.blocks.map((b) => ({ ...b }));
 		showEditForm = !showEditForm;
 	}
 
 	async function saveEdit() {
-		if (!editBody.trim() || busy) return;
+		const notebook = entry.blocks.length > 0;
+		if ((notebook ? editBlocks.length === 0 : !editBody.trim()) || busy) return;
 		busy = true;
 		error = null;
 		try {
-			const updated = await updateSolutionEntry(entry.id, { body: editBody });
+			const updated = await updateSolutionEntry(
+				entry.id,
+				notebook ? { blocks: editBlocks } : { body: editBody }
+			);
 			showEditForm = false;
 			onUpdated(updated);
 		} catch {
@@ -240,6 +253,32 @@
 	}
 	let composingComment = $state(false);
 
+	// Commenting on ONE step of this hint or solution (owner, 2026-11-04). A plain entry is one
+	// implicit block, `body`, so a passage of it can be selected too. The counts appear once the
+	// thread has been opened — it is fetched lazily, and fetching every entry's thread to draw a
+	// number would be the request-per-row this card has always avoided.
+	let commentAnchor = $state<Anchor | null>(null);
+	let focusBlock = $state<string | null>(null);
+	const entryBlocks = $derived<ContentBlock[]>(
+		entry.blocks.length > 0 ? entry.blocks : [{ id: 'body', kind: 'markdown', body: entry.body }]
+	);
+	const entryAnnotate = $derived<Annotate | undefined>(
+		authStore.isAuthenticated
+			? {
+					counts: anchorCounts(comments.filter((c) => !c.parentId)),
+					onComment: (anchor) => {
+						commentAnchor = anchor;
+						focusBlock = null;
+						void openComments();
+					},
+					onShow: (block) => {
+						focusBlock = block;
+						if (!showComments) void toggleComments();
+					}
+				}
+			: undefined
+	);
+
 	async function toggleComments() {
 		showComments = !showComments;
 		if (showComments && !commentsLoaded) {
@@ -253,14 +292,19 @@
 		}
 	}
 
-	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
+	async function handleCommentSubmit(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		if (!authStore.user) return;
 		const comment = await submitComment(
 			'solutionEntry',
 			entry.id,
 			authStore.user.id,
 			body,
-			parentId
+			parentId,
+			extras
 		);
 		comments = [...comments, comment];
 		await resolveUsers([comment.authorId]);
@@ -342,7 +386,11 @@
 			</p>
 		{/if}
 
-		<MathContent source={entry.body} />
+		<BlockContent
+			blocks={entryBlocks}
+			scope={`solutionEntry-${entry.id}`}
+			annotate={entryAnnotate}
+		/>
 
 		<!-- Scans and PDFs hanging off the entry (2026-10-01). The same two shapes `CommentNode`
 		     draws, for the same two kinds, because the row is `CommentAttachment`'s twin: a
@@ -460,7 +508,11 @@
 
 		{#if showEditForm}
 			<div class="entry__form">
-				<textarea rows="5" bind:value={editBody}></textarea>
+				{#if entry.blocks.length > 0}
+					<NotebookEditor bind:blocks={editBlocks} maxBlocks={NOTEBOOK_LIMITS.solution.maxBlocks} />
+				{:else}
+					<textarea rows="5" bind:value={editBody}></textarea>
+				{/if}
 				{#if isOwn && !authStore.user?.isVerifiedContributor && !authStore.canModerate}
 					<p class="entry__hint">{m.entry_editRequeues()}</p>
 				{/if}
@@ -521,6 +573,10 @@
 					{comments}
 					{usersById}
 					bind:composing={composingComment}
+					bind:anchor={commentAnchor}
+					bind:focusBlock
+					scope={`solutionEntry-${entry.id}`}
+					anchorLabel={m.notebook_thisEntry()}
 					onSubmit={handleCommentSubmit}
 				/>
 			</div>

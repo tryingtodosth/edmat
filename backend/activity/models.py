@@ -198,6 +198,9 @@ class Post(models.Model):
         settings.AUTH_USER_MODEL, related_name='activity_posts', on_delete=models.CASCADE
     )
     body = models.TextField()
+    #: A NOTEBOOK post (`config/blocks.py: POST_PROFILE`); empty for a plain one, and when not,
+    #: `body` is DERIVED from it in `save()` — the feed excerpt, search and notifications read it.
+    blocks = models.JSONField(default=list, blank=True)
     # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
     # field means; the submit forms require an explicit choice, this default exists for the
     # migration and for code paths (the corpus importer, fixtures) that never asked.
@@ -284,9 +287,13 @@ class Post(models.Model):
 
     def save(self, *args, **kwargs):
         # The same one-choke-point server-side sanitization every other content write gets.
+        from config.blocks import POST_PROFILE, apply_notebook, with_blocks
         from config.sanitize import sanitize_content
 
+        apply_notebook(self, profile=POST_PROFILE)
         self.body = sanitize_content(self.body)
+        if 'update_fields' in kwargs:
+            kwargs['update_fields'] = with_blocks(kwargs['update_fields'])
         super().save(*args, **kwargs)
 
     def is_visible_to_readers(self) -> bool:

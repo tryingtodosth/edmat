@@ -155,15 +155,24 @@ class CommentViewSet(viewsets.GenericViewSet):
         if refusal is not None:
             return refusal
         body = (request.data.get('body') or '').strip()
-        if not body:
+        blocks = None
+        if request.data.get('blocks'):
+            from .serializers import clean_comment_blocks
+            from rest_framework.exceptions import ValidationError as DRFValidationError
+
+            try:
+                blocks = clean_comment_blocks(request.data.get('blocks'))
+            except DRFValidationError as exc:
+                return Response({'blocks': exc.detail}, status=status.HTTP_400_BAD_REQUEST)
+        if not body and not blocks:
             return Response(
                 {'body': ['This field may not be blank.']}, status=status.HTTP_400_BAD_REQUEST
             )
         # Snapshots the PRE-edit body as a CommentRevision before overwriting — see revisions.py.
         # Stamps `edited_at`, surfaced as `is_edited` — see the model field's own note on why an
-        # untraceable edit is the thing being avoided here.
-        apply_comment_edit(comment, body, edited_by=request.user)
-        return Response(CommentSerializer(comment).data)
+        # untraceable edit is the thing being avoided here. A notebook's body is derived in save().
+        apply_comment_edit(comment, body, blocks=blocks, edited_by=request.user)
+        return Response(CommentSerializer(comment, context={'request': request}).data)
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
     def revisions(self, request, pk=None):

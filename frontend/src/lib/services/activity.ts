@@ -1,3 +1,5 @@
+import { mapContentBlocks, toRawBlocks, type RawBlock } from '$lib/api/mappers';
+import type { ContentBlock } from '$lib/types/blocks';
 import type { Audience } from '$lib/types/audience';
 // The activity feed and its anchored micro-posts (backend activity/, root CLAUDE.md §17AI).
 // Replaced the §17AH placeholder wholesale: the feed is a stored, public-by-construction event log
@@ -29,6 +31,7 @@ interface RawPost {
 	attachment_count?: number;
 	created_at: string;
 	tag_created?: boolean;
+	blocks?: RawBlock[];
 }
 
 interface RawActivityItem {
@@ -68,6 +71,7 @@ export function mapPost(json: RawPost): Post {
 		authorId: idOr(json.author),
 		authorDisplayName: json.author_display_name,
 		body: json.body,
+		blocks: mapContentBlocks(json.blocks),
 		audience: (json.audience ?? 'university') as Post['audience'],
 		imageUrl: json.image ?? undefined,
 		disciplineId: json.discipline ?? undefined,
@@ -148,6 +152,8 @@ export async function getActivityFeed(filters: FeedFilters = {}): Promise<FeedIt
 
 export interface PostDraft {
 	body: string;
+	/** A notebook post; absent or empty is a plain one. Sent as JSON text inside the form. */
+	blocks?: ContentBlock[];
 	audience: Audience;
 	language: string;
 	/** Exactly one of the four anchors. */
@@ -168,6 +174,8 @@ export interface PostDraft {
 function draftToForm(draft: PostDraft): FormData {
 	const form = new FormData();
 	form.set('body', draft.body);
+	if (draft.blocks && draft.blocks.length > 0)
+		form.set('blocks', JSON.stringify(toRawBlocks(draft.blocks)));
 	form.set('audience', draft.audience);
 	form.set('language', draft.language);
 	if (draft.disciplineId) form.set('discipline', draft.disciplineId);

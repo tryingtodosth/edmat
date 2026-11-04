@@ -9,6 +9,8 @@ import type {
 	SolutionEntryKind,
 	SourceType
 } from '$lib/types';
+import type { ContentBlock } from '$lib/types/blocks';
+import { toRawBlocks } from '$lib/api/mappers';
 import { apiClient, ApiError } from '$lib/api/client';
 import type { Licence } from '$lib/types/licence';
 import {
@@ -350,6 +352,8 @@ export type SolutionEntryDraft = {
 	kind: SolutionEntryKind;
 	locale: string;
 	body: string;
+	/** A notebook (`types/blocks.ts`); absent or empty is a plain entry. */
+	blocks?: ContentBlock[];
 	/** Its own licence (backend licensing/); absent means `edmat-only`. */
 	licence?: Licence;
 	/** The part of a set-shaped exercise this is for; absent = the whole exercise. */
@@ -360,10 +364,14 @@ export async function submitSolutionEntry(
 	exerciseId: string,
 	draft: SolutionEntryDraft
 ): Promise<SolutionEntry> {
-	const { partId, ...rest } = draft;
+	const { partId, blocks, ...rest } = draft;
 	const raw = await apiClient.post<RawSolutionEntry>(
 		`/exercises/${encodeURIComponent(exerciseId)}/entries/`,
-		{ ...rest, part: partId === undefined ? null : Number(partId) }
+		{
+			...rest,
+			...(blocks && blocks.length > 0 ? { blocks: toRawBlocks(blocks) } : {}),
+			part: partId === undefined ? null : Number(partId)
+		}
 	);
 	return mapSolutionEntry(raw);
 }
@@ -431,9 +439,10 @@ export async function updateSolutionEntry(
 	entryId: string,
 	changes: Partial<SolutionEntryDraft>
 ): Promise<SolutionEntry> {
+	const { blocks, ...rest } = changes;
 	const raw = await apiClient.patch<RawSolutionEntry>(
 		`/solution-entries/${encodeURIComponent(entryId)}/`,
-		changes
+		blocks && blocks.length > 0 ? { ...rest, blocks: toRawBlocks(blocks) } : rest
 	);
 	return mapSolutionEntry(raw);
 }

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { Anchor, CommentExtras } from '$lib/types/blocks';
+	import { anchorCounts, type Annotate } from '$lib/components/blocks/anchoring';
 	/**
 	 * One concept, read.
 	 *
@@ -133,7 +135,34 @@
 		}
 	}
 
-	async function postComment(body: string, parentId?: string): Promise<Comment | void> {
+	// A comment on ONE block of the article (owner, 2026-11-04): a paragraph, a formula, a figure,
+	// or a passage selected in one. It goes into the article's own thread, with an "On: …" line.
+	let commentAnchor = $state<Anchor | null>(null);
+	let composingComment = $state(false);
+	let focusBlock = $state<string | null>(null);
+	const articleAnnotate = $derived<Annotate | undefined>(
+		authStore.isAuthenticated
+			? {
+					counts: anchorCounts(comments.filter((c) => !c.parentId)),
+					onComment: (anchor) => {
+						commentAnchor = anchor;
+						focusBlock = null;
+						composingComment = true;
+						document.getElementById('concept-discussion')?.scrollIntoView({ behavior: 'smooth' });
+					},
+					onShow: (block) => {
+						focusBlock = block;
+						document.getElementById('concept-discussion')?.scrollIntoView({ behavior: 'smooth' });
+					}
+				}
+			: undefined
+	);
+
+	async function postComment(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		const current = article;
 		if (!current || !authStore.user) return;
 		const comment = await submitComment(
@@ -141,7 +170,8 @@
 			current.id,
 			authStore.user.id,
 			body,
-			parentId
+			parentId,
+			extras
 		);
 		comments = [...comments, comment];
 		await resolveUsers([comment.authorId]);
@@ -215,7 +245,7 @@
 						{/if}
 					</header>
 
-					<BlockRenderer blocks={head.blocks} />
+					<BlockRenderer blocks={head.blocks} articleId={article.id} annotate={articleAnnotate} />
 
 					<!-- The article's licence (backend licensing/); every revision is contributed under it. -->
 					{#key article.id}
@@ -329,12 +359,17 @@
 			/>
 
 			{#if article}
-				<section class="discussion">
+				<section class="discussion" id="concept-discussion">
 					<h2>{m.discussion_heading()}</h2>
 					<!-- "Discussion" -->
 					<DiscussionThread
 						{comments}
 						{usersById}
+						bind:composing={composingComment}
+						bind:anchor={commentAnchor}
+						bind:focusBlock
+						scope={`conceptArticle-${article.id}`}
+						anchorLabel={m.notebook_thisArticle()}
 						onSubmit={postComment}
 						canPost={authStore.isAuthenticated}
 					/>

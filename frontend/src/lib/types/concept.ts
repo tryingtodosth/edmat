@@ -19,6 +19,7 @@
 // `lib/components/concept/labels.ts`, which names this file in turn). There is deliberately no
 // `approved` anywhere: the positive terminal state is what the row IS, `published`.
 
+import type { ChemBlock, CodeBlock, LatexBlock, MarkdownBlock, SketchBlock } from './blocks';
 import type { Audience } from './audience';
 import type { Licence } from './licence';
 
@@ -27,7 +28,7 @@ import type { Licence } from './licence';
 export type ConceptRevisionStatus =
 	'draft' | 'pending' | 'published' | 'superseded' | 'rejected' | 'withdrawn';
 
-export type ConceptBlockKind = 'markdown' | 'latex' | 'chem' | 'pdf' | 'image';
+export type ConceptBlockKind = 'markdown' | 'latex' | 'code' | 'chem' | 'sketch' | 'pdf' | 'image';
 
 export type ConceptAssetKind = 'image' | 'pdf';
 
@@ -69,30 +70,15 @@ export interface ConceptBlockAsset {
 	height: number;
 }
 
-/** A paragraph: Markdown with raw HTML and literal LaTeX delimiters, exactly like every other
- *  content field in this app. Inline maths, inline pictures and inline chemistry stay allowed
- *  inside one — a picture as its own block is a different thing from a picture in a sentence. */
-export interface ConceptMarkdownBlock {
-	kind: 'markdown';
-	body: string;
-}
-
-/** One display formula. Stored raw and rendered client-side as `\[ … \]`, so no HTML is possible
- *  in it at all. */
-export interface ConceptLatexBlock {
-	kind: 'latex';
-	source: string;
-}
-
-export interface ConceptChemBlock {
-	kind: 'chem';
-	drawingId: string;
-	caption: string;
-	/** Read shape only. */
-	drawing?: ConceptBlockDrawing;
-}
+// The shared kinds (paragraph, formula, code, chemistry, sketch) are `types/blocks.ts`'s, since
+// 2026-11-04 when the notebook spread from concepts to comments, solutions and posts; these aliases
+// keep every concept call site reading as it did. Every block now carries an `id` (see there).
+export type ConceptMarkdownBlock = MarkdownBlock;
+export type ConceptLatexBlock = LatexBlock;
+export type ConceptChemBlock = ChemBlock;
 
 export interface ConceptPdfBlock {
+	id: string;
 	kind: 'pdf';
 	assetId: string;
 	caption: string;
@@ -100,7 +86,9 @@ export interface ConceptPdfBlock {
 	asset?: ConceptBlockAsset;
 }
 
+/** A concept's picture is a `ConceptAsset`, not an inline image — same kind name, different row. */
 export interface ConceptImageBlock {
+	id: string;
 	kind: 'image';
 	assetId: string;
 	/** Required by the editor: a picture with no description is a picture some readers never get. */
@@ -111,7 +99,13 @@ export interface ConceptImageBlock {
 }
 
 export type ConceptBlock =
-	ConceptMarkdownBlock | ConceptLatexBlock | ConceptChemBlock | ConceptPdfBlock | ConceptImageBlock;
+	| MarkdownBlock
+	| LatexBlock
+	| CodeBlock
+	| ChemBlock
+	| SketchBlock
+	| ConceptPdfBlock
+	| ConceptImageBlock;
 
 /** A picture or a PDF placed as a block. Never the bytes that were uploaded (house rule 7): the
  *  file is re-encoded / sniffed / scanned by the same pipeline a comment attachment gets. There is

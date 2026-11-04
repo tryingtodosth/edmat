@@ -4,6 +4,8 @@
 // two modules claiming that word would have been a real source of wrong imports. The taxonomy now
 // speaks of disciplines and branches, so the word is unambiguous and this file takes it.
 
+import { commentPayload } from '$lib/services/comments';
+import type { CommentExtras } from '$lib/types/blocks';
 import type {
 	Attachment,
 	AttachmentReview,
@@ -1157,12 +1159,13 @@ export async function postCourseTargetComment(
 	target: CourseFeedbackTarget,
 	targetId: string,
 	body: string,
-	parentId?: string
+	parentId?: string,
+	extras: CommentExtras = {}
 ) {
-	return apiClient.post(`${feedbackPath(courseId, target, targetId)}/comments/`, {
-		body,
-		parent: parentId ? Number(parentId) : null
-	});
+	return apiClient.post(
+		`${feedbackPath(courseId, target, targetId)}/comments/`,
+		commentPayload(body, parentId, extras)
+	);
 }
 
 export async function getCourseTargetReviews(

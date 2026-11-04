@@ -4,6 +4,10 @@
      merely encourages. -->
 <script lang="ts">
 	import RichEditor from '$lib/components/editor/RichEditor.svelte';
+	import NotebookEditor from '$lib/components/blocks/NotebookEditor.svelte';
+	import BlockContent from '$lib/components/blocks/BlockContent.svelte';
+	import { blockHasContent, filledBlocks, notebookFrom } from '$lib/components/blocks/notebook';
+	import { NOTEBOOK_LIMITS, type ContentBlock } from '$lib/types/blocks';
 	import CoursePicker from '$lib/components/shared/CoursePicker.svelte';
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import type { Audience } from '$lib/types';
@@ -35,6 +39,11 @@
 	let activeFixed = $derived(useFixed && fixedAnchor ? fixedAnchor : null);
 
 	let body = $state('');
+	// A notebook post (2026-11-04): several blocks — text, a formula, code, a drawing, a sketch, a
+	// picture — instead of one text box. What was typed becomes the first block.
+	let notebook = $state(false);
+	let blocks = $state<ContentBlock[]>([]);
+	const ready = $derived(notebook ? blocks.some(blockHasContent) : !!body.trim());
 	let audience = $state<Audience | ''>('');
 	let language = $state(getLocale());
 	let showPreview = $state(false);
@@ -97,12 +106,13 @@
 	}
 
 	async function submit() {
-		if (!body.trim() || busy || !audience) return;
+		if (!ready || busy || !audience) return;
 		busy = true;
 		error = null;
 		try {
 			const post = await createPost({
-				body,
+				body: notebook ? '' : body,
+				blocks: notebook ? filledBlocks(blocks) : undefined,
 				audience,
 				language,
 				disciplineId: activeFixed
@@ -133,6 +143,8 @@
 				image: imageFile
 			});
 			body = '';
+			blocks = [];
+			notebook = false;
 			refChosen = null;
 			refKind = 'none';
 			imageFile = null;
@@ -155,7 +167,16 @@
 </script>
 
 <div class="composer">
-	<RichEditor bind:value={body} placeholder={m.post_composerPlaceholder()} rows={4} />
+	{#if notebook}
+		<NotebookEditor
+			bind:blocks
+			maxBlocks={NOTEBOOK_LIMITS.post.maxBlocks}
+			paragraphPlaceholder={m.post_composerPlaceholder()}
+			emptyHint={m.notebook_emptyHint()}
+		/>
+	{:else}
+		<RichEditor bind:value={body} placeholder={m.post_composerPlaceholder()} rows={4} />
+	{/if}
 	<AudienceSelect bind:value={audience} />
 	<label class="field">
 		<span>{m.contentLocales_fieldLanguage()}</span>
@@ -286,14 +307,25 @@
 	</div>
 
 	<div class="composer__actions">
+		{#if !notebook}
+			<button
+				type="button"
+				class="secondary"
+				onclick={() => ((blocks = notebookFrom(body)), (notebook = true))}
+				>{m.notebook_start()}</button
+			>
+			<!-- "Write as a notebook" -->
+		{/if}
 		<button type="button" class="secondary" onclick={() => (showPreview = !showPreview)}
 			>{showPreview ? m.entry_hidePreview() : m.entry_showPreview()}</button
 		>
-		<button type="button" class="primary" disabled={busy || !body.trim()} onclick={submit}
+		<button type="button" class="primary" disabled={busy || !ready} onclick={submit}
 			>{m.post_publish()}</button
 		>
 	</div>
-	{#if showPreview && body.trim()}
+	{#if showPreview && notebook && ready}
+		<div class="composer__preview"><BlockContent {blocks} scope="post-preview" /></div>
+	{:else if showPreview && body.trim()}
 		<div class="composer__preview"><MathContent source={body} /></div>
 	{/if}
 	{#if error}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	/** A session's Q&A — the generic Comment thread with the votes it already has, so a question
 	 * asked from the room can be upvoted by the rest of it. Lazy: fetched on first open. */
 	import { m } from '$lib/paraglide/messages.js';
@@ -32,9 +33,20 @@
 		}
 	}
 	load();
-	async function handleComment(body: string, parentId?: string): Promise<Comment | void> {
+	async function handleComment(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		if (!authStore.user) return;
-		const c = await submitComment('eventSession', sessionId, authStore.user.id, body, parentId);
+		const c = await submitComment(
+			'eventSession',
+			sessionId,
+			authStore.user.id,
+			body,
+			parentId,
+			extras
+		);
 		comments = [...comments, c];
 		await resolveUsers([c.authorId]);
 		return c;

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	import AppearsInSessions from '$lib/components/event/AppearsInSessions.svelte';
 	// The material detail page — the RICH view MaterialCard.svelte deliberately no longer is (that
 	// component was rewritten to a compact grid/list summary only, see its own doc comment for why:
@@ -268,9 +269,20 @@
 		if (refreshed) material = refreshed;
 	}
 
-	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
+	async function handleCommentSubmit(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		if (!material || !authStore.user) return;
-		const comment = await submitComment('material', material.id, authStore.user.id, body, parentId);
+		const comment = await submitComment(
+			'material',
+			material.id,
+			authStore.user.id,
+			body,
+			parentId,
+			extras
+		);
 		comments = [...comments, comment];
 		return comment;
 	}

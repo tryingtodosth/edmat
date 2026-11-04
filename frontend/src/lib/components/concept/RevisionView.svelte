@@ -5,9 +5,9 @@
 	 * The comparison is per BLOCK and of the STORED source (Markdown, LaTeX exactly as saved),
 	 * never of the rendered page: two renderings can differ where the text does not (a KaTeX
 	 * upgrade) and agree where it does (a whitespace change inside a formula), and the reviewer is
-	 * deciding on the text. Blocks are paired by position, which is the honest reading of "an
-	 * ordered list": a paragraph inserted at the top shows as one addition and everything after it
-	 * as unchanged only if the words really did stay the same.
+	 * deciding on the text. Blocks are paired by their id (by position for blocks without one, since
+	 * 2026-11-04): a paragraph inserted at the top shows as one addition and everything after it as
+	 * unchanged, as long as the words really did stay the same.
 	 *
 	 * A block that is not text gets a marker rather than a word diff — "this picture was replaced"
 	 * is the whole of what there is to say about a picture, and rendering two of them side by side
@@ -33,6 +33,10 @@
 
 	type Mark = 'added' | 'removed' | 'changed' | 'same';
 	interface BlockChange {
+		/** Unique within one comparison: a removed block keeps its OLD position, which can equal a
+		 *  new block's, so the position alone is not a key (a duplicate-key crash found by
+		 *  `e2e/concepts.mjs` the day ids arrived). */
+		key: string;
 		position: number;
 		kind: ConceptBlock['kind'];
 		mark: Mark;
@@ -46,7 +50,7 @@
 	/** The stored text of a block, or '' for a block that has none. */
 	function textOf(block: ConceptBlock): string {
 		if (block.kind === 'markdown') return block.body;
-		if (block.kind === 'latex') return block.source;
+		if (block.kind === 'latex' || block.kind === 'code') return block.source;
 		return '';
 	}
 
@@ -56,6 +60,9 @@
 		if (a.kind !== b.kind) return false;
 		if (a.kind === 'chem' && b.kind === 'chem') {
 			return a.drawingId === b.drawingId && a.caption === b.caption;
+		}
+		if (a.kind === 'sketch' && b.kind === 'sketch') {
+			return a.sketchId === b.sketchId && a.caption === b.caption;
 		}
 		if (a.kind === 'pdf' && b.kind === 'pdf') {
 			return a.assetId === b.assetId && a.caption === b.caption;
@@ -86,24 +93,48 @@
 			.then(({ diffWords }) => {
 				// A move to another revision while the chunk was on its way: not ours to draw.
 				if (comparedFor !== key) return;
-				const count = Math.max(older.blocks.length, revision.blocks.length);
-				const out: BlockChange[] = [];
-				for (let i = 0; i < count; i++) {
-					const a = older.blocks[i];
-					const b = revision.blocks[i];
+				// Paired by block ID (2026-11-04, `config/blocks.py` point 1): a paragraph inserted at
+				// the top is one "added", not every block below it "changed". Blocks with no id — a
+				// revision nobody has opened in the editor since ids existed is migrated, so this is
+				// only a client that dropped them — fall back to the old pairing by position.
+				const compare = (i: number, a: ConceptBlock | undefined, b: ConceptBlock | undefined) => {
 					if (!a && b) {
-						out.push({ position: i, kind: b.kind, mark: 'added' });
+						out.push({ key: `${out.length}`, position: i, kind: b.kind, mark: 'added' });
 					} else if (a && !b) {
-						out.push({ position: i, kind: a.kind, mark: 'removed' });
+						out.push({ key: `${out.length}`, position: i, kind: a.kind, mark: 'removed' });
 					} else if (a && b && a.kind !== b.kind) {
-						out.push({ position: i, kind: b.kind, mark: 'changed' });
-					} else if (a && b && (b.kind === 'markdown' || b.kind === 'latex')) {
+						out.push({ key: `${out.length}`, position: i, kind: b.kind, mark: 'changed' });
+					} else if (a && b && (b.kind === 'markdown' || b.kind === 'latex' || b.kind === 'code')) {
 						const parts = diffWords(textOf(a), textOf(b));
 						const changed = parts === null || parts.some((part) => part.type !== 'same');
-						out.push({ position: i, kind: b.kind, mark: changed ? 'changed' : 'same', parts });
+						out.push({
+							key: `${out.length}`,
+							position: i,
+							kind: b.kind,
+							mark: changed ? 'changed' : 'same',
+							parts
+						});
 					} else if (a && b) {
-						out.push({ position: i, kind: b.kind, mark: sameAsset(a, b) ? 'same' : 'changed' });
+						out.push({
+							key: `${out.length}`,
+							position: i,
+							kind: b.kind,
+							mark: sameAsset(a, b) ? 'same' : 'changed'
+						});
 					}
+				};
+				const out: BlockChange[] = [];
+				const byId = new Map(older.blocks.filter((x) => x.id).map((x) => [x.id, x]));
+				const allHaveIds = older.blocks.every((x) => x.id) && revision.blocks.every((x) => x.id);
+				if (allHaveIds) {
+					const kept = new Set(revision.blocks.map((x) => x.id));
+					revision.blocks.forEach((b, i) => compare(i, byId.get(b.id), b));
+					older.blocks.forEach((a, i) => {
+						if (!kept.has(a.id)) compare(i, a, undefined);
+					});
+				} else {
+					const count = Math.max(older.blocks.length, revision.blocks.length);
+					for (let i = 0; i < count; i++) compare(i, older.blocks[i], revision.blocks[i]);
 				}
 				changes = out;
 			})
@@ -151,7 +182,7 @@
 			<!-- "Nothing in the text changed." -->
 		{:else}
 			<ul>
-				{#each realChanges as change (change.position)}
+				{#each realChanges as change (change.key)}
 					<li>
 						<p class="block-head">
 							<span class="badge">{BLOCK_KIND_LABELS[change.kind]()}</span>

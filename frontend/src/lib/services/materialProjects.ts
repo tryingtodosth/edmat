@@ -13,6 +13,8 @@
 //    attached, and `StaleVersionError` carries it mapped so the editor can show what landed
 //    underneath rather than just "conflict".
 
+import { commentPayload } from '$lib/services/comments';
+import type { CommentExtras } from '$lib/types/blocks';
 import { apiClient, ApiError } from '$lib/api/client';
 import {
 	mapComment,
@@ -440,11 +442,12 @@ export async function listVersionComments(versionId: string): Promise<Comment[]>
 export async function postVersionComment(
 	versionId: string,
 	body: string,
-	parentId?: string
+	parentId?: string,
+	extras: CommentExtras = {}
 ): Promise<Comment> {
 	const raw = await apiClient.post<RawComment>(
 		`/material-versions/${encodeURIComponent(versionId)}/comments/`,
-		{ body, parent: parentId ? Number(parentId) : undefined }
+		commentPayload(body, parentId, extras)
 	);
 	return mapComment(raw, VERSION_TARGET, versionId);
 }

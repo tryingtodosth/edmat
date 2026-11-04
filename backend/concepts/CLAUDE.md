@@ -60,6 +60,11 @@ endpoint), the shapes are deliberately identical.
   the answer, so two readers of one page are told the same distances. Order is `(distance, slug)`,
   because a concept has no title to sort by; the title is resolved per reader afterwards and the
   order is NOT recomputed from it.
+- **`blocks.py` is a PROFILE of `config/blocks.py` since 2026-11-04** (§17DI): the shared kinds
+  (`markdown`, `latex`, `code`, `chem`, `sketch`) plus this app's `pdf` and asset-backed `image`.
+  Every block carries an `id` (migration `0003_block_ids` gave existing revisions deterministic
+  ones per `(article, position)`); `RevisionView` pairs blocks by id; a comment on one block of an
+  article is a `Comment.anchor` (`community/anchors.py` reads the PUBLISHED head's blocks).
 - **Sanitize in `save()`, validate in the serializer.** `ConceptRevision.save()` runs
   `blocks.sanitize_blocks` (no queries, never raises) and derives `search_text` from the result;
   `blocks.clean_blocks` does the full validation — unknown kind, lengths, referenced rows, asset kind
@@ -133,6 +138,9 @@ refusal are in `.claude/skills/import-exercises/reference/concepts.md`. What it 
   file is compared in its STORED form (`import_concepts.stored_form` = the three calls `save()`
   makes) and writes nothing; a changed one is a new revision on the same article. It never
   publishes over a head somebody else wrote, never touches another person's article, never deletes.
+- **Block ids are not part of "unchanged"** (`stored_form` / `stored_key` drop them), and a changed
+  file's new revision inherits the head's ids by position (`blocks.inherit_ids`) — so comments on an
+  imported page's paragraphs survive a re-import (§17DI).
 - A `body` link for a target the file calls a prerequisite is re-filed as `manual` +
   `prerequisite` — one row per target means the harvested `related` row would otherwise win.
 

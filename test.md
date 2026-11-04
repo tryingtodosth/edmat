@@ -488,6 +488,7 @@ node e2e/sorting-and-languages.mjs    # sort keys in the URL + the content-langu
 node e2e/comment-attachments.mjs      # pictures/PDFs on comments (§17AR); ola on exercise 1 with generated files; deletes its marker comments
 node e2e/rich-editor.mjs              # the Tiptap editor + maths palette (§17AS); ola on exercise 2; resets her editor_mode to source
 node e2e/comment-input-kinds.mjs      # the six input kinds + inline pictures + chemistry (§17AV, §17BA); ola on exercise 2; kasia toggles the `chemistry` flag; ~3 min (Indigo WASM)
+node e2e/notebook-anchors.mjs         # notebooks + comments on one part (§17DI); ola on exercise 2, kasia writes a notebook solution; E2E_TOKEN_OLA/E2E_TOKEN_KASIA skip the login throttle; deletes its marker comments and entry
 node e2e/sketch.mjs                  # the freehand whiteboard (Excalidraw); ola draws a real stroke on exercise 2; kasia toggles the `sketches` flag; leaves its two sketch rows (no delete endpoint)
 node e2e/reading-comfort.mjs          # text size / high contrast / 44px floor / hero copy (§17AT); a guest + ola; resets her text_size/high_contrast
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
@@ -1254,6 +1255,19 @@ from messaging.crypto import decrypt_text
 m = Message.objects.order_by('-pk').first()
 print('stored  :', m.body[:60]); print('decrypts:', decrypt_text(m.body)[:60])"
 ```
+
+**`e2e/notebook-anchors.mjs` (35 checks)** — notebooks and comments on one part (§17DI): a
+phrase of exercise 2's statement selected → "Comment on this" beside it → the composer says what it
+is about → stored with `anchor = {block: 'statement', quote}` → the comment's "On the statement"
+line flashes the statement and sets the `edmat-anchor` highlight → the statement's gutter counts it
+and the count narrows the thread to exactly those comments; a three-block notebook comment (text,
+formula, code) stored with ids, the formula typeset and a `<b>` in the code shown as text; a reply
+on the formula block names it and its parent, its line says "On the formula", the block counts it; editing the notebook
+through the menu opens it as a notebook and keeps every block id, so that reply stays attached;
+a notebook solution written through the API draws three blocks and a comment on its second step
+lands in the entry's thread with the step's id; zero page errors (KaTeX font 403s in a worktree
+filtered, trap 26). Screens `e2e/screens/notebook-{1..5}-*.png`. Backend half:
+`manage.py test community.test_notebook` (29).
 
 **`e2e/comment-input-kinds.mjs` (33 checks)** — the six ways into a comment (root CLAUDE.md
 §17AV, extended by §17BA): the strip under the composer offers Markdown file / LaTeX / JSON /

@@ -25,7 +25,11 @@ def hold_minor_comment(sender, instance, created, **kwargs):
     # attachment row is PDFs only, so the narrow check would have quietly become the hole it was
     # written to close: every ordinary picture on a minor's thread would have gone straight to
     # publication. `<img` covers the drawing, the uploaded picture and anything typed by hand.
-    if '<img' in (instance.body or ''):
+    # A notebook's pictures are blocks, and its derived body names them in words
+    # (`config/blocks.has_pictures`), so the blocks are asked too.
+    from config.blocks import has_pictures
+
+    if '<img' in (instance.body or '') or has_pictures(instance.blocks):
         from config.audience import MINOR_AUDIENCES
 
         if getattr(instance.target, 'audience', None) in MINOR_AUDIENCES:

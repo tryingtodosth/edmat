@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { CommentExtras } from '$lib/types/blocks';
 	// A tutoring listing's own detail page — the host for reviews/comments/watchlist-toggle, the
 	// same reasoning the material detail page's own doc comment already gives for why this couldn't
 	// just be crammed into the compact ServiceCard grid component: reviews+discussion+a watchlist
@@ -130,9 +131,20 @@
 		if (refreshed) service = refreshed;
 	}
 
-	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
+	async function handleCommentSubmit(
+		body: string,
+		parentId?: string,
+		extras?: CommentExtras
+	): Promise<Comment | void> {
 		if (!service || !authStore.user) return;
-		const comment = await submitComment('service', service.id, authStore.user.id, body, parentId);
+		const comment = await submitComment(
+			'service',
+			service.id,
+			authStore.user.id,
+			body,
+			parentId,
+			extras
+		);
 		comments = [...comments, comment];
 		return comment;
 	}
