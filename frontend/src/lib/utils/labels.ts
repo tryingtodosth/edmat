@@ -1383,6 +1383,11 @@ export function courseWriteErrorMessage(err: unknown, fallback: string): string 
 				? parent
 				: '';
 		if (word in SUBCOURSE_REFUSAL_LABELS) return SUBCOURSE_REFUSAL_LABELS[word]();
+		// The course's licence (2026-11-02): chosen on create; a PATCH that changes it is refused.
+		const licence = (err.body as Record<string, unknown>).licence;
+		const licenceWord = Array.isArray(licence) ? String(licence[0]) : '';
+		if (licenceWord === 'licence_change_via_licences') return m.courseLicence_changeViaPage(); // "Change the licence from the course page — it can only be widened."
+		if (licenceWord) return licenceReasonLabel(licenceWord);
 	}
 	return err instanceof Error ? err.message : fallback;
 }
@@ -2149,4 +2154,91 @@ export const BULK_UPLOAD_LABELS: Record<string, (p: { detail: string }) => strin
 export function bulkUploadMessage(issue: { code: string; detail: string }): string {
 	const label = BULK_UPLOAD_LABELS[issue.code];
 	return label ? label({ detail: issue.detail }) : issue.detail || issue.code;
+}
+
+// ---- a course's licence, one item's own audience, invites by email (2026-11-02) -------------
+//
+// `COURSE_ITEM_VISIBILITY_LABELS` mirrors `backend/courses/models.py: ITEM_VISIBILITY_CHOICES`, and
+// `licenceRelationNote` mirrors `backend/licensing/licences.py: LICENCE_RELATIONS` (house rule 13 —
+// both name this file back). The relation itself is computed by the server and only drawn here; the
+// partial order between licences is never re-derived in the browser.
+import type { CourseAttachmentVisibility, CourseItemVisibility } from '$lib/types/course';
+import type { LicenceRelation } from '$lib/types/licence';
+
+export const COURSE_ITEM_VISIBILITY_LABELS: Record<CourseItemVisibility, () => string> = {
+	course: m.courseItemVis_course, // "Everyone who can open the course"
+	participants: m.courseItemVis_participants, // "Participants and staff"
+	staff: m.courseItemVis_staff // "Only the people running the course"
+};
+
+/** A course file's audience (`backend/courses/models.py: ATTACHMENT_VISIBILITY_CHOICES`). */
+export const COURSE_ATTACHMENT_VISIBILITY_LABELS: Record<CourseAttachmentVisibility, () => string> =
+	{
+		participants: m.courseFileVis_participants, // "Everyone in the course"
+		staff: m.courseItemVis_staff // "Only the people running the course"
+	};
+
+/** The row's own select, where the long sentences above would push the row's other controls onto
+ *  a second line; the select's title carries the long form. */
+export const COURSE_ITEM_VISIBILITY_SHORT: Record<CourseItemVisibility, () => string> = {
+	course: m.courseItemVis_shortCourse, // "Everyone"
+	participants: m.courseItemVis_chipParticipants, // "Participants only"
+	staff: m.courseItemVis_chipStaff // "Staff only"
+};
+
+/** The short chip drawn beside a narrowed item. `course` draws nothing — it is the default. */
+export const COURSE_ITEM_VISIBILITY_CHIPS: Record<CourseItemVisibility, () => string> = {
+	course: () => '',
+	participants: m.courseItemVis_chipParticipants, // "Participants only"
+	staff: m.courseItemVis_chipStaff // "Staff only"
+};
+
+/** The quiet line under an item whose own licence differs from the course's, or '' when there is
+ *  nothing worth saying (`same`, `wider`, or a kind that carries no licence). */
+export function licenceRelationNote(
+	relation: LicenceRelation | null,
+	item: Licence | null,
+	course: Licence
+): string {
+	if (!relation || !item) return '';
+	const values = { licence: licenceShort(item), course: licenceShort(course) };
+	switch (relation) {
+		case 'narrower':
+			return m.courseLicence_noteNarrower(values); // "Its own licence, {licence}, is narrower than this course’s {course}."
+		case 'different':
+			return m.courseLicence_noteDifferent(values); // "Its own licence, {licence}, has different terms from this course’s {course}."
+		case 'unclear':
+			return m.courseLicence_noteUnclear(values); // "Its rights are not yet clarified — for study here only; this course’s {course} does not cover it."
+		default:
+			return '';
+	}
+}
+
+/** The refusal words of `backend/courses/mailinvite.py` and the email-invite endpoint, each with
+ *  its own sentence (house rule 6). The module names this function back (house rule 13). */
+export function emailInviteReasonLabel(reason: string): string {
+	switch (reason) {
+		case 'email_invalid':
+			return m.courseInvite_reason_invalid(); // "That is not an email address."
+		case 'email_is_you':
+			return m.courseInvite_reason_isYou(); // "That is your own address."
+		case 'already_invited':
+			return m.courseInvite_reason_alreadyInvited(); // "Already invited — that invitation still works."
+		case 'daily_limit':
+			return m.courseInvite_reason_dailyLimit(); // "You have sent as many invitations as a day allows (50). Try again tomorrow."
+		case 'email_not_confirmed':
+			return m.courseInvite_reason_notConfirmed(); // "Confirm your own email address first — invitations go out in your name."
+		case 'email_invite_too_many':
+			return m.courseInvite_reason_tooMany(); // "At most 20 addresses at a time."
+		case 'email_invite_no_addresses':
+			return m.courseInvite_reason_noAddresses(); // "Write at least one address."
+		case 'email_invite_role':
+			return m.courseInvite_reason_role(); // "Pick who they join as."
+		case 'attachment_visibility_unknown':
+			return m.courseFileVis_unknown(); // "Pick who sees the file."
+		case 'item_visibility_curators_only':
+			return m.courseItemVis_curatorsOnly(); // "Only the people running the course can narrow who sees an item."
+		default:
+			return m.courseInvite_reason_generic(); // "The invitation could not be sent."
+	}
 }

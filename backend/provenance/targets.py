@@ -29,6 +29,7 @@ from django.contrib.contenttypes.models import ContentType
 from community.models import Comment, Review
 from concepts.models import ConceptArticle
 from exercises.models import Exercise, SolutionEntry
+from materials.models import Material
 
 #: kind -> (model, the name of the field holding its author, or None if it has no single one)
 #:
@@ -45,6 +46,12 @@ PROVENANCE_KIND_MODELS = {
     'comment': (Comment, 'author'),
     'review': (Review, 'author'),
     'concept_article': (ConceptArticle, 'created_by'),
+    # `material` (owner, 2026-11-02: *"(percentage% AI) that should be in each exercise/material"*).
+    # The account that submitted it — `Material.author` is a FREE-TEXT byline from the corpus, not
+    # a person who can be asked, so it cannot be the field `can_declare` reads. A corpus material
+    # has no submitter and so no author mark, the same honest answer a corpus exercise gets; its
+    # readers can still vote. Visibility is the generic `published` branch of `rules.is_readable`.
+    'material': (Material, 'submitted_by'),
 }
 
 _REVERSE_KIND_MODELS = {model: kind for kind, (model, _field) in PROVENANCE_KIND_MODELS.items()}

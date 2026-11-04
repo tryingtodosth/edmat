@@ -276,7 +276,7 @@
 		contests: ['/contests'],
 		services: ['/korki', '/tutoring', '/bookings'],
 		events: ['/events'],
-		about: ['/about', '/legal', '/privacy', '/levels']
+		about: ['/about', '/coop', '/legal', '/privacy', '/levels']
 	};
 	const currentSection = $derived.by(() => {
 		const p = page.url.pathname;

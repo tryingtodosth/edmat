@@ -67,7 +67,7 @@ page.on('console', (m) => {
 
 await page.goto(BASE, { waitUntil: 'load' });
 await page.evaluate((t) => localStorage.setItem('edmat-auth-token', t), TOKEN);
-await page.goto(`${BASE}/about`, { waitUntil: 'load' });
+await page.goto(`${BASE}/coop`, { waitUntil: 'load' }); // the EdMat organisation's page (`/about` until 2026-11-02)
 await page.waitForSelector('[data-fold="attachments"]', { timeout: 60000 });
 await page.waitForTimeout(2500);
 

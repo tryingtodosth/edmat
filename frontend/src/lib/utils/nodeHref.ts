@@ -8,8 +8,8 @@ import { localizedPath } from '$lib/utils/localizedPath';
 import type { NodeRef } from '$lib/types/node';
 
 /** The project's own organisation (`work/edmat_project.py: ORGANIZATION_SLUG`), whose page is
- *  `/about` rather than `/organizations/edmat` — the same component behind both routes, but the
- *  first is the address people have. */
+ *  `/coop` (it was `/about` until 2026-11-02) rather than `/organizations/edmat` — the same
+ *  component behind both routes, but the first is the address people have. */
 const PROJECT_SLUG = 'edmat';
 
 export function nodeHref(node: NodeRef | null | undefined): string {
@@ -25,7 +25,7 @@ export function nodeHref(node: NodeRef | null | undefined): string {
 			return resolve('/contests/[id]', { id: node.id });
 		case 'organization':
 			if (!node.slug) return resolve('/organizations');
-			if (node.slug === PROJECT_SLUG) return resolve('/about');
+			if (node.slug === PROJECT_SLUG) return resolve('/coop');
 			return resolve('/organizations/[slug]', { slug: node.slug });
 	}
 }

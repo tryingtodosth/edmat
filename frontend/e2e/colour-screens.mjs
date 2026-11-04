@@ -18,10 +18,12 @@ const BASE = process.env.E2E_BASE ?? 'http://localhost:5260';
 const API = process.env.E2E_API ?? 'http://127.0.0.1:8160/api';
 const OUT = process.argv[2] ?? './shots';
 const LABEL = process.argv[3] ?? '';
-// The same cached Chromium every other script here uses (no full playwright install).
-const EXE =
-	process.env.E2E_CHROMIUM ??
-	`${process.env.HOME}/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome`;
+// `CHROME`, like every other script here; unset, playwright-core picks its own cached build. Until
+// 2026-11-03 this one script read `E2E_CHROMIUM` and defaulted to a hard-coded full
+// `chromium-1234`, which will not start on a machine without its system libraries (`libcups`), so
+// the `CHROME=<chrome-headless-shell>` every other run passes was silently ignored. `E2E_CHROMIUM`
+// is still read, as an alias, so an old command line keeps working.
+const EXE = process.env.CHROME ?? process.env.E2E_CHROMIUM;
 mkdirSync(OUT, { recursive: true });
 
 const j = async (p, init) => {
@@ -44,7 +46,7 @@ const login = savedToken
 const token = login.token;
 console.log('branch', branchSlug, 'exercise', exId, 'token', token ? 'ok' : 'none');
 
-const browser = await chromium.launch({ executablePath: EXE });
+const browser = await chromium.launch(EXE ? { executablePath: EXE } : {});
 const errors = [];
 
 async function shoot(ctx, path, name, { theme, width, height, waitMath = false, full = false }) {
@@ -87,6 +89,7 @@ const anonPages = [
 	['/korki', 'tutoring', {}],
 	['/concepts', 'concepts', {}],
 	['/about', 'about', {}],
+	['/coop', 'coop', {}],
 	['/search?q=ca%C5%82ka', 'search', {}],
 	['/login', 'login', {}]
 ];

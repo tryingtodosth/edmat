@@ -51,8 +51,11 @@ class LicenceView(APIView):
             return None
         obj = get_object_or_404(kind.model, pk=pk)
         user = request.user if request.user.is_authenticated else None
-        if not kind.visible(obj) and not rules.can_manage(obj, user):
-            return None
+        if kind.visible(obj) or rules.can_manage(obj, user):
+            return obj
+        if kind.visible_to is not None and kind.visible_to(obj, user):
+            return obj
+        return None
         return obj
 
     def get(self, request, kind, pk):

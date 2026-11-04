@@ -1716,14 +1716,69 @@
   "listed": true
  },
  {
+  "ref": "17DB",
+  "title": "A course's licence, one item's own audience, and collaborators from the create form",
+  "heading": "17DB — A course's licence, one item's own audience, and collaborators from the create form (2026-11-02, `feat/course-licence-collab`)",
+  "line": 18366,
+  "date": "2026-11-02",
+  "date_source": "heading",
+  "summary": "The owner asked: \"in course creation we want to be able to select license for coop and materials on this course (getting a smooth, subtle, and classy warning on a content/material marked otherwise — eg link to a material in the main material repo; also adding collaborators from that place (with whom you are connected, or adding by mail)\". Mid-task they added: \"also different privacy settings per…",
+  "subproject": "courses",
+  "listed": true
+ },
+ {
+  "ref": "17DC",
+  "title": "A course file's own audience, and its licence on every upload form",
+  "heading": "17DC — A course file's own audience, and its licence on every upload form (2026-11-02, `feat/course-licence-collab`)",
+  "line": 18473,
+  "date": "2026-11-02",
+  "date_source": "heading",
+  "summary": "The follow-up that §17DB's \"Left open\" named. \"Different privacy settings per content\" stopped at the course's files, which were members-only as a whole.",
+  "subproject": "courses",
+  "listed": true
+ },
+ {
+  "ref": "17DD",
+  "title": "The owner's open decisions as polls on /about; the association retired",
+  "heading": "17DD — The owner's open decisions as polls on /about; the association retired (2026-11-02, `feat/about-decisions`)",
+  "line": 18529,
+  "date": "2026-11-02",
+  "date_source": "heading",
+  "summary": "The owner, after §17DB–§17DC: \"next deployment will publish these decisions to make on edmat.net/about and delete stowarzyszenie related ones\".",
+  "subproject": "management",
+  "listed": true
+ },
+ {
   "ref": "17DE",
   "title": "Browse by audience first, and one glossary for the taxonomy",
   "heading": "17DE — Browse by audience first, and one glossary for the taxonomy (2026-11-02, `ux/audience-taxonomy`)",
-  "line": 18366,
+  "line": 18619,
   "date": "2026-11-02",
   "date_source": "heading",
   "summary": "The owner asked: \"lets improve branch ←→ discipline. we need to serve it by audience primarily\", then \"we want the audience to be the primary way of serving materials inside\". Two research agents went first: an exhaustive inventory of every discipline/branch/audience surface (backend, every route and component, ~150 message keys, the manual) and a design note. The owner then took four decisions…",
   "subproject": "interface",
+  "listed": true
+ },
+ {
+  "ref": "17DF",
+  "title": "/about plays the promo reel; the organisation page moves to /coop",
+  "heading": "17DF — `/about` plays the promo reel; the organisation page moves to `/coop` (2026-11-02, `feat/about-promo`)",
+  "line": 18728,
+  "date": "2026-11-02",
+  "date_source": "heading",
+  "summary": "Filed as §17DE on its branch and renumbered at the merge into main (2026-11-03): §17DE is the audience-first browse, which reached main first. The AI badge moved from §17DF to §17DG with it.",
+  "subproject": "interface",
+  "listed": true
+ },
+ {
+  "ref": "17DG",
+  "title": "\"N% AI\" on every exercise and material",
+  "heading": "17DG — \"N% AI\" on every exercise and material (2026-11-02, `feat/ai-badge-clear`)",
+  "line": 18799,
+  "date": "2026-11-02",
+  "date_source": "heading",
+  "summary": "Two asks from the owner the same evening. First: \"AI generated should be more clear: currently it doesnt even have AI in/near the badge describing if its AI\" — the chip (provenance/AiAssistChip.svelte, §17BX's \"one chip, two marks\") drew two small people-icons and a percentage, and the word \"AI\" lived only in its title and aria-label, so a sighted reader had to hover, and on a phone could not.…",
+  "subproject": "community",
   "listed": true
  }
 ]

@@ -23,6 +23,8 @@
 	import { resolve } from '$app/paths';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import type { Attachment, Course, CourseItemKind } from '$lib/types/course';
+	import type { Licence } from '$lib/types/licence';
+	import LicencePicker from '$lib/components/shared/LicencePicker.svelte';
 	import { searchExercises } from '$lib/services/exercises';
 	import { searchMaterials } from '$lib/services/materials';
 	import { getEvents } from '$lib/services/events';
@@ -54,7 +56,7 @@
 			 * `uploadAttachment`, which is what actually needs `course.id`) and then adds the
 			 * resulting id as an ordinary attachment item — that whole sequence has to be one
 			 * `act()` on the caller's side so a failed upload never half-adds an item. */
-			upload?: { file: File; title: string };
+			upload?: { file: File; title: string; licence: Licence };
 			chapterId: string | null;
 			lessonId: string | null;
 			note: string;
@@ -86,6 +88,8 @@
 	let pickedAttachmentId = $state('');
 	let uploadFile = $state<File | null>(null);
 	let uploadTitle = $state('');
+	// The new file's own licence, starting from the course's (`LicencePicker reason="course"`).
+	let uploadLicence = $state<Licence>('edmat-only');
 
 	/** What kind of search this is, and where "create a new one instead" should send somebody —
 	 * kept as one lookup rather than repeating the same three-way branch at each call site. */
@@ -187,7 +191,7 @@
 			onsubmit?.({
 				kind,
 				id: '',
-				upload: { file: uploadFile as File, title: uploadTitle.trim() },
+				upload: { file: uploadFile as File, title: uploadTitle.trim(), licence: uploadLicence },
 				chapterId,
 				lessonId,
 				note: trimmedNote
@@ -281,6 +285,13 @@
 						<span>{m.course_contribute_uploadTitleLabel()}</span>
 						<input type="text" bind:value={uploadTitle} maxlength="200" />
 					</label>
+					<LicencePicker
+						bind:value={uploadLicence}
+						name="contribute-licence"
+						compact
+						suggested={course.licence}
+						reason="course"
+					/>
 					<p class="add-panel__hint">{m.course_contribute_uploadHint()}</p>
 				{/if}
 			{:else}

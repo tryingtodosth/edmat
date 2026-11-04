@@ -8,6 +8,7 @@ import type { Audience } from './audience';
  */
 
 import type { CommentTargetType } from './comment';
+import type { Licence, LicenceRelation } from './licence';
 
 /** Who may see the course at all. Split out of `CourseStatus`, which used to answer this and "how
  * far along is it" with one value — so `draft` meant hidden while `open`/`running`/`finished` all
@@ -131,9 +132,27 @@ export interface CourseStaffMember {
 export type CourseItemKind =
 	'material' | 'exercise' | 'attachment' | 'event' | 'discussion' | 'course' | 'link' | 'post';
 
+/** Who may see ONE item of a course (2026-11-02, "different privacy settings per content") — a
+ * narrowing of the course's own rule. Mirrors `backend/courses/models.py: ITEM_VISIBILITY_CHOICES`
+ * (house rule 13); `utils/labels.ts: COURSE_ITEM_VISIBILITY_LABELS` has the words. */
+export type CourseItemVisibility = 'course' | 'participants' | 'staff';
+export const COURSE_ITEM_VISIBILITIES = [
+	'course',
+	'participants',
+	'staff'
+] as const satisfies readonly CourseItemVisibility[];
+
 export interface CourseItem {
 	id: string;
 	kind: CourseItemKind;
+	/** Who may see this one item — `course` (whoever can open the course), `participants`, `staff`. */
+	visibility: CourseItemVisibility;
+	/** The licence of what the item points at, when it carries one (a corpus material or exercise,
+	 *  a file uploaded here); null for an event, a thread, a course, a link, a post. */
+	targetLicence: Licence | null;
+	/** How that licence sits with the course's own (`backend/licensing/licences.py:
+	 *  compare_to_container`); null when there is no licence to compare. */
+	licenceRelation: LicenceRelation | null;
 	/** Filed into a lesson, or straight into a chapter, or neither — never both. Null on both means
 	 * unfiled, which is where a participant's submission sits before somebody files it. */
 	lesson: string | null;
@@ -210,6 +229,23 @@ export interface CourseInvite {
 	revokedAt: string | null;
 	isUsable: boolean;
 	unusableReason: InviteUnusableReason | null;
+	/** The address a mailed invite went to; '' for a link made by hand, and once forgotten. */
+	sentTo: string;
+}
+
+/** One address's outcome in `POST /api/courses/{id}/email-invites/` (`backend/courses/mailinvite.py`). */
+export interface EmailInviteResult {
+	email: string;
+	ok: boolean;
+	/** Set when `ok` is false: `email_invalid`, `email_is_you`, `already_invited`, `daily_limit`. */
+	reason: string;
+	invite: CourseInvite | null;
+}
+
+export interface EmailInviteOutcome {
+	results: EmailInviteResult[];
+	sentToday: number;
+	maxPerDay: number;
 }
 
 /** What somebody holding a link is told before they act on it, and before they have logged in.
@@ -221,6 +257,8 @@ export interface InvitePreview {
 	role: InviteRole;
 	isUsable: boolean;
 	unusableReason: InviteUnusableReason | null;
+	/** What is written in the course is under this — said before somebody joins its staff. */
+	courseLicence: Licence;
 }
 
 /** The middle level: a session inside a chapter, holding the items worked through in it.
@@ -274,6 +312,8 @@ export interface LessonExerciseSet {
 	/** Pinned exercises this viewer is not being shown, because a moderator unpublished them. A
 	 * number rather than a silently shorter list, so the gap is explained. */
 	hiddenExerciseCount: number;
+	/** Who may see the whole block — the same ladder as a `CourseItem` (2026-11-02). */
+	visibility: CourseItemVisibility;
 }
 
 export interface Lesson {
@@ -407,6 +447,10 @@ export interface Course {
 	 *  (university, courseCode). */
 	currentTerm: string;
 	visibility: CourseVisibility;
+	/** The licence of what is written in the course — its description, chapters and lessons, and
+	 *  the starting choice for a file uploaded into it. Linked materials keep their own. Chosen at
+	 *  creation; afterwards only widened, through `/api/licences/course/<id>/`. */
+	licence: Licence;
 	status: CourseStatus;
 	enrollmentPolicy: EnrollmentPolicy;
 	capacity: number;
@@ -493,6 +537,8 @@ export interface TaughtCourseDraft {
 	courseCode: string;
 	currentTerm: string;
 	visibility: CourseVisibility;
+	/** Sent on create only; an edit leaves it out (the server refuses a change by PATCH). */
+	licence?: Licence;
 	status: CourseStatus;
 	enrollmentPolicy: EnrollmentPolicy;
 	capacity: number;
@@ -562,7 +608,17 @@ export interface Attachment {
 	reviewCount: number;
 	/** null, not 0, when nobody has reviewed it — zero is a rating somebody gave. */
 	averageRating: number | null;
+	/** Its uploader's choice, starting from the course's licence. */
+	licence: Licence;
+	/** Who in the course sees it (`backend/courses/models.py: ATTACHMENT_VISIBILITY_CHOICES`). */
+	visibility: CourseAttachmentVisibility;
+	/** Whether THIS reader may change that — its uploader or a curator, decided by the server. */
+	canChangeVisibility: boolean;
 }
+
+/** Mirrors `ATTACHMENT_VISIBILITY_CHOICES` (house rule 13): everyone in the course, or only the
+ *  people running it. A file was never public, so the ladder starts one rung below an item's. */
+export type CourseAttachmentVisibility = 'participants' | 'staff';
 
 export interface AttachmentReview {
 	id: string;

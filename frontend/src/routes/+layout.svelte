@@ -19,8 +19,15 @@
 	import Footer from '$lib/components/layout/Footer.svelte';
 	import { issueReportStore } from '$lib/state/issueReport.svelte';
 	import { welcomeStore } from '$lib/state/welcome.svelte';
+	import { provideSiteAiAssistance } from '$lib/components/provenance/aiAssistance.svelte';
 
 	let { children } = $props();
+
+	// The "N% AI" chip on every exercise and material CARD, on whichever list draws it (owner,
+	// 2026-11-02: "add it to the cards in lists too"): one batched holder for the whole site, pruned
+	// on every navigation. A page with its own holder (exercise, material, concept) shadows it; a
+	// sample frame on `/about` turns it off. `aiAssistance.svelte.ts` has the reasoning.
+	provideSiteAiAssistance();
 
 	onMount(() => themeStore.init());
 	// The interface language for somebody who has never chosen one. Polish is already what the page

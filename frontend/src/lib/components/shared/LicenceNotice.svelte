@@ -10,7 +10,7 @@
 	 * The key arrives with the content (`licence`), so the line paints with the page; the reading
 	 * (since when, may I change it) is fetched once on mount and only adds to it. */
 	import { onMount } from 'svelte';
-	import type { Licence, LicenceReading, LicensedKind } from '$lib/types/licence';
+	import type { Licence, LicenceReading, LicenceTargetKind } from '$lib/types/licence';
 	import { changeLicence, getLicence, LicenceChangeError } from '$lib/services/licences';
 	import {
 		LICENCE_FACTS,
@@ -31,7 +31,7 @@
 		textLicence = undefined,
 		onChanged = undefined
 	}: {
-		kind: LicensedKind;
+		kind: LicenceTargetKind;
 		id: string;
 		licence: Licence;
 		/** The name a reuser credits. Empty for content nobody here wrote. */

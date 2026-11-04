@@ -19,6 +19,8 @@ function mapReading(raw: any): AssistanceReading {
 		kind: raw.kind,
 		id: String(raw.id),
 		score: raw.score ?? 0,
+		shownScore: raw.shown_score ?? 0,
+		basis: raw.basis ?? 'none',
 		authorMarked: raw.author_marked ?? false,
 		authorAnswered: raw.author_answered ?? false,
 		authorNote: raw.author_note ?? '',

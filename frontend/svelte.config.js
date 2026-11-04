@@ -47,6 +47,9 @@ const config = {
 				'*',
 				'/korki',
 				'/materialy',
+				// The project's own page, the old `/about` (2026-11-02). `'*'` reaches it; named for the
+				// same reason as the showcase pages below.
+				'/coop',
 				// learning: showcase (G) — the seven design-showcase pages. `'*'` DOES already cover
 				// them (they are non-dynamic routes), but they are named here for the same reason
 				// `deploy/fuw/pack.sh` names its pages: a build that silently stopped emitting one of

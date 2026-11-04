@@ -89,7 +89,7 @@ export type ShowcaseLiveRoute =
 	| '/events'
 	| '/organizations'
 	| '/settings'
-	| '/about'
+	| '/coop'
 	| '/work'
 	| '/tasks'
 	| '/needs'

@@ -174,6 +174,35 @@ def at_least_as_open(new: str, old: str) -> bool:
     )
 
 
+#: What `compare_to_container` answers. MIRRORED in `frontend/src/lib/types/licence.ts`
+#: (`LicenceRelation`) and `utils/labels.ts` (`licenceRelationNote`) — house rule 13.
+LICENCE_RELATIONS = ('same', 'wider', 'narrower', 'different', 'unclear')
+
+
+def compare_to_container(item: str, container: str) -> str:
+    """How a work placed inside a container (a corpus material linked into a course) sits with the
+    container's own licence. The item ALWAYS keeps its own — a course links, it does not copy, so
+    nothing here changes anybody's licence; this only says whether a reader who takes the course's
+    licence at its word would be wrong about this one item.
+
+    - `same`      — the same key;
+    - `wider`     — the item allows everything the container does (and maybe more): nothing to say;
+    - `narrower`  — the container allows something the item does not (CC BY-SA course, an
+                    "EdMat only" material);
+    - `different` — neither covers the other (BY-NC and BY-SA): the item's terms differ;
+    - `unclear`   — the item's rights are not clarified (`unknown`, the seeded corpus).
+    """
+    if item == container:
+        return 'same'
+    if item == UNKNOWN:
+        return 'unclear'
+    if at_least_as_open(item, container):
+        return 'wider'
+    if at_least_as_open(container, item):
+        return 'narrower'
+    return 'different'
+
+
 def derivative_licence(parent: str) -> str:
     """The licence a derivative of `parent` (a translation of an exercise) is published under.
 

@@ -28,6 +28,10 @@ class OutboundEmail(models.Model):
     # was connected" afterwards (`sso/`, LINKING-AND-ERRORS.md §2.4 rules 2b and 5).
     KIND_SSO_LINK = 'sso_link_confirm'
     KIND_SSO_LINKED = 'sso_linked'
+    # "<Name> invited you to help run <course>" with the join link (`courses/mailinvite.py`). The
+    # one kind whose recipient may have no account: the link is built at send time from the
+    # `CourseInvite` named by `ref_id`, never from a user.
+    KIND_COURSE_INVITE = 'course_invite'
     KINDS = [
         (KIND_CONFIRM, 'Email confirmation'),
         (KIND_RESET, 'Password reset'),
@@ -36,6 +40,7 @@ class OutboundEmail(models.Model):
         (KIND_ERASURE, 'Account deletion notice'),
         (KIND_SSO_LINK, 'Connect a sign-in provider (confirmation link)'),
         (KIND_SSO_LINKED, 'A sign-in provider was connected'),
+        (KIND_COURSE_INVITE, 'An invitation to a course'),
         # Anything sent through Django's mail API by a path that is not this app's queue — the
         # admin, django-postman. Logged by `transport.LoggedEmailBackend` after the fact.
         (KIND_DIRECT, 'Other (sent directly)'),
@@ -62,6 +67,10 @@ class OutboundEmail(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
+    # The row a message is ABOUT, for the one kind whose link cannot be built from the recipient:
+    # a course invite's id (`KIND_COURSE_INVITE`). Null for every other kind. A plain id rather than
+    # a foreign key, so the mail log never cascades away with a course.
+    ref_id = models.PositiveIntegerField(null=True, blank=True)
     subject = models.CharField(max_length=300)
     # The body AS LOGGED. For a confirmation or a reset the link is NOT here: the body carries
     # `LINK_MARKER` and `services.render_body` builds the link at the moment of sending, from the

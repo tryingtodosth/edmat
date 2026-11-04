@@ -79,6 +79,7 @@ function courseBase(): Omit<Course, 'title' | 'summary' | 'instructor' | 'langua
 		subjectSlugs: ['uw-mat-analiza-i'],
 		fieldSlug: 'uw-matematyka',
 		visibility: 'public',
+		licence: 'edmat-only',
 		status: 'running',
 		enrollmentPolicy: 'approval',
 		capacity: 24,

@@ -6,7 +6,15 @@ from config.i18n_utils import request_locale, resolve_translation
 from taxonomy.models import Branch, Discipline
 
 from .attachmentfile import process_attachment_file
-from .rules import ancestors_of, course_visible_to, relation_to_parent, subcourse_block_reason
+from .rules import (
+    ancestors_of,
+    course_visible_to,
+    item_licence_relation,
+    item_target_licence,
+    item_visibility_block_reason,
+    relation_to_parent,
+    subcourse_block_reason,
+)
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
     DEFAULT_COURSE_KIND,
@@ -110,6 +118,8 @@ class LessonExerciseSetSerializer(serializers.ModelSerializer):
             'source_exists',
             'has_drifted',
             'hidden_exercise_count',
+            # Who may see the whole block — the item ladder (2026-11-02).
+            'visibility',
         ]
 
     def _user(self):
@@ -466,6 +476,8 @@ class CourseSerializer(serializers.ModelSerializer):
             'course_code',
             'current_term',
             'visibility',
+            # What is written in the course is under this; linked items keep their own.
+            'licence',
             'status',
             # Read-only here on purpose: the quota is an administrator's cost control, set in Django
             # admin, not something a course's own instructor may raise for themselves. Both are sent
@@ -755,6 +767,7 @@ class CourseWriteSerializer(serializers.ModelSerializer):
             'course_code',
             'current_term',
             'visibility',
+            'licence',
             'status',
             'enrollment_policy',
             'capacity',
@@ -770,7 +783,23 @@ class CourseWriteSerializer(serializers.ModelSerializer):
             'currency',
         ]
 
+    def validate_licence(self, value):
+        from licensing.licences import licence_validation_error
+
+        reason = licence_validation_error(value)
+        if reason:
+            raise serializers.ValidationError(reason)
+        return value
+
     def validate(self, attrs):
+        # The course's licence is chosen HERE only when the course is created. Afterwards it only
+        # widens, recorded, through `/api/licences/course/<id>/` (`licensing/rules.py`) — a PATCH
+        # that could set it would be a way around "only wider, and every change a row". The same
+        # value is let through silently, so a form that sends back what it was given still saves.
+        if self.instance is not None and 'licence' in attrs:
+            if attrs['licence'] != self.instance.licence:
+                raise serializers.ValidationError({'licence': 'licence_change_via_licences'})
+            attrs.pop('licence')
         # The kind and its university fields (models.COURSE_KIND_CHOICES). A university course
         # names its university — that is the whole of what makes it one, and the hub's filter finds
         # it by that name. A topic community carries none of the three: they are cleared rather
@@ -916,12 +945,22 @@ class CourseItemSerializer(serializers.ModelSerializer):
     label = serializers.SerializerMethodField()
     discussion_target_type = serializers.SerializerMethodField()
     discussion_target_id = serializers.SerializerMethodField()
+    # The licence of what the item points at, when that thing carries one (a corpus material or
+    # exercise, a file uploaded here), and how it sits with the course's own — `rules.item_licence_relation`.
+    # Null for every other kind. The page draws a quiet note when the two differ (2026-11-02).
+    target_licence = serializers.SerializerMethodField()
+    licence_relation = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseItem
         fields = [
             'id',
             'kind',
+            # Who may see this one item (`models.ITEM_VISIBILITY_CHOICES`) — a narrowing of the
+            # course's own rule, set by a curator.
+            'visibility',
+            'target_licence',
+            'licence_relation',
             'lesson',
             'chapter',
             'material',
@@ -994,6 +1033,12 @@ class CourseItemSerializer(serializers.ModelSerializer):
         body = ' '.join((getattr(source, 'body', '') or '').split())
         return Truncator(body).words(12, truncate='…') or '—'
 
+    def get_target_licence(self, item):
+        return item_target_licence(item)
+
+    def get_licence_relation(self, item):
+        return item_licence_relation(item)
+
     def get_discussion_target_type(self, item) -> str:
         return target_type_for(item.discussion) if item.discussion_id else ''
 
@@ -1039,6 +1084,7 @@ class CourseItemWriteSerializer(serializers.ModelSerializer):
             'post',
             'order',
             'note',
+            'visibility',
         ]
         extra_kwargs = {
             'link_url': {'required': False, 'allow_blank': True},
@@ -1074,6 +1120,13 @@ class CourseItemWriteSerializer(serializers.ModelSerializer):
         course = self.context.get('course')
         request = self.context.get('request')
         user = getattr(request, 'user', None)
+
+        # Who may see it — a curator's call past `course` (`rules.item_visibility_block_reason`).
+        # Asked only when the request SETS it, so a participant's plain offer is unaffected.
+        if 'visibility' in attrs and course is not None:
+            reason = item_visibility_block_reason(user, course, attrs['visibility'])
+            if reason:
+                raise serializers.ValidationError({'visibility': reason})
 
         # Another course: one THIS person can open (the same rule every course read applies —
         # `rules.course_visible_to`; an unlisted course they cannot see is "not found" to them,
@@ -1257,6 +1310,9 @@ class CourseInviteSerializer(serializers.ModelSerializer):
             'revoked_at',
             'is_usable',
             'unusable_reason',
+            # The address a mailed invite went to; '' for a link made by hand, and '' again once
+            # `accounts/retention.py` has forgotten it.
+            'sent_to',
         ]
 
     def get_unusable_reason(self, invite) -> str | None:
@@ -1283,6 +1339,9 @@ class InvitePreviewSerializer(serializers.Serializer):
     role = serializers.CharField()
     is_usable = serializers.BooleanField()
     unusable_reason = serializers.CharField(allow_null=True)
+    # What somebody joining as staff will be writing under — said before they accept, because
+    # contributing to a course is contributing under its licence (`Course.licence`).
+    course_licence = serializers.CharField()
 
 
 class CourseNoteSerializer(serializers.ModelSerializer):
@@ -1329,6 +1388,7 @@ class ChapterReviewSerializer(serializers.ModelSerializer):
 
 class AttachmentSerializer(serializers.ModelSerializer):
     uploaded_by = ParticipantSerializer(read_only=True)
+    can_change_visibility = serializers.SerializerMethodField()
     file_url = serializers.SerializerMethodField()
     size_bytes = serializers.IntegerField(read_only=True)
     review_count = serializers.SerializerMethodField()
@@ -1342,6 +1402,11 @@ class AttachmentSerializer(serializers.ModelSerializer):
             'description',
             'file_url',
             'size_bytes',
+            'licence',
+            # Who in the course sees it, and whether THIS reader may change that — resolved here so
+            # the page never works out a permission for itself.
+            'visibility',
+            'can_change_visibility',
             'uploaded_by',
             'created_at',
             'review_count',
@@ -1359,6 +1424,15 @@ class AttachmentSerializer(serializers.ModelSerializer):
         url = attachment.file.url
         return request.build_absolute_uri(url) if request else url
 
+    def get_can_change_visibility(self, attachment) -> bool:
+        from .rules import attachment_visibility_block_reason
+
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated:
+            return False
+        return attachment_visibility_block_reason(user, attachment, attachment.visibility) is None
+
     def get_review_count(self, attachment) -> int:
         return len(attachment.reviews.all())
 
@@ -1373,7 +1447,18 @@ class AttachmentSerializer(serializers.ModelSerializer):
 class AttachmentWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attachment
-        fields = ['file', 'title', 'description']
+        fields = ['file', 'title', 'description', 'licence', 'visibility']
+        # Absent = the course's licence (the view passes it to `save`); the form prefills it.
+        # Absent visibility = everyone in the course. Any uploader may narrow their own file.
+        extra_kwargs = {'licence': {'required': False}, 'visibility': {'required': False}}
+
+    def validate_licence(self, value):
+        from licensing.licences import licence_validation_error
+
+        reason = licence_validation_error(value)
+        if reason:
+            raise serializers.ValidationError(reason)
+        return value
 
     def validate_file(self, upload):
         """An image is never stored as the bytes the uploader sent — see `attachmentfile.py` for why,

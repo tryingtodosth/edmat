@@ -10,6 +10,7 @@
 	import VerifiedBadge from '$lib/components/shared/VerifiedBadge.svelte';
 	import StarRating from '$lib/components/shared/StarRating.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
+	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
 
 	let { exercise, courseName }: { exercise: ResolvedExercise; courseName?: string } = $props();
 
@@ -74,6 +75,9 @@
 		<AudienceBadge audience={exercise.audience} />
 		<SourceTypeBadge sourceType={exercise.source.type} />
 		<VerifiedBadge verified={exercise.verified} />
+		<!-- "N% AI" on every card (owner, 2026-11-02): a label here, not a button — the card is the
+		     click, and the reading and the vote are on the exercise's own page. -->
+		<AiAssistChip kind="exercise" id={exercise.id} always interactive={false} />
 	</div>
 
 	<div class="exercise-card__meta">

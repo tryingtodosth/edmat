@@ -152,6 +152,9 @@ async function main() {
 	// Anonymous pages — no auth token set.
 	const anonPages: { name: string; url: string }[] = [
 		{ name: 'Home', url: '/' },
+		// The promo reel and what a newcomer needs (2026-11-02), and the project's own page it moved to.
+		{ name: 'About (promo reel)', url: '/about' },
+		{ name: 'The EdMat team (/coop)', url: '/coop' },
 		{ name: 'Discipline', url: `/disciplines/${fieldSlug}` },
 		{ name: 'Branch', url: `/branches/${courseSlug}` },
 		// The lifelong-learning portal's own pages (AUDIENCE-BRIEF.md): the hubs, an event with a

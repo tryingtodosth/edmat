@@ -59,10 +59,12 @@ def _name(user) -> str:
 
 # ---- the queue ---------------------------------------------------------------------------------
 
-def queue(kind: str, to: str, subject: str, body: str, *, user=None, locale: str = 'pl') -> OutboundEmail:
+def queue(
+    kind: str, to: str, subject: str, body: str, *, user=None, locale: str = 'pl', ref_id=None
+) -> OutboundEmail:
     row = OutboundEmail.objects.create(
         kind=kind, to=to, subject=subject[:300], body=body, user=user, locale=locale,
-        transport=transport_name(),
+        transport=transport_name(), ref_id=ref_id,
     )
     transaction.on_commit(lambda: _kick(row.pk))
     return row
@@ -86,6 +88,17 @@ def _deliver_in_thread(row_id: int) -> None:
 
 
 def build_link(row: OutboundEmail) -> str:
+    if row.kind == OutboundEmail.KIND_COURSE_INVITE:
+        # The recipient may have no account, so the link comes from the invite, not a user. The
+        # token already lives on the invite row (that is what every invite link is); the LOG keeps
+        # `[[link]]`. A revoked or expired invite still gets its link — the page it opens says why
+        # it no longer works, which is more use to the person than a mail that never arrives.
+        from courses.models import CourseInvite
+
+        invite = CourseInvite.objects.filter(pk=row.ref_id).first()
+        if invite is None:
+            raise ValueError('the invite this message was about no longer exists')
+        return f'{settings.EDMAT_SITE_URL}/courses/join/{invite.token}'
     user = row.user
     if user is None:
         raise ValueError('a message with a link needs its user')

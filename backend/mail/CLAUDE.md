@@ -50,6 +50,11 @@ The mailbox is OVH MX Plan (`MXPLAN 001`): SMTP `ssl0.ovh.net:465` (SSL), IMAP `
   at send time from `accounts.erasure.cancel_token` like the others. Retention of `OutboundEmail`
   (finished rows) and `InboundEmail` is 12 months — `accounts/retention.py`, not this app.
 
+- **`course_invite`** (2026-11-02, `courses/mailinvite.py`): the one kind whose recipient may have
+  no account. `OutboundEmail.ref_id` (mail 0004) names the `CourseInvite`, and `build_link` builds
+  `/courses/join/<token>` from it at send time; the log holds `[[link]]`. Fixed text in both
+  languages (`course_invite_*` in `texts.py`), in the course's language when it is `pl`/`en`.
+
 ## Endpoints
 
 `POST /api/auth/password-reset/` (accounts view → `request_password_reset`, always 202) ·

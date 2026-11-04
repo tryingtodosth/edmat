@@ -34,6 +34,7 @@ from .models import (
     COURSE_KIND_CHOICES,
     CourseCompletion,
     ACTIVE_ENROLLMENT_STATUSES,
+    DEFAULT_ITEM_VISIBILITY,
     LESSON_PROGRESS_STATUS_CHOICES,
     PROGRESS_NOT_STARTED,
     Attachment,
@@ -387,7 +388,13 @@ class CourseViewSet(viewsets.ModelViewSet):
         rows = []
         seen = set()
         for item in items:
-            if item.material_id in seen or not item.target_is_available_to(request.user):
+            # The item's own audience too (2026-11-02): a material a curator filed for staff only
+            # is not "one of the course's materials" to a participant or a stranger.
+            if (
+                item.material_id in seen
+                or not rules.item_audience_admits(item, request.user)
+                or not item.target_is_available_to(request.user)
+            ):
                 continue
             seen.add(item.material_id)
             data = CourseItemSerializer(item, context=context).data
@@ -811,6 +818,11 @@ class CourseViewSet(viewsets.ModelViewSet):
             raise DRFValidationError({'set': 'That set has no exercises in it.'})
         if parent.exercise_sets.filter(exercise_set=source).exists():
             return Response({'detail': 'already_linked'}, status=status.HTTP_400_BAD_REQUEST)
+        # Who may see the block — a curator's choice, and only curators reach this line.
+        visibility = str(request.data.get('visibility') or DEFAULT_ITEM_VISIBILITY)
+        reason = rules.item_visibility_block_reason(request.user, course, visibility)
+        if reason:
+            raise DRFValidationError({'visibility': [reason]})
 
         with transaction.atomic():
             link = LessonExerciseSet.objects.create(
@@ -821,6 +833,7 @@ class CourseViewSet(viewsets.ModelViewSet):
                 note=str(request.data.get('note', ''))[:500],
                 order=parent.exercise_sets.count(),
                 linked_by=request.user,
+                visibility=visibility,
             )
             self._pin(link, source)
         return Response(
@@ -883,7 +896,13 @@ class CourseViewSet(viewsets.ModelViewSet):
             link.title = title
         if 'note' in request.data:
             link.note = str(request.data['note'])[:500]
-        link.save(update_fields=['title', 'note'])
+        if 'visibility' in request.data:
+            visibility = str(request.data['visibility'] or '')
+            reason = rules.item_visibility_block_reason(request.user, course, visibility)
+            if reason:
+                raise DRFValidationError({'visibility': [reason]})
+            link.visibility = visibility
+        link.save(update_fields=['title', 'note', 'visibility'])
         return Response(
             LessonExerciseSetSerializer(link, context=self.get_serializer_context()).data
         )
@@ -1295,6 +1314,8 @@ class CourseViewSet(viewsets.ModelViewSet):
             rows = course.attachments.select_related('uploaded_by__profile').prefetch_related(
                 'reviews'
             )
+            # Per file (2026-11-02): a staff-only file is not in a participant's list at all.
+            rows = [row for row in rows if row.is_visible_to(request.user)]
             return Response(
                 AttachmentSerializer(rows, many=True, context=self.get_serializer_context()).data
             )
@@ -1314,7 +1335,11 @@ class CourseViewSet(viewsets.ModelViewSet):
                 {'detail': 'upload_quota_exceeded'}, status=status.HTTP_400_BAD_REQUEST
             )
 
-        attachment = write.save(course=course, uploaded_by=request.user)
+        # The uploader's choice, else the course's own licence — a starting point, never `unknown`
+        # (`Course.licence` cannot be `unknown`; a course seeded before licences existed is
+        # `edmat-only`, which grants nothing extra).
+        licence = write.validated_data.get('licence') or course.licence
+        attachment = write.save(course=course, uploaded_by=request.user, licence=licence)
         return Response(
             AttachmentSerializer(attachment, context=self.get_serializer_context()).data,
             status=status.HTTP_201_CREATED,
@@ -1322,7 +1347,7 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['get', 'delete'],
+        methods=['get', 'patch', 'delete'],
         url_path='attachments/(?P<attachment_id>[^/.]+)',
         permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
     )
@@ -1341,6 +1366,19 @@ class CourseViewSet(viewsets.ModelViewSet):
                 return Response(status=status.HTTP_404_NOT_FOUND)
             attachment.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
+
+        if request.method == 'PATCH':
+            # Who in the course sees the file — the only thing editable here. Its uploader or a
+            # curator (`rules.attachment_visibility_block_reason`); anybody else gets 404, as for
+            # a delete.
+            visibility = str(request.data.get('visibility') or '')
+            reason = rules.attachment_visibility_block_reason(request.user, attachment, visibility)
+            if reason == 'attachment_visibility_not_yours':
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            if reason:
+                return Response({'visibility': [reason]}, status=status.HTTP_400_BAD_REQUEST)
+            Attachment.objects.filter(pk=attachment.pk).update(visibility=visibility)
+            attachment.visibility = visibility
 
         return Response(
             AttachmentSerializer(attachment, context=self.get_serializer_context()).data
@@ -1898,6 +1936,48 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
+        methods=['post'],
+        url_path='email-invites',
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def email_invites(self, request, pk=None):
+        """Mailing an invite to each address given (`courses/mailinvite.py`): `{emails, role}` →
+        200 with one result per address (partial success is normal). 404 for anybody who does not
+        administer the course; 403 `email_not_confirmed` when the inviter's own address is not
+        confirmed; 400 for a malformed request. Never says whether an address has an account."""
+        from . import mailinvite
+
+        course = self.get_object()
+        reason = mailinvite.block_reason(request.user, course)
+        if reason == 'not_admin':
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if reason:
+            return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            addresses = mailinvite.parse_addresses(request.data.get('emails'))
+            results = mailinvite.invite_by_email(
+                course, request.user, addresses, str(request.data.get('role') or 'assistant')
+            )
+        except mailinvite.EmailInviteRequestError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                'results': [
+                    {
+                        'email': row['email'],
+                        'ok': row['ok'],
+                        'reason': row['reason'],
+                        'invite': CourseInviteSerializer(row['invite']).data if row['invite'] else None,
+                    }
+                    for row in results
+                ],
+                'sent_today': mailinvite.sent_today(request.user),
+                'max_per_day': mailinvite.MAX_PER_DAY,
+            }
+        )
+
+    @action(
+        detail=True,
         methods=['delete'],
         url_path='invites/(?P<invite_id>[^/.]+)',
         permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
@@ -2014,6 +2094,7 @@ def invite_preview(request, token=None):
                 'role': invite.role,
                 'is_usable': invite.is_usable,
                 'unusable_reason': invite.unusable_reason(),
+                'course_licence': course.licence,
             }
         ).data
     )

@@ -31,6 +31,8 @@ also needs a migration on every model below, because the field freezes its `choi
 | `coauthoring.MaterialVersion` | none | a contribution INTO the material under its licence (Wikipedia shape) |
 | `concepts.ConceptArticle` | own, chosen | the work |
 | `concepts.ConceptRevision` | none | a contribution into the article under its licence |
+| `courses.Course` | own, chosen on create (2026-11-02) | covers what is WRITTEN in the course (description, chapters, lessons — the staff's shared work); never what it links. Kind `course`: authors = owner + admins, contributors = all staff. `compare_to_container` says how a linked item's licence sits with it |
+| `courses.Attachment` | own, chosen, starting from the course's | a file is its uploader's — last year's paper is not theirs to open, so the course's licence is a prefill, not a stamp. Kind `course_attachment` |
 | `flashcards.Deck`, galleries, sketches, chem drawings | none | left open — a deck's cards are copies of exercises with differing licences; LEGAL.md §10 |
 
 ## The rules — `rules.py` (house boundary #2: every endpoint asks it)
@@ -43,7 +45,12 @@ after the rights holder agreed), `licence_note_required` (staff acting without b
 a `LicenceChange` row. Creation writes no row: `created_at` is the date of the first grant, and
 `licence_since` falls back to it.
 
-`targets.py` is the kind registry (`exercise`, `solution_entry`, `material`, `concept_article`):
+`targets.py` is the kind registry (`exercise`, `solution_entry`, `material`, `concept_article`, and
+since 2026-11-02 `course` and `course_attachment` — in `ALL_LICENSED_KINDS` but NOT in
+`LICENSED_KINDS`, which is what `/api/licences/mine/`, the bulk change and `relicense_content` walk:
+a course's licence is its staff's decision, made on the course; listing them on `/settings/licences`
+is left open. A kind may carry `visible_to(obj, user)` for readers who are neither everybody nor
+nobody — a private course's participants read its licence, a stranger gets 404):
 who the authors are, who the contributors are, whether a stranger may see it (404 otherwise).
 
 ## Endpoints

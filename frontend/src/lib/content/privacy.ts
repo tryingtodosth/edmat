@@ -289,6 +289,7 @@ const EN: PrivacyPolicy = {
 			heading: 'E-mail',
 			body: [
 				'We send mail from no-reply@edmat.net: the confirmation of your address, a password reset when you ask for one, the notification digest if you switch it on (at most once an hour), and notices about changes to the terms. No marketing. Every message we send is recorded (recipient, subject, text, and whether it was delivered) so we can retry failures and answer "did you send me that?". A confirmation or reset link is never stored in that record. Mail sent to our address is copied into the service as text so that it can be answered; attachments are not kept, only their name, type and size.',
+				"When somebody who runs a course invites you to it by your e-mail address, we send you one message on their behalf: their name, the course, the role you are invited to and the link. Their account must have a confirmed address, the text is fixed (they cannot add a message of their own), and we never tell them whether your address belongs to an account here. Your address is kept on the invitation for 30 days so that it can say who it went to and refuse a duplicate; after that it is removed. The basis is the course organiser's and our legitimate interest in letting people be invited to a course (Art. 6(1)(f) GDPR); if you do not answer, nothing else is sent.",
 				'Our mail is handled by OVH SAS (Roubaix, France), which provides the mailbox and the mail server and processes it on our behalf, in the European Union. The record of mail we sent is deleted 12 months after the message, and the copy of incoming mail 12 months after it arrived; when you delete your account, the record of mail sent to you is deleted with it.'
 			]
 		},
@@ -355,6 +356,10 @@ const EN: PrivacyPolicy = {
 					[
 						'The IP hash of a comment written without an account',
 						'30 days, then removed (the comment stays until it is removed)'
+					],
+					[
+						'The address a course invitation was e-mailed to',
+						'30 days, then removed from the invitation'
 					],
 					[
 						'Notices of illegal content and the decisions on them',
@@ -603,6 +608,7 @@ const PL: PrivacyPolicy = {
 			heading: 'Poczta e-mail',
 			body: [
 				'Wysyłamy pocztę z adresu no-reply@edmat.net: potwierdzenie adresu, reset hasła na Twoją prośbę, zestawienie powiadomień, jeśli je włączysz (najwyżej raz na godzinę), oraz informacje o zmianach regulaminu. Żadnych reklam. Każda wysłana wiadomość jest zapisywana (odbiorca, temat, treść i czy została dostarczona), żebyśmy mogli ponowić nieudaną wysyłkę i odpowiedzieć na pytanie „czy to wy wysłaliście?". Link potwierdzający lub resetujący nigdy nie jest w tym zapisie przechowywany. Poczta przychodząca na nasz adres jest kopiowana do serwisu jako tekst, żeby można było na nią odpowiedzieć; załączniki nie są przechowywane, a jedynie ich nazwa, typ i rozmiar.',
+				'Gdy osoba prowadząca kurs zaprosi Cię do niego na Twój adres e-mail, wysyłamy w jej imieniu jedną wiadomość: jej imię, nazwę kursu, rolę, w jakiej Cię zaprasza, i link. Jej konto musi mieć potwierdzony adres, treść jest stała (nie można dopisać własnej wiadomości) i nigdy nie mówimy jej, czy Twój adres należy do konta w serwisie. Twój adres jest przechowywany przy zaproszeniu przez 30 dni, żeby było widać, do kogo poszło, i żeby nie wysłać go drugi raz; potem jest usuwany. Podstawą jest prawnie uzasadniony interes prowadzącego kurs i nasz w umożliwieniu zapraszania do kursów (art. 6 ust. 1 lit. f RODO); jeśli nie odpowiesz, nic więcej nie wyślemy.',
 				'Naszą pocztę obsługuje OVH SAS (Roubaix, Francja), które zapewnia skrzynkę i serwer pocztowy i przetwarza ją w naszym imieniu, na terenie Unii Europejskiej. Zapis wysłanej poczty usuwamy po 12 miesiącach od wysłania wiadomości, a kopię poczty przychodzącej po 12 miesiącach od jej otrzymania; gdy usuniesz konto, zapis poczty wysłanej do Ciebie znika razem z nim.'
 			]
 		},
@@ -669,6 +675,10 @@ const PL: PrivacyPolicy = {
 					[
 						'Skrót IP komentarza napisanego bez konta',
 						'30 dni, następnie usuwany (komentarz zostaje do czasu jego usunięcia)'
+					],
+					[
+						'Adres, na który wysłano zaproszenie do kursu',
+						'30 dni, następnie usuwany z zaproszenia'
 					],
 					[
 						'Zgłoszenia nielegalnych treści i decyzje w ich sprawie',

@@ -18,13 +18,24 @@
  *  it — the unit with one author, and what `import_concepts --ai-assisted` marks. Every kind here
  *  is also a `ReportKind` under the same name, which `ContentActionsMenu` relies on. */
 export type AssistanceTargetKind =
-	'exercise' | 'solution_entry' | 'comment' | 'review' | 'concept_article';
+	'exercise' | 'solution_entry' | 'comment' | 'review' | 'concept_article' | 'material';
+
+/** Who stands behind the number the chip prints — mirrors `backend/provenance/rules.py: BASES`,
+ *  which names this file back (house rule 13). `too_few` and `none` always print 0: since
+ *  2026-11-02 the chip is on every exercise and material, and below three readers a percentage
+ *  would be one person's vote dressed as a reading. */
+export type AssistanceBasis = 'moderator' | 'author' | 'readers' | 'too_few' | 'none';
 
 export interface AssistanceReading {
 	kind: AssistanceTargetKind;
 	id: string;
-	/** Percent, 0–100. 100 whenever the author has owned up, otherwise the mean of the votes. */
+	/** Percent, 0–100. 100 whenever the author has owned up, otherwise the mean of the votes. The
+	 *  number a filter or a sort would use — NOT what the chip prints (`shownScore`). */
 	score: number;
+	/** What the chip prints as "N% AI": `score` when a moderator, the author or enough readers stand
+	 *  behind it, else 0 (`basis` says which). */
+	shownScore: number;
+	basis: AssistanceBasis;
 	/** The single-person icon: the author says a machine helped write this. */
 	authorMarked: boolean;
 	/** Whether the author has answered AT ALL. `authorAnswered && !authorMarked` is "the author

@@ -521,3 +521,116 @@ def school_run_block_reason(course) -> str | None:
     if course.subcourses.exists():
         return 'course_has_versions'
     return None
+
+
+# --- one item's own audience, and how its licence sits with the course's (2026-11-02) -----------
+#
+# Owner, 2026-11-02: "different privacy settings per content", and a licence per course with "a
+# smooth, subtle, classy warning on content marked otherwise". Both are questions several endpoints
+# ask — the item list, the lesson and chapter serializers, the materials index, the in-course search
+# — so both live here and nowhere else (root CLAUDE.md, boundary 2).
+
+
+def _is_submitter(item, user) -> bool:
+    return bool(
+        item.submitted_by_id
+        and user is not None
+        and getattr(user, 'is_authenticated', False)
+        and item.submitted_by_id == user.pk
+    )
+
+
+def audience_admits(course, visibility: str, user) -> bool:
+    """The ladder itself (`models.ITEM_VISIBILITY_CHOICES`), for anything in a course that carries
+    it — an item, a pinned set. Only ever a narrowing of the course's rule: the caller has already
+    decided the person may open the course."""
+    visibility = visibility or 'course'
+    if visibility == 'course':
+        return True
+    if visibility == 'participants':
+        return course.is_member(user)
+    # `staff`, and any value this module does not know — fail closed.
+    return course.is_staff_member(user)
+
+
+def item_audience_admits(item, user) -> bool:
+    """Whether `user` is inside this item's own audience (`models.ITEM_VISIBILITY_CHOICES`).
+
+    The submitter is always admitted: an offer a curator narrowed to staff is still the submitter's
+    own, and watching it vanish without a word would read as a removal.
+    """
+    visibility = getattr(item, 'visibility', 'course') or 'course'
+    if visibility != 'course' and _is_submitter(item, user):
+        return True
+    return audience_admits(item.course, visibility, user)
+
+
+def item_visibility_block_reason(user, course, visibility: str) -> str | None:
+    """Why `user` may not set an item of `course` to `visibility`, or None.
+
+    Narrowing past `course` is a curator's decision: a participant offering something offers it to
+    the course, and choosing who in the course sees it is the job of the people who run it.
+    """
+    from .models import ITEM_VISIBILITY_CHOICES
+
+    if visibility not in {key for key, _ in ITEM_VISIBILITY_CHOICES}:
+        return 'item_visibility_unknown'
+    if visibility != 'course' and not course.can_curate(user):
+        return 'item_visibility_curators_only'
+    return None
+
+
+def item_target_licence(item) -> str | None:
+    """The licence of the thing an item points at, when that thing carries one of its own: a corpus
+    material or exercise, or a file uploaded to the course. None for everything else (an event, a
+    thread, a course, an outside link, a board post) — those are not works this site licenses."""
+    if item.material_id is not None:
+        return item.material.licence
+    if item.exercise_id is not None:
+        return item.exercise.licence
+    if item.attachment_id is not None:
+        return item.attachment.licence
+    return None
+
+
+def item_licence_relation(item) -> str | None:
+    """How the item's own licence sits with its course's — `licensing.licences.compare_to_container`
+    — or None when the target carries no licence. The page draws a quiet note for everything but
+    `same` and `wider`."""
+    from licensing.licences import compare_to_container
+
+    target = item_target_licence(item)
+    if target is None:
+        return None
+    return compare_to_container(target, item.course.licence)
+
+
+def attachment_audience_admits(attachment, user) -> bool:
+    """Whether a member of the course is inside one file's own audience
+    (`models.ATTACHMENT_VISIBILITY_CHOICES`). Its uploader always is."""
+    if getattr(attachment, 'visibility', 'participants') == 'participants':
+        return True
+    if (
+        attachment.uploaded_by_id
+        and user is not None
+        and getattr(user, 'is_authenticated', False)
+        and attachment.uploaded_by_id == user.pk
+    ):
+        return True
+    # `staff`, and any value this module does not know — fail closed.
+    return attachment.course.is_staff_member(user)
+
+
+def attachment_visibility_block_reason(user, attachment, visibility: str) -> str | None:
+    """Why `user` may not set this file's audience to `visibility`, or None. Its uploader may (it is
+    their file; narrowing it to the staff is how a participant hands something to the teacher alone),
+    and so may a curator. Anybody else: `attachment_visibility_not_yours` (answered 404 by the view —
+    a file somebody may see but not manage is not theirs to know the controls of)."""
+    from .models import ATTACHMENT_VISIBILITY_CHOICES
+
+    if visibility not in {key for key, _ in ATTACHMENT_VISIBILITY_CHOICES}:
+        return 'attachment_visibility_unknown'
+    is_uploader = bool(attachment.uploaded_by_id and attachment.uploaded_by_id == getattr(user, 'pk', None))
+    if not (is_uploader or attachment.course.can_curate(user)):
+        return 'attachment_visibility_not_yours'
+    return None

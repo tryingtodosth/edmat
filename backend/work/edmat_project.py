@@ -3,9 +3,8 @@
 The owner's decision of 2026-10-07: the project page stops being a brochure and becomes the project
 itself — an `organizations.Organization` called EdMat, with its plans, tasks, decisions, events and
 needs on the platform, where anybody can read what is being built and what help is wanted. Later
-the same day: *run it as an open volunteer cooperative, meeting what the association being founded
-and the Faculty ask of it; import what has already been built, with its dates, from the project's
-own history; one goal per module, each a subproject with its own summary and child content; the
+the same day: *run it as an open volunteer cooperative, meeting what the Faculty asks of it;
+import what has already been built, with its dates, from the project's own history; one goal per module, each a subproject with its own summary and child content; the
 school demo is a subproject too.* This module is the content; `manage.py seed_edmat_project`
 writes it. Everything here is REAL project state, not a demonstration, which is why nothing carries
 `testing.personas.FAKE_PREFIX` and why the module does not live in `testing/`.
@@ -20,43 +19,41 @@ it has is a *plan* on a node: a title, a summary, ordered steps with one level o
 per step with `done_at`, a readers' suggestion box, and a panel that already draws "N of M steps"
 per plan. So a goal is a plan on the EdMat organisation (`SUBPROJECTS`), its summary is the plan's
 description, and its child content is its steps: one done, dated step per `HISTORY.md` section
-that belongs to it (`work/edmat_history.py`), then the open steps this file names. The association
-is three more plans (the three phases of `FUW/association/07`), the compliance table of phase 1
-mirrored into *tasks* with deadlines, because a task is what the work dashboard watches.
+that belongs to it (`work/edmat_history.py`), then the open steps this file names.
+
+**The association is retired (owner, 2026-11-02).** Until then it was three more plans (the phases
+of `FUW/association/07`), phase 1 mirrored into tasks with deadlines, a "Founders" need, a poll on
+founding it, a founding-meeting event waiting for its date, and the Gemini legal report under
+`/about`. The owner: *"delete stowarzyszenie related ones"*. `RETIRED` names every one of those
+rows and the seed deletes them, because an entry merely dropped from this file stays on production
+(see "Idempotent by title" below).
 
 **What the rule modules say, and what that means here.** A plan with status `active` is readable by
 anyone who can see the organisation (`plans.rules.visible_plans`); `draft` is for its editors only,
-which is what phase 2 gets until the owner reconciles `FINANCES.md` with the decision to sell. A
-task on the node is the roster's (`tasks.rules.visible_tasks`), a poll is for the roster and its
-eligible members (`decisions.rules.visible_polls` — a stranger sees none), and an open need is
-everybody's (`needs.rules.public_needs`). So whatever the public should read is a plan step or a
-need; whatever the team acts on is a task; whatever the members decide is a poll.
+which no plan here uses today. A task on the node is the roster's (`tasks.rules.visible_tasks`), a
+poll is for the roster and its eligible members to vote on (the organisation's board is open, so
+everybody READS both — the owner's call of 2026-10-08), and an open need is everybody's
+(`needs.rules.public_needs`). Whatever the team acts on is a task; whatever the members decide is a
+poll; what the public is asked for is a need.
 
 **Idempotent by title.** The organisation is found by `ORGANIZATION_SLUG`; each plan, task and need
-by its title on that node, each step by its title on its plan, each poll by its question, the
-founding meeting by its title and host. A second run refreshes the *text* (descriptions, kinds,
-priorities, due dates, step order — the things this file is the source of) and leaves the *state*
+by its title on that node, each step by its title on its plan, each poll by its question. A second
+run refreshes the *text* (descriptions, kinds, priorities, due dates, step order — the things this
+file is the source of) and leaves the *state*
 alone (status, assignees, applications, ballots, who marked a step done — the things people change
 on the site). The one exception is a history step's `done_at`: that is a fact of the log, so it is
-refreshed. Renaming an entry here therefore creates a new row and leaves the old one standing;
-retire the old one on the site, as a person would. An entry's `status` is its status *at creation*
+refreshed. Renaming or removing an entry here therefore leaves the old row standing; retire it on
+the site, as a person would, or name it in `RETIRED` so every database loses it on the next run. An entry's `status` is its status *at creation*
 only.
-
-**Dates.** Two facts are not known yet and are the owner's to state: when the founding meeting is
-(`FOUNDING_MEETING_AT`) and when the court enters the association (`KRS_ENTRY_DATE`). Every legal
-deadline of phase 1 counts from one of them (CRBR 14 days from entry, NIP-8 21, the KRS application
-7 days from the meeting, …), so until they are set those due dates are empty and the founding
-meeting itself is not created; set the constant, run the command again, and the deadlines fill in.
-The two fixed dates (the first financial statement, the first general meeting) are set now.
 
 **Bilingual in one field.** A plan, a task and a need have no translation table
 (`ExerciseTranslation` is for the corpus), so each description carries Polish first and English
 after it, separated by a rule, in the project's own storage format (Markdown; `config/sanitize.py`
 runs on save). History steps quote the English build log as written.
 
-**No personal data.** Nothing here names a founder, a Faculty official, an office or a sum of money
-— those stay in `FUW/association/`, which is not in the repository. `work.tests` scans every string
-below for secret-shaped text, and the people are referred to by role or by count.
+**No personal data.** Nothing here names a person, a Faculty official, an office or a sum of
+money. `work.tests` scans every string below for secret-shaped text, and the people are referred to
+by role or by count.
 """
 
 from __future__ import annotations
@@ -75,25 +72,14 @@ from django.utils import timezone
 
 from work.edmat_history import load_table
 
-#: The Gemini Deep Research thread (`FUW/association/build_thread.py` writes it from the report).
-RESEARCH_THREAD_PATH = Path(__file__).with_name('edmat_research_thread.json')
-
 #: Threads under the project's OWN rows rather than under a standing page (2026-10-10): a list, each
 #: entry located by `plan` (a `SUBPROJECTS` title — the thread lands under that plan, whatever id it
 #: gets on the database at hand) or by `organization: true` (the EdMat organisation's own thread at
-#: the top of `/about`), with `author`, `date` and `items` as the research thread has them and no
-#: `replier`. The first is the state of contests as of 2026-10-10, signed by `anthropic-claude`.
+#: the top of `/coop`), with `author`, `date`, `items` and, optionally, a `replier` who answers an item
+#: under it. The first is the state of contests as of 2026-10-10, signed by `anthropic-claude`.
 PROJECT_THREADS_PATH = Path(__file__).with_name('edmat_project_threads.json')
 
 ORGANIZATION_SLUG = 'edmat'
-
-#: The two facts the owner states when they are known. Tz-aware datetime and a date.
-FOUNDING_MEETING_AT: datetime | None = None
-KRS_ENTRY_DATE: date | None = None
-
-#: The two dates phase 1 already fixes (`FUW/association/07` §4, rows 1.13 and 1.14).
-FIRST_STATEMENT_DUE = date(2027, 3, 31)
-FIRST_GENERAL_MEETING_DUE = date(2027, 6, 30)
 
 
 def _pl_en(pl: str, en: str) -> str:
@@ -145,7 +131,7 @@ def _write_bilingual(obj, glued_heading: str, glued_body: str = '', *, heading=T
 
     This is what undoes the gluing: the file keeps writing `_pl_en(...)` and `'PL / EN'`, because
     that is a perfectly good way to keep a bilingual source readable in one place — and the seed
-    splits it on the way in, so a reader of `/about` gets their own language instead of both at
+    splits it on the way in, so a reader of `/coop` gets their own language instead of both at
     once. `write_versions` mirrors the Polish back onto the row's own column, so every other reader
     of `Task.title` is unaffected.
 
@@ -210,7 +196,7 @@ ORGANIZATION = {
     'open_board': True,
     # The owner's own words, 2026-10-08 evening, replacing the two paragraphs the seed wrote the
     # day before: *"prepare the desc of edmat org on about to be Edukacja potrzebuje usprawnień…"*.
-    # Short on purpose — it is the first thing a visitor reads on `/about`, and the "how it works"
+    # Short on purpose — it is the first thing a visitor reads on `/coop`, and the "how it works"
     # paragraph that used to follow it is now what the goals, the board and the needs below say for
     # themselves. A full stop was added to the end of the sentence; nothing else was changed.
     'description': _pl_en(
@@ -329,7 +315,7 @@ SUBPROJECTS = [
     {
         # Contests (2026-10-09/10, CONTESTS-BRIEF.md): the sixth node kind. Its done steps are the
         # three §17CE rows of the log; its open steps are the module's own "left open" list, kept
-        # here so `/about` says what is lacking and not only what landed. The state as of
+        # here so `/coop` says what is lacking and not only what landed. The state as of
         # 2026-10-10, with the reasoning, is the thread under this plan (`PROJECT_THREADS_PATH`).
         'key': 'contests',
         'title': 'Konkursy / Contests',
@@ -563,17 +549,6 @@ SUBPROJECTS = [
                     'EdMat by design decision.',
                 ),
             },
-            {
-                'title': 'Plany i serwery dla szkół — faza 2 stowarzyszenia / Plans and servers for schools — the association’s phase 2',
-                'description': _pl_en(
-                    'Hosting dla szkół jest działalnością gospodarczą; wymaga wpisu do rejestru '
-                    'przedsiębiorców i umowy z uczelnią na infrastrukturę albo własnego hostingu. '
-                    'Patrz plan „Stowarzyszenie — faza 2”.',
-                    'Hosting for schools is business activity; it needs the register of '
-                    'entrepreneurs and an infrastructure agreement with the University, or own '
-                    'hosting. See the plan "The association — phase 2".',
-                ),
-            },
         ],
     },
     {
@@ -620,316 +595,69 @@ SUBPROJECTS = [
     },
 ]
 
-# ---- the association: three phases ---------------------------------------------------------------
+# ---- retired: the association (owner, 2026-11-02) ------------------------------------------------
 
-#: `due`: None, `('meeting', days)`, `('entry', days)` or `('fixed', date)` — resolved by
-#: `due_at_for` against the two constants above. `status` is the status at creation.
-PHASE_1_STEPS = [
-    {
-        'title': 'Skompletować co najmniej 7 założycieli, realnie 10 / Gather at least 7 founders, realistically 10',
-        'priority': 1,
-        'due': ('meeting', 0),
-        'description': _pl_en(
-            'Ustawa wymaga siedmiu osób fizycznych z pełną zdolnością do czynności prawnych; z '
-            'arytmetyki głosowań na zebraniu (trzyosobowa komisja skrutacyjna nie kandyduje, do '
-            'obsadzenia sześć mandatów) wychodzi dziesięć i więcej. Stan 7.10.2026: cztery osoby '
-            'potwierdzone, trzy jeszcze nie pytane. Potrzeba „Założyciele” na tablicy jest otwarta. '
-            'Dowód wykonania: podpisana lista założycieli.',
-            'The Act requires seven natural persons with full legal capacity; the meeting’s '
-            'voting arithmetic (a three-person scrutiny committee that does not stand, six seats to '
-            'fill) makes it ten or more. As of 2026-10-07: four confirmed, three not yet asked. The '
-            '"Founders" need on the board is open. Proof: the signed founders list.',
+#: What this seed once wrote and now takes away. The owner, 2026-11-02: *"delete stowarzyszenie
+#: related ones"* — the registered association (`FUW/association/`) is no longer the plan; the
+#: operator is the student group `LEGAL.md` §1 names. The seed is idempotent by title, so removing
+#: an entry from this file alone would leave its row standing on production for ever (the module's
+#: own note: "retire the old one on the site, as a person would"). This list is that retirement,
+#: written down so a deployment does it: every row is looked up exactly as the seed wrote it —
+#: by its glued title, or by the Polish half the seed has stored since 2026-10-08 — and DELETED
+#: with the thread under it, by the owner's explicit word rather than archived (house rule 12 is a
+#: default; this is the owner deciding). Rows somebody made by hand are never matched: only a row
+#: on the EdMat node with one of these exact titles is.
+#:
+#: `steps` are steps of the GOALS that pointed at the association (the plan named first, then the
+#: step). `threads` are standing-page discussion locations — the Gemini legal report on registering
+#: the association, which was `/about#money-and-openness`.
+RETIRED = {
+    'plans': [
+        'Stowarzyszenie — faza 1: zgodność z prawem o stowarzyszeniach / The association — phase 1: compliance',
+        'Stowarzyszenie — faza 2: działalność odpłatna i gospodarcza / The association — phase 2: paid and business activity',
+        'Stowarzyszenie — faza 3: pożytek publiczny i fundacja / The association — phase 3: public benefit and the foundation',
+    ],
+    # Phase 1 was mirrored into these tasks (`as_tasks`), its sub-steps as sub-tasks.
+    'tasks': [
+        'Skompletować co najmniej 7 założycieli, realnie 10 / Gather at least 7 founders, realistically 10',
+        'Adres do doręczeń i zgoda uczelni na lokal / The service address and the University’s consent for the premises',
+        'Forma wynagrodzenia Zarządu — dopiero gdy będą pieniądze / How the board could be paid — only once there is money',
+        'Zebranie założycielskie: uchwały 1–6, wybory tajne, lista, zgody / The founding meeting: resolutions 1–6, secret ballots, the list, consents',
+        'Wniosek do KRS — rejestr stowarzyszeń, bez działalności gospodarczej / The KRS application — the register of associations, no business activity',
+        'Odpowiedź na ewentualne wezwanie sądu / Answering a court summons, if one comes',
+        'Wpis do KRS; NIP i REGON nadane automatycznie / Entry in the KRS; NIP and REGON assigned automatically',
+        'Zgłoszenie do CRBR — 14 dni od wpisu / The CRBR filing — 14 days from entry',
+        'Rachunek bankowy, księgowość, pełne księgi albo UEPiK / Bank account, bookkeeping, full books or the simplified ledger',
+        'NIP-8 — rachunek, adres do korespondencji, miejsce ksiąg / NIP-8 — the account, the correspondence address, where the books are kept',
+        'Rada Programowa: zaproszenia na Wydział, po 30 dniach scenariusz B / The Programme Council: the Faculty invitations, then plan B after 30 days',
+        'Organizacja na edmat.net i ta tabela w module zadań, z terminami / The organisation on edmat.net and this table in the tasks module, with deadlines',
+        'Regulamin składek i deklaracje członkowskie / Dues rules and membership declarations',
+        'Infrastruktura i dane: ośrodek komputerowy, Kanclerz, inspektor ochrony danych, transfer technologii / Infrastructure and data: the computing centre, the Chancellor, the data-protection officer, technology transfer',
+        'Pierwszy rok obrotowy do 31.12.2026: sprawozdanie, CIT-8, urząd skarbowy / The first financial year to 31 Dec 2026: the statement, CIT-8, the tax office',
+        'Pierwsze Walne Zebranie: absolutorium, sprawozdanie Komisji, plan fazy 2 / The first general meeting: discharge, the Committee’s report, the phase 2 plan',
+    ],
+    'needs': [
+        'Założyciele Stowarzyszenia EdMat.net association / Founders for the EdMat.net association',
+    ],
+    'polls': [
+        'Czy EdMat ma działać jako stowarzyszenie rejestrowe „EdMat.net association”? / Should EdMat operate as the registered association “EdMat.net association”?',
+    ],
+    'steps': [
+        (
+            '/dziennik — demonstracja zarządzania szkołą / the school-management demo',
+            'Plany i serwery dla szkół — faza 2 stowarzyszenia / Plans and servers for schools — the association’s phase 2',
         ),
-        'substeps': [
-            {
-                'title': 'Adres do doręczeń i zgoda uczelni na lokal / The service address and the University’s consent for the premises',
-                'priority': 2,
-                'due': None,
-                'description': _pl_en(
-                    'Siedzibą statutową jest Warszawa (sama miejscowość). Adres do doręczeń ma być '
-                    'na terenie Wydziału Fizyki UW, co wymaga zgody uczelni (Rektor albo Kanclerz, '
-                    'na wniosek przez Dziekana) — potrzebnej urzędowi skarbowemu i bankowi, nie '
-                    'sądowi. Awaryjnie: lokal członka Zarządu z umową użyczenia.',
-                    'The statutory seat is Warsaw (the locality alone). The service address is to '
-                    'be on the Faculty of Physics premises, which needs the University’s '
-                    'consent (the Rector or the Chancellor, applied for through the Dean) — '
-                    'required by the tax office and the bank, not by the court. Fallback: a board '
-                    'member’s premises under a loan-for-use agreement.',
-                ),
-            },
-            {
-                'title': 'Forma wynagrodzenia Zarządu — dopiero gdy będą pieniądze / How the board could be paid — only once there is money',
-                'priority': 4,
-                'due': None,
-                'description': _pl_en(
-                    'Powołanie albo zlecenie, każde z innymi składkami; decyzja Walnego Zebrania, '
-                    'do potwierdzenia u księgowego. Nie wcześniej niż po pierwszych środkach.',
-                    'Appointment or a service contract, each with different contributions; a '
-                    'general-meeting decision, to be confirmed with an accountant. Not before the '
-                    'first funds.',
-                ),
-            },
-        ],
-    },
-    {
-        'title': 'Zebranie założycielskie: uchwały 1–6, wybory tajne, lista, zgody / The founding meeting: resolutions 1–6, secret ballots, the list, consents',
-        'priority': 1,
-        'due': ('meeting', 0),
-        'description': _pl_en(
-            'Szesnastopunktowy porządek obrad, około 90 minut: utworzenie, statut, Zarząd i Komisja '
-            'Rewizyjna w głosowaniu tajnym, upoważnienie do rejestracji, zaproszenie przedstawicieli '
-            'Wydziału do Rady Programowej, adres siedziby. Dowód: protokół z jedenastoma '
-            'załącznikami. Wydarzenie w serwisie powstaje, gdy data zostanie ustalona.',
-            'A sixteen-point agenda, about 90 minutes: formation, the statute, the Board and the '
-            'Audit Committee by secret ballot, the registration mandate, the invitation of Faculty '
-            'representatives to the Programme Council, the seat. Proof: the minutes with eleven '
-            'attachments. The event appears on the site once its date is set.',
-        ),
-    },
-    {
-        'title': 'Wniosek do KRS — rejestr stowarzyszeń, bez działalności gospodarczej / The KRS application — the register of associations, no business activity',
-        'priority': 1,
-        'due': ('meeting', 7),
-        'description': _pl_en(
-            'Do siedmiu dni po zebraniu (art. 22 ustawy o KRS); wpis do rejestru stowarzyszeń jest '
-            'bezpłatny (art. 17 ust. 3 Prawa o stowarzyszeniach); formularze KRS-W20 i KRS-WK, bez '
-            'KRS-WF, gdy Zarząd został wybrany. Dowód: potwierdzenie złożenia.',
-            'Within seven days of the meeting (art. 22 of the KRS Act); entry in the register of '
-            'associations is free (art. 17(3) of the Associations Act); forms KRS-W20 and KRS-WK, '
-            'no KRS-WF when a Board was elected. Proof: the filing receipt.',
-        ),
-    },
-    {
-        'title': 'Odpowiedź na ewentualne wezwanie sądu / Answering a court summons, if one comes',
-        'priority': 2,
-        'due': None,
-        'description': _pl_en(
-            'Siedem dni od doręczenia (art. 20a ustawy o KRS). Dowód: pismo.',
-            'Seven days from service (art. 20a of the KRS Act). Proof: the letter.',
-        ),
-    },
-    {
-        'title': 'Wpis do KRS; NIP i REGON nadane automatycznie / Entry in the KRS; NIP and REGON assigned automatically',
-        'priority': 2,
-        'due': None,
-        'description': _pl_en(
-            'Sąd, zwykle jeden do trzech miesięcy. Dowód: odpis z KRS. Po wpisie: ustawić datę '
-            'wpisu w `work/edmat_project.py` i uruchomić `seed_edmat_project` ponownie — terminy '
-            'kolejnych kroków wypełnią się same.',
-            'The court, usually one to three months. Proof: the KRS extract. After entry: set the '
-            'entry date in `work/edmat_project.py` and run `seed_edmat_project` again — the '
-            'deadlines of the following steps fill in by themselves.',
-        ),
-    },
-    {
-        'title': 'Zgłoszenie do CRBR — 14 dni od wpisu / The CRBR filing — 14 days from entry',
-        'priority': 1,
-        'due': ('entry', 14),
-        'description': _pl_en(
-            'Centralny Rejestr Beneficjentów Rzeczywistych: członkowie Zarządu; art. 60 ust. 1 '
-            'ustawy o przeciwdziałaniu praniu pieniędzy; kara do miliona złotych. Dowód: '
-            'potwierdzenie zgłoszenia.',
-            'The central register of beneficial owners: the Board members; art. 60(1) of the '
-            'anti-money-laundering Act; a fine of up to a million złoty. Proof: the filing receipt.',
-        ),
-    },
-    {
-        'title': 'Rachunek bankowy, księgowość, pełne księgi albo UEPiK / Bank account, bookkeeping, full books or the simplified ledger',
-        'priority': 2,
-        'due': ('entry', 30),
-        'description': _pl_en(
-            'Trzydzieści dni od wpisu. Uproszczona ewidencja wymaga zawiadomienia urzędu skarbowego '
-            'w trzy miesiące od rozpoczęcia działalności i mieści się do miliona złotych przychodu. '
-            'Dowód: umowa, numer rachunku, zawiadomienie.',
-            'Thirty days from entry. The simplified ledger needs a notice to the tax office within '
-            'three months of starting activity and holds up to a million złoty of revenue. Proof: '
-            'the contract, the account number, the notice.',
-        ),
-    },
-    {
-        'title': 'NIP-8 — rachunek, adres do korespondencji, miejsce ksiąg / NIP-8 — the account, the correspondence address, where the books are kept',
-        'priority': 2,
-        'due': ('entry', 21),
-        'description': _pl_en(
-            'Dwadzieścia jeden dni od wpisu, każda zmiana w siedem. Dowód: urzędowe poświadczenie '
-            'odbioru.',
-            'Twenty-one days from entry, every change within seven. Proof: the official receipt.',
-        ),
-    },
-    {
-        'title': 'Rada Programowa: zaproszenia na Wydział, po 30 dniach scenariusz B / The Programme Council: the Faculty invitations, then plan B after 30 days',
-        'priority': 2,
-        'due': ('entry', 30),
-        'description': _pl_en(
-            'Trzy osoby z Wydziału Fizyki UW, których funkcje wiążą się z projektem — jeszcze nie '
-            'pytane; zaproszenia idą po wpisie, infrastruktura (OKWF) jako pierwsza rozmowa. '
-            'Scenariusz B po trzydziestu dniach milczenia: potrzeba na tablicy „szukamy pomocy” '
-            '(ekspertyza, trzy miejsca, zdalnie, około dziesięciu godzin rocznie), oferty z tablicy '
-            'wolontariatu, głosowanie członków, gdy kandydatów jest więcej niż miejsc. Minimum dwie '
-            'osoby, docelowo trzy. Dowód: pisma, protokół Zarządu.',
-            'Three people from the Faculty of Physics whose roles touch the project — not yet '
-            'asked; invitations go out after entry, the computing centre first. Plan B after thirty '
-            'days of silence: a need on the help-wanted board (expertise, three seats, remote, '
-            'about ten hours a year), offers from the volunteering board, a members’ vote when '
-            'there are more candidates than seats. At least two people, three in the end. Proof: '
-            'the letters, the Board’s minutes.',
-        ),
-    },
-    {
-        'title': 'Organizacja na edmat.net i ta tabela w module zadań, z terminami / The organisation on edmat.net and this table in the tasks module, with deadlines',
-        'priority': 3,
-        'due': ('entry', 7),
-        'status': 'in_progress',
-        'description': _pl_en(
-            'To robi `seed_edmat_project`: organizacja, ten plan, zadania z terminami liczonymi od '
-            'zebrania i od wpisu. W toku, bo obie daty są jeszcze puste. Dowód: strona organizacji.',
-            'This is what `seed_edmat_project` does: the organisation, this plan, the tasks with '
-            'deadlines counted from the meeting and from entry. In progress, because both dates '
-            'are still empty. Proof: the organisation page.',
-        ),
-    },
-    {
-        'title': 'Regulamin składek i deklaracje członkowskie / Dues rules and membership declarations',
-        'priority': 3,
-        'due': ('fixed', FIRST_GENERAL_MEETING_DUE),
-        'description': _pl_en(
-            'Statut: składek nie pobiera się do pierwszej uchwały Walnego Zebrania. Dowód: uchwała.',
-            'The statute: no dues are collected until the first general-meeting resolution. Proof: '
-            'the resolution.',
-        ),
-    },
-    {
-        'title': 'Infrastruktura i dane: ośrodek komputerowy, Kanclerz, inspektor ochrony danych, transfer technologii / Infrastructure and data: the computing centre, the Chancellor, the data-protection officer, technology transfer',
-        'priority': 2,
-        'due': None,
-        'description': _pl_en(
-            'Najpierw rozmowa z ośrodkiem komputerowym Wydziału, który administruje serwerem. Potem '
-            'pisma: do Kanclerza (lokal, użyczenie), do inspektora ochrony danych (test równowagi '
-            'interesów z art. 6 ust. 1 lit. f RODO, zawiadomienie użytkowników 30 dni wcześniej z '
-            'prawem sprzeciwu, obowiązek z art. 14, umowa powierzenia na okres przejściowy) i do '
-            'biura transferu technologii (prawa do zadań napisanych przez pracowników uczelni). '
-            'Dowód: notatki, projekty umów.',
-            'First a conversation with the Faculty computing centre, which administers the server. '
-            'Then letters: to the Chancellor (premises, loan for use), to the data-protection '
-            'officer (the legitimate-interest balancing test of GDPR art. 6(1)(f), notice to users '
-            '30 days ahead with a right to object, the art. 14 duty, a processing agreement for the '
-            'transition) and to the technology-transfer office (rights to exercises written by '
-            'University staff). Proof: notes, draft agreements.',
-        ),
-    },
-    {
-        'title': 'Pierwszy rok obrotowy do 31.12.2026: sprawozdanie, CIT-8, urząd skarbowy / The first financial year to 31 Dec 2026: the statement, CIT-8, the tax office',
-        'priority': 2,
-        'due': ('fixed', FIRST_STATEMENT_DUE),
-        'description': _pl_en(
-            'Sprawozdanie finansowe do 31.03.2027, zatwierdzenie na Walnym do 30.06.2027, wysyłka '
-            'do Szefa KAS w 15 dni od zatwierdzenia, CIT-8 do 31.03.2027. Jeżeli wpis wypadnie w '
-            '2027, zapis statutu o pierwszym roku obrotowym trzeba zmienić. Dowód: urzędowe '
-            'poświadczenia odbioru.',
-            'The financial statement by 2027-03-31, approval at the general meeting by 2027-06-30, '
-            'sent to the head of the tax administration within 15 days of approval, CIT-8 by '
-            '2027-03-31. If entry falls in 2027, the statute’s first-financial-year clause has '
-            'to change. Proof: the official receipts.',
-        ),
-    },
-    {
-        'title': 'Pierwsze Walne Zebranie: absolutorium, sprawozdanie Komisji, plan fazy 2 / The first general meeting: discharge, the Committee’s report, the phase 2 plan',
-        'priority': 2,
-        'due': ('fixed', FIRST_GENERAL_MEETING_DUE),
-        'description': _pl_en(
-            'Do 30.06.2027. Kryterium wyjścia z fazy 1: każda pozycja ma dowód wykonania, a Rada '
-            'Programowa liczy co najmniej trzy osoby. Dowód: protokół.',
-            'By 2027-06-30. Phase 1’s exit criterion: every item has its proof, and the '
-            'Programme Council has at least three people. Proof: the minutes.',
-        ),
-    },
-]
+    ],
+    # Created only once a founding date was set, which never happened; listed so a database where
+    # somebody set it is cleaned too. Matched by title AND the owner as host, as it was written.
+    'events': [
+        'Zebranie Założycielskie Stowarzyszenia EdMat.net association',
+    ],
+    'threads': [
+        ('about', 'money-and-openness'),
+    ],
+}
 
-PHASE_2_STEPS = [
-    {'title': 'Uchwała Walnego Zebrania o podjęciu działalności gospodarczej / A general-meeting resolution to start business activity',
-     'description': _pl_en('Statut już ją dopuszcza, więc bez zmiany statutu.', 'The statute already permits it, so no statute change.')},
-    {'title': 'Wpis do rejestru przedsiębiorców KRS / Entry in the KRS register of entrepreneurs',
-     'description': _pl_en('Wyłącznie elektronicznie, z kodami PKD 2025, z opłatą sądową.', 'Electronically only, with PKD 2025 codes, with a court fee.')},
-    {'title': 'Pełne księgi i wyodrębnienie rachunkowe działalności gospodarczej / Full books and separate accounts for the business',
-     'description': _pl_en('Wymóg ustawy o rachunkowości i statutu.', 'Required by the Accounting Act and the statute.')},
-    {'title': 'VAT, sprzedaż do UE, prewspółczynnik, CIT od składek / VAT, EU sales, the pro-rata, CIT on dues',
-     'description': _pl_en('Zwolnienie podmiotowe z limitem; składki finansujące działalność gospodarczą tracą zwolnienie — osobna analityka. Księgowy.', 'The small-business VAT exemption has a ceiling; dues that fund the business lose their CIT exemption — separate accounts. An accountant.')},
-    {'title': 'Regulamin sprzedaży: konto premium jako usługa cyfrowa / Terms of sale: the premium account as a digital service',
-     'description': _pl_en('Odstąpienie 14 dni z zapłatą proporcjonalną, RODO dla płatności, kasa fiskalna. Przed pierwszą sprzedażą konsumentowi.', 'A 14-day withdrawal with proportional payment, GDPR for payments, the fiscal register. Before the first consumer sale.')},
-    {'title': 'Umowa z uczelnią na infrastrukturę albo własny hosting / An agreement with the University for infrastructure, or own hosting',
-     'description': _pl_en('Bez tego nic nie jest sprzedawane: darmowe utrzymywanie sprzedającego serwisu na mieniu uczelni narusza dyscyplinę finansów publicznych.', 'Without it nothing is sold: hosting a selling service for free on University property breaches public-finance discipline.'),
-     'substeps': [
-         {'title': 'Audyt praw do korpusu i licencja od uczelni / A copyright audit of the corpus and a licence from the University',
-          'description': _pl_en('Zadania pisane przez pracowników uczelni w ramach obowiązków są utworami pracowniczymi; sprzedaż dostępu bez licencji narusza prawo autorskie. Warunek wstępny, nie jedno z zadań.', 'Exercises written by University staff in the course of their duties are employee works; selling access without a licence infringes copyright. A precondition, not one task among others.')},
-         {'title': 'Wniosek o interpretację podatkową dla hostingu dla szkół / A tax-ruling request for school hosting',
-          'description': _pl_en('Po uzyskaniu NIP.', 'After the tax number is assigned.')},
-     ]},
-    {'title': 'Moduł płatności w serwisie — dziś nie istnieje / A payments module — does not exist today',
-     'description': _pl_en('Operator płatności, faktury, zwroty, spory: decyzja produktowa i inżynierska. Dziś ceny są tylko tekstem.', 'A payment operator, invoices, refunds, disputes: a product and engineering decision. Today prices are only text.')},
-    {'title': 'Rada Programowa opiniuje cennik i warunki dla szkół / The Programme Council reviews the price list and school terms',
-     'description': _pl_en('Zgodnie z rolą Rady, przed uruchomieniem.', 'Per the Council’s role, before launch.')},
-]
-
-PHASE_3_STEPS = [
-    {'title': 'Fundacja EdMat ustanowiona przez Stowarzyszenie / The EdMat Foundation founded by the association',
-     'description': _pl_en('Po zebraniu środków; akt notarialny; lista decyzji w materiałach grantowych.', 'Once funds are gathered; a notarial deed; the list of decisions is in the grant materials.')},
-    {'title': 'Status organizacji pożytku publicznego po dwóch latach / Public-benefit status after two years',
-     'description': _pl_en('Komisja Rewizyjna już spełnia wymóg niezależności od Zarządu.', 'The Audit Committee already meets the independence requirement.')},
-    {'title': 'Umowa partnerska z uczelnią do konkursów FERS / A partnership agreement with the University for FERS calls',
-     'description': _pl_en('Wymaga istniejącej osoby prawnej, więc dopiero teraz.', 'Needs an existing legal person, so only now.')},
-]
-
-#: `as_tasks`: mirror every step into a task on the node (the roster’s compliance calendar).
-ASSOCIATION_PLANS = [
-    {
-        'title': 'Stowarzyszenie — faza 1: zgodność z prawem o stowarzyszeniach / The association — phase 1: compliance',
-        'status': 'active',
-        'as_tasks': True,
-        'steps': PHASE_1_STEPS,
-        'description': _pl_en(
-            'Od zebrania założycielskiego do pierwszego Walnego Zebrania po rejestracji. Cel: '
-            'Stowarzyszenie EdMat.net association istnieje, jest wpisane, ma rachunek, księgowość, '
-            'Radę Programową i komplet obowiązków pilnowanych w module zadań. Dopiero po tej fazie '
-            'wolno zacząć cokolwiek sprzedawać. Terminy ustawowe liczą się od zebrania i od wpisu do '
-            'KRS; dopóki te daty nie są znane, terminy są puste. Ta sama tabela jest zadaniami '
-            'organizacji, które pulpit pracy pokazuje każdemu z Zarządu, zanim zobaczy je organ '
-            'nadzorujący.',
-            'From the founding meeting to the first general meeting after registration. Goal: the '
-            'EdMat.net association exists, is entered, has an account, bookkeeping, a Programme '
-            'Council and the full set of duties watched in the tasks module. Only after this phase '
-            'may anything be sold. The statutory deadlines count from the meeting and from the KRS '
-            'entry; until those dates are known, the deadlines are empty. The same table is the '
-            'organisation’s tasks, which the work dashboard shows every Board member before the '
-            'supervising authority sees them.',
-        ),
-    },
-    {
-        'title': 'Stowarzyszenie — faza 2: działalność odpłatna i gospodarcza / The association — phase 2: paid and business activity',
-        'status': 'draft',
-        'as_tasks': False,
-        'steps': PHASE_2_STEPS,
-        'description': _pl_en(
-            'Konta premium na lata i plany z serwerami dla szkół — decyzja właściciela z 6.10.2026. '
-            'Plan jest szkicem (widzą go tylko redaktorzy), dopóki `FINANCES.md` i strona '
-            'prywatności, które dziś mówią „nic nie bierze pieniędzy”, nie zostaną uzgodnione z tą '
-            'decyzją; wtedy status zmienia się na aktywny.',
-            'Multi-year premium accounts and plans with servers for schools — the owner’s '
-            'decision of 2026-10-06. The plan is a draft (its editors alone see it) until '
-            '`FINANCES.md` and the privacy page, which today say "nothing takes money", are '
-            'reconciled with that decision; then its status becomes active.',
-        ),
-    },
-    {
-        'title': 'Stowarzyszenie — faza 3: pożytek publiczny i fundacja / The association — phase 3: public benefit and the foundation',
-        'status': 'active',
-        'as_tasks': False,
-        'steps': PHASE_3_STEPS,
-        'description': _pl_en(
-            'Po fazie 1, niezależnie od fazy 2.',
-            'After phase 1, independently of phase 2.',
-        ),
-    },
-]
 
 # ---- standalone tasks, needs, polls, the founding meeting ---------------------------------------
 
@@ -1030,33 +758,6 @@ NEEDS = [
         ),
     },
     {
-        'title': 'Założyciele Stowarzyszenia EdMat.net association / Founders for the EdMat.net association',
-        'kind': 'help',
-        'skill_level': 'none',
-        'is_remote': False,
-        'wanted_count': 6,
-        'description': _pl_en(
-            'EdMat zakłada stowarzyszenie rejestrowe, które będzie osobą prawną projektu: zawiera umowy, '
-            'przyjmuje darowizny i granty, odpowiada za treści i dane. Ustawa wymaga siedmiu założycieli; '
-            'arytmetyka wyborów na zebraniu mówi, że bezpiecznie jest dziesięciu. Cztery osoby są '
-            'potwierdzone — szukamy sześciu. Założycielem może być osoba z pełną zdolnością do czynności '
-            'prawnych, niepozbawiona praw publicznych; cudzoziemiec mieszkający w Polsce na tych samych '
-            'zasadach. Co to oznacza: przyjść na zebranie założycielskie w Warszawie (około 90 minut), '
-            'wpisać się odręcznie na listę z dowodem w ręku, zostać członkiem zwyczajnym. Składek nie ma '
-            'do pierwszego Walnego Zebrania. Kandydaci do Zarządu i Komisji Rewizyjnej mile widziani, '
-            'ale nie wymagani. Data zebrania pojawi się w wydarzeniach organizacji.',
-            'EdMat is founding a registered association to be the project’s legal person: it signs '
-            'agreements, receives donations and grants, answers for content and data. The Act requires '
-            'seven founders; the meeting’s voting arithmetic says ten is safe. Four people are '
-            'confirmed — we are looking for six. A founder is a person with full legal capacity and '
-            'public rights; a foreigner living in Poland on the same terms. What it means: come to the '
-            'founding meeting in Warsaw (about 90 minutes), sign the list by hand with an ID in hand, '
-            'become an ordinary member. There are no dues until the first general meeting. Candidates '
-            'for the Board and the Audit Committee are welcome, not required. The meeting date will '
-            'appear among the organisation’s events.',
-        ),
-    },
-    {
         'title': 'Promocja EdMat wśród studentów i nauczycieli / Telling students and teachers about EdMat',
         'kind': 'help',
         'skill_level': 'beginner',
@@ -1096,33 +797,16 @@ NEEDS = [
     },
 ]
 
-#: Polls on the EdMat organisation. A stranger sees no poll at all (`decisions.rules.visible_polls`);
-#: these are put to the roster and its members, who are the people who will sign. `status` is the
-#: status at creation (open, with `opens_at` now); options are refreshed by their order.
+#: Polls on the EdMat organisation. The board is open (`ORGANIZATION['open_board']`, 2026-10-08):
+#: anybody reads them on `/coop` and sees the results, and the roster and its members vote.
+#: `status` is the status at creation (open, with `opens_at` now); options are refreshed by their
+#: order. Each title and option holds exactly one `' / '` (Polish, then English) — `_split_title`.
+#:
+#: The five after the first are the decisions §17DB–§17DC left to the owner (course licences,
+#: per-content audience, invitations by e-mail), published on `/coop` by the owner's word of
+#: 2026-11-02: *"next deployment will publish these decisions to make on edmat.net/about"*. Each
+#: describes what the site does TODAY, so a vote is a vote on a change, never on a guess.
 POLLS = [
-    {
-        'question': 'Czy EdMat ma działać jako stowarzyszenie rejestrowe „EdMat.net association”? / Should EdMat operate as the registered association “EdMat.net association”?',
-        'mode': 'single',
-        'eligibility': 'members',
-        'anonymous': False,
-        'description': _pl_en(
-            'Projekt statutu: nazwa rejestrowa „EdMat.net association”, siedziba Warszawa, Zarząd 3–5 '
-            'osób i Komisja Rewizyjna 3 osoby wybierane tajnie na trzy lata, Rada Programowa jako ciało '
-            'doradcze dla przedstawicieli Wydziału, działalność gospodarcza dopuszczona, ale nie '
-            'podejmowana, składki dopiero po pierwszym Walnym. Formalną decyzją jest uchwała nr 1 '
-            'zebrania założycielskiego; to głosowanie jest zdaniem członków projektu przed nim.',
-            'The draft statute: registered name "EdMat.net association", seat Warsaw, a Board of 3–5 '
-            'and an Audit Committee of 3 elected by secret ballot for three years, a Programme Council '
-            'as an advisory body for Faculty representatives, business activity permitted but not '
-            'taken up, dues only after the first general meeting. The formal decision is resolution '
-            'no. 1 of the founding meeting; this poll is the project members’ view before it.',
-        ),
-        'options': [
-            'Tak, zakładamy / Yes, we found it',
-            'Nie, zostajemy nieformalną grupą / No, we stay an informal group',
-            'Wstrzymuję się / I abstain',
-        ],
-    },
     {
         'question': 'Wskaźnik „z pomocą AI”: liczba 0–1 czy tak/nie? / The “AI-assisted” score: a number 0–1 or yes/no?',
         'mode': 'single',
@@ -1144,41 +828,120 @@ POLLS = [
             'Same fakty, oba odczyty wyliczane / The facts alone, both readings derived',
         ],
     },
+    {
+        'question': 'Jaką licencję podpowiadać przy zakładaniu kursu? / Which licence should the form suggest for a new course?',
+        'mode': 'single',
+        'eligibility': 'members',
+        'anonymous': False,
+        'description': _pl_en(
+            'Licencja kursu obejmuje to, co piszą jego ludzie: opis, rozdziały i lekcje — także '
+            'współprowadzący, którym zaproszenie mówi o niej przed przyjęciem. Dziś formularz podpowiada '
+            'CC BY 4.0, zgodnie z zasadą dla własnej pracy; zakładający może wybrać każdą inną, a '
+            'później licencję da się tylko poszerzyć. CC BY-SA 4.0 trzyma kursy pochodne otwartymi na '
+            'tych samych warunkach; „tylko EdMat” to domyślna licencja pozostałych treści.',
+            'A course’s licence covers what its own people write: the description, chapters and '
+            'lessons — collaborators too, whose invitation names it before they accept. Today the '
+            'form suggests CC BY 4.0, following the rule for one’s own work; the founder can pick any '
+            'other, and later the licence can only be widened. CC BY-SA 4.0 keeps derived courses open '
+            'on the same terms; “EdMat only” is the default of every other kind of content.',
+        ),
+        'options': [
+            'CC BY 4.0, jak teraz / CC BY 4.0, as now',
+            'CC BY-SA 4.0 / CC BY-SA 4.0',
+            'Tylko EdMat, jak inne treści / EdMat only, like other content',
+            'Bez podpowiedzi: zakładający musi wybrać / No suggestion: the founder has to choose',
+        ],
+    },
+    {
+        'question': 'Kiedy wolno poszerzyć licencję kursu? / When may a course’s licence be widened?',
+        'mode': 'single',
+        'eligibility': 'members',
+        'anonymous': False,
+        'description': _pl_en(
+            'Dziś licencję kursu poszerza administrator, i tylko wtedy, gdy nikt inny nie jest w '
+            'zespole: każdy obecny prowadzący liczy się jako współautor, bo lekcja nie zapisuje, kto ją '
+            'napisał, a nikt nie przyznaje licencji na cudze zdania. Ktoś, kto pisał lekcje i odszedł z '
+            'zespołu, nie jest liczony. Obie zmiany poniżej to praca w kodzie.',
+            'Today an admin widens a course’s licence, and only while nobody else is on the staff: '
+            'every current member of staff counts as a co-author, because a lesson does not record '
+            'who wrote it, and nobody grants a licence on somebody else’s sentences. Somebody who wrote '
+            'lessons and then left the staff is not counted. Both changes below are code work.',
+        ),
+        'options': [
+            'Gdy w zespole nie ma nikogo innego, jak teraz / While nobody else is on the staff, as now',
+            'Zapisywać autora lekcji i liczyć tylko autorów / Record each lesson’s writer and count only writers',
+            'Gdy każdy współautor zgodzi się na stronie / Once every co-author agrees on the site',
+        ],
+    },
+    {
+        'question': 'Czy kursy mają trafić na stronę licencji w Ustawieniach? / Should courses be listed on the licences page in Settings?',
+        'mode': 'single',
+        'eligibility': 'members',
+        'anonymous': False,
+        'description': _pl_en(
+            'Ustawienia → Licencje pokazują wszystko, co ktoś opublikował, i pozwalają poszerzyć licencję '
+            'wielu rzeczy naraz. Kursów tam nie ma: licencję kursu zmienia się na stronie kursu, bo '
+            'dotyczy pracy całego zespołu, a nie jednej osoby.',
+            'Settings → Licences lists everything somebody posted and widens many licences at once. '
+            'Courses are not there: a course’s licence is changed on the course’s own page, because '
+            'it covers the whole staff’s work, not one person’s.',
+        ),
+        'options': [
+            'Tak, obok innych treści / Yes, beside the other content',
+            'Nie, tylko na stronie kursu / No, only on the course’s page',
+        ],
+    },
+    {
+        'question': 'Czy plik kursu z ograniczonym gronem ma się pobierać tylko po zalogowaniu? / Should a course file with a restricted audience download only for a signed-in reader?',
+        'mode': 'single',
+        'eligibility': 'members',
+        'anonymous': False,
+        'description': _pl_en(
+            'Każdy plik kursu ma swoje grono: wszyscy w kursie albo tylko prowadzący. Ustawienie ukrywa '
+            'plik na każdej stronie i liście, ale pliki podaje bezpośrednio serwer WWW, więc adres, '
+            'który ktoś już skopiował, nadal działa (nazwa pliku jest losowa). Domknięcie tego to '
+            'pobieranie przez widok sprawdzający logowanie i zmiana konfiguracji serwera przy wdrożeniu.',
+            'Every course file has its own audience: everyone in the course, or staff only. The '
+            'setting hides the file on every page and list, but files are served directly by the web '
+            'server, so an address somebody already copied keeps working (the file name is random). '
+            'Closing that means downloads through a view that checks the sign-in, and a server '
+            'configuration change at deployment.',
+        ),
+        'options': [
+            'Tak, dla każdego pliku z ograniczonym gronem / Yes, for every file with a restricted audience',
+            'Tylko dla plików „tylko prowadzący” / Only for staff-only files',
+            'Nie, ukrycie i losowa nazwa wystarczą / No, hiding and a random name are enough',
+        ],
+    },
+    {
+        'question': 'Na czyim prawnie uzasadnionym interesie opierać zaproszenia e-mailem? / Whose legitimate interest should invitations by e-mail rest on?',
+        'mode': 'single',
+        'eligibility': 'members',
+        'anonymous': False,
+        'description': _pl_en(
+            'Prowadzący kursu może zaprosić kogoś, wpisując jego adres; serwis wysyła jedną wiadomość o '
+            'stałej treści, a adres znika po 30 dniach. Podstawą jest art. 6 ust. 1 lit. f RODO — ale '
+            'czy to interes organizatora kursu, czy serwisu, nie jest rozstrzygnięte. Strona '
+            'prywatności wymienia dziś oba. Pytanie do inspektora ochrony danych UW jest otwarte.',
+            'A course’s staff can invite somebody by typing their address; the service sends one '
+            'fixed-text message, and the address is deleted after 30 days. The basis is GDPR art. '
+            '6(1)(f) — but whether it is the course organiser’s interest or the service’s is not '
+            'settled. The privacy page names both today. The question to the University’s '
+            'data-protection officer is open.',
+        ),
+        'options': [
+            'Organizatora kursu / The course organiser’s',
+            'Serwisu / The service’s',
+            'Obu, jak teraz na stronie prywatności / Both, as the privacy page says now',
+            'Najpierw odpowiedź inspektora UW / The University officer’s answer first',
+        ],
+    },
 ]
 
-#: The founding meeting, written as a draft event hosted by the owner and linked to the
-#: organisation — only once `FOUNDING_MEETING_AT` is set; until then the seed says it is waiting.
-FOUNDING_MEETING = {
-    'title': 'Zebranie Założycielskie Stowarzyszenia EdMat.net association',
-    'summary': 'Szesnaście punktów, około 90 minut, dowód tożsamości w ręku. / Sixteen points, about 90 minutes, bring an ID.',
-    'description': _pl_en(
-        'Porządek obrad: otwarcie; wybór Przewodniczącego i Protokolanta; stwierdzenie liczby '
-        'obecnych założycieli (co najmniej siedmiu); przyjęcie porządku; przedstawienie inicjatywy i '
-        'projektu statutu; dyskusja i poprawki; uchwała nr 1 o utworzeniu stowarzyszenia; uchwała nr 2 '
-        'o przyjęciu statutu; wybór komisji skrutacyjnej; uchwała nr 3 — wybór Zarządu (tajnie); '
-        'uchwała nr 4 — wybór Komisji Rewizyjnej (tajnie); uchwała nr 5 — upoważnienie do '
-        'rejestracji; uchwała nr 6 — zaproszenie przedstawicieli Wydziału do Rady Programowej; adres '
-        'siedziby; wolne wnioski; zamknięcie. Lista założycieli wymaga daty i miejsca urodzenia oraz '
-        'adresu zamieszkania — wpisywanych odręcznie na miejscu, nie zbieranych wcześniej.',
-        'Agenda: opening; election of the Chair and the Secretary; count of founders present (at '
-        'least seven); adoption of the agenda; presentation of the initiative and the draft statute; '
-        'discussion and amendments; resolution no. 1 on forming the association; no. 2 adopting the '
-        'statute; election of the scrutiny committee; no. 3 — the Board (secret ballot); no. 4 — the '
-        'Audit Committee (secret ballot); no. 5 — the registration mandate; no. 6 — inviting Faculty '
-        'representatives to the Programme Council; the seat; any other business; closing. The '
-        'founders list needs each person’s date and place of birth and home address — written by '
-        'hand on the spot, never collected beforehand.',
-    ),
-    'location_kind': 'onsite',
-    'location_text': 'Warszawa — miejsce do ustalenia / venue to be set',
-    'duration_minutes': 90,
-    'language': 'pl',
-    'visibility': 'public',
-    'registration_mode': 'rsvp',
-}
-
-#: The two research accounts (owner's ask, 2026-10-07): the Gemini Deep Research report is posted
-#: under `google-gemini`, Claude's reading of it under `anthropic-claude`. Neither has a usable
+#: The two research accounts (owner's ask, 2026-10-07): the Gemini Deep Research report was posted
+#: under `google-gemini` and Claude's reading of it under `anthropic-claude`; the report went with
+#: the association (`RETIRED`), and the accounts stay, because `anthropic-claude` signs the project
+#: threads and an account is cheaper kept than re-made. Neither has a usable
 #: password — nobody signs in as them; the seed is the only thing that writes under their names,
 #: and each profile's bio says so. The e-mail is on the reserved `.invalid` domain.
 ACCOUNTS = {
@@ -1229,20 +992,13 @@ def _midday(day: date) -> datetime:
 
 
 def due_at_for(spec) -> datetime | None:
-    """A step's or task's deadline from its `due` spec and the two constants; None while unknown."""
+    """A step's or task's deadline from its `due` spec — `('fixed', date)` or None. The two specs
+    counted from the association's founding meeting and its KRS entry went with it (`RETIRED`)."""
     if not spec:
         return None
     kind, value = spec
     if kind == 'fixed':
         return _end_of_day(value)
-    if kind == 'meeting':
-        if FOUNDING_MEETING_AT is None:
-            return None
-        return FOUNDING_MEETING_AT + timedelta(days=value)
-    if kind == 'entry':
-        if KRS_ENTRY_DATE is None:
-            return None
-        return _end_of_day(KRS_ENTRY_DATE + timedelta(days=value))
     raise ValueError(f'unknown due spec {spec!r}')
 
 
@@ -1410,41 +1166,6 @@ def _upsert_poll(node: dict, owner, entry: dict, counts: Counter, now):
     return poll
 
 
-def _upsert_founding_meeting(organization, owner, counts: Counter):
-    """The draft event, hosted by the owner and linked to the organisation — or None, with the
-    reason, while the date is not set."""
-    from config import nodes
-    from events.models import Event
-    from organizations.models import OrganizationLink
-
-    if FOUNDING_MEETING_AT is None:
-        return None
-    fields = {k: v for k, v in FOUNDING_MEETING.items() if k != 'title'}
-    event, created = Event.objects.get_or_create(
-        host=owner, title=FOUNDING_MEETING['title'],
-        defaults={**fields, 'status': 'draft', 'starts_at': FOUNDING_MEETING_AT},
-    )
-    for key, value in fields.items():
-        setattr(event, key, value)
-    event.starts_at = FOUNDING_MEETING_AT
-    event.save()
-    OrganizationLink.objects.get_or_create(
-        organization=organization,
-        content_type=nodes.node_content_type(event),
-        object_id=event.pk,
-        defaults={'kind': 'runs', 'added_by': owner},
-    )
-    counts['events_created'] += created
-    return event
-
-
-def load_thread(path: Path = RESEARCH_THREAD_PATH) -> dict | None:
-    """The exported thread, or None where the file is absent — the seed then posts nothing."""
-    if not path.exists():
-        return None
-    return json.loads(path.read_text(encoding='utf-8'))
-
-
 def load_project_threads(path: Path = PROJECT_THREADS_PATH) -> list[dict]:
     """The threads under the project's own rows (`PROJECT_THREADS_PATH`), or none."""
     if not path.exists():
@@ -1560,18 +1281,111 @@ def _upsert_thread(thread: dict, accounts: dict, counts: Counter, *, node=None, 
     return {'page': page, 'section': section, 'comments': len(thread['items']), 'replies': replies, 'created': created}
 
 
+def _discussion_rows(page: str, section: str = ''):
+    """The comments at one discussion location — replies go with their parent (`on_delete`)."""
+    from community.models import Comment, DiscussionLocation
+
+    location = DiscussionLocation.objects.filter(page=page, section=section).first()
+    if location is None:
+        return None, Comment.objects.none()
+    content_type = ContentType.objects.get_for_model(DiscussionLocation)
+    return location, Comment.objects.filter(content_type=content_type, object_id=location.pk)
+
+
+def _retire(organization, node: dict, owner, counts: Counter) -> list[str]:
+    """Delete every row `RETIRED` names, with the thread under it; return one line per row, for the
+    command to print (and a dry run to show before anything is gone). A row is matched only on the
+    EdMat node and only by the exact title this seed wrote, so nothing a person made is touched."""
+    from config import nodes
+    from decisions.models import Poll
+    from events.models import Event
+    from needs.models import Need
+    from organizations.models import OrganizationLink
+    from plans.models import Plan, PlanStep
+    from tasks.models import Task
+
+    lines: list[str] = []
+
+    def drop_thread(page: str, section: str = '') -> int:
+        location, comments = _discussion_rows(page, section)
+        if location is None:
+            return 0
+        gone = comments.count()
+        comments.delete()
+        location.delete()
+        return gone
+
+    for kind, model, key in (('plan', Plan, 'plans'), ('task', Task, 'tasks'), ('need', Need, 'needs')):
+        for title in RETIRED[key]:
+            row = _find_by_title(model, node, title)
+            if row is None:
+                continue
+            gone = drop_thread(f'{key}/{row.pk}')
+            # A sub-task goes with its parent (`on_delete=CASCADE`), so it is named on the
+            # parent's line — a dry run has to say everything that will be gone.
+            children = list(row.subtasks.all()) if model is Task else []
+            for child in children:
+                gone += drop_thread(f'tasks/{child.pk}')
+            extra = [f'+{len(children)} sub-task(s)'] if children else []
+            extra += [f'+{gone} comment(s)'] if gone else []
+            lines.append(f'{kind} /{key}/{row.pk}   {row.title}' + (f"   ({', '.join(extra)})" if extra else ''))
+            row.delete()
+            counts[f'{kind}s_retired'] += 1
+    for question in RETIRED['polls']:
+        pl_question, _en = _split_title(question)
+        row = (
+            Poll.objects.filter(**node, question=question).first()
+            or Poll.objects.filter(**node, question=pl_question).first()
+        )
+        if row is None:
+            continue
+        gone = drop_thread(f'polls/{row.pk}')
+        ballots = row.ballots.count()
+        lines.append(
+            f'poll /polls/{row.pk}   {row.question}   ({ballots} ballot(s)'
+            + (f', +{gone} comment(s)' if gone else '') + ')'
+        )
+        row.delete()
+        counts['polls_retired'] += 1
+    for plan_title, step_title in RETIRED['steps']:
+        plan = _find_by_title(Plan, node, plan_title)
+        step = _find_by_title(PlanStep, {'plan': plan}, step_title) if plan else None
+        if step is None:
+            continue
+        lines.append(f'step /plans/{plan.pk}?step={step.pk}   {step.title}')
+        step.delete()
+        counts['steps_retired'] += 1
+    for title in RETIRED['events']:
+        for event in Event.objects.filter(host=owner, title=title):
+            OrganizationLink.objects.filter(
+                organization=organization, content_type=nodes.node_content_type(event), object_id=event.pk
+            ).delete()
+            lines.append(f'event /events/{event.pk}   [{event.status}]   {event.title}')
+            event.delete()
+            counts['events_retired'] += 1
+    for page, section in RETIRED['threads']:
+        gone = drop_thread(page, section)
+        if gone:
+            lines.append(f'thread /{page}#{section}   {gone} comment(s)')
+            counts['threads_retired'] += 1
+    return lines
+
+
 def build_edmat_project(
-    owner_username: str,
+    owner_username: str | None = None,
     *,
     history: list[dict] | None = None,
-    thread: dict | None = None,
     project_threads: list[dict] | None = None,
     retake_description: bool = False,
 ) -> dict:
-    """Write (or refresh) the organisation, its owner, the goals, the association's plans, the
-    tasks, the needs, the polls and the founding meeting. One transaction, so a missing user or a
-    bad entry leaves nothing half-made. Returns what it touched, with counts a command can print
-    and a test can assert."""
+    """Write (or refresh) the organisation, its owner, the goals, the tasks, the needs and the polls,
+    and retire what `RETIRED` names. One transaction, so a missing user or a bad entry leaves
+    nothing half-made. Returns what it touched, with counts a command can print and a test can
+    assert.
+
+    `owner_username=None` means the organisation's existing owner — what a deployment re-running the
+    seed wants, so the apply script need not know a username; on a database with no organisation
+    yet it is refused, because somebody has to be named once."""
     from needs.models import Need
     from decisions.models import Poll
     from organizations.models import Organization, OrganizationMember
@@ -1579,15 +1393,22 @@ def build_edmat_project(
     from tasks.models import Task
 
     User = get_user_model()
-    try:
-        owner = User.objects.get(username=owner_username)
-    except User.DoesNotExist as exc:
-        raise RuntimeError(f'No account named {owner_username!r}; pass --owner <username>.') from exc
+    if owner_username is None:
+        member = (
+            OrganizationMember.objects.filter(organization__slug=ORGANIZATION_SLUG, role='owner')
+            .select_related('user').order_by('pk').first()
+        )
+        if member is None:
+            raise RuntimeError('No EdMat organisation with an owner yet; pass --owner <username> once.')
+        owner = member.user
+    else:
+        try:
+            owner = User.objects.get(username=owner_username)
+        except User.DoesNotExist as exc:
+            raise RuntimeError(f'No account named {owner_username!r}; pass --owner <username>.') from exc
 
     if history is None:
         history = load_table()
-    if thread is None:
-        thread = load_thread()
     by_goal: dict[str, list[dict]] = {}
     for entry in sorted(history, key=lambda e: (e.get('date') or '9999', e.get('line', 0))):
         by_goal.setdefault(entry['subproject'], []).append(entry)
@@ -1598,7 +1419,7 @@ def build_edmat_project(
         # `description` is deliberately NOT in these defaults, and that is the one line standing
         # between a deployment and the owner's own words. Everything else here (name, kind, city,
         # website, open_board) is seed-owned and refreshed on every run; the description is the one
-        # field the bilingual editor exposes on `/about`, so refreshing it from this file would undo
+        # field the bilingual editor exposes on `/coop`, so refreshing it from this file would undo
         # an edit made on production — which `_write_bilingual`'s `keep_edited` otherwise prevents,
         # and which THIS call would have gone on doing behind its back (found by editing the
         # description on the dev VM and re-running the seed: the two `TextVersion` rows survived and
@@ -1611,7 +1432,7 @@ def build_edmat_project(
         if org_created:
             organization.created_by = owner
             organization.save(update_fields=['created_by'])
-        # Its description in both languages — the first paragraph on `/about`, glued by hand until
+        # Its description in both languages — the first paragraph on `/coop`, glued by hand until
         # 2026-10-08. No heading: an organisation's NAME is a registered name and the same in every
         # language (translations/targets.py). This is the ONLY writer of the description now, and it
         # leaves alone any language a person has saved.
@@ -1624,8 +1445,12 @@ def build_edmat_project(
         )
         node = _node_filter(organization)
 
+        # Retired first, so a goal's step that pointed at the association is gone before the goal
+        # is refreshed, and nothing below can find a retired row by its title.
+        retired = _retire(organization, node, owner, counts)
+
         # Created last-to-first, because the plans panel lists newest first: a reader then meets
-        # phase 1 of the association at the top and the goals in the order `SUBPROJECTS` gives.
+        # the goals in the order `SUBPROJECTS` gives.
         for goal in reversed(SUBPROJECTS):
             _upsert_plan(
                 node, owner,
@@ -1635,17 +1460,13 @@ def build_edmat_project(
                 {**goal, 'body_suffix': f"\n\n*Aplikacje / apps: {goal['apps']}*", 'status': 'active'},
                 counts, history_steps=by_goal.get(goal['key'], ()),
             )
-        for plan_entry in reversed(ASSOCIATION_PLANS):
-            _upsert_plan(node, owner, plan_entry, counts)
         for entry in TASKS:
             _upsert_task(node, owner, entry, counts)
         for entry in NEEDS:
             _upsert_need(node, owner, entry, counts)
         for entry in POLLS:
             _upsert_poll(node, owner, entry, counts, now)
-        event = _upsert_founding_meeting(organization, owner, counts)
         accounts = _upsert_accounts(counts)
-        posted = _upsert_thread(thread, accounts, counts) if thread else None
         # After the plans, because a plan thread is located by its plan's title on this node.
         project_threads = [
             _upsert_thread(extra, accounts, counts, node=node, organization=organization)
@@ -1656,7 +1477,7 @@ def build_edmat_project(
     return {
         'accounts': list(accounts),
         'accounts_created': counts['accounts_created'],
-        'thread': posted,
+        'retired': retired,
         'project_threads': project_threads,
         'organization': organization,
         'organization_created': org_created,
@@ -1671,12 +1492,8 @@ def build_edmat_project(
         'needs_created': counts['needs_created'],
         'polls': Poll.objects.filter(**node).order_by('pk'),
         'polls_created': counts['polls_created'],
-        'event': event,
-        'event_created': bool(counts['events_created']),
         'history_count': len(history),
         'history_unfiled': unfiled,
-        'waiting': [] if FOUNDING_MEETING_AT else ['founding meeting: no date yet (FOUNDING_MEETING_AT)']
-        + ([] if KRS_ENTRY_DATE else ['deadlines counted from the KRS entry: no date yet (KRS_ENTRY_DATE)']),
     }
 
 
@@ -1693,16 +1510,12 @@ def all_seeded_text() -> list[str]:
     for goal in SUBPROJECTS:
         out.extend([goal['title'], goal['description'], goal['apps']])
         steps(goal['steps'])
-    for plan in ASSOCIATION_PLANS:
-        out.extend([plan['title'], plan['description']])
-        steps(plan['steps'])
     for task in TASKS:
         out.extend([task['title'], task['description']])
     for need in NEEDS:
         out.extend([need['title'], need['description']])
     for poll in POLLS:
         out.extend([poll['question'], poll['description'], *poll['options']])
-    out.extend(str(v) for v in FOUNDING_MEETING.values())
     return out
 
 

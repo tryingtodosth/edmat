@@ -5,15 +5,14 @@
 // The Polish default is what a fresh context reads; `E2E_LOCALE=en` runs the same checks through
 // `english.mjs` (the picker's own cookie), so both interface languages are covered (WP7).
 //
-// **What `/about` draws now** (rewritten 2026-10-15). Since `/about` became the EdMat
-// organisation's page (owner, 2026-10-07/08) it keeps exactly ONE location of its own from the old
-// brochure: `about#money-and-openness`, the section the research thread is seeded under
-// (`work/edmat_research_thread.json`). The brochure's `mission` / `origin` / `features` / `closing`
-// keys are no longer drawn, and this script used to drive all four — it failed on "collapsed
-// lines… found 2" and then timed out waiting for a third. The second line it found is NOT an
-// `/about` location: it is the organisation description's own row discussion
-// (`OrganizationPage` → `RowDiscussion`), which `e2e/management-discussions.mjs` covers; the
-// `/about` checks below are scoped to `article.about` so they count the page's own sections only.
+// **Which location (rewritten 2026-11-02).** Until then this script drove `about#money-and-openness`,
+// the one location `/about` kept from the old brochure, where the seed posted the Gemini legal report
+// on registering the association. The owner retired the association on 2026-11-02 and that section
+// left `/about` with it (`work/edmat_project.py: RETIRED`), so `/about` draws no standing-page
+// location of its own any more — its one thread is the organisation description's row discussion,
+// which `e2e/management-discussions.mjs` covers. The same machinery is now driven on a manual
+// chapter, `/about/guide/courses`, whose ONE thread is the page's own row (`section=''`): exactly one
+// collapsed line, as `/about` had. The module showcase pages are checked first, as before.
 //
 // One location therefore plays every policy in turn, set through the real API between phases:
 // `anyone` (a visitor gets a composer and a name field, and what they write is held), `users` (a
@@ -22,7 +21,7 @@
 // (no affordance at all). Then the whole surface disappears when the flag goes off (house rule 3).
 //
 // The location's ORIGINAL policy is read first and put back at the end, even when a check throws
-// — it is the real research thread's location, not a scratch one (`e2e/CLAUDE.md` trap 1: a
+// — it is a real chapter's thread, not a scratch one (`e2e/CLAUDE.md` trap 1: a
 // script that needs mutable state sets it, and this one also restores it). It CLEARS UP AFTER
 // ITSELF too, which is what lets the count be asserted exactly rather than as ">= 1": the two
 // comments it writes are removed the two ways this platform actually has (house rule 12 forbids a
@@ -98,20 +97,29 @@ async function setFlag(on) {
 }
 await setFlag(true);
 
-console.log('\n== the one /about location, through the API ==');
-const SECTION = 'money-and-openness';
-const KEY = `about#${SECTION}`;
+console.log('\n== the manual chapter’s own location, through the API ==');
+const PAGE = 'about/guide/courses';
+const SECTION = '';
+const KEY = PAGE;
+const PAGE_URL = `${BASE}/${PAGE}`;
 
 async function findLocation() {
 	const existing = await api('/discussion-locations/', { tok: staffToken });
-	return (existing.body ?? []).find((r) => r.page === 'about' && r.section === SECTION) ?? null;
+	return (existing.body ?? []).find((r) => r.page === PAGE && r.section === SECTION) ?? null;
 }
-const original = await findLocation();
-check(
-	`${KEY} exists (the seed writes it — run seed_edmat_project if it does not)`,
-	original !== null,
-	'no such location'
-);
+// Rows are created lazily, so a fresh database may not have this one yet: made here through the
+// moderator's own form, with the defaults, which is what a first comment would have done.
+let original = await findLocation();
+if (!original) {
+	const made = await api('/discussion-locations/', {
+		method: 'POST',
+		body: { page: PAGE, section: SECTION },
+		tok: staffToken
+	});
+	console.log(`  (created ${KEY}: ${made.status})`);
+	original = await findLocation();
+}
+check(`${KEY} exists`, original !== null, 'no such location, and creating it failed');
 if (!original) process.exit(1);
 const ORIGINAL_POLICY = {
 	audience: original.audience,
@@ -147,14 +155,14 @@ check(
 	JSON.stringify(anyone)
 );
 
-/** The number the collapsed line prints for the /about location, read from the server.
+/** The number the collapsed line prints for the chapter's location, read from the server.
  *
  * Authenticated on purpose (`e2e/CLAUDE.md` trap 12): an anonymous GET can be answered from the
  * 60s read cache, and a count read through it would be the count before this script wrote
  * anything. `comment_count` is public comments only — not tombstones, not held ones — which is the
  * same rule all three places that print a number here follow. */
 async function publicCount() {
-	const res = await api(`/discussions/?page=about&sections=${SECTION}`, { tok: staffToken });
+	const res = await api(`/discussions/?page=${PAGE}`, { tok: staffToken });
 	const row = (res.body?.locations ?? []).find((l) => l.section === SECTION);
 	return row?.comment_count ?? 0;
 }
@@ -201,11 +209,11 @@ page.on('request', (r) => {
 
 console.log('\n== the module showcase pages (four of 2026-10-14, two of 2026-10-15) ==');
 // Run FIRST, as the anonymous reader the context starts as, so that its result does not depend on
-// the `/about` checks below. Each draws one quiet discussion per section, asked for in ONE policy request under its own
+// the chapter checks below. Each draws one quiet discussion per section, asked for in ONE policy request under its own
 // `about/<slug>` key (`ShowcasePage` → `providePageDiscussions`), and opening one asks for that
 // section's thread and nothing else. The section counts are the content files' own
 // (`lib/content/showcase/<slug>.ts: sections`).
-// Its own context, so its requests never reach the thread-request log the `/about` checks below
+// Its own context, so its requests never reach the thread-request log the chapter checks below
 // count from.
 const moduleCtx = await newContext({ viewport: { width: 1280, height: 900 } });
 const modulePage = await moduleCtx.newPage();
@@ -258,17 +266,15 @@ await modulePage.screenshot({
 });
 await moduleCtx.close();
 
-console.log('\n== an anonymous reader on /about ==');
-// The page's OWN locations live inside `article.about`; the organisation page above it draws a
-// row discussion of its own (see the header), which is not this script's to count.
-const ABOUT = 'article.about .section-discussion';
-await page.goto(`${BASE}/about`, { waitUntil: 'load' });
-// 60s, not 15: on a cold Vite dev server /about's module graph is compiled on this first request,
+console.log('\n== an anonymous reader on the chapter ==');
+const ABOUT = '.section-discussion';
+await page.goto(PAGE_URL, { waitUntil: 'load' });
+// 60s, not 15: on a cold Vite dev server the chapter's module graph is compiled on this first request,
 // and on a loaded machine that is minutes rather than seconds. A production build is not this
 // slow; the timeout is about the dev server, not about the page.
 await page.waitForSelector(`${ABOUT} .section-discussion__toggle`, { timeout: 60000 });
 const toggles = await page.locator(`${ABOUT} .section-discussion__toggle`).count();
-check('exactly one collapsed line of /about’s own', toggles === 1, `found ${toggles}`);
+check('exactly one collapsed line on the chapter', toggles === 1, `found ${toggles}`);
 check('no thread is fetched before a click', threadCalls.length === 0, threadCalls.join(' | '));
 
 console.log('\n== opening the thread as a visitor (`anyone`) ==');
@@ -289,8 +295,9 @@ await aboutDiscussion
 check('one thread request after one click', threadCalls.length === 1, threadCalls.join(' | '));
 check(
 	`and it asks for ${KEY}`,
-	/[?&]page=about(&|$)/.test(threadCalls[0] ?? '') &&
-		(threadCalls[0] ?? '').includes(`section=${SECTION}`),
+	new URL((threadCalls[0] ?? 'GET http://x/').split(' ')[1]).searchParams.get('page') === PAGE &&
+		new URL((threadCalls[0] ?? 'GET http://x/').split(' ')[1]).searchParams.get('section') ===
+			SECTION,
 	threadCalls[0] ?? 'none'
 );
 
@@ -322,17 +329,17 @@ console.log('\n== a visitor writes, and it is held ==');
 const VISITOR_TEXT = 'A question from a visitor (about-discussions.mjs).';
 const held = await api('/discussions/thread/', {
 	method: 'POST',
-	body: { page: 'about', section: SECTION, body: VISITOR_TEXT, anon_name: 'Kasia' }
+	body: { page: PAGE, section: SECTION, body: VISITOR_TEXT, anon_name: 'Kasia' }
 });
 check('an anonymous comment is accepted', held.status === 201, `${held.status}`);
 check('and comes back marked held', held.body?.is_held === true, JSON.stringify(held.body));
-const publicThread = await api(`/discussions/thread/?page=about&section=${SECTION}`);
+const publicThread = await api(`/discussions/thread/?page=${PAGE}&section=${SECTION}`);
 check(
 	'a held comment is invisible to everybody else',
 	(publicThread.body?.comments ?? []).every((c) => String(c.id) !== String(held.body?.id)),
 	`${(publicThread.body?.comments ?? []).length} comments`
 );
-const staffThread = await api(`/discussions/thread/?page=about&section=${SECTION}`, {
+const staffThread = await api(`/discussions/thread/?page=${PAGE}&section=${SECTION}`, {
 	tok: staffToken
 });
 check(
@@ -345,10 +352,10 @@ console.log('\n== a signed-in reader (`users`) ==');
 const users = await setPolicy({ audience: 'users', moderated: false, is_enabled: true });
 check('the location can be set to `users`', users?.audience === 'users', JSON.stringify(users));
 const plainToken = await token(PLAIN);
-const SIGNED_IN_TEXT = 'A real question about the research thread (about-discussions.mjs).';
+const SIGNED_IN_TEXT = 'A real question about the courses chapter (about-discussions.mjs).';
 const posted = await api('/discussions/thread/', {
 	method: 'POST',
-	body: { page: 'about', section: SECTION, body: SIGNED_IN_TEXT },
+	body: { page: PAGE, section: SECTION, body: SIGNED_IN_TEXT },
 	tok: plainToken
 });
 check('a signed-in comment is accepted', posted.status === 201, `${posted.status}`);
@@ -362,7 +369,7 @@ check(
 // in too. The token goes straight into the store's own key rather than driving the login form:
 // this script is not about signing in, and the form has its own script.
 await page.addInitScript((tok) => localStorage.setItem('edmat-auth-token', tok), plainToken);
-await page.goto(`${BASE}/about`, { waitUntil: 'load' });
+await page.goto(PAGE_URL, { waitUntil: 'load' });
 await page.waitForSelector(`${ABOUT} .section-discussion__toggle`, { timeout: 30000 });
 const signedInToggle = page.locator(ABOUT).first().locator('.section-discussion__toggle');
 const label = (await signedInToggle.textContent()) ?? '';
@@ -402,7 +409,7 @@ check(
 );
 const refused = await api('/discussions/thread/', {
 	method: 'POST',
-	body: { page: 'about', section: SECTION, body: 'Should be refused.' },
+	body: { page: PAGE, section: SECTION, body: 'Should be refused.' },
 	tok: plainToken
 });
 check(
@@ -415,7 +422,7 @@ check(
 	refused.body?.detail === 'verification_required',
 	JSON.stringify(refused.body)
 );
-await page.goto(`${BASE}/about`, { waitUntil: 'load' });
+await page.goto(PAGE_URL, { waitUntil: 'load' });
 await page.waitForSelector(`${ABOUT} .section-discussion__toggle`, { timeout: 30000 });
 const verifiedDiscussion = page.locator(ABOUT).first();
 const verifiedLoaded = page.waitForResponse((r) => r.url().includes('/api/discussions/thread/'));
@@ -443,10 +450,10 @@ await page.screenshot({
 console.log('\n== a switched-off location ==');
 const off = await setPolicy({ is_enabled: false });
 check('the location can be switched off', off?.is_enabled === false, JSON.stringify(off));
-await page.goto(`${BASE}/about`, { waitUntil: 'load' });
-// The research heading is part of the static page, so its presence proves /about rendered and the
+await page.goto(PAGE_URL, { waitUntil: 'load' });
+// The chapter's heading is part of the static page, so its presence proves it rendered and the
 // absence below is the location's doing, not a page that never painted.
-await page.locator('article.about h2').first().waitFor({ timeout: 30000 });
+await page.locator('h1').first().waitFor({ timeout: 30000 });
 await page.waitForTimeout(2500);
 check(
 	'a switched-off location draws no affordance — not a disabled line (house rule 3)',
@@ -454,21 +461,13 @@ check(
 );
 await setPolicy({ is_enabled: true });
 
-console.log('\n== a manual chapter has one thread of its own ==');
-await page.goto(`${BASE}/about/guide/courses`, { waitUntil: 'load' });
-await page.waitForSelector('.section-discussion__toggle', { timeout: 30000 });
-check(
-	'the chapter draws exactly one discussion',
-	(await page.locator('.section-discussion__toggle').count()) === 1
-);
-
 console.log('\n== the kill switch ==');
 await setFlag(false);
-await page.goto(`${BASE}/about`, { waitUntil: 'load' });
-await page.locator('article.about h2').first().waitFor({ timeout: 30000 });
+await page.goto(PAGE_URL, { waitUntil: 'load' });
+await page.locator('h1').first().waitFor({ timeout: 30000 });
 await page.waitForTimeout(2500);
 check(
-	'with the flag off, no affordance of /about’s own',
+	'with the flag off, no affordance on the chapter',
 	(await page.locator(`${ABOUT} .section-discussion__toggle`).count()) === 0
 );
 await page.screenshot({ path: 'e2e/screens/about-discussions-3-flag-off.png', fullPage: false });
@@ -478,7 +477,7 @@ check(
 	'with the flag off, none on a module showcase page either',
 	(await page.locator('.section-discussion__toggle').count()) === 0
 );
-const offPolicy = await api(`/discussions/?page=about&sections=${SECTION}`);
+const offPolicy = await api(`/discussions/?page=${PAGE}`);
 check(
 	'and the policy endpoint still answers, saying it is off',
 	offPolicy.status === 200 && offPolicy.body?.locations?.every((l) => l.is_enabled === false),
@@ -571,7 +570,9 @@ const countAfter = await publicCount();
 check(`${KEY} is back to ${countBefore}`, countAfter === countBefore, `${countAfter}`);
 
 // By ID, not by text: "did THIS run leave anything" is the question.
-const after = await api(`/discussions/thread/?page=about&section=${SECTION}`, { tok: staffToken });
+const after = await api(`/discussions/thread/?page=${PAGE}&section=${SECTION}`, {
+	tok: staffToken
+});
 const leftovers = [posted.body?.id, held.body?.id]
 	.map((id) => (after.body?.comments ?? []).find((c) => String(c.id) === String(id)))
 	// Present is fine — a tombstone keeps a thread's shape (house rule 12). Readable is not.
@@ -583,7 +584,7 @@ check(
 	leftovers.join(' | ')
 );
 
-// The real location goes back to exactly the policy it had — the research thread lives here.
+// The real location goes back to exactly the policy it had — it is a real chapter's thread.
 const restored = await setPolicy(ORIGINAL_POLICY);
 check(
 	`${KEY} is back to its original policy`,

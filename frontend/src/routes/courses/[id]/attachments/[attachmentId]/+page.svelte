@@ -11,6 +11,8 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import type { Attachment, AttachmentReview } from '$lib/types/course';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import LicenceNotice from '$lib/components/shared/LicenceNotice.svelte';
+	import { COURSE_ITEM_VISIBILITY_CHIPS } from '$lib/utils/labels';
 	import {
 		getAttachment,
 		getAttachmentComments,
@@ -124,6 +126,9 @@
 				{#if attachment.uploadedBy}
 					· {attachment.uploadedBy.displayName}
 				{/if}
+				{#if attachment.visibility === 'staff'}
+					· <span data-testid="attachment-audience">{COURSE_ITEM_VISIBILITY_CHIPS.staff()}</span>
+				{/if}
 			</p>
 			{#if attachment.description}
 				<p>{attachment.description}</p>
@@ -134,6 +139,14 @@
 				{m.course_attachment_download()}
 			</a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			<!-- The file's own licence, which its uploader chose starting from the course's
+			     (2026-11-02); the uploader can widen it here. -->
+			<LicenceNotice
+				kind="course_attachment"
+				id={attachment.id}
+				licence={attachment.licence}
+				author={attachment.uploadedBy?.displayName ?? ''}
+			/>
 		</header>
 
 		{#if error}

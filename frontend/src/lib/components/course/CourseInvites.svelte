@@ -84,7 +84,13 @@
 			{#each invites as invite (invite.id)}
 				<li class:spent={!invite.isUsable}>
 					<div class="row">
-						<strong>{invite.label || m.course_invites_heading()}</strong>
+						<strong
+							>{invite.label ||
+								(invite.sentTo
+									? m.courseCollab_sentTo({ email: invite.sentTo })
+									: m.course_invites_heading())}</strong
+						>
+						<!-- "Sent to {email}" -->
 						<span class="role">{invite.role}</span>
 						<span class="uses">
 							{invite.maxUses

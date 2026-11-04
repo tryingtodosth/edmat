@@ -280,6 +280,18 @@ is fetched from them before the click, no thumbnail either, so no consent banner
 art. 399 ust. 3 pkt 2 — the click is the request; they are separate controllers, US companies).
 Anything that changes this list changes that page.
 
+**A course invitation by email (2026-11-02, `backend/courses/mailinvite.py`)** is mail to somebody
+who may have no account and never agreed to anything: a course administrator types their address.
+What keeps it defensible under art. 6(1)(f): one fixed-text message (inviter's name, course title,
+role, link — no free text, so it cannot carry anybody's message), only from an account with a
+CONFIRMED address, at most 20 addresses a request and 50 a day per inviter (recounted), no second
+mail to an address while an earlier invite to it still works, and the answer never says whether an
+address has an account (no enumeration). The address is kept on the invite (`CourseInvite.sent_to`)
+for 30 days, then blanked by `accounts/retention.py`; the `OutboundEmail` row follows the ordinary
+12-month mail retention, and holds `[[link]]`, never the token. Said on `/privacy` (both languages,
+the e-mail section and the retention table). **Unconfirmed:** whether IOD UW reads "a course
+organiser inviting a named person" as the organiser's interest or ours; the page names both.
+
 ### Cookies
 
 **There is no consent banner** (this paragraph described one until 2026-10-14; it was removed long

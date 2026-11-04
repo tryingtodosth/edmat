@@ -21,7 +21,14 @@
 	import { getPostsForCourse } from '$lib/services/activity';
 	import CoursePicker from '$lib/components/shared/CoursePicker.svelte';
 	import type { ExerciseSet, Post } from '$lib/types';
-	import type { CourseItem, LessonExerciseSet } from '$lib/types/course';
+	import {
+		COURSE_ITEM_VISIBILITIES,
+		type CourseItem,
+		type CourseItemVisibility,
+		type LessonExerciseSet
+	} from '$lib/types/course';
+	import type { Licence } from '$lib/types/licence';
+	import { COURSE_ITEM_VISIBILITY_LABELS, licenceShort } from '$lib/utils/labels';
 	import {
 		parseContentRef,
 		type LinkableKind,
@@ -35,8 +42,12 @@
 		mySets,
 		onadd,
 		onremoveitem,
-		onunlinkset
+		onunlinkset,
+		courseLicence = undefined
 	}: {
+		/** The course's own licence — a search match whose licence differs gets a quiet tag before
+		 *  it is added (the item then carries the server's own comparison). */
+		courseLicence?: Licence;
 		/** The course being edited: left out of the course picker, and the owner of the board whose
 		 *  posts the `post` kind lists. */
 		courseId: string;
@@ -48,7 +59,7 @@
 		 * else's, by design — a colleague's shared set is linked by pasting its link, which is the
 		 * same thing that link already is. */
 		mySets: ExerciseSet[];
-		onadd: (ref: LinkedContentRef, note: string) => void;
+		onadd: (ref: LinkedContentRef, note: string, visibility: CourseItemVisibility) => void;
 		onremoveitem: (itemId: string) => void;
 		onunlinkset: (linkId: string) => void;
 	} = $props();
@@ -59,13 +70,16 @@
 	let value = $state('');
 	let note = $state('');
 	let linkTitle = $state('');
+	// Who sees what is added next (2026-11-02). Kept between adds on purpose: a curator filing a
+	// week's answer keys files them one after another.
+	let visibility = $state<CourseItemVisibility>('course');
 
 	// --- lists before paste (owner, 2026-10-21: "give user a list instead") ----------------------
 	// An exercise or a material is found by title through the searches the post composer already
 	// uses; another course through `CoursePicker`; a board post from this course's own board. The
 	// address box stays underneath for everything a list cannot reach — a discussion thread (a
 	// comment has no title to search by), a set by link, and anything the search did not find.
-	let found = $state<{ id: string; label: string }[]>([]);
+	let found = $state<{ id: string; label: string; licence?: Licence }[]>([]);
 	let searching = $state(false);
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 	function onSearchInput() {
@@ -82,12 +96,13 @@
 				if (kind === 'exercise')
 					found = (await searchExercises(q, getLocale(), 6)).map((e) => ({
 						id: e.id,
-						label: e.title
+						label: e.title,
+						licence: e.licence
 					}));
 				else
 					found = (await searchMaterials(q))
 						.slice(0, 6)
-						.map((mat) => ({ id: mat.id, label: mat.title }));
+						.map((mat) => ({ id: mat.id, label: mat.title, licence: mat.licence }));
 			} catch {
 				found = [];
 			} finally {
@@ -97,7 +112,7 @@
 	}
 	function pickFound(row: { id: string; label: string }) {
 		if (kind !== 'exercise' && kind !== 'material') return;
-		onadd({ kind, id: row.id }, note.trim());
+		onadd({ kind, id: row.id }, note.trim(), visibility);
 		value = '';
 		note = '';
 		found = [];
@@ -106,7 +121,7 @@
 	function pickCourse(id: string | null) {
 		// Choosing a course in the picker IS the add — there is nothing else to fill in.
 		if (!id) return;
-		onadd({ kind: 'course', id }, note.trim());
+		onadd({ kind: 'course', id }, note.trim(), visibility);
 		note = '';
 		pickedCourse = null;
 	}
@@ -122,7 +137,7 @@
 	let pickedPost = $state('');
 	function pickPost() {
 		if (!pickedPost) return;
-		onadd({ kind: 'post', id: pickedPost }, note.trim());
+		onadd({ kind: 'post', id: pickedPost }, note.trim(), visibility);
 		note = '';
 		pickedPost = '';
 	}
@@ -163,14 +178,14 @@
 				unrecognised = true;
 				return;
 			}
-			onadd({ kind: 'link', url, title: linkTitle.trim() }, note.trim());
+			onadd({ kind: 'link', url, title: linkTitle.trim() }, note.trim(), visibility);
 		} else if (kind === 'set') {
 			const slug = pickedSlug.trim() || value.trim();
 			if (!slug) return;
 			// A pasted set link resolves through the same parser as everything else, so somebody who
 			// has a link rather than a set of their own is not stuck with the dropdown.
 			const parsed = parseContentRef(slug, 'set');
-			onadd(parsed ?? { kind: 'set', slug }, note.trim());
+			onadd(parsed ?? { kind: 'set', slug }, note.trim(), visibility);
 		} else {
 			const parsed = parseContentRef(value, kind);
 			if (!parsed) {
@@ -180,7 +195,7 @@
 			// A pasted link overrules a stale select rather than being refused by it — see
 			// `parseContentRef`. Reading it back keeps the form honest about what just happened.
 			if (parsed.kind !== kind) kind = parsed.kind;
-			onadd(parsed, note.trim());
+			onadd(parsed, note.trim(), visibility);
 		}
 		value = '';
 		note = '';
@@ -328,7 +343,13 @@
 					{#each found as row (row.id)}
 						<li>
 							<button type="button" class="links__pick" onclick={() => pickFound(row)}
-								>{row.label}</button
+								>{row.label}
+								{#if courseLicence && row.licence && row.licence !== courseLicence}
+									<span class="links__licence" data-testid="found-licence"
+										>{m.courseLicence_ownTag({ licence: licenceShort(row.licence) })}</span
+									>
+									<!-- "own licence: {licence}" -->
+								{/if}</button
 							>
 						</li>
 					{/each}
@@ -341,6 +362,18 @@
 		<label class="field">
 			<span>{m.course_links_note()}</span>
 			<input type="text" bind:value={note} maxlength="500" />
+		</label>
+
+		<label class="field">
+			<span>{m.courseItemVis_label()}</span>
+			<!-- "Who sees this" -->
+			<select bind:value={visibility} data-testid="links-visibility">
+				{#each COURSE_ITEM_VISIBILITIES as option (option)}
+					<option value={option}>{COURSE_ITEM_VISIBILITY_LABELS[option]()}</option>
+				{/each}
+			</select>
+			<span class="hint">{m.courseItemVis_hint()}</span>
+			<!-- "Narrows who sees this one item; the course's own visibility still applies on top." -->
 		</label>
 
 		{#if unrecognised}
@@ -446,6 +479,12 @@
 		border-radius: var(--radius-sm);
 		max-height: 12rem;
 		overflow: auto;
+	}
+	.links__licence {
+		margin-left: var(--space-2);
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		font-style: italic;
 	}
 	.links__pick {
 		width: 100%;

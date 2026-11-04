@@ -173,25 +173,36 @@ module level (`config/nodes.py` dispatches to `organizations`). It is NOT demo d
   **The JSON ships; `HISTORY.md` does not** (`deploy/fuw/pack.sh` rsyncs `backend/` only), so
   re-run the export when the log grows — `EdmatHistoryTests` fails when the table is behind, and
   a section not in the map lands in `platform` with a warning.
-- **The association is three plans** (`ASSOCIATION_PLANS`, the phases of `FUW/association/07`),
-  phase 1 mirrored into **tasks with deadlines** (`as_tasks`), all seated on the owner, because a
-  task is what `/work` watches. Deadlines count from `FOUNDING_MEETING_AT` and `KRS_ENTRY_DATE`
-  (module constants, `None` until the owner knows them; `due_at_for`); the founding meeting is
-  created as a draft event only once the first is set. Phase 2 (selling) stays `draft` — editors
-  only — until `FINANCES.md` is reconciled with that decision.
-- **A task and a poll are the roster's; an active plan and an open need are everybody's**
-  (`tasks.rules.visible_tasks`, `decisions.rules.visible_polls`, `plans.rules.visible_plans`,
-  `needs.rules.public_needs`). Whatever the public should read is a plan step or a need.
+- **The association is RETIRED (owner, 2026-11-02: *"delete stowarzyszenie related ones"*;
+  `HISTORY.md` §17DD).** It was three plans (the phases of `FUW/association/07`), phase 1 mirrored
+  into tasks with deadlines counted from a founding date and a KRS entry, a "Founders" need, a poll
+  on founding it, a founding-meeting event and the Gemini legal-report thread under
+  `/about#money-and-openness`. **`RETIRED` is how something leaves**: the seed is idempotent by
+  title, so an entry dropped from the file stays on every database it was ever written to. Each run
+  deletes the rows `RETIRED` names — only on the EdMat node, only by the exact title the seed wrote
+  (glued or its Polish half) — with their threads, sub-tasks, ballots and applications, and prints a
+  `retired …` line per row; a database that never had them retires nothing. Hard deletion by the
+  owner's word, not archiving; step 0 of the apply script is the way back.
+- **`seed_edmat_project --dry-run`** does the whole run in a transaction it rolls back, so the
+  printed list (the retired rows included) is exact; **`--owner` is needed only the first time** —
+  later runs reuse the organisation's existing owner. `deploy/fuw/apply-on-server.sh` step 12 is
+  exactly that: dry run, `[Y/n]`, run.
+- **The polls are the owner's open questions, put to the members** (`POLLS`): the AI-assisted
+  score, and since 2026-11-02 the five decisions §17DB–§17DC left open (a new course's suggested
+  licence, when a course's licence may be widened, courses on the licences page, a restricted file
+  only for a signed-in reader, the legitimate interest behind e-mail invitations). Each describes
+  what the site does TODAY. Every title and option holds exactly one `' / '`.
+- **The board is open** (`ORGANIZATION['open_board']`, 2026-10-08): anyone who can see the
+  organisation reads its plans, tasks, needs and polls; the roster and its members vote and edit.
 - **Two research accounts** (`ACCOUNTS`: `google-gemini`, `anthropic-claude`, no usable
-  password, a bio that says what they are) and **the Gemini Deep Research thread** under
-  `/about#money-and-openness`: `work/edmat_research_thread.json`, one top-level comment per point
-  by the first account, a reply by the second where it had something to say, all timestamped to
-  the report's date. `FUW/association/build_thread.py` writes the JSON from the report (gitignored
-  there) and redacts the one e-mail and the street addresses. A `discussionLocation` comment
-  creates no activity row (`activity/signals.py`), so the feed is not flooded.
+  password, a bio that says what they are). `anthropic-claude` signs the project threads
+  (`work/edmat_project_threads.json`: one comment per item under a plan found by its title, or under
+  the organisation's own thread). `google-gemini` posted the legal report, which went with the
+  association; the account stays. A `discussionLocation` comment creates no activity row
+  (`activity/signals.py`), so the feed is not flooded.
 - **No personal data, ever.** Nothing names a founder, a Faculty official, an office or a sum;
   people are roles or counts. `all_seeded_text()` + `SECRET_SHAPES` and the test that runs them
-  over the module and both JSON files are the gate — extend the shapes before you extend the text.
+  over the module and the two JSON files are the gate — extend the shapes before you extend the text.
 - **Both languages in one field**, Polish first, a rule, then English: no management row has a
   translation table. History steps quote the English log as written. Whether project content
   should get a locale axis is on the board ("EdMat on EdMat").

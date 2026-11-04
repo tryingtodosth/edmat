@@ -25,6 +25,8 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
+from licensing.models import licence_field
+
 from .attachmentfile import validate_attachment_file
 
 # These are two different questions, and until now they were one field. `draft` answered "who can
@@ -207,6 +209,40 @@ CONTRIBUTION_STATUS_CHOICES = [
 #: The one status whose content is actually part of the course.
 VISIBLE_ITEM_STATUSES = frozenset({'approved'})
 
+# Who may see ONE piece of content in a course (owner, 2026-11-02: "different privacy settings per
+# content"). A narrowing of the course's own rule, never a widening: `course` is "whoever can open
+# the course" — on a public course that is anybody, on a private one the people it was shared with
+# — and the other two only take people away. One field with three rungs, not two booleans (house
+# shape), because "participants only" and "staff only" are a ladder, not two independent switches.
+#
+# - `course`       — everyone who can open the course (the default; every older row).
+# - `participants` — the people in the room: active participants and staff. Last year's paper on a
+#                    public course, shown to the cohort and not to the internet.
+# - `staff`        — the people running it: the answer key, the draft of week 5, a note for the TAs.
+#
+# Whoever SUBMITTED an item always still sees it — a participant whose offer a curator narrowed to
+# staff must not watch their own contribution vanish without a word. `rules.item_audience_admits`
+# is the one place this is read. MIRRORED in `frontend/src/lib/utils/labels.ts`
+# (`COURSE_ITEM_VISIBILITY_LABELS`) — house rule 13; change both.
+ITEM_VISIBILITY_CHOICES = [
+    ('course', 'Everyone who can open the course'),
+    ('participants', 'Participants and staff'),
+    ('staff', 'Only the people running the course'),
+]
+DEFAULT_ITEM_VISIBILITY = 'course'
+
+# Who may see ONE file uploaded to a course (2026-11-02, the follow-up to the above). A file was
+# always members-only as a whole — it is the pile a course keeps, never public — so its ladder starts
+# one rung lower than an item's: everyone in the course, or only the people running it (the answer
+# key, the marking scheme, a participant's homework meant for the teacher alone). Whoever uploaded it
+# always still sees it. MIRRORED in `frontend/src/lib/utils/labels.ts`
+# (`COURSE_ATTACHMENT_VISIBILITY_LABELS`) — house rule 13.
+ATTACHMENT_VISIBILITY_CHOICES = [
+    ('participants', 'Everyone in the course'),
+    ('staff', 'Only the people running the course'),
+]
+DEFAULT_ATTACHMENT_VISIBILITY = 'participants'
+
 # What an invite link hands out when somebody follows it. A link that enrols is the common case; a
 # link that makes somebody an assistant is how a course adds a TA without the TA first enrolling and
 # then being promoted. `owner` is deliberately absent — transferring a course is a decision to make
@@ -293,6 +329,14 @@ class Course(models.Model):
     audience = models.CharField(
         max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
     )
+    # The licence of what is written IN the course (owner, 2026-11-02: "select license for coop and
+    # materials on this course"): its description, its chapters and lessons — the collaborators'
+    # shared work — and the starting choice for every file uploaded into it. It does NOT reach
+    # what the course merely LINKS: a corpus material or exercise keeps its own licence, and the
+    # course page says so, quietly, wherever the two differ (`licensing.licences.compare_to_container`).
+    # Chosen on the create form; afterwards it only widens, and every change is a `LicenceChange`
+    # row (`licensing/targets.py`, the `course` kind) — never a plain PATCH.
+    licence = licence_field()
     starts_on = models.DateField(null=True, blank=True)
     ends_on = models.DateField(null=True, blank=True)
 
@@ -1007,6 +1051,11 @@ class CourseItem(models.Model):
 
     order = models.PositiveIntegerField(default=0)
     note = models.CharField(max_length=500, blank=True)
+    # Who may see this one item — `ITEM_VISIBILITY_CHOICES`. Set by a curator; a participant's own
+    # offer starts at `course` and may only be narrowed by somebody who runs the course.
+    visibility = models.CharField(
+        max_length=12, choices=ITEM_VISIBILITY_CHOICES, default=DEFAULT_ITEM_VISIBILITY
+    )
 
     status = models.CharField(
         max_length=12, choices=CONTRIBUTION_STATUS_CHOICES, default='approved'
@@ -1164,6 +1213,13 @@ class CourseItem(models.Model):
         gate = self.parent_chapter
         if gate and not gate.is_visible_to(user):
             return False
+        # The item's own audience (`ITEM_VISIBILITY_CHOICES`). After the gate and the status, so
+        # a pending item's rule above is unchanged; before the target, so a staff-only item never
+        # costs a participant a query about what it points at.
+        from .rules import item_audience_admits
+
+        if not item_audience_admits(self, user):
+            return False
         return self.target_is_available_to(user)
 
     def target_is_available_to(self, user) -> bool:
@@ -1251,6 +1307,12 @@ class CourseInvite(models.Model):
     # introducing a second way to say "no limit".
     max_uses = models.PositiveIntegerField(default=0)
     uses = models.PositiveIntegerField(default=0)
+    # The address this invite was MAILED to (`courses/mailinvite.py`), blank for a link somebody
+    # copies by hand. One address, one use: a mailed invite is for a person, not a link to pass
+    # around. Kept so the invites panel can say "sent to anna@…" and a second send to the same
+    # address is refused while the first still works; blanked by `accounts/retention.py` once the
+    # invite can no longer be used, since a stranger's address is not ours to keep.
+    sent_to = models.CharField(max_length=320, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
 
@@ -1365,6 +1427,18 @@ class Attachment(models.Model):
     )
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    # The uploader's choice, on the upload form, starting from the course's own licence
+    # (`Course.licence`) — a starting point, not a stamp: last year's exam paper is not the
+    # uploader's to open to the world, and a stamp would say it was. Absent from the request = the
+    # course's licence, except `unknown`, which nobody chooses.
+    licence = licence_field()
+    # Who in the course sees it — `ATTACHMENT_VISIBILITY_CHOICES`. Any uploader may narrow their own
+    # file; a curator may change anybody's (`rules.attachment_visibility_block_reason`).
+    visibility = models.CharField(
+        max_length=12,
+        choices=ATTACHMENT_VISIBILITY_CHOICES,
+        default=DEFAULT_ATTACHMENT_VISIBILITY,
+    )
 
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1391,10 +1465,19 @@ class Attachment(models.Model):
             return 0
 
     def is_visible_to(self, user) -> bool:
-        """Anyone who can be in the room. An attachment is course material in the ordinary sense —
-        it is not gated per-chapter the way `CourseItem` is, because it is not part of the running
-        order; it is the pile of files the course keeps."""
-        return self.course.is_member(user) or self.course.can_curate(user)
+        """Anyone who can be in the room — narrowed by the file's own `visibility`. An attachment is
+        course material in the ordinary sense — it is not gated per-chapter the way `CourseItem` is,
+        because it is not part of the running order; it is the pile of files the course keeps.
+
+        Honest limit: this governs every listing, the detail page, the search and a course item
+        pointing at the file. The bytes themselves are served from `/media/` at a random, unguessable
+        name, so somebody who already copied a file's address keeps it — exactly as before this field
+        existed, when the address was the only boundary between the course and the world."""
+        from .rules import attachment_audience_admits
+
+        if not (self.course.is_member(user) or self.course.can_curate(user)):
+            return False
+        return attachment_audience_admits(self, user)
 
 
 @receiver(post_delete, sender=Attachment)
@@ -1588,6 +1671,12 @@ class LessonExerciseSet(models.Model):
     # Null for a link nobody has re-copied — genuinely different from "refreshed at the moment it
     # was linked", and the difference is what tells a curator whether they have looked since.
     refreshed_at = models.DateTimeField(null=True, blank=True)
+    # Who may see the whole block — the same ladder as a `CourseItem` (`ITEM_VISIBILITY_CHOICES`,
+    # 2026-11-02): last year's exam set for the cohort only, a TA's warm-up set for the staff.
+    # Set by a curator, which is the only person who can link a set at all.
+    visibility = models.CharField(
+        max_length=12, choices=ITEM_VISIBILITY_CHOICES, default=DEFAULT_ITEM_VISIBILITY
+    )
 
     class Meta:
         ordering = ['order', 'id']
@@ -1644,8 +1733,14 @@ class LessonExerciseSet(models.Model):
         that chapter exactly as one inside a lesson is, for the reason `CourseItem.is_visible_to`
         already states: the lock is a statement about the week, and routing around it by filing one
         level up would make it worthless.
+
+        Then the block's own audience (2026-11-02), asked of the same rule an item's is.
         """
-        return self.parent.is_visible_to(user)
+        if not self.parent.is_visible_to(user):
+            return False
+        from .rules import audience_admits
+
+        return audience_admits(self.course, self.visibility, user)
 
     def visible_exercises(self, user, *, can_curate=None):
         """The pinned rows this viewer should actually be shown.

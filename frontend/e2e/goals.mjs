@@ -240,8 +240,16 @@ const page = await ctx.newPage();
 const problems = [];
 page.on('pageerror', (e) => problems.push(String(e)));
 
-console.log('\n== /about in a real browser ==');
-await page.goto(`${BASE}/about`, { waitUntil: 'networkidle' });
+console.log('\n== /coop (the organisation page, /about until 2026-11-02) in a real browser ==');
+await page.goto(`${BASE}/coop`, { waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
+// The Goals panel is a fold on `/coop`, and its open/shut state is remembered per reader
+// (`foldedSections`) — so open it only if it is shut; a blind click is as likely to close it.
+// Before this, the run of 2026-11-03 read a shut panel and reported its goal missing.
+const goalsFold = page.locator('[data-fold="goals"]');
+if (!(await goalsFold.evaluate((e) => e.classList.contains('fold--open')))) {
+	await goalsFold.locator('.fold__toggle').first().click();
+}
 await page.waitForTimeout(1500);
 const aboutText = await page.textContent('body');
 check('the Goals panel is drawn', aboutText.includes('Goals'), aboutText.slice(0, 200));

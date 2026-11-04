@@ -12,7 +12,19 @@
 // components `register()` themselves whenever they appear and this holder coalesces whatever has
 // arrived within a short window into one request, asking only for keys it does not already know.
 // Two or three requests on a busy page, instead of twenty.
+//
+// **The site-wide holder (2026-11-02, owner: "add it to the cards in lists too").** Exercise and
+// material cards are drawn on a dozen list routes and inside shared components, so instead of one
+// `provideAiAssistance()` per list the ROOT LAYOUT provides one (`provideSiteAiAssistance`), and a
+// page that provides its own — the exercise, material and concept pages — still shadows it. The
+// layout's holder outlives navigation, which is exactly what the paragraph above warns about, so it
+// PRUNES on every navigation: whatever the new page registers is kept, everything else (readings
+// and the "already asked" record) is dropped, so a list you come back to after voting asks again.
+// `provideNoAiAssistance` is the opposite: the `/about` samples render real cards on invented ids
+// (9001, 9400, …) that a real row could one day share, so a sample frame provides NO holder and
+// its chips draw nothing.
 import { getContext, setContext } from 'svelte';
+import { afterNavigate, beforeNavigate } from '$app/navigation';
 import { readingsFor } from '$lib/services/provenance';
 import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 import type {
@@ -27,6 +39,10 @@ const KEY = Symbol('ai-assistance');
 /** Long enough for the chips of one fetched list to register together, short enough that nobody
  *  watches an empty space. */
 const COALESCE_MS = 60;
+
+/** Targets per request — the backend caps one batch at 200 (`provenance/views.py:
+ *  MAX_BATCH_TARGETS`); a long list is asked for in several requests rather than silently cut. */
+const CHUNK = 100;
 
 export interface AiAssistance {
 	reading(kind: AssistanceTargetKind, id: string): AssistanceReading | undefined;
@@ -47,6 +63,8 @@ class AiAssistanceState implements AiAssistance {
 	private asked = new Set<string>();
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private disposed = false;
+	/** Keys registered since the current navigation began — what `endNavigation` keeps. */
+	private seen = new Set<string>();
 
 	reading(kind: AssistanceTargetKind, id: string): AssistanceReading | undefined {
 		return this.readings[assistanceKey(kind, id)];
@@ -59,6 +77,7 @@ class AiAssistanceState implements AiAssistance {
 		if (!featureFlagsStore.isEnabled('ai_assisted')) return;
 		if (!id) return;
 		const key = assistanceKey(kind, id);
+		this.seen.add(key);
 		if (this.asked.has(key) || this.readings[key] || this.pending.has(key)) return;
 		this.pending.add(key);
 		if (this.timer === null) this.timer = setTimeout(() => void this.flush(), COALESCE_MS);
@@ -79,15 +98,33 @@ class AiAssistanceState implements AiAssistance {
 			return { kind: kind as AssistanceTargetKind, id };
 		});
 		try {
-			const fetched = await readingsFor(targets);
+			const chunks = [];
+			for (let i = 0; i < targets.length; i += CHUNK) chunks.push(targets.slice(i, i + CHUNK));
+			const fetched = await Promise.all(chunks.map((chunk) => readingsFor(chunk)));
 			if (this.disposed) return;
-			this.readings = { ...this.readings, ...fetched };
+			this.readings = Object.assign({ ...this.readings }, ...fetched);
 		} catch {
 			// Swallowed on purpose, exactly as `pageDiscussions` swallows its own: there is nothing
 			// sensible to show a reader about a badge request that did not come back, and the page's
 			// content does not depend on it. The chips then draw nothing — the same thing they draw
 			// when the feature is off.
 		}
+	}
+
+	/** A navigation is starting: what the next page registers is what survives it. */
+	beginNavigation() {
+		this.seen = new Set();
+	}
+
+	/** The new page has mounted and registered its chips: forget everything else, so a page you
+	 *  come back to asks afresh instead of showing the reading from before you voted. */
+	endNavigation() {
+		const keep: AssistanceReadings = {};
+		for (const [key, reading] of Object.entries(this.readings)) {
+			if (this.seen.has(key)) keep[key] = reading;
+		}
+		this.readings = keep;
+		for (const key of [...this.asked]) if (!this.seen.has(key)) this.asked.delete(key);
 	}
 
 	dispose() {
@@ -102,6 +139,20 @@ export function provideAiAssistance(): AiAssistanceState {
 	const state = new AiAssistanceState();
 	setContext(KEY, state);
 	return state;
+}
+
+/** The root layout's holder — see the header. Call once, during the layout's init. */
+export function provideSiteAiAssistance(): AiAssistanceState {
+	const state = provideAiAssistance();
+	beforeNavigate(() => state.beginNavigation());
+	afterNavigate(() => state.endNavigation());
+	return state;
+}
+
+/** No holder below this point: a chip inside draws nothing and asks for nothing (the `/about`
+ *  sample frames — see the header). */
+export function provideNoAiAssistance(): void {
+	setContext(KEY, undefined);
 }
 
 /** `undefined` when no ancestor provided one — a chip rendered outside such a page draws nothing

@@ -7,6 +7,13 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getAllBranches } from '$lib/services/taxonomy';
 	import CoursePicker from '$lib/components/shared/CoursePicker.svelte';
+	import LicencePicker from '$lib/components/shared/LicencePicker.svelte';
+	import LicenceNotice from '$lib/components/shared/LicenceNotice.svelte';
+	import CourseCollaboratorsDraft, {
+		emptyCollaborators,
+		type CollaboratorsDraft
+	} from '$lib/components/course/CourseCollaboratorsDraft.svelte';
+	import type { Licence } from '$lib/types/licence';
 	import type { Branch } from '$lib/types/taxonomy';
 	import type {
 		ContributionPolicy,
@@ -37,8 +44,17 @@
 		submitting?: boolean;
 		error?: string;
 		submitLabel: string;
-		onsubmit: (draft: TaughtCourseDraft) => void;
+		/** `collaborators` only on create — editing has the staff panel on the course page. */
+		onsubmit: (draft: TaughtCourseDraft, collaborators: CollaboratorsDraft) => void;
 	} = $props();
+
+	// The course's licence (2026-11-02): what is written IN it — the description, the chapters and
+	// lessons, the collaborators' shared work — and the starting choice for files uploaded to it.
+	// Picked here on create; on edit it is the course's licence line, whose control only widens it
+	// (`/api/licences/course/<id>/`), because a PATCH may not relicense (the server refuses).
+	const creating = untrack(() => initial === null);
+	let licence = $state<Licence>('edmat-only');
+	let collaborators = $state<CollaboratorsDraft>(emptyCollaborators());
 
 	// What kind of gathering this is (backend `COURSE_KIND_CHOICES`): a community around a topic,
 	// or the companion to one university course. Asked FIRST, because it changes what the rest of
@@ -107,40 +123,44 @@
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
 		if (!audience) return;
-		onsubmit({
-			audience,
-			title: title.trim(),
-			summary: summary.trim(),
-			description: description.trim(),
-			// Subject/field tagging is a separate picker this first version does not have; sending
-			// what already exists keeps an edit from silently clearing tags set elsewhere.
-			// Untouched select → the tags exactly as they were (possibly several); changed → that one.
-			subjects:
-				subject === initialSubject ? (initial?.subjectSlugs ?? []) : subject ? [subject] : [],
-			field: initial?.fieldSlug ?? null,
-			kind,
-			parent: parentForSubmit(),
-			// The server clears these four on a topic course anyway; sending blanks keeps the
-			// request saying what the form shows.
-			university: kind === 'university' ? university.trim() : '',
-			faculty: kind === 'university' ? faculty.trim() : '',
-			courseCode: kind === 'university' ? courseCode.trim() : '',
-			currentTerm: kind === 'university' ? currentTerm.trim() : '',
-			visibility,
-			status,
-			enrollmentPolicy,
-			capacity: Number(capacity) || 0,
-			language,
-			startsOn: startsOn || null,
-			endsOn: endsOn || null,
-			price: price || null,
-			currency: initial?.currency || 'PLN',
-			discussionMode,
-			announceNewLessons,
-			announceNewPosts,
-			contributionPolicy,
-			progressVisibility
-		});
+		onsubmit(
+			{
+				...(creating ? { licence } : {}),
+				audience,
+				title: title.trim(),
+				summary: summary.trim(),
+				description: description.trim(),
+				// Subject/field tagging is a separate picker this first version does not have; sending
+				// what already exists keeps an edit from silently clearing tags set elsewhere.
+				// Untouched select → the tags exactly as they were (possibly several); changed → that one.
+				subjects:
+					subject === initialSubject ? (initial?.subjectSlugs ?? []) : subject ? [subject] : [],
+				field: initial?.fieldSlug ?? null,
+				kind,
+				parent: parentForSubmit(),
+				// The server clears these four on a topic course anyway; sending blanks keeps the
+				// request saying what the form shows.
+				university: kind === 'university' ? university.trim() : '',
+				faculty: kind === 'university' ? faculty.trim() : '',
+				courseCode: kind === 'university' ? courseCode.trim() : '',
+				currentTerm: kind === 'university' ? currentTerm.trim() : '',
+				visibility,
+				status,
+				enrollmentPolicy,
+				capacity: Number(capacity) || 0,
+				language,
+				startsOn: startsOn || null,
+				endsOn: endsOn || null,
+				price: price || null,
+				currency: initial?.currency || 'PLN',
+				discussionMode,
+				announceNewLessons,
+				announceNewPosts,
+				contributionPolicy,
+				progressVisibility
+			},
+			collaborators
+		);
 	}
 </script>
 
@@ -292,6 +312,30 @@
 
 	<AudienceSelect bind:value={audience} />
 
+	<!-- The licence and the people, next to each other on purpose: whoever helps write a course
+	     writes under its licence, and the collaborators block says so. -->
+	{#if creating}
+		<div class="licence" data-testid="course-licence">
+			<LicencePicker
+				bind:value={licence}
+				name="course-licence"
+				suggested="cc-by-4.0"
+				reason="own"
+			/>
+			<p class="hint">{m.courseLicence_formHint()}</p>
+			<!-- "It covers what you and your collaborators write here — the description, the chapters and lessons — and is where every file uploaded to the course starts. Materials and exercises linked from the EdMat library keep their own licence; the course says so quietly wherever one differs." -->
+		</div>
+		<CourseCollaboratorsDraft bind:value={collaborators} {licence} />
+	{:else if initial}
+		<div class="licence" data-testid="course-licence">
+			<span class="field-label">{m.licence_field_label()}</span>
+			<!-- "Licence" -->
+			<LicenceNotice kind="course" id={initial.id} licence={initial.licence} />
+			<p class="hint">{m.courseLicence_editHint()}</p>
+			<!-- "A course’s licence can only be widened, and only while nobody else on its staff has written in it." -->
+		</div>
+	{/if}
+
 	<label class="field">
 		<span>{m.course_form_status()}</span>
 		<select bind:value={status}>
@@ -423,6 +467,15 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+	}
+	.licence {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+	.field-label {
 		font-size: var(--font-size-sm);
 		font-weight: 500;
 	}

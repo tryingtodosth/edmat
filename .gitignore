@@ -104,3 +104,7 @@ school-management-demo/backups/
 # is the data the page is made of, and without it `pack.sh` refuses to build /dziennik — a clean
 # clone should be able to produce the deployed page without a six-minute recording run first.
 school-management-demo/dist-static/
+
+# promo/: the edmat.net promo video kit (promo.html, render.mjs, capture.mjs), the phone captures
+# it is made of and the rendered WebM files. Local working material, kept out of the repository.
+/promo/

@@ -457,7 +457,8 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /auth/sso/done /auth/sso/complete /auth/sso/link                the provider sign-in's return, signup and confirm-and-link pages
 /settings/account /cancel-deletion                             download my data, delete my account, change my mind
 /settings/licences                                            the licence of everything you posted, widened many at a time
-/about                                                        the project itself: the EdMat organisation's page (goals, needs, open board), the research thread, the showcase index
+/about                                                        what EdMat is: the promo reel (real pages on phones), the feature grid, the manual and the showcase index
+/coop                                                         the project itself: the EdMat organisation's page (goals, needs, the open board and its polls) — `/about` until 2026-11-02
 /about/<feature> /about/guide /about/guide/[chapter]          the showcase (sample data + real screenshots, fourteen pages) and the manual
 ```
 

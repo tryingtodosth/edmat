@@ -1,5 +1,6 @@
 <script lang="ts">
 	import AudienceBadge from '$lib/components/shared/AudienceBadge.svelte';
+	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
 	// The public browse/grid card — deliberately a compact SUMMARY only, matching ServiceCard's own
 	// "one card component, reused at a different weight/context" economy: every real interactive
 	// flow this card used to cram inline (proposing coverage, editing requirements, voting) now lives
@@ -124,6 +125,16 @@
 		<span class="material-type">{materialTypesStore.nameFor(material.type)}</span>
 		<AudienceBadge audience={material.audience} />
 	</div>
+
+	<!-- "N% AI" on every LIST card (owner, 2026-11-02), on a row of its own: in the heading's row it
+	     squeezed a long title into one-syllable lines, because the title is the flex item that gives
+	     way (`overflow-wrap: anywhere`). Not when this card is the material's own page header
+	     (`linkTitle` false): that page draws the interactive chip beside its menu. -->
+	{#if linkTitle}
+		<div class="material-card__assist">
+			<AiAssistChip kind="material" id={material.id} always interactive={false} />
+		</div>
+	{/if}
 
 	{#if material.reviewCount > 0}
 		<p class="rating-summary">
@@ -360,6 +371,13 @@
 		// stop matching on /materials/[id] and the hover would quietly do nothing.
 		&:hover .material-card__title {
 			color: var(--accent);
+		}
+	}
+	.material-card__assist {
+		display: flex;
+		// An empty row (the feature off, or a reading not back yet) takes no space.
+		&:empty {
+			display: none;
 		}
 	}
 	.material-type {

@@ -489,15 +489,14 @@ filtered by `kind` — the only file that knows both sides. `GET /api/work/` beh
 account "My work".
 
 **EdMat on EdMat (2026-10-07).** `work/edmat_project.py` is the project's own organisation as content
-— fifteen goals (one plan per module, `/dziennik` among them), the association's three phase plans
-with phase 1 mirrored into deadline-bearing tasks, the needs, the polls, the founding meeting once
-its date is set, two research accounts and the Gemini Deep Research thread under `/about` — and
-`manage.py seed_edmat_project --owner <username>` writes it idempotently. `work/edmat_history.py` +
+— fifteen goals (one plan per module, `/dziennik` among them), the tasks, the needs, the polls (the
+owner's open decisions) and two research accounts — and `manage.py seed_edmat_project` writes it
+idempotently (`--owner <username>` the first time, `--dry-run` to see it first). `work/edmat_history.py` +
 `manage.py export_edmat_history` turn `HISTORY.md` into `work/edmat_history.json` (one dated row
-per section, filed under a goal by hand), which is what ships; `work/edmat_research_thread.json` is
-the thread. `backend/work/CLAUDE.md` has the rules.
+per section, filed under a goal by hand), which is what ships; `work/edmat_project_threads.json` holds the
+project threads, and `RETIRED` what the seed deletes (the association, 2026-11-02, §17DD). `backend/work/CLAUDE.md` has the rules.
 Since 2026-10-08 `/about` IS that organisation's page (`lib/components/organization/OrganizationPage.svelte`,
-shared with `/organizations/[slug]`) plus the research thread's section, the feature grid, the showcase
+shared with `/organizations/[slug]`) plus the feature grid, the showcase
 index and the manual link; `Organization.open_board` opens a body's tasks and polls to every reader.
 
 ### `flashcards` — decks, cards, SM-2 review, and where a deck is placed (2026-10-05)

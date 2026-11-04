@@ -28,8 +28,19 @@ export const LICENCE_KEYS = [
 	'unknown'
 ] as const satisfies readonly Licence[];
 
-/** What can carry a licence of its own — `licensing/targets.py`. */
+/** The CONTENT kinds — what `/settings/licences` lists and the bulk change walks
+ *  (`licensing/targets.py: LICENSED_KINDS`). */
 export type LicensedKind = 'exercise' | 'solution_entry' | 'material' | 'concept_article';
+
+/** Every kind `/api/licences/<kind>/<id>/` answers for (`ALL_LICENSED_KINDS`): the content kinds,
+ *  plus a course's own licence and a file uploaded into a course (2026-11-02). Not listed in bulk. */
+export type LicenceTargetKind = LicensedKind | 'course' | 'course_attachment';
+
+/** How a work linked into a container sits with the container's licence
+ *  (`backend/licensing/licences.py: compare_to_container`, mirrored by hand — house rule 13).
+ *  `same` and `wider` need no word; the other three get a quiet note (`labels.ts:
+ *  licenceRelationNote`). */
+export type LicenceRelation = 'same' | 'wider' | 'narrower' | 'different' | 'unclear';
 
 export interface LicenceChangeRow {
 	from: Licence;

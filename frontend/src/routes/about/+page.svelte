@@ -1,43 +1,29 @@
 <script lang="ts">
-	// `/about` is the project itself (owner, 2026-10-07/08): the EdMat organisation's page — its
-	// description, roster, goals (plans), needs, tasks and polls — composed with what a visitor
-	// still needs from the old brochure: the research thread's section, the "what you can do here"
-	// grid, the design showcase index and the one link into the manual. The brochure's prose lives
-	// on in `lib/content/about.ts` for the grid's copy and for anyone who wants it back.
+	// `/about` is what EdMat is, shown rather than told (owner, 2026-11-02: "have these animations
+	// on about and move what currently is about to edmat.net/coop"). It opens on the promo reel:
+	// real EdMat pages playing on phones (`PromoReel`). Under it are what a newcomer needs, all
+	// carried over from the page that was here before:
 	//
-	// Prerendered like before (`+page.ts`), but the organisation body loads client-side, so the
-	// prerendered HTML carries the head and the static blocks and the body paints after the SPA
-	// boots — the trade the owner chose over the brochure's first paint.
+	// - the "New here?" strip (`StartHere variant="about"`, WP7). Its middle door is still the
+	//   `#showcase` jump on this page;
+	// - the "what you can do here" grid (`lib/content/about.ts`);
+	// - a band leading to the team's own page;
+	// - Explore: the manual and the showcase index.
 	//
-	// **A newcomer's three doors come first (WP7, 2026-10-15; owner: "yes, put the strip above the
-	// organisation page").** The page opens on a body's roster and task board, which is the project
-	// being honest about itself and not where somebody new should start, so the homepage's
-	// `StartHere` band sits above it — the same component, `variant="about"`, the same shared "hide".
-	// It is in the prerendered HTML and reads storage only in its own `onMount`. Its middle door
-	// lands on the Explore section at the bottom: the manual and the twelve showcase pages, which
-	// used to be two bands, as one section carrying `id="showcase"`.
+	// The organisation's page (roster, goals, needs, board, polls and the research thread) is now
+	// `/coop`. Its band here goes with the `organizations` switch, as the card on `/coop` would (house
+	// rule 3). Everything here is static and prerendered: no API call, and the reel reads storage and
+	// media queries only in its own `onMount`.
 	import { resolve } from '$app/paths';
 	import { getLocale, localizeHref } from '$lib/paraglide/runtime.js';
 	import { m } from '$lib/paraglide/messages.js';
 	import { aboutDocFor, type AboutFeature } from '$lib/content/about';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
-	import OrganizationPage from '$lib/components/organization/OrganizationPage.svelte';
+	import PageHead from '$lib/components/shared/PageHead.svelte';
+	import PromoReel from '$lib/components/showcase/PromoReel.svelte';
 	import ShowcaseIndex from '$lib/components/showcase/ShowcaseIndex.svelte';
 	import StartHere from '$lib/components/home/StartHere.svelte';
-	import DiscussableSection from '$lib/components/discussion/DiscussableSection.svelte';
-	import { providePageDiscussions } from '$lib/components/discussion/pageDiscussions.svelte';
-
-	/** The project's own organisation — `work/edmat_project.py: ORGANIZATION_SLUG`. */
-	const PROJECT_SLUG = 'edmat';
-
-	// The one discussion location this page keeps from the brochure: the research thread the seed
-	// posts under it (`work/edmat_research_thread.json`). The brochure's other six section keys
-	// are no longer drawn; their rows, if any, stay in the moderation list.
-	const DISCUSSION_PAGE = 'about';
-	const DISCUSSION_SECTIONS = ['money-and-openness'];
-	const pageDiscussions = providePageDiscussions();
-	$effect(() => pageDiscussions.load(DISCUSSION_PAGE, DISCUSSION_SECTIONS));
 
 	const doc = $derived(aboutDocFor(getLocale()));
 	// A card pointing at a killed surface is exactly the link house rule 3 says a kill switch has to
@@ -48,29 +34,24 @@
 		);
 	}
 	const features = $derived(doc.features.filter(shown));
+	const teamShown = $derived(featureFlagsStore.isEnabled('organizations') || authStore.isModerator);
 </script>
 
-<div class="about-start">
-	<StartHere variant="about" />
-</div>
-
-<OrganizationPage
-	slug={PROJECT_SLUG}
-	headTitle={doc.title}
-	headDescription={m.seo_about_description()}
-	quietWhenOff
-/>
+<PageHead title={doc.title} description={m.seo_about_description()} />
 <!-- "About EdMat" / "What EdMat is: a moderated, bilingual community database of exercises…" -->
 
 <article class="about">
-	<DiscussableSection sectionKey="money-and-openness" title={m.about_researchHeading()}>
-		<section class="about__section about__research">
-			<h2>{m.about_researchHeading()}</h2>
-			<!-- "The association: the legal report and its reading" -->
-			<p>{m.about_researchIntro()}</p>
-			<!-- "The Gemini Deep Research report of 6 October 2026 … Neither is a lawyer’s opinion." -->
-		</section>
-	</DiscussableSection>
+	<header class="about__hero">
+		<p class="about__eyebrow">{doc.eyebrow}</p>
+		<h1>{doc.title}</h1>
+		<p class="about__lead">{doc.lead[0]}</p>
+	</header>
+
+	<PromoReel />
+
+	<div class="about-start">
+		<StartHere variant="about" />
+	</div>
 
 	<section class="about__section about__features">
 		<h2>{doc.featuresHeading}</h2>
@@ -88,21 +69,31 @@
 		</ul>
 	</section>
 
-	<!-- Explore: the manual and the design showcase, one section (WP7). It used to be the showcase
-	     index followed by a separate one-link band for the manual; a newcomer looking for "how do I
-	     find my way around" now finds both answers under one heading, the manual first because it is
-	     the one destination and the showcase is twelve.
+	{#if teamShown}
+		<section class="about__section about__band" aria-labelledby="about-team">
+			<div>
+				<h2 id="about-team">{m.about_coopHeading()}</h2>
+				<!-- "The team behind EdMat" -->
+				<p>{m.about_coopBody()}</p>
+				<!-- "EdMat is run in the open. Its goals, the help it needs, its task board and the decisions …" -->
+			</div>
+			<a class="btn-secondary" href={resolve('/coop')}>{m.about_coopCta()}</a>
+			<!-- "See the team’s page →" -->
+		</section>
+	{/if}
+
+	<!-- Explore: the manual and the design showcase, one section (WP7), the manual first because it
+	     is the one destination and the showcase is twelve.
 	     learning: showcase (G) — the index of the design showcase pages under /about/<feature>.
 	     learning: guide (H) — the one link into the manual at /about/guide.
 	     contests: showcase (B) — DONE. The /about/contests card is in `SHOWCASE_PAGES`
-	     (`lib/content/showcase/index.ts`), which is what `<ShowcaseIndex />` draws, so this page
-	     needed no markup of its own. The marker is left in place as the record of that. -->
+	     (`lib/content/showcase/index.ts`), which is what `<ShowcaseIndex />` draws. -->
 	<section class="about__section about__explore" id="showcase" aria-labelledby="about-explore">
 		<h2 id="about-explore">{m.wp7_exploreHeading()}</h2>
 		<!-- "Explore" -->
 		<p class="about__intro">{m.wp7_exploreIntro()}</p>
 		<!-- "Two ways to find your way around: read the manual, or look at each part of the site with sample data and real screenshots, and then try the real thing." -->
-		<div class="about__manual">
+		<div class="about__band">
 			<div>
 				<h3>{m.wp7_exploreManualHeading()}</h3>
 				<!-- "The manual" -->
@@ -135,6 +126,31 @@
 			line-height: 1.65;
 			margin-bottom: var(--space-2);
 		}
+	}
+
+	// ---- the hero: what this is, then the reel shows it ----------------------------------------
+	.about__hero {
+		max-width: 70ch;
+		h1 {
+			font-size: var(--font-size-xl);
+			margin: 0 0 var(--space-2);
+		}
+	}
+	.about__eyebrow {
+		font-size: var(--font-size-sm);
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--accent);
+		margin-bottom: var(--space-1) !important;
+	}
+	.about__lead {
+		color: var(--text-secondary);
+		font-size: var(--font-size-lg);
+	}
+	// The reel sits right under the hero; the page's own gap would push it a screen away.
+	.about__hero + :global(.reel) {
+		margin-top: calc(-1 * var(--space-4));
 	}
 
 	// ---- feature grid ---------------------------------------------------------------------------
@@ -189,16 +205,8 @@
 	}
 
 	// ---- the newcomer's strip -------------------------------------------------------------------
-	// The width of the organisation page directly under it (`OrganizationPage`'s `.page`), so the
-	// doors line up with the h1 they sit above rather than with the wider grid further down.
-	.about-start {
-		max-width: 820px;
-		margin: 0 auto;
-		padding: var(--space-4) var(--space-4) 0;
-		// The band, when hidden, leaves no wrapper padding behind that reads as a gap.
-		&:empty {
-			display: none;
-		}
+	.about-start:empty {
+		display: none;
 	}
 
 	// ---- Explore: the manual, then the showcase ---------------------------------------------------
@@ -214,9 +222,9 @@
 			margin-bottom: 0;
 		}
 	}
-	// A band rather than a card: the manual is one destination, and a single card in a grid of its
-	// own reads as a grid with one thing missing.
-	.about__manual {
+	// A band rather than a card: the team's page and the manual are each one destination, and a
+	// single card in a grid of its own reads as a grid with one thing missing.
+	.about__band {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
@@ -232,6 +240,7 @@
 			flex: 1 1 22rem;
 			min-width: 0;
 		}
+		h2,
 		h3 {
 			font-size: var(--font-size-base);
 			margin: 0 0 var(--space-1);
@@ -241,15 +250,11 @@
 			color: var(--text-secondary);
 			max-width: 62ch;
 		}
-		// `btn-secondary` has no global rule — the class alone drew plain text, here and before WP7.
+		// `btn-secondary` has no global rule — the class alone drew plain text.
 		.btn-secondary {
 			@include mix.button-secondary;
 			flex: none;
 			text-decoration: none;
 		}
-	}
-
-	.about__research p {
-		max-width: 70ch;
 	}
 </style>

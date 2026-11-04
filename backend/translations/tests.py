@@ -672,7 +672,12 @@ class SeedDeGluingTests(APITestCase):
 
         source = Path(seed.__file__).read_text()
         titles = re.findall(r"'(?:title|question)': '((?:[^'\\]|\\.)*)'", source)
-        self.assertGreater(len(titles), 40, 'the regex stopped matching the file')
+        # 37 since 2026-11-02, when the association's titles moved into `RETIRED` (59 before). The
+        # retired ones are still looked up by their Polish half, so they are held to the same rule.
+        self.assertGreater(len(titles), 30, 'the regex stopped matching the file')
+        for key in ('plans', 'tasks', 'needs', 'polls'):
+            titles.extend(seed.RETIRED[key])
+        titles.extend(title for pair in seed.RETIRED['steps'] for title in pair)
         two_or_none = [t for t in titles if t.count(seed._TITLE_RULE) <= 1]
         self.assertEqual(
             len(two_or_none), len(titles), [t for t in titles if t.count(seed._TITLE_RULE) > 1]

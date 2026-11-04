@@ -168,9 +168,18 @@ SUBPROJECT_BY_REF = {
     '17CZ': 'platform',
     # 17DA is videos from YouTube and Vimeo in any rendered content, played only on a click. `interface`.
     '17DA': 'interface',
+    # 17DB is a course's licence, per-item audience and collaborators from the create form. 17DC is a
+    # course file's own audience. Filed together on 2026-11-02.
+    '17DB': 'courses',
+    '17DC': 'courses',
+    '17DD': 'management',
     # 17DE is browse by audience first (the lens, the derived per-band counts) and the one taxonomy
     # glossary. How the site is navigated and worded, so `interface`.
     '17DE': 'interface',
+    # 17DF is /about's promo reel and the organisation page's move to /coop. `interface`.
+    '17DF': 'interface',
+    # 17DG is the "N% AI" chip on every exercise, material and card. `community`.
+    '17DG': 'community',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

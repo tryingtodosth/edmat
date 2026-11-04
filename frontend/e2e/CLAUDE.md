@@ -189,6 +189,25 @@ telemetry_requestlog` in the server log (3 772 of them in one e2e run), response
     (or `migrate --database` each shard) before the first browser run in a new worktree; the same
     script was 58/58 the moment the files existed. Found 2026-10-09, the contests integration.
 
+34. **`npm run build` beside a running `vite dev` from the same checkout breaks the dev server.**
+    The build rewrites `.svelte-kit/generated/` under it; Vite then re-requests every module with a
+    fresh `?t=` and Chromium answers `net::ERR_INSUFFICIENT_RESOURCES` for each, so pages paint their
+    static HTML and nothing hydrates — `about-discussions.mjs` "lost" every showcase page's
+    discussions and timed out on the chapter, in code the branch never touched. Restart `./run.sh`
+    (stopping Vite alone takes the backend with it: one trap, both halves) and re-run before
+    believing anything. Found 2026-11-02 (§17DD).
+
+35. **A `FoldSection` draws nothing while it is shut — and on a node page they all start shut.**
+    `shared/FoldSection.svelte` defaults `openByDefault` to false, and Goals, Team tasks, Needs,
+    Plans, Polls and Attachments on `/coop` (and every other node page) are folds, so a task title,
+    a goal card or `.needs-panel` is simply absent from the page text until the reader opens one.
+    Three scripts repointed to `/coop` read those panels shut and reported a goal "missing", a task
+    "not in English" and a row that never appeared (2026-11-03, §17DF). Open the fold before
+    reading it, and **only if it is shut**: the state is remembered per browser in localStorage
+    (`foldedSections`), so a blind click is as likely to close it —
+    `if (!(await fold.evaluate((e) => e.classList.contains('fold--open')))) await
+    fold.locator('.fold__toggle').first().click()` on `[data-fold="<key>"]`.
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

@@ -2,6 +2,7 @@
 
 from django.test import SimpleTestCase, TestCase
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework.test import APITestCase
@@ -604,15 +605,16 @@ def _build_every_kind():
 
 class EdmatProjectSeedTests(APITestCase):
     """`seed_edmat_project` (work/edmat_project.py) — that it founds the body with its owner, the
-    goals, the association's phases, the tasks, needs, polls, the two research accounts and the
-    thread; that a second run refreshes text and leaves state alone; that the surfaces answer as the
-    rule modules say (a plan step and a need are everybody's, a task and a poll are the roster's);
-    that the deadlines follow the two dates; and that nothing secret-shaped is written."""
+    goals, the tasks, needs, polls and the two research accounts; that a second run refreshes text
+    and leaves state alone; that the surfaces answer as the rule modules say (the board is open: a
+    reader sees plans, tasks, needs and polls, a member votes); that the retired association rows
+    are deleted from a database an earlier seed wrote them to, and nothing else is; and that
+    nothing secret-shaped is written."""
 
     databases = set(all_log_shards()) | {'default'}
 
-    #: A small history table and a small thread, so the assertions are exact and the test is fast.
-    #: The real files are checked by `EdmatHistoryTests` and by the command test below.
+    #: A small history table, so the assertions are exact and the test is fast. The real file is
+    #: checked by `EdmatHistoryTests` and by the command test below.
     HISTORY = [
         {'ref': '17A', 'title': 'Feature: the Random Exercise picker', 'heading': '17A. Feature: the Random Exercise picker (✅ built)',
          'line': 379, 'date': '2026-07-25', 'date_source': 'repo-start', 'summary': 'A navbar dice button.', 'subproject': 'corpus', 'listed': True},
@@ -621,16 +623,6 @@ class EdmatProjectSeedTests(APITestCase):
         {'ref': '17BV', 'title': 'The colour pass', 'heading': '17BV — The colour pass (2026-10-07, `ux/colour-pass`)',
          'line': 13802, 'date': '2026-10-07', 'date_source': 'heading', 'summary': 'Colour that means something.', 'subproject': 'interface', 'listed': True},
     ]
-    THREAD = {
-        'date': '2026-10-06', 'page': 'about', 'section': 'money-and-openness',
-        'author': 'google-gemini', 'replier': 'anthropic-claude',
-        'items': [
-            {'n': 0, 'title': 'Raport prawny', 'body': 'Wstęp raportu.', 'reply': 'Jak czytać ten wątek.'},
-            {'n': 1, 'title': 'Termin z art. 22', 'body': 'Siedem dni jest instrukcyjne.', 'reply': None},
-            {'n': 2, 'title': 'KRS-WF', 'body': 'Nie dołączać, gdy wybrano Zarząd.', 'reply': 'Przyjęte.'},
-        ],
-    }
-
     def setUp(self):
         for key in ('organizations', 'tasks', 'needs', 'plans', 'decisions', 'work_dashboard', 'events', 'about_discussions'):
             FeatureFlag.objects.update_or_create(key=key, defaults={'is_enabled': True})
@@ -639,7 +631,7 @@ class EdmatProjectSeedTests(APITestCase):
     def _build(self, **overrides):
         from work.edmat_project import build_edmat_project
 
-        kwargs = {'history': self.HISTORY, 'thread': self.THREAD, **overrides}
+        kwargs = {'history': self.HISTORY, **overrides}
         return build_edmat_project('piotr', **kwargs)
 
     @staticmethod
@@ -656,16 +648,10 @@ class EdmatProjectSeedTests(APITestCase):
         wanted = _split_title(title_start)[0]
         return next(plan for plan in built['plans'] if plan.title.startswith(wanted))
 
-    @staticmethod
-    def _phase_one_rows():
-        from work.edmat_project import PHASE_1_STEPS
-
-        return sum(1 + len(step.get('substeps', ())) for step in PHASE_1_STEPS)
-
     def test_it_founds_the_organisation_with_its_owner_and_everything_hung_off_it(self):
-        from community.models import Comment, DiscussionLocation
+        from community.models import DiscussionLocation
         from organizations.models import OrganizationMember
-        from work.edmat_project import ASSOCIATION_PLANS, NEEDS, ORGANIZATION_SLUG, POLLS, SUBPROJECTS, TASKS
+        from work.edmat_project import NEEDS, ORGANIZATION_SLUG, POLLS, RETIRED, SUBPROJECTS, TASKS, _split_title
 
         built = self._build()
         self.assertTrue(built['organization_created'])
@@ -675,12 +661,10 @@ class EdmatProjectSeedTests(APITestCase):
         self.assertEqual(
             OrganizationMember.objects.get(organization=built['organization'], user=self.owner).role, 'owner'
         )
-        # one plan per goal, three for the association; the goals are public, phase 2 is a draft
-        self.assertEqual(built['plans'].count(), len(SUBPROJECTS) + len(ASSOCIATION_PLANS))
+        # one plan per goal, every one public
+        self.assertEqual(built['plans'].count(), len(SUBPROJECTS))
         for goal in SUBPROJECTS:
             self.assertEqual(self._plan(built, goal['title']).status, 'active')
-        self.assertEqual(self._plan(built, 'Stowarzyszenie — faza 1').status, 'active')
-        self.assertEqual(self._plan(built, 'Stowarzyszenie — faza 2').status, 'draft')
         # history steps: done, dated, titled by reference, filed under their goal
         corpus = self._plan(built, 'Zadania i korpus')
         step = corpus.steps.get()
@@ -693,20 +677,32 @@ class EdmatProjectSeedTests(APITestCase):
         self.assertEqual(dziennik.steps.filter(status='done').count(), 1)
         self.assertEqual(dziennik.steps.filter(status='pending').count(), len(dziennik_goal['steps']))
         self.assertEqual(built['history_unfiled'], [])
-        # phase 1 is mirrored into tasks, all seated on the owner, plus the standalone tasks
-        self.assertEqual(built['tasks'].count(), len(TASKS) + self._phase_one_rows())
+        # the standalone tasks, seated on the owner
+        self.assertEqual(built['tasks'].count(), len(TASKS))
         for task in built['tasks']:
             self.assertTrue(task.assignees.filter(user=self.owner).exists(), task.title)
-        self.assertEqual(built['tasks'].filter(status='in_progress').count(), 1)  # "this table in the tasks module"
-        self.assertEqual(built['tasks'].filter(parent__isnull=False).count(), 2)  # the two substeps of 1.1
-        # needs and polls
+        # needs and polls: every poll open, its options in the file's order, Polish on the row
         self.assertEqual(built['needs'].count(), len(NEEDS))
         self.assertEqual(set(built['needs'].values_list('status', flat=True)), {'open'})
         self.assertEqual(built['polls'].count(), len(POLLS))
-        for poll in built['polls']:
+        by_question = {poll.question: poll for poll in built['polls']}
+        for entry in POLLS:
+            poll = by_question[_split_title(entry['question'])[0]]
             self.assertEqual(poll.status, 'open')
             self.assertIsNotNone(poll.opens_at)
-            self.assertEqual(poll.options.count(), 3)
+            self.assertEqual(
+                list(poll.options.order_by('order').values_list('text', flat=True)),
+                [_split_title(option)[0] for option in entry['options']],
+            )
+        # nothing the association used to be is written; a fresh database has nothing to retire
+        written = {plan.title for plan in built['plans']} | {task.title for task in built['tasks']} \
+            | {need.title for need in built['needs']} | set(by_question)
+        for key in ('plans', 'tasks', 'needs', 'polls'):
+            for title in RETIRED[key]:
+                self.assertNotIn(_split_title(title)[0], written)
+        self.assertFalse(dziennik.steps.filter(title__contains='stowarzyszenia').exists())
+        self.assertFalse(DiscussionLocation.objects.filter(page='about', section='money-and-openness').exists())
+        self.assertEqual(built['retired'], [])
         # the two research accounts: no usable password, a profile that says what they are
         User = get_user_model()
         for username in ('google-gemini', 'anthropic-claude'):
@@ -715,22 +711,6 @@ class EdmatProjectSeedTests(APITestCase):
             self.assertTrue(user.profile.display_name)
             self.assertIn('---', user.profile.bio)
         self.assertEqual(built['accounts_created'], 2)
-        # the thread: one top-level comment per item, a reply where the file has one, dated
-        location = DiscussionLocation.objects.get(page='about', section='money-and-openness')
-        at_location = Comment.objects.filter(object_id=location.pk, content_type__model='discussionlocation')
-        tops = at_location.filter(parent__isnull=True).order_by('created_at')
-        self.assertEqual([c.author.username for c in tops], ['google-gemini'] * 3)
-        self.assertTrue(tops[0].body.startswith('**Raport prawny**'))
-        self.assertTrue(tops[2].body.startswith('**2. KRS-WF**'))
-        replies = at_location.filter(parent__isnull=False)
-        self.assertEqual(replies.count(), 2)
-        self.assertEqual(set(r.author.username for r in replies), {'anthropic-claude'})
-        self.assertEqual({timezone.localtime(c.created_at).date().isoformat() for c in at_location}, {'2026-10-06'})
-        self.assertIsNone(tops[0].auto_hidden_at)
-        self.assertEqual(built['thread'], {'page': 'about', 'section': 'money-and-openness', 'comments': 3, 'replies': 2, 'created': 5})
-        # the founding meeting waits for its date
-        self.assertIsNone(built['event'])
-        self.assertEqual(len(built['waiting']), 2)
 
     def test_a_second_run_refreshes_text_and_leaves_state_alone(self):
         """Still true, and deliberately NOT contradicted by
@@ -765,7 +745,7 @@ class EdmatProjectSeedTests(APITestCase):
         Plan.objects.filter(pk=corpus.pk).update(description='edited on the site')
         need = first['needs'].first()
         Need.objects.filter(pk=need.pk).update(status='in_progress')
-        comment = Comment.objects.filter(author__username='google-gemini').order_by('created_at').first()
+        comment = Comment.objects.filter(author__username='anthropic-claude').order_by('created_at').first()
         # after the bold first line, which is the row's key: an edit of the key itself would be a new
         # comment to the seed, and only the seed can write under these accounts anyway
         Comment.objects.filter(pk=comment.pk).update(body=comment.body + '\n\nedited on the site')
@@ -775,7 +755,8 @@ class EdmatProjectSeedTests(APITestCase):
         self.assertFalse(second['organization_created'])
         for key in ('plans_created', 'steps_created', 'tasks_created', 'needs_created', 'polls_created', 'accounts_created'):
             self.assertEqual(second[key], 0, key)
-        self.assertEqual(second['thread']['created'], 0)
+        self.assertEqual([t['created'] for t in second['project_threads']], [0, 0])
+        self.assertEqual(second['retired'], [])
         self.assertEqual({m: m.objects.count() for m in before}, before)
         # state kept
         open_step.refresh_from_db()
@@ -792,29 +773,27 @@ class EdmatProjectSeedTests(APITestCase):
         history_step.refresh_from_db()
         self.assertNotEqual(history_step.description, 'edited on the site')
         comment.refresh_from_db()
-        self.assertTrue(comment.body.startswith('**Raport prawny**'))
+        self.assertTrue(comment.body.startswith('**'))
         self.assertNotIn('edited on the site', comment.body)
         # a history step's date is a fact of the log, so it follows the log
         self.assertEqual(timezone.localtime(history_step.done_at).date().isoformat(), '2026-07-26')
 
     def test_what_the_public_reads_and_what_the_roster_keeps(self):
+        from work.edmat_project import POLLS
+
         built = self._build()
         organization = built['organization']
-        phase_one = self._plan(built, 'Stowarzyszenie — faza 1')
-        phase_two = self._plan(built, 'Stowarzyszenie — faza 2')
+        goal = self._plan(built, 'Zadania i korpus')
         node = f'/api/nodes/organization/{organization.pk}'
 
-        # anonymous: active plans and open needs, no poll, no task
+        # anonymous: the goals and the open needs, and — the board is open (2026-10-08) — the polls
+        # and the tasks, readable but not usable
         listed = self.client.get(f'{node}/plans/')
         self.assertEqual(listed.status_code, 200)
-        titles = [row['title'] for row in listed.json()]
-        self.assertIn(phase_one.title, titles)
-        self.assertNotIn(phase_two.title, titles)
-        self.assertEqual(self.client.get(f'/api/plans/{phase_one.pk}/').status_code, 200)
-        self.assertEqual(self.client.get(f'/api/plans/{phase_two.pk}/').status_code, 404)
-        # the board is open (2026-10-08): the polls and the tasks are readable, not usable
+        self.assertIn(goal.title, [row['title'] for row in listed.json()])
+        self.assertEqual(self.client.get(f'/api/plans/{goal.pk}/').status_code, 200)
         open_polls = self.client.get(f'{node}/polls/').json()
-        self.assertEqual(len(open_polls), 2)
+        self.assertEqual(len(open_polls), len(POLLS))
         self.assertFalse(any(row['can_vote'] for row in open_polls))
         self.assertTrue(all(row['can_see_results'] for row in open_polls))
         self.assertEqual(self.client.get(f'{node}/tasks/').status_code, 200)
@@ -823,72 +802,155 @@ class EdmatProjectSeedTests(APITestCase):
         self.assertEqual(board.status_code, 200)
         self.assertEqual({row['id'] for row in board.json()} & set(built['needs'].values_list('id', flat=True)),
                          set(built['needs'].values_list('id', flat=True)))
-        thread = self.client.get('/api/discussions/thread/', {'page': 'about', 'section': 'money-and-openness'})
-        self.assertEqual(thread.status_code, 200)
-        self.assertEqual(len(thread.json()['comments']), 5)
+        # an English reader gets the English question — the poll is one row, two languages
+        english = self.client.get(f'{node}/polls/', {'lang': 'en'}).json()
+        self.assertIn('Which licence should the form suggest for a new course?', [row['question'] for row in english])
+        # …and so are its results: the tally names each option in the reader's language too (it
+        # read the Polish column for everybody until 2026-11-02, found on `/about` in English)
+        licence = next(row for row in english if row['question'].startswith('Which licence'))
+        self.assertEqual(licence['options'][0]['text'], 'CC BY 4.0, as now')
+        tally = self.client.get(f'/api/polls/{licence["id"]}/results/', {'lang': 'en'}).json()
+        self.assertEqual([row['text'] for row in tally['options']][:1], ['CC BY 4.0, as now'])
+        polish = self.client.get(f'/api/polls/{licence["id"]}/results/', {'lang': 'pl'}).json()
+        self.assertEqual([row['text'] for row in polish['options']][:1], ['CC BY 4.0, jak teraz'])
 
         # a signed-in stranger: the same reading, and still no vote and no edit
         stranger = make_user('stranger')
         self.client.force_authenticate(stranger)
-        self.assertEqual(self.client.get(f'/api/plans/{phase_two.pk}/').status_code, 404)
         task_row = self.client.get(f'/api/tasks/{built["tasks"].first().pk}/')
         self.assertEqual(task_row.status_code, 200)
         self.assertFalse(task_row.json()['can_edit'])
         stranger_polls = self.client.get(f'{node}/polls/').json()
-        self.assertEqual(len(stranger_polls), 2)
+        self.assertEqual(len(stranger_polls), len(POLLS))
         self.assertFalse(any(row['can_vote'] for row in stranger_polls))
         self.assertEqual(
             self.client.post(f'/api/polls/{stranger_polls[0]["id"]}/vote/', {'options': [stranger_polls[0]['options'][0]['id']]}, format='json').status_code,
             409,
         )
 
-        # the owner: the draft, the tasks with their buttons, the polls — and one vote, once
+        # the owner: the tasks with their buttons, the polls — and one vote, once
         self.client.force_authenticate(self.owner)
-        self.assertEqual(self.client.get(f'/api/plans/{phase_two.pk}/').status_code, 200)
         self.assertTrue(self.client.get(f'/api/tasks/{built["tasks"].first().pk}/').json()['can_edit'])
         polls = self.client.get(f'{node}/polls/').json()
-        self.assertEqual(len(polls), 2)
+        self.assertEqual(len(polls), len(POLLS))
         self.assertTrue(all(row['can_vote'] for row in polls))
         option = polls[0]['options'][0]['id']
         self.assertEqual(self.client.post(f'/api/polls/{polls[0]["id"]}/vote/', {'options': [option]}, format='json').status_code, 201)
         self.assertEqual(self.client.post(f'/api/polls/{polls[0]["id"]}/vote/', {'options': [option]}, format='json').status_code, 409)
 
-    def test_the_deadlines_follow_the_two_dates_and_the_meeting_appears_with_its_date(self):
-        from datetime import date, datetime
-        from unittest import mock
-
+    def _seed_the_association_as_an_earlier_run_left_it(self, organization):
+        """The rows the seed wrote before 2026-11-02, in both of the shapes it ever stored them in
+        (a glued "PL / EN" title before 2026-10-08, the Polish half since), with what people hung
+        off them: a sub-task, a comment under a task, a ballot, an application, the legal-report
+        thread with a reply, and a draft founding meeting linked to the organisation. Returns the
+        rows that must SURVIVE, because the seed did not write them."""
+        from community.models import Comment, DiscussionLocation
+        from decisions.models import Ballot, Poll, PollOption
         from events.models import Event
+        from needs.models import Need, NeedApplication
+        from organizations.models import Organization, OrganizationLink
+        from plans.models import Plan, PlanStep
+        from tasks.models import Task
+        from config import nodes
+        from work.edmat_project import RETIRED, _node_filter, _split_title
+
+        node = _node_filter(organization)
+        location_type = ContentType.objects.get_for_model(DiscussionLocation)
+
+        def pl(title):
+            return _split_title(title)[0]
+
+        def comment_under(page, section='', author=None):
+            location, _ = DiscussionLocation.objects.get_or_create(page=page, section=section)
+            top = Comment.objects.create(content_type=location_type, object_id=location.pk,
+                                         author=author or self.owner, body='**Punkt**\n\ntreść')
+            Comment.objects.create(content_type=location_type, object_id=location.pk,
+                                   author=self.owner, parent=top, body='odpowiedź')
+
+        Plan.objects.create(**node, title=RETIRED['plans'][0], created_by=self.owner, status='active')  # glued
+        for title in RETIRED['plans'][1:]:
+            Plan.objects.create(**node, title=pl(title), created_by=self.owner, status='active')
+        parent = Task.objects.create(**node, title=pl(RETIRED['tasks'][0]), created_by=self.owner)
+        for title in RETIRED['tasks'][1:]:
+            Task.objects.create(**node, title=pl(title), created_by=self.owner,
+                                parent=parent if 'Adres do doręczeń' in title else None)
+        comment_under(f'tasks/{parent.pk}')
+        need = Need.objects.create(**node, title=pl(RETIRED['needs'][0]), created_by=self.owner, kind='help')
+        NeedApplication.objects.create(need=need, user=make_user('founder'), message='chcę')
+        poll = Poll.objects.create(**node, question=pl(RETIRED['polls'][0]), created_by=self.owner, status='open')
+        PollOption.objects.create(poll=poll, order=1, text='Tak')
+        Ballot.objects.create(poll=poll, user=self.owner)
+        dziennik = Plan.objects.get(**node, title=pl(RETIRED['steps'][0][0]))
+        PlanStep.objects.create(plan=dziennik, title=pl(RETIRED['steps'][0][1]), order=99)
+        meeting = Event.objects.create(host=self.owner, title=RETIRED['events'][0], status='draft',
+                                       starts_at=timezone.now() + timedelta(days=30), visibility='public')
+        OrganizationLink.objects.create(organization=organization, content_type=nodes.node_content_type(meeting),
+                                        object_id=meeting.pk, kind='runs', added_by=self.owner)
+        comment_under('about', 'money-and-openness', author=get_user_model().objects.get(username='google-gemini'))
+
+        # What must survive: a person's own task on the node whose title merely STARTS like a
+        # retired one, a plan with a retired title on ANOTHER node, and talk elsewhere on /about.
+        other_org = Organization.objects.create(slug='inna', name='Inna', kind='other')
+        survivors = {
+            'own_task': Task.objects.create(**node, title=pl(RETIRED['tasks'][0]) + ' — moja notatka', created_by=self.owner),
+            'other_plan': Plan.objects.create(**_node_filter(other_org), title=pl(RETIRED['plans'][0]), created_by=self.owner),
+        }
+        comment_under('about', 'mission')
+        survivors['mission'] = DiscussionLocation.objects.get(page='about', section='mission')
+        return survivors
+
+    def test_the_association_is_retired_from_a_database_an_earlier_seed_wrote_it_to(self):
+        """The owner, 2026-11-02: *"delete stowarzyszenie related ones"*. Every row `RETIRED` names
+        goes, with what hangs off it, the first time the seed runs after the change — and only
+        those rows: a person's own task, the same title on another body and other talk stay."""
+        from community.models import Comment, DiscussionLocation
+        from decisions.models import Ballot, Poll
+        from events.models import Event
+        from needs.models import Need, NeedApplication
         from organizations.models import OrganizationLink
-        from work import edmat_project
+        from plans.models import Plan, PlanStep
+        from tasks.models import Task
+        from work.edmat_project import RETIRED, _split_title
 
-        built = self._build()
-        crbr = built['tasks'].get(title__startswith='Zgłoszenie do CRBR')
-        statement = built['tasks'].get(title__startswith='Pierwszy rok obrotowy')
-        self.assertIsNone(crbr.due_at)
-        self.assertEqual(timezone.localtime(statement.due_at).date(), date(2027, 3, 31))
-        self.assertIsNone(built['event'])
+        first = self._build()
+        survivors = self._seed_the_association_as_an_earlier_run_left_it(first['organization'])
 
-        meeting = timezone.make_aware(datetime(2026, 11, 15, 18, 0))
-        with mock.patch.object(edmat_project, 'FOUNDING_MEETING_AT', meeting), \
-             mock.patch.object(edmat_project, 'KRS_ENTRY_DATE', date(2027, 1, 20)):
-            again = self._build()
-            crbr.refresh_from_db()
-            self.assertEqual(timezone.localtime(crbr.due_at).date(), date(2027, 2, 3))
-            filing = again['tasks'].get(title__startswith='Wniosek do KRS')
-            self.assertEqual(filing.due_at, meeting + timedelta(days=7))
-            step = self._plan(again, 'Stowarzyszenie — faza 1').steps.get(title__startswith='Zgłoszenie do CRBR')
-            self.assertEqual(timezone.localtime(step.due_at).date(), date(2027, 2, 3))
-            event = again['event']
-            self.assertIsNotNone(event)
-            self.assertTrue(again['event_created'])
-            self.assertEqual((event.status, event.visibility, event.host, event.starts_at), ('draft', 'public', self.owner, meeting))
-            self.assertTrue(OrganizationLink.objects.filter(organization=again['organization'], object_id=event.pk, kind='runs').exists())
-            self.assertEqual(again['waiting'], [])
-            third = self._build()
-            self.assertFalse(third['event_created'])
-            self.assertEqual(Event.objects.filter(title=event.title).count(), 1)
+        second = self._build()
+        retired = second['retired']
+        kinds = [line.split(' ', 1)[0] for line in retired]
+        self.assertEqual(kinds.count('plan'), len(RETIRED['plans']))
+        # the sub-task went with its parent (CASCADE), so it is not listed on its own
+        self.assertEqual(kinds.count('task'), len(RETIRED['tasks']) - 1)
+        self.assertEqual((kinds.count('need'), kinds.count('poll'), kinds.count('step'), kinds.count('event'), kinds.count('thread')),
+                         (1, 1, 1, 1, 1))
+        self.assertTrue(any('(+1 sub-task(s), +2 comment(s))' in line for line in retired if line.startswith('task')))
+        self.assertTrue(any('(1 ballot(s))' in line for line in retired if line.startswith('poll')))
+        self.assertIn('thread /about#money-and-openness   2 comment(s)', retired)
 
-    def test_the_owners_work_dashboard_shows_the_compliance_tasks(self):
+        for key, model, field in (('plans', Plan, 'title'), ('tasks', Task, 'title'), ('needs', Need, 'title'), ('polls', Poll, 'question')):
+            for title in RETIRED[key]:
+                left = model.objects.filter(**{field + '__in': [title, _split_title(title)[0]]})
+                if model is Plan:
+                    left = left.exclude(pk=survivors['other_plan'].pk)
+                self.assertFalse(left.exists(), title)
+        self.assertFalse(PlanStep.objects.filter(title__contains='faza 2 stowarzyszenia').exists())
+        self.assertFalse(Event.objects.filter(title=RETIRED['events'][0]).exists())
+        self.assertFalse(OrganizationLink.objects.filter(kind='runs', organization=first['organization']).exists())
+        self.assertFalse(Ballot.objects.exists())
+        self.assertFalse(NeedApplication.objects.exists())
+        self.assertFalse(DiscussionLocation.objects.filter(page='about', section='money-and-openness').exists())
+        self.assertFalse(DiscussionLocation.objects.filter(page__startswith='tasks/').exists())
+        # and nothing else
+        for key in ('own_task', 'other_plan', 'mission'):
+            survivors[key].refresh_from_db()
+        self.assertEqual(Comment.objects.filter(object_id=survivors['mission'].pk, content_type__model='discussionlocation').count(), 2)
+        self.assertEqual(second['plans'].count(), first['plans'].count())
+        self.assertEqual(second['polls'].count(), first['polls'].count())
+
+        third = self._build()
+        self.assertEqual(third['retired'], [])
+
+    def test_the_owners_work_dashboard_shows_the_seeded_tasks(self):
         built = self._build()
         self.client.force_authenticate(self.owner)
         response = self.client.get('/api/work/')
@@ -902,16 +964,48 @@ class EdmatProjectSeedTests(APITestCase):
 
         from django.core.management import CommandError, call_command
 
+        # the first run has to name somebody: there is no organisation to take an owner from
+        with self.assertRaises(CommandError):
+            call_command('seed_edmat_project', stdout=StringIO())
         out = StringIO()
         call_command('seed_edmat_project', '--owner', 'piotr', stdout=out)
         printed = out.getvalue()
         for needle in ('Founded', '/organizations/edmat', '/plans/', '/tasks/', '/needs/', '/polls/',
-                       'account google-gemini', 'account anthropic-claude', 'thread /about#money-and-openness',
-                       'thread /plans/', 'thread /organizations/edmat', 'waiting:'):
+                       'account google-gemini', 'account anthropic-claude',
+                       'thread /plans/', 'thread /organizations/edmat'):
             self.assertIn(needle, printed)
-        self.assertNotIn('unknown goal', printed)
+        for gone in ('unknown goal', 'money-and-openness', 'waiting:', 'retired', 'Stowarzyszenie'):
+            self.assertNotIn(gone, printed)
         with self.assertRaises(CommandError):
             call_command('seed_edmat_project', '--owner', 'nobody', stdout=StringIO())
+
+    def test_a_deployment_reruns_it_with_no_owner_and_a_dry_run_writes_nothing(self):
+        """What `deploy/fuw/apply-on-server.sh` step 12 does: a dry run that lists what would be
+        retired and leaves it standing, then the real run, both without `--owner`."""
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from organizations.models import Organization
+        from tasks.models import Task
+        from work.edmat_project import RETIRED, _node_filter, _split_title
+
+        call_command('seed_edmat_project', '--owner', 'piotr', stdout=StringIO())
+        node = _node_filter(Organization.objects.get(slug='edmat'))
+        doomed = Task.objects.create(**node, title=_split_title(RETIRED['tasks'][3])[0], created_by=self.owner)
+
+        dry = StringIO()
+        call_command('seed_edmat_project', '--dry-run', stdout=dry)
+        self.assertIn(f'retired task /tasks/{doomed.pk}', dry.getvalue())
+        self.assertIn('Dry run: nothing was written.', dry.getvalue())
+        self.assertIn('(owner: piotr)', dry.getvalue())
+        self.assertTrue(Task.objects.filter(pk=doomed.pk).exists())
+
+        real = StringIO()
+        call_command('seed_edmat_project', stdout=real)
+        self.assertIn(f'retired task /tasks/{doomed.pk}', real.getvalue())
+        self.assertNotIn('Dry run', real.getvalue())
+        self.assertFalse(Task.objects.filter(pk=doomed.pk).exists())
 
     def test_the_project_threads_land_under_the_contests_plan_and_the_organisation(self):
         """`work/edmat_project_threads.json` (2026-10-10): the state of contests as four comments
@@ -952,15 +1046,15 @@ class EdmatProjectSeedTests(APITestCase):
 
         from work.edmat_history import TABLE_PATH
         from work.edmat_project import (
-            DATA_FILE_SHAPES, PROJECT_THREADS_PATH, RESEARCH_THREAD_PATH, SECRET_SHAPES, all_seeded_text,
+            DATA_FILE_SHAPES, PROJECT_THREADS_PATH, SECRET_SHAPES, all_seeded_text,
         )
 
         for text in all_seeded_text():
             for shape in SECRET_SHAPES:
                 self.assertIsNone(shape.search(text), f'{shape.pattern!r} in {text[:80]!r}')
-        # the two data files: an address, a phone number, an id or a credential with a value must
+        # the data files: an address, a phone number, an id or a credential with a value must
         # not be in them either (a statutory sum of money may be — it is law, not a secret)
-        for path in (TABLE_PATH, RESEARCH_THREAD_PATH, PROJECT_THREADS_PATH):
+        for path in (TABLE_PATH, PROJECT_THREADS_PATH):
             text = path.read_text(encoding='utf-8')
             for shape in DATA_FILE_SHAPES:
                 self.assertIsNone(shape.search(text), f'{shape.pattern!r} in {path.name}')
@@ -1026,15 +1120,3 @@ class EdmatHistoryTests(SimpleTestCase):
         key = lambda e: (e['ref'], e['heading'], e['line'], e['summary'], e['subproject'])  # noqa: E731
         self.assertEqual([key(e) for e in parsed], [key(e) for e in table],
                          'HISTORY.md moved on: run `manage.py export_edmat_history`')
-
-    def test_the_thread_file_is_whole(self):
-        from community import discussions
-        from work.edmat_project import load_thread
-
-        thread = load_thread()
-        self.assertIsNotNone(thread)
-        self.assertEqual([item['n'] for item in thread['items']], list(range(33)))
-        self.assertTrue(all(item['body'] and item['title'] for item in thread['items']))
-        self.assertTrue(discussions.PAGE_RE.match(thread['page']))
-        self.assertTrue(discussions.SECTION_RE.match(thread['section']))
-        self.assertEqual((thread['author'], thread['replier']), ('google-gemini', 'anthropic-claude'))

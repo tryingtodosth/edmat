@@ -83,6 +83,73 @@ Also `attachmentfile.py` (upload validation), `search.py` (in-course search with
   maps it to `courseClaim`. Frontend: `components/course/CourseClaims.svelte` reuses the
   material badge/popover/form unchanged — a claim's `ownerKind` picks the endpoint.
 
+## A course's licence, one item's own audience, and invites by email (migration 0023, 2026-11-02)
+
+Owner: "in course creation we want to be able to select license for coop and materials on this
+course (a smooth, subtle, classy warning on content marked otherwise — e.g. a link to a material in
+the main repo); also adding collaborators from that place (with whom you are connected, or by mail)"
+and "different privacy settings per content". `test_licence_privacy.py` is the server half;
+`e2e/course-licence-collab.mjs` (32 checks) the browser half.
+
+- **`Course.licence`** covers what is WRITTEN in the course — description, chapters, lessons, the
+  staff's shared work — and is where a file uploaded into it starts. It never reaches what the course
+  LINKS: content is referenced, never copied, so a corpus material keeps its own licence. Chosen on
+  the create form (`CourseWriteSerializer.validate_licence`, `unknown` refused); a PATCH that changes
+  it answers 400 `{licence: ['licence_change_via_licences']}` (the same value passes, so an edit form
+  that sends it back still saves). Afterwards it only widens, recorded, through
+  `/api/licences/course/<id>/` — `course` is a `licensing/targets.py` kind (authors = owner + admins,
+  contributors = every staff member today; honest limit: lessons do not record their writer, so a
+  former assistant is not asked).
+- **`Attachment.licence`** is its uploader's choice, starting from the course's
+  (`LicencePicker reason="course"`, which, like `source`, ignores the person's own default). Absent
+  from the upload = the course's licence. Kind `course_attachment`, only its uploader widens it —
+  from the file's own page, which carries its licence line. Both upload forms (the Files tab and
+  "Add something" → a new file) carry the picker.
+- **The quiet note.** `CourseItemSerializer.target_licence` + `licence_relation`
+  (`rules.item_licence_relation` → `licensing.licences.compare_to_container`: `same` | `wider` |
+  `narrower` | `different` | `unclear`, null for kinds that carry no licence). The page draws small
+  print under the row for the last three (`labels.ts: licenceRelationNote`) — never an alert, nothing
+  is broken. The link editor tags a search match whose licence differs ("own licence: …") before it
+  is added; the browser never re-derives the partial order.
+- **`CourseItem.visibility`** — `course` (default, every older row) | `participants` | `staff`, a
+  NARROWING of the course's rule. Read in ONE place, `rules.item_audience_admits`, from
+  `CourseItem.is_visible_to` (so the item list, the lesson and chapter serializers, the unfiled list
+  and the in-course search all follow) and from the materials index, which asks
+  `target_is_available_to` directly and so needed the call itself. The submitter always still sees
+  their own item. Only a curator may set anything but `course`
+  (`rules.item_visibility_block_reason` → 400 `item_visibility_curators_only`). Mirrored as
+  `CourseItemVisibility` / `COURSE_ITEM_VISIBILITY_*` in the frontend. A pinned `LessonExerciseSet`
+  carries the same ladder (0025, `rules.audience_admits`, asked by `LessonExerciseSet.is_visible_to`
+  after the chapter gate), set on link and by PATCH, curators only. A curator sees the audience in
+  the row's select; everybody else sees a pill — never both.
+- **`Attachment.visibility`** (0024) — `participants` (default: everyone in the course, as before) |
+  `staff`. One rung below an item's ladder, because a file was never public.
+  `Attachment.is_visible_to` asks `rules.attachment_audience_admits`, so the Files list (now filtered
+  per row), the detail page, its reviews and thread, the in-course search and a course item pointing
+  at the file all follow. Its uploader always sees it and may narrow it — that is how a participant
+  hands homework to the teacher alone; a curator may change anybody's
+  (`rules.attachment_visibility_block_reason`; `PATCH …/attachments/{id}/ {visibility}`, 404 for
+  anybody else, as for a delete). `can_change_visibility` rides on the serializer. **Honest limit:**
+  the bytes are served from `/media/` at a random name, so an address somebody already copied keeps
+  working — the same boundary the whole Files tab always had.
+- **Invites by email** — `mailinvite.py`, `POST /api/courses/{id}/email-invites/ {emails, role}`.
+  Each address becomes a one-use `CourseInvite` (14 days, `sent_to` = the address) and one
+  `mail.OutboundEmail` of kind `course_invite` whose link is built at send time from `ref_id`.
+  Accepting is the ordinary `/courses/join/<token>`, so capacity, "already staff" and the use count
+  are the rules that already were. Refusals per address: `email_invalid`, `email_is_you`,
+  `already_invited` (a still-usable invite to that address), `daily_limit` (50 per inviter per 24 h,
+  recounted from the invites); per request: 404 (not an administrator), 403 `email_not_confirmed`,
+  400 `email_invite_no_addresses` / `email_invite_too_many` (> 20) / `email_invite_role`. **Never
+  says whether an address has an account**, and never adds anybody to the staff by address.
+  `sent_to` is blanked after 30 days by `accounts/retention.py` (`invite_address`). The invite
+  preview carries `course_licence`, and the join page says it to anybody joining the staff.
+- **Collaborators on the create form** (`CourseCollaboratorsDraft.svelte`): people from
+  `PersonPicker` and addresses, collected before the course exists and sent by `/courses/new` AFTER
+  it does, through the staff endpoint and the email endpoint above — no second way in. Everything
+  through → the page moves on; anything not → it stays and lists what and why, with the course
+  already made. The manage page's `CourseEmailInvites.svelte` is the same form for a course that
+  exists.
+
 ## The course tree: subcourses and university/faculty versions (migrations 0021 and 0022)
 
 Owner, 2026-10-14: "a default/general course, and subcourses for specific universities and

@@ -24,7 +24,21 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { commentAnchorId, type LinkedContentRef } from '$lib/utils/contentLinks';
 	import type { ExerciseSet } from '$lib/types';
-	import type { Chapter, CourseItem, Course, Lesson, LessonExerciseSet } from '$lib/types/course';
+	import {
+		COURSE_ITEM_VISIBILITIES,
+		type Chapter,
+		type CourseItem,
+		type CourseItemVisibility,
+		type Course,
+		type Lesson,
+		type LessonExerciseSet
+	} from '$lib/types/course';
+	import {
+		COURSE_ITEM_VISIBILITY_CHIPS,
+		COURSE_ITEM_VISIBILITY_LABELS,
+		COURSE_ITEM_VISIBILITY_SHORT,
+		licenceRelationNote
+	} from '$lib/utils/labels';
 
 	let {
 		course,
@@ -38,10 +52,14 @@
 		onlinkset,
 		onunlinkset,
 		onrefreshset,
+		onsetvisibility,
 		onlinkcontent,
-		onreorder
+		onreorder,
+		onvisibility
 	}: {
 		course: Course;
+		/** Who may see one item (`course` / `participants` / `staff`) — a curator's change. */
+		onvisibility?: (itemId: string, visibility: CourseItemVisibility) => void;
 		/** Both ids, because an item files into a lesson OR a chapter and the caller must be able to
 		 * say which — and to clear the other, or the row would hold both and the database refuses. */
 		onmove?: (
@@ -70,7 +88,19 @@
 		/** Pin a whole saved set into a lesson or a chapter, by the set's own share slug. The level is
 		 * named rather than inferred: a chapter and a lesson have separate id sequences, so an id
 		 * alone cannot say which was meant. */
-		onlinkset?: (parentKind: 'lesson' | 'chapter', parentId: string, setSlug: string) => void;
+		onlinkset?: (
+			parentKind: 'lesson' | 'chapter',
+			parentId: string,
+			setSlug: string,
+			visibility?: CourseItemVisibility
+		) => void;
+		/** Who may see a pinned set — curators only, like an item's. */
+		onsetvisibility?: (
+			parentKind: 'lesson' | 'chapter',
+			parentId: string,
+			linkId: string,
+			visibility: CourseItemVisibility
+		) => void;
 		onunlinkset?: (parentKind: 'lesson' | 'chapter', parentId: string, linkId: string) => void;
 		/** Re-copy the source set's current list. Only meaningful while the source still exists and
 		 * is still readable — the server refuses with a 409 otherwise, and says which. */
@@ -82,7 +112,8 @@
 			parentKind: 'lesson' | 'chapter',
 			parentId: string,
 			ref: LinkedContentRef,
-			note: string
+			note: string,
+			visibility: CourseItemVisibility
 		) => void;
 		/** Whole groups, never a single move — a drag between two lessons changes both, and the
 		 * server takes them together so there is no moment where an item is in both or neither. */
@@ -134,10 +165,11 @@
 		parentKind: 'lesson' | 'chapter',
 		parentId: string,
 		ref: LinkedContentRef,
-		note: string
+		note: string,
+		visibility: CourseItemVisibility
 	) {
-		if (ref.kind === 'set') onlinkset?.(parentKind, parentId, ref.slug);
-		else onlinkcontent?.(parentKind, parentId, ref, note);
+		if (ref.kind === 'set') onlinkset?.(parentKind, parentId, ref.slug, visibility);
+		else onlinkcontent?.(parentKind, parentId, ref, note, visibility);
 	}
 
 	// --- "make a deck from this week" ------------------------------------------------------------
@@ -965,7 +997,9 @@
 					items={editedChapter.items}
 					sets={editedChapter.exerciseSets}
 					{mySets}
-					onadd={(ref, note) => addLink('chapter', editedChapter!.id, ref, note)}
+					courseLicence={course.licence}
+					onadd={(ref, note, visibility) =>
+						addLink('chapter', editedChapter!.id, ref, note, visibility)}
 					onremoveitem={(itemId) => onremove?.(itemId)}
 					onunlinkset={(linkId) => onunlinkset?.('chapter', editedChapter!.id, linkId)}
 				/>
@@ -1019,7 +1053,9 @@
 					items={editedLesson.items}
 					sets={editedLesson.exerciseSets}
 					{mySets}
-					onadd={(ref, note) => addLink('lesson', editedLesson!.id, ref, note)}
+					courseLicence={course.licence}
+					onadd={(ref, note, visibility) =>
+						addLink('lesson', editedLesson!.id, ref, note, visibility)}
 					onremoveitem={(itemId) => onremove?.(itemId)}
 					onunlinkset={(linkId) => onunlinkset?.('lesson', editedLesson!.id, linkId)}
 				/>
@@ -1071,6 +1107,11 @@
 {/if}
 
 {#snippet itemRow(item: CourseItem)}
+	{@const licenceNote = licenceRelationNote(
+		item.licenceRelation,
+		item.targetLicence,
+		course.licence
+	)}
 	<li class="item" class:item--pending={item.status !== 'approved'}>
 		<span class="kind">{kindLabel(item)}</span>
 		{#if item.kind === 'link'}
@@ -1089,8 +1130,41 @@
 			<span class="pill pill--rejected">{m.course_item_rejected()}</span>
 		{/if}
 
+		{#if item.visibility !== 'course' && !(course.canCurate && onvisibility)}
+			<!-- Shown to everybody who can see the item at all, so a participant knows the cohort
+			     paper is not on the public page. A curator has the select below, which says the
+			     same thing — drawing both read as a stutter in the screenshot. -->
+			<span
+				class="pill pill--audience"
+				data-testid="item-audience"
+				title={COURSE_ITEM_VISIBILITY_LABELS[item.visibility]()}
+				><span aria-hidden="true">◐</span> {COURSE_ITEM_VISIBILITY_CHIPS[item.visibility]()}</span
+			>
+		{/if}
+
 		{#if item.note}
 			<span class="note">{item.note}</span>
+		{/if}
+
+		{#if course.canCurate && onvisibility}
+			<label class="move">
+				<span class="visually-hidden">{m.courseItemVis_label()}</span>
+				<!-- "Who sees this" -->
+				<select
+					value={item.visibility}
+					title={COURSE_ITEM_VISIBILITY_LABELS[item.visibility]()}
+					data-testid="item-visibility"
+					onchange={(event) =>
+						onvisibility?.(
+							item.id,
+							(event.currentTarget as HTMLSelectElement).value as CourseItemVisibility
+						)}
+				>
+					{#each COURSE_ITEM_VISIBILITIES as option (option)}
+						<option value={option}>{COURSE_ITEM_VISIBILITY_SHORT[option]()}</option>
+					{/each}
+				</select>
+			</label>
 		{/if}
 
 		{#if course.canCurate && onmove}
@@ -1122,6 +1196,20 @@
 				{course.canCurate ? m.course_items_remove() : m.course_item_withdraw()}
 			</button>
 		{/if}
+
+		{#if licenceNote}
+			<!-- The quiet line (owner, 2026-11-02: "smooth, subtle, classy"): a linked work keeps its
+			     own licence, and a reader who took the course's at its word would be wrong about this
+			     one. Said in small print under the row, never as an alert — nothing is broken. -->
+			<span
+				class="licence-note"
+				data-testid="item-licence-note"
+				data-relation={item.licenceRelation}
+				title={m.courseLicence_noteTitle()}
+				><span class="licence-note__mark" aria-hidden="true">©</span>{licenceNote}</span
+			>
+			<!-- "Linked, not copied: it keeps its own licence. The course’s licence covers what is written in the course." -->
+		{/if}
 	</li>
 {/snippet}
 
@@ -1152,6 +1240,36 @@
 				<span class="grip" aria-hidden="true">⠿</span>
 			{/if}
 			<h6>{link.title}</h6>
+			{#if link.visibility !== 'course' && !(course.canCurate && onsetvisibility)}
+				<span
+					class="pill pill--audience"
+					data-testid="set-audience"
+					title={COURSE_ITEM_VISIBILITY_LABELS[link.visibility]()}
+					><span aria-hidden="true">◐</span> {COURSE_ITEM_VISIBILITY_CHIPS[link.visibility]()}</span
+				>
+			{/if}
+			{#if course.canCurate && onsetvisibility}
+				<label class="move">
+					<span class="visually-hidden">{m.courseItemVis_label()}</span>
+					<!-- "Who sees this" -->
+					<select
+						value={link.visibility}
+						title={COURSE_ITEM_VISIBILITY_LABELS[link.visibility]()}
+						data-testid="set-visibility"
+						onchange={(event) =>
+							onsetvisibility?.(
+								parentKind,
+								parentId,
+								link.id,
+								(event.currentTarget as HTMLSelectElement).value as CourseItemVisibility
+							)}
+					>
+						{#each COURSE_ITEM_VISIBILITIES as option (option)}
+							<option value={option}>{COURSE_ITEM_VISIBILITY_SHORT[option]()}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
 			{#if course.canCurate && link.hasDrifted && onrefreshset}
 				<span class="pill pill--drifted">{m.course_sets_drifted()}</span>
 				<button
@@ -1420,6 +1538,33 @@
 	.pill--rejected {
 		color: var(--text-secondary);
 		background: var(--bg-surface-alt);
+	}
+	.pill--audience {
+		@include mix.neutral-pill;
+		white-space: nowrap;
+	}
+	/* Small print under the row: a full-width line in the secondary text colour with a thin
+	   warning-tinted rule on its left — present for whoever looks, loud for nobody. */
+	.licence-note {
+		flex-basis: 100%;
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-1);
+		margin: 0 0 var(--space-1) 5rem;
+		padding-left: var(--space-2);
+		border-left: 2px solid var(--status-warning-bg);
+		font-size: var(--font-size-xs);
+		line-height: 1.45;
+		color: var(--text-secondary);
+	}
+	.licence-note__mark {
+		color: var(--status-warning);
+		font-weight: 600;
+	}
+	@media (max-width: 480px) {
+		.licence-note {
+			margin-left: 0;
+		}
 	}
 	.chapter-actions {
 		display: flex;

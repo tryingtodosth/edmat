@@ -63,6 +63,8 @@
 	import ApplyToGovern from '$lib/components/governance/ApplyToGovern.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 	import { provideAiAssistance } from '$lib/components/provenance/aiAssistance.svelte';
+	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
+	import ContentActionsMenu from '$lib/components/shared/ContentActionsMenu.svelte';
 
 	// The "AI-assisted" mark's page-level holder (provenance/, 2026-10-08). One line, because this
 	// page renders a comment thread and `community.Comment` is a target: without it
@@ -298,7 +300,21 @@
 		     it the document had no h1 at all and went h3 -> h2, which reads to a screen reader and a
 		     crawler alike as sections that outrank the thing they belong to. -->
 		<MaterialCard {material} linkTitle={false} headingLevel={1} />
-		<ReportButton kind="material" objectId={material.id} />
+		<!-- "N% AI" on every material, and the material's own menu beside it (owner, 2026-11-02:
+		     "(percentage% AI) that should be in each exercise/material"). The menu replaced the bare
+		     report button: it carries the report, the submitter's "Mark as AI-assisted…" and the
+		     moderator's remove, the way the concept page's did on 2026-10-21. -->
+		<div class="material-assist">
+			<AiAssistChip kind="material" id={material.id} always />
+			<ContentActionsMenu
+				kind="material"
+				id={material.id}
+				label={m.content_actionsLabel_material()}
+				reportable={material.submittedByUserId !== authStore.user?.id}
+				onModerated={() => material && loadAll(material.id)}
+			/>
+			<!-- "Actions for this material" -->
+		</div>
 
 		{#if material.translationStale}
 			<!-- The material moved on and this rendering of it did not: a newer version was published
@@ -618,6 +634,12 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--text-secondary);
+	}
+	.material-assist {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
 	}
 	.claim-group__badges {
 		display: flex;

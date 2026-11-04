@@ -335,11 +335,13 @@ keys, dedupe, the 200-key cap, and that four keys cost the same queries as two (
 this started as hid a real three-queries-per-key N+1 — the property, not the number, is what
 matters); and the moderator's add form refusing a row that does not exist and a section under a row.
 
-**Browser: `frontend/e2e/management-discussions.mjs`** — 43 checks, zero console errors (30 for the
+**Browser: `frontend/e2e/management-discussions.mjs`** — 45 checks, zero console errors (30 for the
 threads; 13 added the same day for the folded board: the row carries no description, the modal
-opens with `/tasks/<id>` in the address bar, Escape returns to `/about`, the task page links back,
-a plan step's description is hidden from the list and shown in a `?step=` modal that survives a
-reload and closes to a clean URL).
+opens with `/tasks/<id>` in the address bar, Escape returns to `/coop` (`/about` until 2026-11-02),
+the task page links back, a plan step's description is hidden from the list and shown in a
+`?step=` modal that survives a reload and closes to a clean URL; 2 added 2026-11-03 for the
+cleanup — the author deletes the public comment and a moderator removes the held one, which an
+author's DELETE answers 409 for).
 
 ```bash
 cd frontend && E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 \
@@ -371,6 +373,13 @@ an abort**, and scopes its `/about` counts to `article.about` — the second col
 page is the organisation description's row discussion, which `management-discussions.mjs` owns. The
 four module showcase pages' checks run first, unchanged — six since WP6 (2026-10-15) added
 `/about/account` and `/about/licences-and-data`, seven discussable sections each (57 checks).
+
+**Retargeted 2026-11-02 (§17DD).** `about#money-and-openness` left `/about` with the association
+(`work/edmat_project.py: RETIRED`), so `/about` has no standing-page location of its own any more.
+The same policy cycle now runs on the manual chapter `/about/guide/courses`, whose one thread is the
+page's own row (`section=''`) — created through the moderator form when a fresh database lacks it.
+The separate "a manual chapter has one thread" check went (it is now the main check), so the count
+is one lower.
 
 ```bash
 cd backend && ../.venv/bin/python3 manage.py migrate   # trap 23: the tables are new
@@ -978,6 +987,31 @@ cap, loops, moving and detaching, the cut breadcrumb, a class, both children kin
 the materials index over the subtree), `courses.test_content_links.CourseLinkAndPostItemTests` (6),
 `activity.tests.PostCourseBoardTests` (3), `attachments.tests.PostTargetTests` (3); `test_kind.py`'s
 one-level tests were rewritten for the tree.
+
+**`e2e/course-licence-collab.mjs` (48 checks, zero page errors)** — a course's licence, one item's own
+audience and collaborators from the create form (`HISTORY.md` §17DB). The real create form (CC BY-SA
+picked, an address in "Invite by email"; the founder starts UNCONFIRMED, so the course is made and
+the page stays to say why the invite did not go), then the address is confirmed through
+`manage.py shell` and the manage page's email form sends it (sent / not an address / your own
+address, exactly three answers; the invite list's "Sent to …"; the mail logged with `[[link]]`, not
+the token). The course page as owner (the licence line, a corpus material's `unclear` note, the
+"Staff only"/"Participants only" pills), as a participant and as a stranger (each sees what its
+audience admits), the visibility select changing an item for real, the join page's licence line, a
+Polish 390 px page with no overflow, and (§17DC) a course file's own audience: a staff-only upload through
+the Files tab, a participant's staff-only homework, both lists, the row select, the file page's
+licence line. Deletes its course at the end and re-queries.
+
+```
+LD_LIBRARY_PATH=<extracted libs>/usr/lib/x86_64-linux-gnu \
+E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000/api \
+E2E_TOKEN=<michal, verified> E2E_PLAIN_TOKEN=<ola> E2E_MATERIAL=<a published material, licence unknown> \
+CHROME=<chrome-headless-shell> node e2e/course-licence-collab.mjs
+```
+
+Backend: `manage.py test courses.test_licence_privacy` (33 — `compare_to_container`, the course
+licence on create/PATCH/widen, linked items' relations, attachment licences, the item audience through
+the list, the lesson serializer, the materials index and the search, mailed invites and their
+refusals, retention, a file's and a pinned set's own audience).
 
 **`e2e/ask.mjs` (59 checks)** — "ask a question in a tag" (root `HISTORY.md` §17CO, WP15): in both
 interface languages, the hero's "Ask a question" (signed out → a sign-in prompt; signed in → the
@@ -1935,7 +1969,7 @@ a name-shaped `{name}` slot cannot decline) in a screenshot.
 
 **`e2e/about-page.mjs` (58 checks; 17 when rewritten 2026-10-08, extended by WP7 on 2026-10-15)** — `/about`
 is the project's own organisation page (`OrganizationPage` for the `edmat` body; HISTORY §17BW.C), opened
-by the "New here?" strip (`StartHere variant="about"`), then the research thread's section, the
+by the "New here?" strip (`StartHere variant="about"`), then the
 thirteen-card feature grid and ONE Explore section (`id="showcase"`: the manual band, then the showcase
 index nested inside it). Polish desktop, anonymous: the h1 is the organisation's name, at least fifteen
 goals (plan rows — the plans, tasks and polls folds are OPENED first, since a folded panel draws no
@@ -1943,8 +1977,9 @@ body), thirteen cards including flashcards / contests / help wanted / organisati
 Explore holding the manual and the twelve showcase cards, the strip before the h1 in the DOM and on
 screen and reading the catalogue, one `<title>` shaped by PageHead, the footer link — and the open
 board: the task panel drawn with no "add" button, the two polls drawn with no "Vote" button (scoped to
-the polls fold: an unscoped `has-text("Głosuj")` matched a task titled "…głosuje"), the research
-thread's toggle (matched by its title — task rows carry toggles too). English at phone width: the same
+the polls fold: an unscoped `has-text("Głosuj")` matched a task titled "…głosuje"); since 2026-11-02
+(§17DD, 60 checks) that nothing about the association is on the page and that the owner's open
+decisions are among the polls, instead of the research thread's toggle that left with it. English at phone width: the same
 h1, cards, headings, no horizontal overflow. Kill switches as a stranger (kasia's token via
 `E2E_TOKEN`, else login), one at a time: tutoring, flashcards, contests, needs, organizations — each
 card gone and twelve left, every switch back on afterwards (re-read through the API). With
@@ -2605,8 +2640,10 @@ Frontend only; no backend test changed. What was run, and how to run it again:
   ```
   cd frontend
   E2E_TOKEN=<kasia's DRF token> E2E_BASE=http://localhost:5260 E2E_API=http://127.0.0.1:8160/api \
-    node e2e/colour-screens.mjs /tmp/shots/after
+    CHROME=<chrome-headless-shell> node e2e/colour-screens.mjs /tmp/shots/after
   ```
+  `CHROME` is the browser, as for every other script; unset, playwright-core picks its own
+  (`E2E_CHROMIUM`, the name this script alone read until 2026-11-03, is still accepted).
   `E2E_TOKEN` is optional but the login endpoint is throttled (`e2e/CLAUDE.md` trap 30), so a
   sweep that is re-run several times should carry it.
 - **`npm run check:a11y -- --base … --api …`** after the pass: 48 pages, see §17BV "Verified" for
@@ -2639,6 +2676,19 @@ the founding meeting appears as a draft event linked to the organisation, once; 
 reference, heading date, first-paragraph summary, goal, the twice-used references told apart by
 heading), and — whenever `HISTORY.md` is present — that `work/edmat_history.json` equals a fresh
 parse (run `manage.py export_edmat_history` when it does not) and that the thread file is whole.
+
+**2026-11-02, `feat/about-decisions` (HISTORY §17DD).** The association and its thread are retired,
+so `EdmatProjectSeedTests` (8 tests) changed with them: the seed writes one plan per goal and no
+association row; every poll opens with its options in the file's order and reads in English
+through `?lang=en` — its RESULTS too (`decisions/views.py: results` read the Polish column for
+everybody until then); a database an earlier seed left the association in (both title shapes, a
+sub-task, a comment under a task, a ballot, an application, the legal-report thread with a reply, a
+draft founding meeting linked to the organisation) loses exactly those rows and their threads on
+the next run, while a person's own task, the same title on another body and other `/about` talk
+stay, and a third run retires nothing; `--dry-run` lists what it would retire and writes nothing;
+and a run with no `--owner` reuses the organisation's owner (the first run without one is refused).
+`EdmatHistoryTests` lost the thread-file check with the file. `translations.tests.SeedDeGluingTests`
+holds the `RETIRED` titles to the one-`' / '` rule too.
 Run `manage.py test work --keepdb` (23 tests). The seed itself was run twice against the
 development database and the pages looked at (`/organizations/edmat`, a goal, `/work`, the thread
 under `/about`).
@@ -2709,7 +2759,22 @@ assertion that **every** title in that file still splits into at most two halves
 finding a row whether an earlier run left it glued or this run rewrote it to the Polish half — without
 which a second run duplicates every task, plan, need and poll.
 
-### `frontend/e2e/ai-assist-and-bilingual.mjs` — 31 checks
+### `frontend/e2e/ai-assist-cards.mjs` — 14 checks
+
+"N% AI" on every exercise and material CARD (HISTORY §17DG): every card on `E2E_BRANCH`'s list and
+on `/materials` carries a label-chip reading `^\d+% AI$`; the list asks in batches (no request over
+100 targets); kasia (the submitter of `E2E_EXERCISE`) marks it through the API, the reader opens it
+and comes back, and the card reads "100% AI" — the site-wide holder pruning on navigation; one chip
+on the material page; none inside an `/about` sample frame and no request about its invented ids;
+no overflow at 390 px; zero console errors. Writes one author mark and deletes it, start and end.
+The 80% line expects the three votes `ai-assist-and-bilingual.mjs` leaves on exercise 3.
+
+```bash
+E2E_BASE=http://localhost:5173 E2E_API=http://127.0.0.1:8000/api [E2E_KASIA_TOKEN=…] \
+  node e2e/ai-assist-cards.mjs
+```
+
+### `frontend/e2e/ai-assist-and-bilingual.mjs` — 39 checks
 
 Both features in one script because they land on the same two pages.
 
@@ -2728,6 +2793,12 @@ are skipped rather than failed.
   a real vote; and the chip appearing only once **three** readers agree — one vote lights neither
   mark, so the script votes twice more through the API and then asserts that exactly one of the two
   icons is lit and that the label names the community.
+  Since 2026-11-02 (§17DG) the chip is on the exercise ALWAYS and reads "N% AI" — with three readers
+  at 80/90/70, "80% AI".
+- **A3** (2026-11-02) — a material: "0% AI" unmarked, "100% AI" with the author's mark lit once kasia
+  (its submitter, `E2E_MATERIAL`, default 1) marks it through the API, no page errors, and the mark
+  is DELETED again so the material is left with no author answer. **Parts B and C fail on stale constants** (the organisation description from before
+  the owner's rewrite of 2026-10-08); see §17DG "Left open".
 - **A2** — the `ai_assisted` kill switch **as a non-staff reader** (trap 10): the AI item and the chip
   go, reply and report stay, because they belong to other features (house rule 3).
 - **B** — `/about` in English and in Polish, asserting both that the right language is there and that

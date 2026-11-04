@@ -10,6 +10,7 @@ import { mapLicence } from '$lib/api/mappers';
 import type {
 	BulkLicenceResult,
 	Licence,
+	LicenceTargetKind,
 	LicenceReading,
 	LicensedKind,
 	MyLicensedItem,
@@ -40,7 +41,7 @@ function mapReading(raw: RawReading): LicenceReading {
 	};
 }
 
-export async function getLicence(kind: LicensedKind, id: string): Promise<LicenceReading> {
+export async function getLicence(kind: LicenceTargetKind, id: string): Promise<LicenceReading> {
 	return mapReading(await apiClient.get<RawReading>(`/licences/${kind}/${id}/`));
 }
 
@@ -53,7 +54,7 @@ export class LicenceChangeError extends Error {
 }
 
 export async function changeLicence(
-	kind: LicensedKind,
+	kind: LicenceTargetKind,
 	id: string,
 	licence: Licence,
 	note = ''

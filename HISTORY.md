@@ -18363,6 +18363,259 @@ applied after a `db.sqlite3.bak-20261102-video` snapshot.
 - **No kill switch.** This is a rendering of a link, not a feature surface. A `FeatureFlag` would
   have to fall back to the plain link.
 
+## 17DB — A course's licence, one item's own audience, and collaborators from the create form (2026-11-02, `feat/course-licence-collab`)
+
+The owner asked: "in course creation we want to be able to select license for coop and materials on
+this course (getting a smooth, subtle, and classy warning on a content/material marked otherwise — eg
+link to a material in the main material repo; also adding collaborators from that place (with whom
+you are connected, or adding by mail)". Mid-task they added: "also different privacy settings per
+content". Read as four things.
+
+**1. A course has a licence (`Course.licence`, courses 0023).** It covers what is WRITTEN in the course:
+the description, the chapters and lessons, the staff's shared work. The "coop" part is that whoever
+joins the staff writes under it. It is also where every file uploaded into the course starts. It
+never reaches what the course LINKS, because content is referenced, never copied (the courses app's
+oldest rule), so a corpus material keeps its own licence. It is picked on the create form with the
+same `LicencePicker` every other create form uses, suggesting CC BY 4.0 for own work (the owner's
+2026-10-14 rule). After that the course follows the licensing app's rules: a PATCH may not change it
+(400 `licence_change_via_licences`), and the course's licence line on its page and edit form widens
+it through `/api/licences/course/<id>/` with a `LicenceChange` row. `course` became a
+`licensing/targets.py` kind. Its authors are the owner and admins, and its contributors are every
+staff member, so an assistant's lesson text blocks a widening the way a co-author's version blocks
+a material's. It is deliberately NOT in `LICENSED_KINDS`, so `/settings/licences`, the bulk change
+and `relicense_content` do not walk courses.
+
+**A course file has its own (`Attachment.licence`).** The picker starts it from the course's licence
+(`LicencePicker reason="course"`, which ignores the uploader's personal default the way `source`
+does), because last year's exam paper is not the uploader's to open. It is a prefill, not a stamp.
+Kind `course_attachment`; only its uploader can widen it.
+
+**2. The quiet note.** Each item carries `target_licence` and `licence_relation`
+(`licensing.licences.compare_to_container`). The values are `same`, `wider` (the item allows at least
+what the course does), `narrower`, `different` (BY-NC in a BY-SA course: neither covers the other)
+and `unclear` (`unknown`, the corpus). For the last three the row gets one line of small print in the
+secondary text colour, with a warm © and a thin rule on its left: "Its own licence, CC BY-NC 4.0, has
+different terms from this course's CC BY-SA 4.0." Its title says "Linked, not copied". There is no
+alert box, because nothing is broken: a reader who took the course's licence at its word would just
+be wrong about that one item. The course's own licence line now has a sentence under it saying what
+it covers. The link editor tags a search match whose licence differs ("own licence: …") before it
+is added. The browser only compares keys for that tag, and the partial order is never re-derived
+client-side.
+
+**3. Per-item privacy (`CourseItem.visibility`).** `course` (the default, and every older row),
+`participants` or `staff`. It narrows the course's rule and never widens it. The one reader is
+`rules.item_audience_admits`, called from `CourseItem.is_visible_to`, so the item list, the lesson
+and chapter serializers, the unfiled list and the in-course search follow without further changes.
+The materials index asks `target_is_available_to` directly, so it got the call too (found by
+reading every `CourseItem` read site, and pinned by a test). The submitter always still sees their
+own item. Only a curator may set anything but `course`. The row shows a neutral "Staff only" /
+"Participants only" pill to whoever can see the item, curators get a short select beside the move
+select, and the link editor asks before adding.
+
+**4. Collaborators from the create form.** `CourseCollaboratorsDraft.svelte` collects people from
+`PersonPicker` (the people the founder already shares a roster with) and email addresses. Once the
+course exists, `/courses/new` sends them through the same two doors the course itself uses: the
+staff endpoint, and the new `POST /api/courses/{id}/email-invites/` (`courses/mailinvite.py`). If
+everything goes through, the page moves on. If anything fails, it stays and lists what and why, with
+the course already made. The manage page has the same email form (`CourseEmailInvites.svelte`).
+
+**A mailed invite is an ordinary one-use `CourseInvite`** (14 days, `sent_to` = the address) plus one
+`OutboundEmail` of the new kind `course_invite`. Its `ref_id` (mail 0004) lets `build_link` make
+`/courses/join/<token>` at send time, so the log holds `[[link]]`. Accepting is the existing join
+page, so capacity, "already staff" and the locked use count are the rules that already were. The
+join page now says the course's licence to anybody joining its staff.
+
+The invite flow has four guards:
+- It **never says whether an address has an account** and never adds anybody by address (no
+  enumeration, and nobody is put on a course they did not accept).
+- Only an inviter with a **confirmed** address can send. Both forms say so before the attempt.
+- The mail is **fixed text**: name, title, role, link. No free-text message, so it cannot be used to
+  mail anybody anything.
+- At most **20 addresses a request and 50 a day** per inviter, recounted from the invites.
+
+`sent_to` is blanked after 30 days (`accounts/retention.py`, `invite_address`). `/privacy` (both
+languages: the e-mail section and the retention table) and `LEGAL.md` §5 "Third parties" say all of
+this.
+
+**Verified.**
+- `courses/test_licence_privacy.py`: 28 tests covering the comparison, the course licence (create,
+  refusal of `unknown`, PATCH refusal, widening with a record, the assistant block, private-course
+  readers), linked items' relations, attachment licences, the item audience through the list, the
+  lesson serializer, the materials index and the search, the curator-only rule, the submitter, and
+  mailed invites (single use, the link built at send time and absent from the log, the same answer
+  for a member's address and a stranger's, the join as the role and once, every refusal, the
+  recounted budget, the preview's licence, retention).
+- `e2e/course-licence-collab.mjs`: 32 checks against the dev servers, driving the real create form
+  (CC BY-SA picked; an unconfirmed founder's invite refused with the course still made and the
+  summary shown), the manage page's email form (sent / not an address / your own address, exactly
+  three answers), the course page as owner, participant and stranger, the visibility select, the join
+  page, Polish, and 390 px.
+- The screenshots were looked at. That is how the course's licence line got its scope sentence and
+  the row select got short labels (the long ones pushed the move select to a second line). It is
+  also how a bug in the script itself showed up: its first run read the founder's address from
+  `manage.py shell`, whose auto-import banner then landed in the email box as eleven "addresses".
+- `npm run check` 0/0, eslint and prettier on every changed file, en/pl key sets identical (5681).
+- Dev database: courses 0023 and mail 0004 applied after a `db.sqlite3.bak-20261102-course-licence`
+  snapshot.
+
+**Left open**
+- A pinned `LessonExerciseSet` has no audience of its own (the editor hides the select for a set).
+- (Closed by §17DC the same afternoon: a course file's own audience, and the licence picker on the
+  "Add something" upload.)
+- Courses and course files are not listed on `/settings/licences`.
+- Lessons do not record who wrote them, so the course licence's contributors are TODAY's staff and a
+  former assistant is not asked.
+- No notification to existing staff when an invite is mailed, and no "resend" (revoke, then send
+  again).
+- Whether IOD UW reads an organiser's invitation as the organiser's legitimate interest or ours is
+  unconfirmed; `/privacy` names both.
+
+## 17DC — A course file's own audience, and its licence on every upload form (2026-11-02, `feat/course-licence-collab`)
+
+The follow-up that §17DB's "Left open" named. "Different privacy settings per content" stopped at the
+course's files, which were members-only as a whole.
+
+**`Attachment.visibility` (courses 0024): `participants` (the default, and what every file was) or
+`staff`.** It starts one rung below an item's ladder, because a course file was never public, and the
+attachment docstring says why. `Attachment.is_visible_to` now asks
+`rules.attachment_audience_admits`, so every door follows: the Files list (filtered per row now —
+before, membership alone admitted the whole list), the file's page, its reviews and thread, the
+in-course search, and a course item pointing at the file. The uploader always sees their own file
+and may narrow it. That is how a participant hands homework to the teacher alone, which is the case
+that made "any uploader" the rule rather than "curators only". A curator may change anybody's
+file. `PATCH /api/courses/{id}/attachments/{aid}/ {visibility}`; anybody else gets 404, as for a
+delete. `can_change_visibility` comes from the server. The Files tab has a "Who sees this file"
+select on upload (with a sentence saying what "only the people running the course" is for), and a
+small select at the end of each row for whoever may change it. The file's page says "Staff only"
+and carries its own licence line (kind `course_attachment`), from which its uploader widens it. The
+"Add something" form's new-file upload got the same `LicencePicker reason="course"` the Files tab
+has.
+
+**Honest limit, said in the model's docstring.** The bytes are served from `/media/` at a random
+name. An address somebody already copied keeps working, which is the same boundary the whole Files
+tab always had against the world.
+
+**Verified.**
+- `courses.test_licence_privacy`: 31 OK, three new. A staff-only file leaves every participant door
+  (list, page, reviews, thread, search, a course item). A participant's staff-only homework is seen
+  by them and the teacher and not by another participant. Who may change it: another participant
+  gets 404, a curator and the uploader may, and an unknown value is 400.
+- `e2e/course-licence-collab.mjs` is now 43 checks: the Files-tab upload with "staff", the
+  participant's homework through the API, the participant's and the owner's lists, the row select
+  widening it, and the file page's licence line and audience.
+- **The screenshots found the layout bug**: each row's select stretched under a centred title,
+  because the page's generic `li` rule is a column and the new row rule did not say `row`.
+- `npm run check` 0/0, eslint and prettier on the changed files. en/pl now 5685 keys.
+- Dev database: courses 0024 applied.
+
+**And the last kind: a pinned set (courses 0025).** `LessonExerciseSet.visibility` uses the item
+ladder through one shared `rules.audience_admits` (the item rule now calls it too, adding only the
+submitter's exception). `LessonExerciseSet.is_visible_to` asks it after the chapter gate, so the
+lesson and chapter payloads and the sets endpoint follow. It is set when linking (the link editor's
+select is no longer hidden for a set) and changed from a select in the set's header. Curators only,
+since only curators link sets. The set screenshot showed a curator a "Staff only" pill beside a
+select saying the same, so a curator now sees the select and everybody else the pill. Tests: 33 in
+`test_licence_privacy` (two new for sets) plus `test_content_links` (25), 58 OK together. The
+browser script is 48/48 (a staff-only set, its select, and the participant before and after).
+The pre-§17DC regression over `courses licensing mail accounts work exercises materials` (1108 tests)
+was OK.
+
+**Left open**
+- A file's audience is not offered on the "Add something" upload; it starts at "everyone in the
+  course" and is changed from the Files tab.
+- No serving of course files through an authenticated view (that would close the copied-address
+  limit, and it is a deployment change: Apache serves `/media/`).
+
+## 17DD — The owner's open decisions as polls on /about; the association retired (2026-11-02, `feat/about-decisions`)
+
+The owner, after §17DB–§17DC: *"next deployment will publish these decisions to make on
+edmat.net/about and delete stowarzyszenie related ones"*.
+
+**What `/about` shows after the next deployment.** The EdMat organisation's polls (the open board:
+anyone reads them and sees the tally, the roster and its members vote) gain the five decisions
+§17DB–§17DC left to the owner. Each says what the site does today, so a vote is on a change and not
+on a guess:
+
+1. which licence the create form suggests for a new course (CC BY 4.0 as now, CC BY-SA 4.0, EdMat
+   only, or no suggestion);
+2. when a course's licence may be widened (today: by an admin, only while nobody else is on the
+   staff — every current member of staff counts as a co-author because a lesson records no
+   writer; or record each lesson's writer; or once every co-author agrees on the site);
+3. whether courses join Settings → Licences;
+4. whether a course file with a restricted audience downloads only for a signed-in reader (the
+   `/media/` copied-address limit of §17DC);
+5. whose legitimate interest invitations by e-mail rest on (the organiser's, the service's, both as
+   the privacy page says now, or the UW data-protection officer's answer first).
+
+**Everything the association was is deleted**, on every database the seed ever wrote it to: the
+three phase plans, the sixteen phase-1 tasks (two of them sub-tasks), the "Founders" need, the poll
+on founding "EdMat.net association", the founding-meeting event (never created: its date was never
+set), the `/dziennik` goal's step "Plans and servers for schools — the association's phase 2", and
+the Gemini Deep Research legal report with Claude's replies under `/about#money-and-openness` —
+together with the section that drew it on `/about`, its two catalogue keys and
+`work/edmat_research_thread.json`. The comments, ballots and applications hanging off those rows go
+with them.
+
+### How
+
+- **`work/edmat_project.py: RETIRED`.** The seed is idempotent by title, which is exactly why
+  deleting an entry from the file does nothing on production: the row it wrote stays for ever (the
+  module's own note said "retire the old one on the site, as a person would"). `RETIRED` names every
+  row by the title the seed wrote it under, and `_retire` runs first in every seed: a row is matched
+  only on the EdMat node and only by that exact title (glued "PL / EN", or the Polish half stored
+  since §17BX), so a person's own task that merely starts the same way, or the same title on another
+  body, is never touched. Each deletion prints one line, naming what goes with it ("+2 sub-task(s),
+  +14 comment(s)", "(0 ballot(s))"). Hard deletion, not archiving, because the owner said delete —
+  house rule 12 is a default, and this is the owner deciding; step 0's backup is the way back.
+- **`seed_edmat_project --dry-run`** does the whole run inside a transaction it rolls back, so the
+  printed list is exactly what the real run will do. **`--owner` is optional after the first run**
+  (the organisation's existing owner is reused), so a deployment needs no username.
+- **`deploy/fuw/apply-on-server.sh` step 12** runs the dry run, asks `[Y/n]`, and runs the seed. The
+  apply script had never re-run the seed on its own; every earlier content change asked the owner to
+  type the command.
+- **The poll results were Polish for everybody.** `GET /api/polls/{id}/results/` returned each
+  option's `text` column — the original language — and `polls.ts` sent no `?lang=`, so an English
+  reader voted on English options and then read the tally under the Polish ones, the AI-assisted
+  poll included. Found by looking at the English screenshot of `/about`. The results now go through
+  `PollOptionSerializer` (the same translation the ballot uses) and the service sends `?lang=`.
+- **`e2e/about-discussions.mjs` moved to `/about/guide/courses`**, because `/about` no longer has a
+  standing-page location of its own; the policy cycle (anyone → users → verified → off → flag off)
+  is unchanged.
+
+### Verified
+
+- On the dev database (snapshot `db.sqlite3.bak-20261102-about-decisions` first): `--dry-run` listed
+  three plans, fourteen tasks (one carrying its two sub-tasks and 14 comments), the need, the poll
+  (0 ballots), the `/dziennik` step and the 64-comment thread, and wrote nothing; the real run
+  retired the same 21 rows and added the five polls; a second run retired nothing.
+- `manage.py test work community organizations plans tasks needs decisions translations goals`
+  — 514 OK, including the new
+  retirement, dry-run, no-owner and results-in-English tests..
+- `e2e/about-page.mjs` 60/60 (nothing about the association on `/about`; the new polls listed);
+  the polls panel looked at in Polish at 1280 and English at 390, results in the reader's language
+  after the fix. `e2e/about-discussions.mjs` 56/56 on `/about/guide/courses`, 0 console errors.
+- `npm run check` 0/0; `check:plain` ok; eslint and prettier on the changed files; i18n key sets
+  identical (5683); `npm run build` green, and the prerendered `build/about.html` carries no
+  association text.
+- A trap worth knowing, hit on the way: **`npm run build` while the Vite dev server runs from the
+  same checkout rewrites `.svelte-kit/` under it**, and the dev server then fails every module with
+  `ERR_INSUFFICIENT_RESOURCES` — every showcase page "lost" its discussions and the script failed in
+  places this branch never touched. Restarting `run.sh` cleared it; the code was never the cause.
+
+### Left open
+
+- **Older text still names the association where it records history**: `HISTORY.md`'s own earlier
+  sections, `test.md`'s dated notes, and `FUW/association/` (outside the repository) were left as
+  the record they are. The live surfaces — `/about`, the help-wanted board and the
+  `/about/goals-and-work` screenshot of it (retaken: six posts, no "Founders"; its alt text and
+  declared height updated) — no longer show it.
+- **`google-gemini` stays** as an account with nothing under it; deleting an account is the erasure
+  path's business, not a seed's.
+- **Comments people wrote under the retired rows are deleted with them** (on the dev database, 14
+  under one task). The dry run in step 12 prints the count before anything happens.
+- The poll on legal basis is a question to the UW data-protection officer as much as to the members;
+  publishing it does not send it to them.
+
 ## 17DE — Browse by audience first, and one glossary for the taxonomy (2026-11-02, `ux/audience-taxonomy`)
 
 The owner asked: "lets improve branch ←→ discipline. we need to serve it by audience primarily",
@@ -18471,3 +18724,174 @@ new script on a fresh server.
   content is filed under them (the import skill's rule: never create a branch to make an import fit).
 - **The home tab id `branches` still shows `courses.Course`.** It is a misnomer that this pass did not
   rename.
+
+## 17DF — `/about` plays the promo reel; the organisation page moves to `/coop` (2026-11-02, `feat/about-promo`)
+
+*Filed as §17DE on its branch and renumbered at the merge into `main` (2026-11-03): §17DE is the
+audience-first browse, which reached `main` first. The AI badge moved from §17DF to §17DG with it.*
+
+The owner, after the promo video (a local kit in `promo/`, gitignored): *"now lets have these
+animation on about and move what currently is about to edmat.net/coop"*.
+
+**`/about` is what EdMat is, shown.**
+- **What it plays.** It opens on `PromoReel.svelte`: the promo drawn live in the page, not shipped
+  as the 22 MB WebM.
+  - Real EdMat pages on two or three phones, each scrolling, the caption drawn over them and
+    edmat.net in the corner.
+  - The same scene list and easing as `promo/promo.html`, with `t` from requestAnimationFrame
+    instead of from ffmpeg.
+- **The captures** are `static/promo/<lang>/*.webp`.
+  - 585 px wide, cropped to the deepest scroll the reel reaches: about 650 KB a language.
+  - Nothing is fetched before the reel is within 300 px of the screen AND the flag list has
+    arrived (or three seconds have passed). Before the list, every switch reads as on, and the first
+    run fetched a killed feature's capture.
+  - After that, one scene ahead.
+- **The captions** are `promo_*` keys, and the captures follow the interface language.
+- **Kill switches.** The flashcards and tutoring scenes go with their switches, and a concept page
+  leaves any scene with `concepts` (house rule 3). The timeline is rebuilt from what remains.
+- **Motion.** There is a pause button and scene dots (WCAG 2.2.2). It never autoplays under
+  `prefers-reduced-motion`, and it stops off screen.
+- **Under the reel**, unchanged: the "New here?" strip, the feature grid and Explore. Between them,
+  a band to `/coop`, which goes with `organizations`.
+- **The stage** is a fixed 1920×1080 canvas, 1000×1250 below 640 px, scaled to the column. The
+  controls sit UNDER the picture: on the stage they covered the caption at both widths, which only
+  the screenshots showed.
+
+**`/coop` is the old `/about`.**
+- It holds the EdMat organisation's page, with §17DD's removal of the legal-report section applied
+  by hand at the merge.
+- `nodeHref`, the goals-and-work showcase link and `SHOWCASE_LIVE` now say `/coop`. The header's
+  About section covers both pages, and the footer and the homepage's "the community builds it"
+  still go to `/about`.
+- The seed's comments, the 2026-11-02 runbook, step 12's prompt and seven e2e scripts were moved to
+  `/coop`. `about-page.mjs` was split: the organisation's checks run on `/coop`, and the strip, the
+  grid and Explore on `/about`, plus the reel and the band.
+- `coop` is prerendered by name and on `deploy/fuw/pack.sh`'s list.
+
+**Also.** The `promo/` line added to `.gitignore` the same day matched `frontend/static/promo/` too.
+It is `/promo/` now.
+
+**Verified.**
+- `npm run check` 0/0, eslint and prettier, a `PUBLIC_API_BASE_URL=/api` build (`about.html`,
+  `coop.html`, no capture in the HTML).
+- Chromium at 1280 pl and 390 en: pause, dots and the reduced-motion still, per-language captures,
+  no overflow, no console errors.
+- Flags faked off drop the scenes and the band, and fetch no killed capture.
+- axe adds nothing beyond the site-wide header/footer `target-size`.
+
+**Left open.**
+- ~~The rewritten `about-page.mjs` and the six repointed scripts were not run after the merge.~~
+  **Run 2026-11-03** on the merged branch (with §17DG), against the main checkout's dev servers and
+  database: `attachments` 14/14, `goals` 30/30, `needs-content-management` 26/26,
+  `ai-assist-and-bilingual` 39/39, `management-discussions` 45/45, `about-page` 64/64,
+  `colour-screens` 0 errors (the `/coop` shots looked at, light and dark). Three scripts needed
+  fixing first, all for the same reason: **every `FoldSection` on `/coop` starts shut**, and a shut
+  fold draws nothing inside it, so `goals` read a goal "missing" from a panel that held it, the
+  bilingual part found no task, and `management-discussions` timed out waiting for a task row.
+  Each now opens the fold it reads, and only if it is shut (`e2e/CLAUDE.md` trap 35).
+  `management-discussions` also stranded its held comment in the moderation queue on every run:
+  an author's DELETE of a held comment is 409 and the loop never looked at the status. A
+  moderator removes it now, and both deletes are checks.
+- The reel has not been watched a full loop at speed, nor on a real phone.
+- The captures are from the dev database (scratch rows hidden, not deleted). Re-take them with
+  `promo/capture.mjs` and `promo/web-assets.py` when production has concepts and tutors of its own.
+
+## 17DG — "N% AI" on every exercise and material (2026-11-02, `feat/ai-badge-clear`)
+
+Two asks from the owner the same evening. First: *"AI generated should be more clear: currently it
+doesnt even have AI in/near the badge describing if its AI"* — the chip (`provenance/AiAssistChip.svelte`,
+§17BX's "one chip, two marks") drew two small people-icons and a percentage, and the word "AI" lived
+only in its `title` and `aria-label`, so a sighted reader had to hover, and on a phone could not.
+Then: *"(percentage% AI) that should be in each exercise/material"*.
+
+**What a reader sees now.** Every exercise page and every material page carries a chip reading
+**"N% AI"** — "0% AI" when nobody has said anything, "100% AI" when the author has marked it, the
+readers' mean once at least three have voted, a moderator's value when locked. The two marks are
+still on it (community above, author below), lit on their own, and the title still says in a
+sentence who claims it — or, for 0%, "Nobody has marked this as AI-assisted — open it to give your
+reading" / "Not enough readers have weighed in yet". A click opens the same dialog as before, so the
+always-present chip is also the door to voting. Hints, solutions, comments, reviews and concept
+articles keep the old behaviour (drawn only once a mark is lit): "0% AI" under every comment would be
+noise. The chip never wraps (`white-space: nowrap`) and fits at 390 px.
+
+**The printed number is never one person's vote.** The earlier rule ("draws only once a mark is lit")
+existed so that a single 80% vote could not read as a community figure, and drawing the chip always
+would have undone it. So the backend rule module answers two new fields (`provenance/rules.py:
+_shown`): `shown_score`, which is `score` only when a moderator, the author or at least
+`MIN_VOTES_FOR_COMMUNITY_MARK` (3) readers stand behind it and 0 otherwise, and `basis`
+(`moderator` / `author` / `readers` / `too_few` / `none`, `BASES`, mirrored in
+`types/provenance.ts: AssistanceBasis`). `score` is unchanged — it stays the number a filter or a sort
+would use, and the dialog still shows the raw mean beside the vote count. The rule is in the one
+module every endpoint asks, not in the chip.
+
+**A material is a target.** `provenance/targets.py` gained `material` → `(Material, 'submitted_by')`:
+the submitting account, because `Material.author` is a free-text corpus byline nobody can be asked
+about, so a corpus material has no author mark, only votes. Visibility is the generic `published`
+branch; `branch_of` returns the material's own branch, so a branch governor may lock its reading. The
+material page replaced its bare report button with `ContentActionsMenu` (the submitter's "Mark as
+AI-assisted…", report, and the moderator's remove) beside the chip; the old button already needed a
+signed-in reader, so no anonymous route was lost. No migration: a kind never reaches the database.
+
+### Verified
+
+- `provenance` tests: `ShownScoreTests` (six: none, too few, enough readers below the mark, the
+  author, a lock, every basis declared) and `MaterialAssistanceTests` (five: a stranger reads a
+  material at 0 on no basis; its submitter marks it and it reads 100; somebody else may vote — and
+  reads `too_few` — but not answer as the author; an unpublished material is not in the batch; a
+  governor of its branch may lock it). `manage.py test provenance exercises.tests`: 91 OK.
+- In a worktree with its own copy of the dev database and servers: `e2e/ai-assist-and-bilingual.mjs`
+  part A (the exercise: the chip is there, reads `^\d+% AI$`, and with three readers at 80/90/70 reads
+  "80% AI"), A2 (the kill switch takes it away) and the new A3 (a material shows "0% AI" unmarked,
+  "100% AI" with the author's mark lit once its submitter marks it, no page errors, and the mark is
+  deleted again) — every check passes.
+- Looked at: an exercise and a material in Polish at 390 px reading "0% AI" with the "Nobody has
+  marked this…" title, no horizontal overflow; the material in English at 1280 reading "100% AI".
+- `npm run check` 0/0; eslint and prettier on the changed files; key sets identical (5688).
+
+### Then the cards (owner: *"add it to the cards in lists too"*)
+
+Every exercise card and every material card in a list now carries the same "N% AI" chip — the branch
+lists, `/materials`, the home tabs, search, a material's exercises, recommendations, a user's
+unpublished list: wherever `ExerciseCard` or `MaterialCard` is drawn. Three decisions:
+
+- **On a card the chip is a label, not a button** (`interactive={false}`, a `role="img"` span named
+  in full). The card is clickable as a whole (`ExerciseCard: openExercise`), and a dialog opened from
+  inside it would be one stray click on its padding away from navigating; the reading and the vote
+  are one click further, on the content's own page. Its title drops the "open it to…" half.
+- **One holder for the whole site, pruned on navigation.** The holder was per page on purpose, so
+  that a client-side navigation never hands the next page the previous one's readings. A dozen list
+  routes and several shared components draw cards, so rather than one `provideAiAssistance()` per
+  list the root layout provides one (`provideSiteAiAssistance`) and prunes it on every navigation:
+  what the new page registers is kept, everything else — readings and the "already asked" record —
+  is dropped. Checked by a browser run: a card read "80% AI", the author marked the exercise, the
+  reader opened it and came back, and the card read "100% AI". Pages with their own holder (the
+  exercise, material and concept pages) still shadow it. Requests are chunked at 100 targets,
+  under the endpoint's 200 cap.
+- **The `/about` samples draw none.** They render the real cards on invented ids (9001, 9400, …)
+  that a real row could one day share, and a sample card would then print that row's reading.
+  `SampleFrame` provides NO holder (`provideNoAiAssistance`). The material page's header is a
+  `MaterialCard` too, so the card draws its chip only as a list item and the page keeps its one
+  interactive chip beside its menu.
+
+The material card's chip sits on a row of its own: in the heading's row it squeezed a long title
+into one-syllable lines (the title is the flex item that gives way, `overflow-wrap: anywhere`).
+
+**Verified:** `e2e/ai-assist-cards.mjs` 14/14 in the worktree — 30/30 exercise cards and 26/26
+material cards carry a chip reading `^\d+% AI$`, none of them a button; one batched request for 30
+cards; the come-back-fresh check above; one chip on the material page; none inside a sample frame
+and nothing asked about the invented ids; no overflow at 390 px; zero console errors. Parts A, A2
+and A3 of `ai-assist-and-bilingual.mjs` re-run clean. `npm run check` 0/0, `check:plain` ok,
+`npm run build` green. Looked at: the branch list and `/materials` in Polish at 1280, a card at 390.
+
+### Left open
+
+- ~~**Parts B and C of `ai-assist-and-bilingual.mjs` fail (7 checks) on stale constants.**~~ Fixed
+  2026-11-03 after the merge: the constants read the current description, and the script opens the
+  `tasks` and `needs` folds before reading them (three of the seven were that, not the text).
+  39/39 (§17DF's "Left open").
+- **Chunking above 100 cards was not exercised in a browser** — no list on the dev data draws that
+  many at once (the branch list pages 30). The code splits and merges; a 150-card list is untested.
+- **Some material titles still break mid-word** in the three-column grid ("Matematyczn a II"),
+  because the type and level pills share the heading row — present before this change, not fixed.
+- **No write-time choice** in `/submit` and `/submit-material`; the author marks from the content's
+  menu afterwards (already open since §17BX).

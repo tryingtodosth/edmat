@@ -14,6 +14,7 @@
 	import type { InvitePreview } from '$lib/types/course';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import { licenceShort } from '$lib/utils/labels';
 
 	let token = $derived(page.params.token ?? '');
 	let preview = $state<InvitePreview | null>(null);
@@ -91,6 +92,14 @@
 		<p class="hint">
 			{preview.role === 'participant' ? m.course_join_asParticipant() : m.course_join_asStaff()}
 		</p>
+		{#if preview.role !== 'participant'}
+			<!-- Joining the staff is joining the people who write the course, under its licence —
+			     said before they accept, not after (2026-11-02). -->
+			<p class="hint" data-testid="join-licence">
+				{m.courseCollab_joinLicence({ licence: licenceShort(preview.courseLicence) })}
+				<!-- "What the staff write in this course is published under {licence}." -->
+			</p>
+		{/if}
 
 		{#if !preview.isUsable}
 			<p class="error">

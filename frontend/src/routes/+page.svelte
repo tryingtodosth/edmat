@@ -283,8 +283,8 @@
 			{/if}
 		</p>
 		<!-- The mission's three clauses. Static and prerendered with the hero, like `StartHere` below:
-		     every target is a standing page no kill switch removes — /about is the organisation's own
-		     page where the sentence was written, /activity is the public-by-construction log (house
+		     every target is a standing page no kill switch removes — /about shows what the community
+		     built and leads on to the team's own page at /coop (which the `organizations` switch quiets), /activity is the public-by-construction log (house
 		     rule 9) that makes "every change is visible" a fact, /levels is the trust system that names
 		     who stands behind a solution. -->
 		<ul class="hero__mission" aria-label={m.home_mission_label()}>

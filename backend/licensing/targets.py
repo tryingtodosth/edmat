@@ -117,6 +117,49 @@ def _concept_article():
     )
 
 
+def _course():
+    """A course's own licence (2026-11-02): it covers what is WRITTEN in the course — the
+    description, the chapters and lessons — which is its staff's shared work. The administrators
+    are its authors (they may change it); every member of staff is a contributor, because an
+    assistant's lesson text is in it, so a change needs nobody else's writing in the course — the
+    same rule a co-authored material lives under. Honest limit: lessons do not record who wrote
+    them, so the contributors are the staff of TODAY; somebody who wrote week 3 and has since left
+    the staff is not asked."""
+    from courses.models import ADMINISTERING_ROLES, Course
+
+    def authors(c) -> set[int]:
+        return {row.user_id for row in c.staff.all() if row.role in ADMINISTERING_ROLES}
+
+    def visible_to(c, user) -> bool:
+        from courses.rules import course_visible_to
+
+        return course_visible_to(user, c)
+
+    return Kind(
+        model=Course,
+        authors=authors,
+        contributors=lambda c: {row.user_id for row in c.staff.all()},
+        visible=lambda c: c.visibility == 'public',
+        created_at=lambda c: c.created_at,
+        visible_to=visible_to,
+    )
+
+
+def _course_attachment():
+    """A file uploaded into a course: its uploader chose its licence (starting from the course's),
+    and only the uploader may widen it. Never public — readable by whoever is in the room."""
+    from courses.models import Attachment
+
+    return Kind(
+        model=Attachment,
+        authors=lambda a: _ids(a.uploaded_by_id),
+        contributors=lambda a: _ids(a.uploaded_by_id),
+        visible=lambda a: False,
+        created_at=lambda a: a.created_at,
+        visible_to=lambda a, user: user is not None and a.is_visible_to(user),
+    )
+
+
 @dataclass(frozen=True)
 class Kind:
     model: type
@@ -124,6 +167,9 @@ class Kind:
     contributors: Callable
     visible: Callable
     created_at: Callable
+    #: For a kind whose readers are not "everybody or nobody" (a course, a course's file): who
+    #: else may read its licence. None = `visible` alone decides.
+    visible_to: Callable | None = None
 
 
 _BUILDERS = {
@@ -131,8 +177,16 @@ _BUILDERS = {
     'solution_entry': _solution_entry,
     'material': _material,
     'concept_article': _concept_article,
+    'course': _course,
+    'course_attachment': _course_attachment,
 }
-LICENSED_KINDS = list(_BUILDERS)
+#: The CONTENT kinds — what `/api/licences/mine/`, the bulk change and `relicense_content` walk.
+#: A course and a course's file are deliberately not in it (2026-11-02): a course's licence is its
+#: staff's decision, made on the course, and a staff sweep has no business relicensing what a
+#: group of people wrote together. Listing them on `/settings/licences` is left open.
+LICENSED_KINDS = ['exercise', 'solution_entry', 'material', 'concept_article']
+#: Every kind `/api/licences/<kind>/<id>/` answers for.
+ALL_LICENSED_KINDS = list(_BUILDERS)
 
 
 def kind_for(name: str) -> Kind | None:

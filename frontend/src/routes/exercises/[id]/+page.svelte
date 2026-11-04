@@ -340,9 +340,11 @@
 					<DifficultyBadge difficulty={exercise.difficulty} />
 					<SourceTypeBadge sourceType={exercise.source.type} />
 					<VerifiedBadge verified={exercise.verified} />
-					<!-- Draws nothing until somebody has actually claimed something (AiAssistChip's
-					     own docstring); the way to make a claim is the statement's own menu below. -->
-					<AiAssistChip kind="exercise" id={exercise.id} />
+					<!-- "N% AI", always (owner, 2026-11-02: "(percentage% AI) that should be in each
+					     exercise/material"); 0% until a moderator, the author or three readers stand behind
+					     a number. A click opens the reading and the vote; the author marks it from the
+					     statement's own menu below. -->
+					<AiAssistChip kind="exercise" id={exercise.id} always />
 					<TranslationBadge
 						isOriginal={exercise.isOriginal}
 						translatorName={exercise.translatedByUserId

@@ -71,7 +71,7 @@ export const SHOWCASE_LIVE: Record<ShowcaseLiveRoute, ShowcaseLiveLink> = {
 	'/organizations': { href: resolve('/organizations'), flag: 'organizations' },
 	'/settings': { href: resolve('/settings'), flag: 'learning_record' },
 	// The four module pages (2026-10-14, WP5).
-	'/about': { href: resolve('/about'), flag: 'organizations' },
+	'/coop': { href: resolve('/coop'), flag: 'organizations' },
 	'/work': { href: resolve('/work'), flag: 'work_dashboard', signedIn: true },
 	'/tasks': { href: resolve('/tasks'), flag: 'tasks' },
 	'/needs': { href: resolve('/needs'), flag: 'needs' },

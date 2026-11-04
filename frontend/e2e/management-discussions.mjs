@@ -274,8 +274,15 @@ page.on('request', (r) => {
 	if (r.url().includes('/api/discussions/?keys=')) policyCalls.push(r.url());
 });
 
-console.log('\n== a member on /about: the board is folded, a task opens in a modal ==');
-await page.goto(`${BASE}/about`, { waitUntil: 'load' });
+console.log('\n== a member on /coop: the board is folded, a task opens in a modal ==');
+await page.goto(`${BASE}/coop`, { waitUntil: 'load' });
+// The Team tasks panel is itself a fold on `/coop`, shut by default and remembered per browser
+// (`foldedSections`), and a shut fold draws no rows — open it only if it is shut.
+const tasksFold = page.locator('[data-fold="tasks"]');
+await tasksFold.waitFor({ timeout: 60000 });
+if (!(await tasksFold.evaluate((e) => e.classList.contains('fold--open')))) {
+	await tasksFold.locator('.fold__toggle').first().click();
+}
 // The board is one line per task (owner, 2026-10-08): the row is a button, and the full card —
 // with the discussion line under it — is drawn in a modal whose URL is the task's own page.
 const folded = page.locator(`[data-task-row="${task.id}"]`);
@@ -343,8 +350,8 @@ await page.screenshot({
 await page.keyboard.press('Escape');
 await card.waitFor({ state: 'detached', timeout: 10000 });
 check(
-	'Escape closes the modal and returns to /about',
-	new URL(page.url()).pathname.endsWith('/about'),
+	'Escape closes the modal and returns to /coop',
+	new URL(page.url()).pathname.endsWith('/coop'),
 	page.url()
 );
 
@@ -360,7 +367,7 @@ check(
 const backLink = page.locator('.on-node a');
 check(
 	'and a link back to the board it hangs on',
-	((await backLink.getAttribute('href')) ?? '').endsWith('/about'),
+	((await backLink.getAttribute('href')) ?? '').endsWith('/coop'),
 	(await backLink.getAttribute('href')) ?? ''
 );
 
@@ -450,8 +457,19 @@ await spage.screenshot({
 
 // --- clean up, through the real API -----------------------------------------------------------
 console.log('\n== cleaning up ==');
-for (const id of [posted.body?.id, held.body?.id]) {
-	if (id) await api(`/comments/${id}/`, { method: 'DELETE', tok: plainToken });
+// The public one is deleted by its author. The HELD one cannot be: an author's DELETE of an
+// auto-hidden comment is 409 (`community/views.py`), and until 2026-11-03 this loop ignored that
+// status, so every run left a held comment waiting in the moderation queue. A moderator decides it.
+if (posted.body?.id) {
+	const gone = await api(`/comments/${posted.body.id}/`, { method: 'DELETE', tok: plainToken });
+	check('the public comment is deleted by its author', gone.status < 300, `${gone.status}`);
+}
+if (held.body?.id) {
+	const decided = await api(`/moderation/reports/comment/${held.body.id}/remove/`, {
+		method: 'POST',
+		tok: staffToken
+	});
+	check('the held comment is removed by a moderator', decided.status < 300, `${decided.status}`);
 }
 const after = await countOf(KEYS.task);
 check(`the count is back to ${before}`, after === before, `${after}`);

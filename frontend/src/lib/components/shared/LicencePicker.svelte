@@ -50,8 +50,10 @@
 		/** What the form suggests for this work; followed until the author picks. */
 		suggested?: Licence;
 		/** Why: their own work (`own`), it names a source (`source`), or it is a file or a link
-		 *  rather than something written here (`notFromScratch`). */
-		reason?: 'own' | 'source' | 'notFromScratch';
+		 *  rather than something written here (`notFromScratch`), or it goes into a course whose
+		 *  licence it starts from (`course`, 2026-11-02 — like `source`, the author's own default
+		 *  does not override it: the course's licence is the group's decision). */
+		reason?: 'own' | 'source' | 'notFromScratch' | 'course';
 	} = $props();
 
 	// Set by the author's own click, never by the suggestion. Reading it here and writing `value`
@@ -60,7 +62,7 @@
 	// The author's own default (blank = none chosen). Read from the session, so a hard reload that
 	// resolves the session after mount still moves an untouched picker to it.
 	const preferred = $derived<Licence | undefined>(authStore.user?.defaultLicence || undefined);
-	const guarded = $derived(reason === 'source');
+	const guarded = $derived(reason === 'source' || reason === 'course');
 	const start = $derived<Licence | undefined>(guarded ? suggested : (preferred ?? suggested));
 	$effect(() => {
 		if (!touched && start) value = start;
@@ -93,6 +95,11 @@
 	{:else if reason === 'own'}
 		<p class="licence-picker__why" data-testid="licence-why">{m.licence_suggestOwn()}</p>
 		<!-- "Suggested: CC BY 4.0, because this is your own work written on EdMat …" -->
+	{:else if reason === 'course' && suggested}
+		<p class="licence-picker__why" data-testid="licence-why">
+			{m.licence_fromCourse({ licence: licenceShort(suggested) })}
+			<!-- "This starts from the course’s licence, {licence}. A file that is not yours to open to others: choose “EdMat only”." -->
+		</p>
 	{:else if reason === 'source'}
 		<p class="licence-picker__why" data-testid="licence-why">{m.licence_suggestSource()}</p>
 		<!-- "It names a source, so it may be somebody else’s work …" -->

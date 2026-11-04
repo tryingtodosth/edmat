@@ -82,5 +82,7 @@ export async function vote(pollId: number, optionIds: number[]): Promise<{ detai
 
 // Get poll results
 export async function getPollResults(pollId: number): Promise<PollResults> {
-	return await apiClient.get<PollResults>(`/polls/${pollId}/results/`);
+	// `?lang=` too (2026-11-02): an option's text is bilingual like the question, and the results
+	// list named every option in Polish to an English reader while the ballot above it was English.
+	return await apiClient.get<PollResults>(`/polls/${pollId}/results/${langQuery()}`);
 }

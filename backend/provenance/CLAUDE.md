@@ -32,17 +32,36 @@ Settled, and implemented here:
   not at all convinced", which is a vote against on the same scale rather than a second field.
 - **One chip, two marks** (owner, 2026-10-07): a three-people icon for the community and a
   single-person icon for the author, each lighting on its own. `rules.summaries_for` returns exactly
-  that shape, which is why it is two booleans and a number rather than one tri-state. `AiAssistChip`
-  draws **only once one of them is lit** (or a moderator has fixed the reading): a chip reading
-  "80%" off one vote looks like a figure the community arrived at, which is exactly what
-  `MIN_VOTES_FOR_COMMUNITY_MARK` exists to prevent. The percentage on that chip is therefore never
-  unattributed.
+  that shape, which is why it is two booleans and a number rather than one tri-state.
+- **"N% AI", on every exercise and material** (owner, 2026-11-02: *"it doesnt even have AI in/near
+  the badge"*, then *"(percentage% AI) that should be in each exercise/material"*). The chip prints
+  `shown_score` followed by "AI", and the exercise and material pages draw it ALWAYS (`always`);
+  hints, solutions, comments, reviews and concept articles still draw it only once a mark is lit,
+  because "0% AI" under every comment is noise. **The printed number is never one person's vote**:
+  `rules._shown` makes `shown_score` equal `score` only when `basis` is `moderator`, `author` or
+  `readers` (at least `MIN_VOTES_FOR_COMMUNITY_MARK` voters), and 0 for `too_few` / `none`, whose
+  chip title says so in words. `score` itself is unchanged — it is the filter/sort number.
+  `BASES` is mirrored in `frontend/src/lib/types/provenance.ts: AssistanceBasis`.
+- **…and on every exercise and material CARD** (owner, same evening: *"add it to the cards in
+  lists too"*). `ExerciseCard` and `MaterialCard` (as a list item only — as the material page's
+  header it would duplicate the page's own chip) draw it as a LABEL (`interactive={false}`): the
+  card is the click, and a dialog opened inside one would be a stray click from navigating. The
+  readings come from ONE holder the root layout provides (`provideSiteAiAssistance`), which prunes
+  on every navigation so a list you come back to asks again; pages with their own holder shadow it,
+  and `SampleFrame` provides none (`/about` samples use invented ids a real row could share).
+  Requests are chunked at 100 targets (the endpoint's cap is 200). `e2e/ai-assist-cards.mjs`.
 - **The author's mark is final; votes can only add the badge, never remove it.** An author who has
   owned up reads 100 whatever the votes say. An author's *denial* does NOT pull the community
   reading down — it is recorded, it is shown, and a reader weighs the two.
 - **The five surfaces** — the exercise statement, every hint, every solution, every comment, every
   review. `targets.PROVENANCE_KIND_MODELS` has four entries for them, because a hint and a solution
   are one model (`SolutionEntry`) differing by its own `kind`.
+- **A seventh: `material`** (2026-11-02). Its author is `submitted_by` — `Material.author` is a
+  free-text corpus byline, not an account that can be asked — so a corpus material has no author
+  mark, only votes. Visibility is the generic `published` branch; `branch_of` answers its own
+  `branch`, so a governor may lock it. The material page replaced its bare report button with
+  `ContentActionsMenu` (mark, report, moderator's remove) beside the chip — the old button already
+  needed a signed-in reader, so no anonymous route was lost.
 - **A sixth: `concept_article`** (2026-10-21, for `manage.py import_concepts
   --ai-assisted`, whose pages are written with AI help). The ARTICLE, not a revision — one author
   (`created_by`), the licensing unit, and what a reader sees one head of at a time. Its visibility is
@@ -113,16 +132,15 @@ verified solution"*. Two things, one rule:
   change plus a header when the number exists.
 - **Only `community.Comment` travels to the other pages, and that is on purpose.** All eight routes
   that render a thread now call `provideAiAssistance()`, so a comment can be marked wherever it is
-  written; the MATERIAL, the concept article or the issue those comments hang under is still not a
-  target, so only the comment carries the mark there. `ContentActionsMenu` hides the item where no
+  written; an issue those comments hang under is not a target, so only the comment carries the
+  mark there (the material became one on 2026-11-02, the concept article on 2026-10-21). `ContentActionsMenu` hides the item where no
   holder was provided rather than opening a dialog nothing would answer, which is what makes adding
   a route one line.
 - **No author mark in the composers.** The task asks for the choice to appear in `/submit`,
   `/submit-material` and the editors at write time. Today the author marks the content **after** it
   exists, from its own menu, which reaches every one of the five surfaces with one component instead
   of five forms. The write-time checkbox is the better moment to ask and is a separate change.
-- **`material` and `post` are not targets yet.** They have prose and belong here; they are not on
-  the surfaces the owner named on 2026-10-08, and each needs its own author field and `is_readable`
-  branch. (`concept_article` is a target since 2026-10-21, chip and menu item included.)
+- **`post` is not a target yet.** It has prose and belongs here; it needs its own author field and
+  `is_readable` branch. (`concept_article` is a target since 2026-10-21, `material` since 2026-11-02.)
 - **Nothing notifies the author when a community mark lights on their work.** Wanted; a new
   notification type is its own change.

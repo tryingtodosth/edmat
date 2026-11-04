@@ -44,7 +44,7 @@ const EN: ShowcaseModuleDoc = {
 		}
 	],
 	tryIt: [
-		{ label: 'See the EdMat team’s own board', route: '/about' },
+		{ label: 'See the EdMat team’s own board', route: '/coop' },
 		{ label: 'Browse help wanted', route: '/needs' },
 		{ label: 'Your tasks', route: '/tasks' },
 		{ label: 'My work', route: '/work' }
@@ -76,9 +76,9 @@ const EN: ShowcaseModuleDoc = {
 			src: '/showcase/goals-and-work/03-needs.png',
 			focus: [100, 1180],
 			width: 1280,
-			height: 673,
+			height: 535,
 			route: '/needs',
-			alt: 'Screenshot of the Help wanted board: filters for kind, scope, remote only and a search box, then seven open posts — four on EdMat itself (testing the manual, telling students and teachers about EdMat, founders for the association, the “AI-assisted” score), two on a sandbox event and one on a course — each with its kind, how many people are wanted and whether it is remote.',
+			alt: 'Screenshot of the Help wanted board: filters for kind, scope, remote only and a search box, then six open posts — three on EdMat itself (testing the manual, telling students and teachers about EdMat, the “AI-assisted” score), two on a sandbox event and one on a course — each with its kind, how many people are wanted and whether it is remote.',
 			caption:
 				'The public help-wanted board: what courses, events, materials and organisations are asking for, and how many people each one needs.'
 		},
@@ -183,7 +183,7 @@ const PL: ShowcaseModuleDoc = {
 		}
 	],
 	tryIt: [
-		{ label: 'Zobacz tablicę zespołu EdMatu', route: '/about' },
+		{ label: 'Zobacz tablicę zespołu EdMatu', route: '/coop' },
 		{ label: 'Przejrzyj prośby o pomoc', route: '/needs' },
 		{ label: 'Twoje zadania', route: '/tasks' },
 		{ label: 'Moja praca', route: '/work' }
@@ -214,9 +214,9 @@ const PL: ShowcaseModuleDoc = {
 			src: '/showcase/goals-and-work/03-needs.png',
 			focus: [100, 1180],
 			width: 1280,
-			height: 673,
+			height: 535,
 			route: '/needs',
-			alt: 'Zrzut ekranu tablicy „Help wanted”: filtry rodzaju, zakresu, „tylko zdalnie” i pole wyszukiwania, a pod nimi siedem otwartych ogłoszeń — cztery od samego EdMatu (testowanie podręcznika, mówienie o EdMacie uczniom i nauczycielom, założyciele stowarzyszenia, wskaźnik „AI-assisted”), dwa z wydarzenia testowego i jedno z kursu — każde z rodzajem pomocy, liczbą potrzebnych osób i informacją, czy można zdalnie.',
+			alt: 'Zrzut ekranu tablicy „Help wanted”: filtry rodzaju, zakresu, „tylko zdalnie” i pole wyszukiwania, a pod nimi sześć otwartych ogłoszeń — trzy od samego EdMatu (testowanie podręcznika, mówienie o EdMacie uczniom i nauczycielom, wskaźnik „AI-assisted”), dwa z wydarzenia testowego i jedno z kursu — każde z rodzajem pomocy, liczbą potrzebnych osób i informacją, czy można zdalnie.',
 			caption:
 				'Publiczna tablica próśb o pomoc: czego potrzebują kursy, wydarzenia, materiały i organizacje, i ile osób szuka każde z nich.'
 		},

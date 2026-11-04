@@ -236,10 +236,18 @@ class PollViewSet(viewsets.GenericViewSet):
         if not rules.can_see_results(request.user, poll):
             return Response({'detail': 'not_authorized'}, status=status.HTTP_403_FORBIDDEN)
 
+        # The option's text in the reader's `?lang=`, through the same serializer the ballot uses —
+        # until 2026-11-02 this read the column, which is always the ORIGINAL language, so an English
+        # reader voted on English options and then read the tally under the Polish ones.
+        options = poll.options.all().order_by('order').prefetch_related('text_versions')
+        option_text = {
+            row['id']: row['text']
+            for row in PollOptionSerializer(options, many=True, context={'request': request}).data
+        }
         results = {
             'options': [
-                {'id': opt.id, 'text': opt.text, 'count': opt.votes.count()}
-                for opt in poll.options.all().order_by('order')
+                {'id': opt.id, 'text': option_text[opt.id], 'count': opt.votes.count()}
+                for opt in options
             ],
             'ballots': BallotSerializer(
                 poll.ballots.all().order_by('-cast_at'), many=True

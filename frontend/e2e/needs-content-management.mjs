@@ -231,7 +231,7 @@ try {
 	check('a goal can be written to hang the panel off', madeGoal !== null);
 
 	if (madeGoal) {
-		await page.goto(`${BASE}/about`, { waitUntil: 'load' });
+		await page.goto(`${BASE}/coop`, { waitUntil: 'load' });
 		await page.waitForTimeout(3000);
 		const goalsFold = page.locator('[data-fold="goals"]');
 		// Its open/shut state is remembered per reader (`foldedSections`), so clicking blindly is as

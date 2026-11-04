@@ -5,7 +5,13 @@
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
-	import { courseKindLabel, COURSE_RELATION_LABELS } from '$lib/utils/labels';
+	import {
+		courseKindLabel,
+		COURSE_ATTACHMENT_VISIBILITY_LABELS,
+		COURSE_ITEM_VISIBILITY_CHIPS,
+		COURSE_RELATION_LABELS,
+		licenceShort
+	} from '$lib/utils/labels';
 	import CourseMaterialsIndex from '$lib/components/course/CourseMaterialsIndex.svelte';
 	import CourseVersions from '$lib/components/course/CourseVersions.svelte';
 	import CourseSubcourses from '$lib/components/course/CourseSubcourses.svelte';
@@ -27,6 +33,8 @@
 		getMyCourseNotes,
 		linkSet,
 		moveCourseItem,
+		setCourseItemVisibility,
+		setLinkedSetVisibility,
 		refreshLinkedSet,
 		reorderCourse,
 		unlinkSet,
@@ -34,6 +42,7 @@
 		updateChapter,
 		updateLesson,
 		uploadAttachment,
+		setAttachmentVisibility,
 		muteCourse,
 		removeCourseItem,
 		submitCourseItem
@@ -69,6 +78,9 @@
 
 	import DeckPlacementsPanel from '$lib/components/flashcards/DeckPlacementsPanel.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import LicencePicker from '$lib/components/shared/LicencePicker.svelte';
+	import LicenceNotice from '$lib/components/shared/LicenceNotice.svelte';
+	import type { Licence } from '$lib/types/licence';
 	import { provideAiAssistance } from '$lib/components/provenance/aiAssistance.svelte';
 
 	// The "AI-assisted" mark's page-level holder (provenance/, 2026-10-08). One line, because this
@@ -109,6 +121,9 @@
 	let attachments = $state<Attachment[]>([]);
 	let attachmentFile = $state<File | null>(null);
 	let attachmentTitle = $state('');
+	// The file's own licence, starting from the course's (`LicencePicker reason="course"`).
+	let attachmentLicence = $state<Licence>('edmat-only');
+	let attachmentVisibility = $state<Attachment['visibility']>('participants');
 	let myNotes = $state<CourseNote[]>([]);
 	let noteDraft = $state('');
 	let noteSaved = $state(false);
@@ -370,7 +385,7 @@
 		 * in that case, since there is no Attachment yet to name. Uploading and filing it in are one
 		 * `act()` so a failed upload can never half-add an item, and a successful one refreshes
 		 * `attachments` too, so the Files tab shows it without a separate reload. */
-		upload?: { file: File; title: string };
+		upload?: { file: File; title: string; licence: Licence };
 		chapterId: string | null;
 		lessonId: string | null;
 		note: string;
@@ -384,7 +399,9 @@
 				const created = await uploadAttachment(
 					page.params.id!,
 					input.upload.file,
-					input.upload.title
+					input.upload.title,
+					'',
+					input.upload.licence
 				);
 				attachmentId = created.id;
 				attachments = [...attachments, created];
@@ -586,6 +603,13 @@
 		{#if course.description}
 			<p class="description">{course.description}</p>
 		{/if}
+		<!-- The course's own licence (2026-11-02): what is written in it. Linked materials carry
+		     their own, and each says so where it differs. -->
+		<div class="course-licence">
+			<LicenceNotice kind="course" id={course.id} licence={course.licence} />
+			<p class="course-licence__scope">{m.courseLicence_scope()}</p>
+			<!-- "This covers what is written in the course. Linked materials and exercises keep their own licence." -->
+		</div>
 
 		<!-- What the course teaches and what it expects you to know first — the same claims a
 		     material carries, rendered by the same components. Above the enrol block: it is what
@@ -761,6 +785,13 @@
 								)
 						: undefined}
 					onreorder={course.canCurate ? reorder : undefined}
+					onvisibility={course.canCurate
+						? (itemId, visibility) =>
+								act(
+									() => setCourseItemVisibility(course!.id, itemId, visibility),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
 					onremove={(itemId) =>
 						act(
 							() => removeCourseItem(course!.id, itemId),
@@ -811,7 +842,7 @@
 								)
 						: undefined}
 					onlinkcontent={course.canCurate
-						? (parentKind, parentId, ref, note) =>
+						? (parentKind, parentId, ref, note, visibility) =>
 								act(
 									() =>
 										submitCourseItem(course!.id, {
@@ -826,15 +857,24 @@
 											linkTitle: ref.kind === 'link' ? ref.title : undefined,
 											chapterId: parentKind === 'chapter' ? parentId : null,
 											lessonId: parentKind === 'lesson' ? parentId : null,
-											note
+											note,
+											visibility
 										}),
 									(msg) => (staffError = msg)
 								)
 						: undefined}
 					onlinkset={course.canCurate
-						? (parentKind, parentId, setSlug) =>
+						? (parentKind, parentId, setSlug, visibility) =>
 								act(
-									() => linkSet(course!.id, parentKind, parentId, setSlug),
+									() => linkSet(course!.id, parentKind, parentId, setSlug, '', visibility),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					onsetvisibility={course.canCurate
+						? (parentKind, parentId, linkId, visibility) =>
+								act(
+									() =>
+										setLinkedSetVisibility(course!.id, parentKind, parentId, linkId, visibility),
 									(msg) => (staffError = msg)
 								)
 						: undefined}
@@ -932,8 +972,41 @@
 										>
 											{attachment.title}
 										</a>
+										{#if attachment.licence !== course.licence}
+											<span class="hint" data-testid="attachment-own-licence"
+												>{m.courseLicence_ownTag({
+													licence: licenceShort(attachment.licence)
+												})}</span
+											>
+											<!-- "own licence: {licence}" -->
+										{/if}
 										{#if attachment.averageRating !== null}
 											<span class="hint">{attachment.averageRating} ★</span>
+										{/if}
+										{#if attachment.canChangeVisibility}
+											<select
+												class="attachment-visibility"
+												value={attachment.visibility}
+												aria-label={m.courseFileVis_label()}
+												data-testid="attachment-visibility"
+												onchange={(e) => {
+													const value = (e.currentTarget as HTMLSelectElement)
+														.value as Attachment['visibility'];
+													run(async () => {
+														await setAttachmentVisibility(course!.id, attachment.id, value);
+														attachments = await getAttachments(course!.id);
+													});
+												}}
+											>
+												<option value="participants"
+													>{COURSE_ATTACHMENT_VISIBILITY_LABELS.participants()}</option
+												>
+												<option value="staff">{COURSE_ITEM_VISIBILITY_CHIPS.staff()}</option>
+											</select>
+										{:else if attachment.visibility === 'staff'}
+											<span class="audience-pill" data-testid="attachment-audience"
+												>{COURSE_ITEM_VISIBILITY_CHIPS.staff()}</span
+											>
 										{/if}
 									</li>
 								{/each}
@@ -948,10 +1021,18 @@
 									const title = attachmentTitle.trim();
 									if (!file || !title) return;
 									run(async () => {
-										await uploadAttachment(course!.id, file, title);
+										await uploadAttachment(
+											course!.id,
+											file,
+											title,
+											'',
+											attachmentLicence,
+											attachmentVisibility
+										);
 										attachments = await getAttachments(course!.id);
 										attachmentFile = null;
 										attachmentTitle = '';
+										attachmentVisibility = 'participants';
 									});
 								}}
 							>
@@ -967,6 +1048,25 @@
 											(attachmentFile = (e.currentTarget as HTMLInputElement).files?.[0] ?? null)}
 									/>
 								</label>
+								<label class="field">
+									<span>{m.courseFileVis_label()}</span>
+									<!-- "Who sees this file" -->
+									<select bind:value={attachmentVisibility} data-testid="attachment-visibility-new">
+										<option value="participants"
+											>{COURSE_ATTACHMENT_VISIBILITY_LABELS.participants()}</option
+										>
+										<option value="staff">{COURSE_ATTACHMENT_VISIBILITY_LABELS.staff()}</option>
+									</select>
+									<span class="hint">{m.courseFileVis_hint()}</span>
+									<!-- "“Only the people running the course” is how you hand something to the teacher alone. You always see your own files." -->
+								</label>
+								<LicencePicker
+									bind:value={attachmentLicence}
+									name="attachment-licence"
+									compact
+									suggested={course.licence}
+									reason="course"
+								/>
 								<button type="submit" class="primary" disabled={busy}>
 									{m.course_attachments_upload()}
 								</button>
@@ -1205,6 +1305,45 @@
 	.summary {
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
+	}
+	.course-licence {
+		font-size: var(--font-size-sm);
+	}
+	.audience-pill {
+		@include mix.neutral-pill;
+		white-space: nowrap;
+		font-size: var(--font-size-xs);
+	}
+	/* One row per file: title, its facts, and — for whoever may change it — a small audience select
+	   at the end of the line rather than a full-width control under it. */
+	.attachments {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		li {
+			display: flex;
+			/* The page's generic `li` rule is a column; a file row is a line. */
+			flex-direction: row;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: var(--space-2);
+			padding: var(--space-1) 0;
+			border-bottom: 1px solid var(--border-color);
+		}
+	}
+	.attachment-visibility {
+		width: auto;
+		margin-left: auto;
+		font-size: var(--font-size-xs);
+		padding: 2px var(--space-1);
+	}
+	.course-licence__scope {
+		margin: 0;
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
 	}
 	.description {
 		white-space: pre-wrap;

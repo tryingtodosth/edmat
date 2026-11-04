@@ -63,6 +63,8 @@ def _blank(kind: str, obj_id) -> dict:
         'can_vote': False,
         'can_declare': False,
         'can_lock': False,
+        'shown_score': 0,
+        'basis': 'none',
     }
 
 
@@ -78,7 +80,7 @@ def _derive(row: dict) -> dict:
         # their own work (see ScoreLock's own docstring).
         row['score'] = row['lock_value']
         row['community_marked'] = row['lock_value'] >= COMMUNITY_MARK_THRESHOLD
-        return row
+        return _shown(row)
 
     row['community_marked'] = (
         votes >= MIN_VOTES_FOR_COMMUNITY_MARK and mean >= COMMUNITY_MARK_THRESHOLD
@@ -90,6 +92,40 @@ def _derive(row: dict) -> dict:
     # denial that silently erased every reader's reading would make the whole signal worthless on
     # exactly the content it matters most on.
     row['score'] = 100 if row['author_marked'] else mean
+    return _shown(row)
+
+
+#: Who stands behind the number a reader is SHOWN — the `basis` of a reading. Mirrored in
+#: `frontend/src/lib/types/provenance.ts: AssistanceBasis`, which names this file back (house
+#: rule 13).
+BASES = ('moderator', 'author', 'readers', 'too_few', 'none')
+
+
+def _shown(row: dict) -> dict:
+    """The percentage the chip prints as "N% AI", and on whose word.
+
+    Since 2026-11-02 the chip is drawn on EVERY exercise and material (owner: *"(percentage% AI)
+    that should be in each exercise/material"*), not only once a mark is lit — so it now prints a
+    number on content nobody has claimed anything about, and that number must never be one person's
+    opinion wearing the word "community". So `shown_score` is `score` only when somebody stands
+    behind it: a moderator's lock, the author's own mark, or at least
+    `MIN_VOTES_FOR_COMMUNITY_MARK` readers. Below that it is 0, and `basis` says why — `too_few`
+    when somebody has voted, `none` when nobody has — so the chip's title can say "not enough
+    readers yet" rather than letting a 0 pass for a verdict. `score` itself is unchanged: it is the
+    number a filter or a sort uses, and the dialog shows the raw mean beside the vote count.
+    """
+    if row['locked']:
+        basis = 'moderator'
+    elif row['author_marked']:
+        basis = 'author'
+    elif row['votes'] >= MIN_VOTES_FOR_COMMUNITY_MARK:
+        basis = 'readers'
+    elif row['votes'] > 0:
+        basis = 'too_few'
+    else:
+        basis = 'none'
+    row['basis'] = basis
+    row['shown_score'] = row['score'] if basis in ('moderator', 'author', 'readers') else 0
     return row
 
 
@@ -270,7 +306,7 @@ def branch_of(obj):
     """The taxonomy branch a target sits under, for the governor check — or None, which
     `is_governor_of_course` already treats as a safe-default deny for a non-staff user."""
     kind = kind_of(obj)
-    if kind == 'exercise':
+    if kind in ('exercise', 'material'):
         return getattr(obj, 'branch', None)
     if kind == 'solution_entry':
         exercise = getattr(obj, 'exercise', None)

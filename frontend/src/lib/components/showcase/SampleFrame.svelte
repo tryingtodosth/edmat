@@ -18,6 +18,7 @@
 	 */
 	import { m } from '$lib/paraglide/messages.js';
 	import type { Snippet } from 'svelte';
+	import { provideNoAiAssistance } from '$lib/components/provenance/aiAssistance.svelte';
 
 	let {
 		caption,
@@ -25,6 +26,11 @@
 		live = false,
 		children
 	}: { caption: string; live?: boolean; children: Snippet } = $props();
+
+	// The samples are real cards on invented ids (9001, 9400, …) that a real exercise or material
+	// could one day share; with the site's holder visible here, a sample card's "N% AI" chip would
+	// print that real row's reading. No holder below this point, so it draws nothing.
+	provideNoAiAssistance();
 </script>
 
 <figure class="frame" class:frame--live={live}>

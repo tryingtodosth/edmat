@@ -20,7 +20,7 @@ from community.models import Comment, Review
 from exercises.models import Exercise, SolutionEntry
 from moderation.models import FeatureFlag, NodeGovernor
 from telemetry.routers import all_log_shards
-from testing.factories import make_branch, make_exercise, make_user
+from testing.factories import make_branch, make_exercise, make_material, make_user
 
 from . import rules
 from .models import AssistanceVote, AuthorMark, ScoreLock
@@ -91,6 +91,42 @@ class FormulaTests(APITestCase):
         self.assertFalse(row['community_marked'])
         # Never overwritten: it is a record of what a person said about their own work.
         self.assertTrue(row['author_marked'])
+
+
+class ShownScoreTests(APITestCase):
+    """`rules._shown` — what the chip may PRINT as "N% AI" now that it is drawn on every exercise
+    and material (owner, 2026-11-02). Never one person's vote dressed as a reading."""
+
+    def row(self, **over):
+        base = rules._blank('exercise', 1)
+        base.update(over)
+        return rules._derive(base)
+
+    def test_nobody_has_said_anything_prints_zero_on_no_basis(self):
+        row = self.row()
+        self.assertEqual((row['shown_score'], row['basis']), (0, 'none'))
+
+    def test_one_confident_vote_prints_zero_and_says_too_few(self):
+        row = self.row(votes=1, average_confidence=100)
+        self.assertEqual((row['shown_score'], row['basis']), (0, 'too_few'))
+        self.assertEqual(row['score'], 100)  # the filter number is unchanged
+
+    def test_enough_readers_print_their_mean_even_below_the_mark(self):
+        row = self.row(votes=rules.MIN_VOTES_FOR_COMMUNITY_MARK, average_confidence=20)
+        self.assertEqual((row['shown_score'], row['basis']), (20, 'readers'))
+        self.assertFalse(row['community_marked'])
+
+    def test_the_authors_mark_prints_one_hundred_on_their_word(self):
+        row = self.row(author_marked=True, author_answered=True, votes=1, average_confidence=0)
+        self.assertEqual((row['shown_score'], row['basis']), (100, 'author'))
+
+    def test_a_lock_prints_the_moderators_value(self):
+        row = self.row(locked=True, lock_value=35, lock_reason='checked', author_marked=True, votes=9)
+        self.assertEqual((row['shown_score'], row['basis']), (35, 'moderator'))
+
+    def test_every_basis_is_declared(self):
+        for over in ({}, {'votes': 1}, {'votes': 3}, {'author_marked': True}, {'locked': True, 'lock_value': 0}):
+            self.assertIn(self.row(**over)['basis'], rules.BASES)
 
 
 class ProvenanceTestCase(APITestCase):
@@ -475,3 +511,59 @@ class AiAssistedVerifiedTests(APITestCase):
         self.assertFalse(self.verified())
         again = self.run_command(note='Written with an AI assistant')
         self.assertIn('0 marked, 0 re-marked, 3 already marked', again)
+
+
+class MaterialAssistanceTests(ProvenanceTestCase):
+    """A material is a target since 2026-11-02 (owner: *"(percentage% AI) that should be in each
+    exercise/material"*): its submitter marks it, readers vote, an unpublished one is not there."""
+
+    def setUp(self):
+        super().setUp()
+        self.material = make_material(self.branch, 'prov-material')
+        self.material.submitted_by = self.author
+        self.material.save(update_fields=['submitted_by'])
+
+    def test_a_stranger_reads_a_material_at_zero_on_no_basis(self):
+        data = self.client.get(self.summary_url(f'material:{self.material.pk}')).data
+        row = data[f'material:{self.material.pk}']
+        self.assertEqual((row['shown_score'], row['basis'], row['kind']), (0, 'none', 'material'))
+
+    def test_its_submitter_marks_it_and_it_reads_one_hundred(self):
+        self.client.force_authenticate(self.author)
+        response = self.client.put(
+            self.mark_url('material', self.material.pk), {'assisted': True}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual((response.data['shown_score'], response.data['basis']), (100, 'author'))
+        self.client.force_authenticate(None)
+        row = self.client.get(self.summary_url(f'material:{self.material.pk}')).data[f'material:{self.material.pk}']
+        self.assertTrue(row['author_marked'])
+
+    def test_somebody_else_may_vote_but_not_answer_as_the_author(self):
+        self.client.force_authenticate(self.reader)
+        refused = self.client.put(
+            self.mark_url('material', self.material.pk), {'assisted': True}, format='json'
+        )
+        self.assertEqual(refused.status_code, status.HTTP_403_FORBIDDEN)
+        voted = self.client.put(
+            self.vote_url('material', self.material.pk), {'confidence': 70}, format='json'
+        )
+        self.assertEqual(voted.status_code, status.HTTP_200_OK)
+        self.assertEqual((voted.data['shown_score'], voted.data['basis']), (0, 'too_few'))
+
+    def test_an_unpublished_material_is_not_in_the_batch(self):
+        self.material.published = False
+        self.material.save(update_fields=['published'])
+        data = self.client.get(self.summary_url(f'material:{self.material.pk}')).data
+        self.assertNotIn(f'material:{self.material.pk}', data)
+
+    def test_a_governor_of_its_branch_may_lock_it(self):
+        governor = make_user('prov-mat-governor')
+        NodeGovernor.objects.create(
+            user=governor,
+            content_type=ContentType.objects.get_for_model(type(self.branch)),
+            object_id=self.branch.pk,
+            granted_by=self.staff,
+        )
+        self.assertTrue(rules.can_lock(governor, self.material))
+

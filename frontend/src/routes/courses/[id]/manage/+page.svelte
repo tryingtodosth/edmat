@@ -26,9 +26,12 @@
 		addCourseStaff,
 		removeCourseStaff,
 		revokeInvite,
+		sendEmailInvites,
 		setCourseStaffRole
 	} from '$lib/services/course';
 	import CourseInvites from '$lib/components/course/CourseInvites.svelte';
+	import CourseEmailInvites from '$lib/components/course/CourseEmailInvites.svelte';
+	import { ApiError } from '$lib/api/client';
 	import CourseReviewQueue from '$lib/components/course/CourseReviewQueue.svelte';
 	import CourseStaffPanel from '$lib/components/course/CourseStaffPanel.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -214,6 +217,24 @@
 
 		{#if course.canAdminister}
 			<section>
+				<!-- Email invitations first: the people the staff panel above cannot reach (2026-11-02).
+				     Each becomes a one-use row in the invite list below, "sent to …". -->
+				<CourseEmailInvites
+					licence={course.licence}
+					onsend={async (emails, role) => {
+						try {
+							const outcome = await sendEmailInvites(course!.id, emails, role);
+							invites = await getInvites(course!.id);
+							return outcome;
+						} catch (e) {
+							const word =
+								e instanceof ApiError && e.body && typeof e.body === 'object'
+									? String((e.body as Record<string, unknown>).detail ?? '')
+									: '';
+							throw new Error(word, { cause: e });
+						}
+					}}
+				/>
 				<!-- Same: CourseInvites brings its own heading. -->
 				<CourseInvites
 					{invites}

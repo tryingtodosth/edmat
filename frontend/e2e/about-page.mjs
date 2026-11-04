@@ -1,20 +1,21 @@
-// `/about` — since 2026-10-08 the project's own organisation page (OrganizationPage for the
-// `edmat` body) with the research thread's section, the "what you can do here" grid, the showcase
-// index and the manual link (HISTORY §17BW.C; the brochure version is §17BG):
+// `/about` and `/coop`. Until 2026-11-02 `/about` WAS the project's own organisation page
+// (OrganizationPage for the `edmat` body, HISTORY §17BW.C); the owner then put the promo reel on
+// `/about` and moved the organisation to `/coop`. This script checks both halves:
 //
-//   1. it renders in both interface languages: the organisation's name as the h1, its goals
+//   1. `/coop` renders in both interface languages: the organisation's name as the h1, its goals
 //      (plans), its needs, and — the open board — its tasks and polls, readable by a stranger with
-//      no button to add, move or vote;
-//   2. thirteen feature cards (WP7 added flashcards, contests, help wanted and organisations), and
-//      ONE Explore section carrying `id="showcase"`, the manual band and the showcase index;
-//   3. it holds at phone width without horizontal overflow;
-//   4. a killed feature's card is gone for an anonymous visitor (house rule 3) and comes back —
-//      tutoring, and each of the four new cards on its own switch;
-//   5. the footer link points at it, and the tab title is shaped by PageHead (exactly one <title>);
-//   6. (WP7) the "New here?" strip — `StartHere variant="about"` — is the first thing on the page,
-//      above the organisation's, in the server-rendered HTML; its three doors land (the guide's
-//      "Getting started" chapter, an in-page scroll to Explore, /disciplines); "hide" takes it away
-//      and, being one shared choice with the homepage, takes the homepage's band away too.
+//      no button to add, move or vote; the association is gone and the owner's open decisions are
+//      among the polls (§17DD). `/about`: its own h1, the reel, thirteen feature cards, ONE Explore
+//      section carrying `id="showcase"` (the manual band and the showcase index), and a band to `/coop`;
+//   2. `/about` holds at phone width without horizontal overflow;
+//   3. a killed feature's card is gone for an anonymous visitor (house rule 3) and comes back —
+//      tutoring, and each of the four WP7 cards on its own switch; with `organizations` off the band
+//      to `/coop` goes too, and neither page asks for the organisation;
+//   4. the footer link points at `/about`, and each tab title is shaped by PageHead (one <title>);
+//   5. (WP7) the "New here?" strip — `StartHere variant="about"` — sits right under the reel, above
+//      the feature grid, in the server-rendered HTML; its three doors land (the guide's "Getting
+//      started" chapter, an in-page scroll to Explore, /disciplines); "hide" takes it away and,
+//      being one shared choice with the homepage, takes the homepage's band away too.
 //
 // Needs the EdMat organisation seeded (`manage.py seed_edmat_project --owner <username>`).
 //
@@ -22,7 +23,7 @@
 //   E2E_BASE=http://localhost:5183 E2E_API=http://127.0.0.1:8100/api \
 //     [E2E_TOKEN=<kasia's token, trap 30>] [E2E_BUILD_HTML=build/about.html] node e2e/about-page.mjs
 //
-// `E2E_BUILD_HTML`, when set, also checks the PRERENDERED file: the strip before the organisation.
+// `E2E_BUILD_HTML`, when set, also checks the PRERENDERED file: reel, then strip, then the grid.
 //
 // Screenshots land in e2e/screens/about-*.png and are meant to be LOOKED at.
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -49,6 +50,8 @@ const CATALOGUE = {
 const CARDS = 13;
 const CARD = '.about__grid .about__card';
 const STRIP = '[data-start-here="about"]';
+/** `lib/content/about.ts` titles — prose, not catalogue keys. */
+const ABOUT_H1 = { pl: 'O EdMacie', en: 'About EdMat' };
 /** A card by its route — `/tutoring` is `/korki` for a Polish reader. */
 const cardFor = (...paths) => paths.map((p) => `${CARD} a[href$="${p}"]`).join(', ');
 
@@ -116,8 +119,12 @@ async function openAbout(page, { withOrg = true, path = '/about' } = {}) {
 	});
 	await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
 	await booted;
-	if (path !== '/about') return;
-	await page.locator(CARD).first().waitFor();
+	if (path === '/about') {
+		await page.locator(CARD).first().waitFor();
+		await page.waitForTimeout(300);
+		return;
+	}
+	if (path !== '/coop') return;
 	// The organisation body loads after the SPA boots; the plans panel is the last thing to arrive.
 	// Panels are FOLDED since 3d9f613c (a node page is one line per panel until opened, and a
 	// folded body is not rendered at all), so the wait is for the fold's own line, not its rows.
@@ -132,10 +139,10 @@ try {
 	// ---- 1. Polish (the base locale), desktop, light, anonymous --------------------------------
 	{
 		const ctx = await browser.newContext({ viewport: DESKTOP });
-		const page = await ctx.newPage();
-		await openAbout(page);
+		let page = await ctx.newPage();
+		await openAbout(page, { path: '/coop' });
 		check(
-			'pl: h1 is the organisation, "EdMat"',
+			'pl /coop: h1 is the organisation, "EdMat"',
 			(await page.locator('h1').textContent())?.trim() === 'EdMat'
 		);
 		// Open the three folds the open-board checks read (folded by default; the body is not drawn).
@@ -144,58 +151,6 @@ try {
 		}
 		await page.locator('.plan-row').first().waitFor({ timeout: 15000 });
 		check('pl: goals listed (plans panel)', (await page.locator('.plan-row').count()) >= 15);
-		check(`pl: ${CARDS} feature cards`, (await page.locator(CARD).count()) === CARDS);
-		for (const path of ['/flashcards', '/contests', '/needs', '/organizations']) {
-			check(`pl: the ${path} card is there`, (await page.locator(cardFor(path)).count()) === 1);
-		}
-		// One Explore section: the id the strip's middle door targets, the manual, the showcase.
-		const explore = page.locator('section#showcase');
-		check('one element carries id="showcase"', (await page.locator('#showcase').count()) === 1);
-		check(
-			'Explore holds the manual band and the showcase index',
-			(await explore.locator('.about__manual a[href$="/about/guide"]').count()) === 1 &&
-				(await explore.locator('section.showcase-index .showcase-index__card').count()) === 14,
-			// Fourteen showcase pages since WP6 (root CLAUDE.md); this said 12 until WP11 ran it.
-			`${await explore.locator('section.showcase-index .showcase-index__card').count()} cards`
-		);
-		check(
-			'Explore is headed in Polish',
-			(await explore.locator('h2').first().innerText()).trim() === CATALOGUE.pl.wp7_exploreHeading
-		);
-		check(
-			'no manual band left outside Explore',
-			(await page.locator('.about__manual').count()) === 1
-		);
-		// The strip: first, above the organisation, reading the catalogue.
-		const strip = page.locator(STRIP);
-		check('pl: the strip is drawn', (await strip.count()) === 1);
-		check(
-			'pl: the strip precedes the organisation h1 in the DOM and on screen',
-			await page.evaluate((sel) => {
-				const band = document.querySelector(sel);
-				const h1 = document.querySelector('h1');
-				if (!band || !h1) return false;
-				const after = band.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING;
-				return (
-					Boolean(after) && band.getBoundingClientRect().bottom <= h1.getBoundingClientRect().top
-				);
-			}, STRIP)
-		);
-		check(
-			'pl: the strip doors read the catalogue',
-			(await strip.locator('[data-start-door="guide"]').innerText()).includes(
-				CATALOGUE.pl.startHere_guideLink
-			) &&
-				(await strip.locator('[data-start-door="showcase"]').innerText()).includes(
-					CATALOGUE.pl.startHere_showcaseLink
-				) &&
-				(await strip.locator('[data-start-door="try"]').innerText()).includes(
-					CATALOGUE.pl.startHere_tryLink
-				)
-		);
-		check('exactly one <title>', (await page.locator('head title').count()) === 1);
-		check('title is shaped by PageHead', (await page.title()).startsWith('EdMat: '));
-		check('footer links to /about', (await page.locator('footer a[href$="/about"]').count()) === 1);
 		// the open board: tasks and polls drawn for a stranger, nothing to press
 		const tasks = page.locator('[data-testid="tasks-panel"]');
 		check('open board: the task board is drawn for a stranger', (await tasks.count()) === 1);
@@ -220,14 +175,88 @@ try {
 				(await voteButtons.count()) === 0,
 			`polls ${await page.locator('[data-fold="polls"] .poll').count()}, vote buttons ${await voteButtons.count()}`
 		);
+		// The association is retired (owner, 2026-11-02): no legal-report section, no founders'
+		// need, no poll on founding it — and the decisions the owner put to the members instead.
+		const aboutText = (await page.locator('main').textContent()) ?? '';
 		check(
-			'the research thread toggle is there',
-			// Scoped by its title: since the board folded, a task row and the organisation's
-			// description each carry a discussion toggle of their own (e4c62a61).
-			(await page
-				.locator('.section-discussion__toggle', { hasText: CATALOGUE.pl.about_researchHeading })
-				.count()) === 1
+			'the association is gone from /coop',
+			(await page.locator('.about__research').count()) === 0 && !/stowarzyszeni/i.test(aboutText),
+			(aboutText.match(/.{0,60}stowarzyszeni.{0,60}/i) ?? ['—'])[0]
 		);
+		check(
+			'the open decisions are among the polls (e.g. the new-course licence)',
+			aboutText.includes('Jaką licencję podpowiadać przy zakładaniu kursu?'),
+			aboutText.slice(0, 120)
+		);
+		check('/coop: exactly one <title>', (await page.locator('head title').count()) === 1);
+		await shoot(page, 'coop-pl-desktop-light');
+		await page.close();
+
+		// `/about`, in the same context: the reel, the strip, the grid, the bands, Explore.
+		page = await ctx.newPage();
+		await openAbout(page);
+		check(
+			"pl /about: h1 is the page's own title",
+			(await page.locator('h1').textContent())?.trim() === ABOUT_H1.pl
+		);
+		check('pl /about: the reel is drawn', (await page.locator('figure.reel').count()) === 1);
+		check(`pl: ${CARDS} feature cards`, (await page.locator(CARD).count()) === CARDS);
+		for (const path of ['/flashcards', '/contests', '/needs', '/organizations']) {
+			check(`pl: the ${path} card is there`, (await page.locator(cardFor(path)).count()) === 1);
+		}
+		// One Explore section: the id the strip's middle door targets, the manual, the showcase.
+		const explore = page.locator('section#showcase');
+		check('one element carries id="showcase"', (await page.locator('#showcase').count()) === 1);
+		check(
+			'Explore holds the manual band and the showcase index',
+			(await explore.locator('.about__band a[href$="/about/guide"]').count()) === 1 &&
+				(await explore.locator('section.showcase-index .showcase-index__card').count()) === 14,
+			// Fourteen showcase pages since WP6 (root CLAUDE.md); this said 12 until WP11 ran it.
+			`${await explore.locator('section.showcase-index .showcase-index__card').count()} cards`
+		);
+		check(
+			'Explore is headed in Polish',
+			(await explore.locator('h2').first().innerText()).trim() === CATALOGUE.pl.wp7_exploreHeading
+		);
+		check(
+			'two bands: the manual (in Explore) and the team page',
+			(await page.locator('.about__band').count()) === 2 &&
+				(await page.locator('.about__band a[href$="/coop"]').count()) === 1
+		);
+		// The strip: first, above the organisation, reading the catalogue.
+		const strip = page.locator(STRIP);
+		check('pl: the strip is drawn', (await strip.count()) === 1);
+		check(
+			'pl: the strip sits between the reel and the feature grid, in the DOM and on screen',
+			await page.evaluate((sel) => {
+				const band = document.querySelector(sel);
+				const reel = document.querySelector('.reel');
+				const grid = document.querySelector('.about__features');
+				if (!band || !reel || !grid) return false;
+				const F = Node.DOCUMENT_POSITION_FOLLOWING;
+				return (
+					Boolean(reel.compareDocumentPosition(band) & F) &&
+					Boolean(band.compareDocumentPosition(grid) & F) &&
+					reel.getBoundingClientRect().bottom <= band.getBoundingClientRect().top &&
+					band.getBoundingClientRect().bottom <= grid.getBoundingClientRect().top
+				);
+			}, STRIP)
+		);
+		check(
+			'pl: the strip doors read the catalogue',
+			(await strip.locator('[data-start-door="guide"]').innerText()).includes(
+				CATALOGUE.pl.startHere_guideLink
+			) &&
+				(await strip.locator('[data-start-door="showcase"]').innerText()).includes(
+					CATALOGUE.pl.startHere_showcaseLink
+				) &&
+				(await strip.locator('[data-start-door="try"]').innerText()).includes(
+					CATALOGUE.pl.startHere_tryLink
+				)
+		);
+		check('exactly one <title>', (await page.locator('head title').count()) === 1);
+		check('title is shaped by PageHead', (await page.title()).startsWith('EdMat: '));
+		check('footer links to /about', (await page.locator('footer a[href$="/about"]').count()) === 1);
 		await shoot(page, 'pl-desktop-light');
 		await page.evaluate(() => {
 			localStorage.setItem('edmat-theme', 'dark');
@@ -242,7 +271,10 @@ try {
 		const ctx = await englishContext(browser, BASE, { viewport: PHONE });
 		const page = await ctx.newPage();
 		await openAbout(page);
-		check('en: h1 is "EdMat"', (await page.locator('h1').textContent())?.trim() === 'EdMat');
+		check(
+			'en: h1 is "About EdMat"',
+			(await page.locator('h1').textContent())?.trim() === ABOUT_H1.en
+		);
 		check(`en: ${CARDS} feature cards`, (await page.locator(CARD).count()) === CARDS);
 		check(
 			'en: Explore is headed in English',
@@ -327,13 +359,22 @@ try {
 						(await page.locator(STRIP).count()) === 1
 					);
 					check(
-						'organizations off: the page never asks for the organisation (WP11)',
+						'organizations off: the band to /coop is gone',
+						(await page.locator('a[href$="/coop"]').count()) === 0
+					);
+					// `/coop` itself, quiet: it must not ask for the organisation either (WP11).
+					const coop = await ctx.newPage();
+					await openAbout(coop, { withOrg: false, path: '/coop' });
+					await coop.waitForTimeout(1500);
+					await coop.close();
+					check(
+						'organizations off: neither page asks for the organisation (WP11)',
 						orgAskedWhileKilled === 0,
 						`${orgAskedWhileKilled} request(s) to /organizations/`
 					);
 					check(
 						'organizations off: the About sections below are still drawn',
-						(await page.locator('.about__research').count()) === 1
+						(await page.locator('.about__features').count()) === 1
 					);
 					await shoot(page, 'en-desktop-organizations-off');
 				}
@@ -355,33 +396,31 @@ try {
 	{
 		const html = await (await fetch(`${BASE}/about`)).text();
 		const stripAt = html.indexOf('data-start-here="about"');
-		const orgAt = html.search(/class="page[ "]/);
+		// Markup, not the stylesheet in <head>, which names every class first.
+		const reelAt = html.indexOf('class="reel');
+		const gridAt = html.indexOf('class="about__section about__features');
 		check(
-			'server-rendered /about: the strip comes before the organisation page',
-			stripAt !== -1 && orgAt !== -1 && stripAt < orgAt,
-			`strip ${stripAt}, org ${orgAt}`
+			'server-rendered /about: the reel, then the strip, then the feature grid',
+			reelAt !== -1 && stripAt > reelAt && gridAt > stripAt,
+			`reel ${reelAt}, strip ${stripAt}, grid ${gridAt}`
 		);
 		check(
 			'server-rendered /about: all three doors are in it',
 			['guide', 'showcase', 'try'].every((d) => html.includes(`data-start-door="${d}"`))
 		);
 		check(
-			'server-rendered /about: the strip is the first thing inside <main>',
-			(() => {
-				// Only wrappers between <main> and the strip: no heading, paragraph, link or list.
-				const main = html.indexOf('<main');
-				if (main === -1 || stripAt < main) return false;
-				return !/<(h[1-6]|p|a|ul|ol|img)[\s>]/.test(html.slice(main, stripAt));
-			})()
+			'server-rendered /about: the reel ships no capture (they load near the screen)',
+			!html.includes('/promo/')
 		);
 		if (process.env.E2E_BUILD_HTML) {
 			const built = readFileSync(process.env.E2E_BUILD_HTML, 'utf8');
+			const r = built.indexOf('class="reel');
 			const b = built.indexOf('data-start-here="about"');
-			const o = built.search(/class="page[ "]/);
+			const g = built.indexOf('class="about__section about__features');
 			check(
-				`${process.env.E2E_BUILD_HTML}: the strip comes before the organisation page`,
-				b !== -1 && o !== -1 && b < o,
-				`strip ${b}, org ${o}`
+				`${process.env.E2E_BUILD_HTML}: the reel, then the strip, then the feature grid`,
+				r !== -1 && b > r && g > b,
+				`reel ${r}, strip ${b}, grid ${g}`
 			);
 		}
 
@@ -464,7 +503,7 @@ try {
 				(await page.evaluate(() => localStorage.getItem('edmat.startHere.hidden'))) === '1'
 			);
 			check(
-				`[${locale}] …leaving no empty gap above the organisation`,
+				`[${locale}] …leaving no empty gap where it was`,
 				await page.evaluate(() => {
 					const wrap = document.querySelector('.about-start');
 					return !wrap || wrap.getBoundingClientRect().height === 0;

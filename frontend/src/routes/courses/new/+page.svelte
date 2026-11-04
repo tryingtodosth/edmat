@@ -3,9 +3,15 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { page } from '$app/state';
-	import { createCourse, getCourse } from '$lib/services/course';
+	import { addCourseStaff, createCourse, getCourse, sendEmailInvites } from '$lib/services/course';
+	import { ApiError } from '$lib/api/client';
+	import type { CollaboratorsDraft } from '$lib/components/course/CourseCollaboratorsDraft.svelte';
 	import type { Course } from '$lib/types/course';
-	import { courseWriteErrorMessage, SUBCOURSE_REFUSAL_LABELS } from '$lib/utils/labels';
+	import {
+		courseWriteErrorMessage,
+		emailInviteReasonLabel,
+		SUBCOURSE_REFUSAL_LABELS
+	} from '$lib/utils/labels';
 	import { authStore } from '$lib/state/auth.svelte';
 	// The creation gate (learning step F): somebody can still reach this address by typing it or
 	// following an old link, so the page says WHY rather than showing a form the server would
@@ -51,11 +57,60 @@
 		parentId ? (asSubcourse ? m.course_tree_add() : m.course_version_add()) : m.course_runACourse()
 	);
 
-	async function submit(draft: TaughtCourseDraft) {
+	// What happened to the collaborators once the course existed (2026-11-02). The course is made
+	// first — nothing can be added to a course that does not exist — and then each person and each
+	// address goes through the course page's own endpoints. Partial success is the normal answer:
+	// when everything went through the page moves on; when anything did not, it stays here and says
+	// what, with the course already made and one link to it.
+	interface CollabOutcome {
+		courseId: string;
+		added: number;
+		sent: number;
+		problems: { who: string; why: string }[];
+	}
+	let outcome = $state<CollabOutcome | null>(null);
+
+	async function addCollaborators(
+		courseId: string,
+		collab: CollaboratorsDraft
+	): Promise<CollabOutcome> {
+		const result: CollabOutcome = { courseId, added: 0, sent: 0, problems: [] };
+		for (const person of collab.people) {
+			try {
+				await addCourseStaff(courseId, person.userId, person.role);
+				result.added += 1;
+			} catch {
+				result.problems.push({ who: person.displayName, why: m.courseCollab_addFailed() }); // "Could not be added — try again from the course’s staff panel."
+			}
+		}
+		if (collab.emails.length > 0) {
+			try {
+				const sent = await sendEmailInvites(courseId, collab.emails, collab.emailRole);
+				for (const row of sent.results) {
+					if (row.ok) result.sent += 1;
+					else result.problems.push({ who: row.email, why: emailInviteReasonLabel(row.reason) });
+				}
+			} catch (e) {
+				const word =
+					e instanceof ApiError && e.body && typeof e.body === 'object'
+						? String((e.body as Record<string, unknown>).detail ?? '')
+						: '';
+				result.problems.push({ who: collab.emails.join(', '), why: emailInviteReasonLabel(word) });
+			}
+		}
+		return result;
+	}
+
+	async function submit(draft: TaughtCourseDraft, collab: CollaboratorsDraft) {
 		submitting = true;
 		error = '';
 		try {
 			const created = await createCourse(draft);
+			const result = await addCollaborators(created.id, collab);
+			if (result.problems.length > 0) {
+				outcome = result;
+				return;
+			}
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- internal route with a dynamic id segment
 			await goto(`${resolve('/courses')}/${created.id}`);
 		} catch (e) {
@@ -101,6 +156,24 @@
 		<!-- "That general course is not visible to you." -->
 	{:else if parentId && !parent}
 		<p class="status">{m.common_loading()}</p>
+	{:else if outcome}
+		<section class="outcome" data-testid="collab-outcome" aria-live="polite">
+			<p>
+				{m.courseCollab_outcome({ added: outcome.added, sent: outcome.sent })}
+				<!-- "The course is made. People added: {added}. Invitations sent: {sent}." -->
+			</p>
+			<p>{m.courseCollab_outcomeProblems()}</p>
+			<!-- "These did not go through:" -->
+			<ul>
+				{#each outcome.problems as problem (problem.who)}
+					<li><strong>{problem.who}</strong> — {problem.why}</li>
+				{/each}
+			</ul>
+			<a class="primary" href={resolve('/courses/[id]', { id: outcome.courseId })}
+				>{m.courseCollab_goToCourse()}</a
+			>
+			<!-- "Go to the course" -->
+		</section>
 	{:else}
 		<p class="lead">
 			{parent ? (asSubcourse ? m.course_tree_lead() : m.course_version_lead()) : m.course_newLead()}
@@ -120,6 +193,7 @@
 </div>
 
 <style lang="scss">
+	@use '../../../lib/styles/mixins' as mix;
 	.page {
 		max-width: 640px;
 		margin: 0 auto;
@@ -130,6 +204,20 @@
 	}
 	h1 {
 		font-size: var(--font-size-xl);
+	}
+	.outcome {
+		@include mix.status-message(warning);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		ul {
+			margin: 0;
+			padding-left: var(--space-4);
+		}
+	}
+	.primary {
+		@include mix.button-primary;
+		align-self: flex-start;
 	}
 	.lead,
 	.status {

@@ -71,6 +71,19 @@ TEXTS = {
             'i zmień hasło ({site}/forgot-password).\n\n'
             '— EdMat (wiadomość automatyczna, nie odpowiadaj na nią)'
         ),
+        'course_invite_subject': 'EdMat: {inviter} zaprasza Cię do kursu „{course}”',
+        'course_invite_body': (
+            'Dzień dobry,\n\n'
+            '{inviter} zaprasza Cię do kursu „{course}” na EdMat — {role}.\n\n'
+            'Żeby dołączyć, otwórz ten link (jeśli nie masz jeszcze konta, możesz je założyć po drodze):\n\n'
+            f'{L}\n\n'
+            'Zaproszenie działa raz i wygasa {date}. Jeśli nie znasz tej osoby, zignoruj tę wiadomość — '
+            'nie wyślemy Ci nic więcej, a Twój adres usuniemy z zaproszenia, gdy przestanie ono działać.\n\n'
+            '— EdMat (wiadomość automatyczna, nie odpowiadaj na nią)'
+        ),
+        'course_invite_role_participant': 'jako uczestnik',
+        'course_invite_role_assistant': 'jako asystent prowadzącego',
+        'course_invite_role_admin': 'jako współprowadzący (administrator kursu)',
         'test_subject': 'EdMat: wiadomość testowa',
         'test_body': 'To jest wiadomość testowa z EdMat, wysłana z zakładki Poczta w panelu moderacji.\n\n— EdMat',
     },
@@ -132,6 +145,20 @@ TEXTS = {
             'reset your password ({site}/forgot-password).\n\n'
             '— EdMat (automated message, please do not reply)'
         ),
+        'course_invite_subject': 'EdMat: {inviter} invited you to the course "{course}"',
+        'course_invite_body': (
+            'Hello,\n\n'
+            '{inviter} invited you to the course "{course}" on EdMat — {role}.\n\n'
+            'To join, open this link (if you have no account yet, you can make one on the way):\n\n'
+            f'{L}\n\n'
+            'The invitation works once and expires on {date}. If you do not know this person, ignore '
+            'this message — we will send you nothing else, and your address is removed from the '
+            'invitation once it stops working.\n\n'
+            '— EdMat (automated message, please do not reply)'
+        ),
+        'course_invite_role_participant': 'as a participant',
+        'course_invite_role_assistant': 'as an assistant',
+        'course_invite_role_admin': 'to help run it (as a course administrator)',
         'test_subject': 'EdMat: test message',
         'test_body': 'This is a test message from EdMat, sent from the Mail tab of the moderation panel.\n\n— EdMat',
     },

@@ -118,6 +118,20 @@ async function menuItems(scope) {
 	return (await menu.locator('[role="menuitem"]').allTextContents()).map((t) => t.trim());
 }
 
+/**
+ * Open the `FoldSection` named `key` if it is shut. Every fold on `/coop` starts shut and its state
+ * is remembered per browser (`foldedSections`), so a blind click is as likely to close it; and a
+ * shut fold draws nothing inside it — a task title or `.needs-panel` is simply not on the page.
+ */
+async function openFold(page, key) {
+	const fold = page.locator(`[data-fold="${key}"]`).first();
+	if (!(await fold.count())) return;
+	if (!(await fold.evaluate((e) => e.classList.contains('fold--open')))) {
+		await fold.locator('.fold__toggle').first().click();
+		await page.waitForTimeout(800);
+	}
+}
+
 const browser = await chromium.launch();
 const olaToken = await tokenFor('ola@edmat.example');
 // Two more, because the chip only draws once a mark is LIT and that needs
@@ -212,10 +226,14 @@ try {
 		} catch {
 			chipThere = false;
 		}
-		check('the chip appears once three readers agree', chipThere);
+		check('the chip is there (always, since 2026-11-02)', chipThere);
 		if (chipThere) {
 			const text = (await chip.innerText()).trim();
 			check('the chip shows a percentage', /%/.test(text), text);
+			// Owner, 2026-11-02: the chip reads "N% AI" on its face, not only in its title — and with
+			// three readers at 80/90/70 behind it, N is their mean.
+			check('the chip reads "N% AI"', /^\d+% AI$/.test(text), text);
+			check('and N is the three readers’ mean (80)', text.startsWith('80%'), text);
 			// The three-people icon is the lit one; the author has said nothing.
 			const lit = await chip.locator('.mark--lit').count();
 			check('exactly one of the two marks is lit', lit === 1, `${lit} lit`);
@@ -300,18 +318,67 @@ try {
 		await setFlag(staffToken, 'ai_assisted', true);
 	}
 
+	// ---- A3. a material carries "N% AI" too (owner, 2026-11-02) ----------------------------------
+	// "(percentage% AI) that should be in each exercise/material". The material page draws the chip
+	// ALWAYS — 0% until somebody stands behind a number — and its submitter can mark it from the
+	// material's own menu. Marked through the API (this check is about the chip), and the mark is
+	// DELETED afterwards, so the material goes back to having no author answer at all.
+	console.log('\nA3. a material reads "N% AI"');
+	{
+		const MATERIAL = process.env.E2E_MATERIAL ?? '1';
+		const kasiaToken = await tokenFor('kasia@edmat.example');
+		const markUrl = `${API}/ai-assistance/material/${MATERIAL}/author-mark/`;
+		const auth = { 'Content-Type': 'application/json', Authorization: `Token ${kasiaToken}` };
+		await fetch(markUrl, { method: 'DELETE', headers: auth }).catch(() => {});
+
+		const ctx = await englishContext(browser, BASE, { viewport: { width: 1280, height: 1000 } });
+		const page = await ctx.newPage();
+		const pageErrors = [];
+		page.on('pageerror', (e) => pageErrors.push(e.message));
+		await page.goto(`${BASE}/materials/${MATERIAL}`, { waitUntil: 'load', timeout: 90000 });
+		const chip = page.locator('.material-assist .chip');
+		const there = await chip.waitFor({ timeout: 30000 }).then(
+			() => true,
+			() => false
+		);
+		const before = there ? (await chip.innerText()).trim() : '';
+		check('an unmarked material shows its chip anyway', there && /^\d+% AI$/.test(before), before);
+
+		const marked = await fetch(markUrl, {
+			method: 'PUT',
+			headers: auth,
+			body: JSON.stringify({ assisted: true })
+		});
+		check('its submitter may mark it', marked.ok, `${marked.status}`);
+		await page.reload({ waitUntil: 'load', timeout: 90000 });
+		await chip.waitFor({ timeout: 30000 }).catch(() => {});
+		const after = (await chip.innerText().catch(() => '')).trim();
+		check('and then it reads "100% AI"', after === '100% AI', after);
+		check('with the author’s mark lit', (await chip.locator('.mark--lit').count()) === 1);
+		await chip.scrollIntoViewIfNeeded();
+		await page.screenshot({ path: `${SHOTS}ai-assist-material.png` });
+		check('no page errors on the material page', pageErrors.length === 0, pageErrors.join(' | '));
+		await ctx.close();
+
+		const removed = await fetch(markUrl, { method: 'DELETE', headers: auth });
+		check('and the mark is taken off again', removed.ok, `${removed.status}`);
+	}
+
 	// ---- B. bilingual management text ----------------------------------------------------------
-	console.log('\nB. /about reads in ONE language');
-	const PL_START = 'Społecznościowa baza zadań';
-	const EN_START = 'A community database of exercises';
+	console.log('\nB. /coop reads in ONE language');
+	// The organisation's description as `seed_edmat_project` writes it (`work/edmat_project.py`);
+	// it read "A community database of exercises…" before `--retake-description` rewrote it.
+	const PL_START = 'Edukacja potrzebuje usprawnień';
+	const EN_START = 'Education needs fixing';
 	const PL_TASK = 'Wskaźnik „z pomocą AI”';
 	const EN_TASK = 'The “AI-assisted” score';
 	{
 		const ctx = await englishContext(browser, BASE, { viewport: { width: 1280, height: 1100 } });
 		const page = await ctx.newPage();
-		await page.goto(`${BASE}/about`, { waitUntil: 'load', timeout: 90000 });
+		await page.goto(`${BASE}/coop`, { waitUntil: 'load', timeout: 90000 });
 		await page.locator('h1').first().waitFor({ timeout: 30000 });
 		await page.waitForTimeout(2500); // the organisation body loads client-side
+		await openFold(page, 'tasks');
 		const body = await page.locator('body').innerText();
 		check('the English reader gets the English description', body.includes(EN_START));
 		check('and NOT the Polish one glued to it', !body.includes(PL_START));
@@ -324,9 +391,10 @@ try {
 		// No cookie at all: the base locale is Polish (frontend/CLAUDE.md).
 		const ctx = await browser.newContext({ viewport: { width: 1280, height: 1100 } });
 		const page = await ctx.newPage();
-		await page.goto(`${BASE}/about`, { waitUntil: 'load', timeout: 90000 });
+		await page.goto(`${BASE}/coop`, { waitUntil: 'load', timeout: 90000 });
 		await page.locator('h1').first().waitFor({ timeout: 30000 });
 		await page.waitForTimeout(2500);
+		await openFold(page, 'tasks');
 		const body = await page.locator('body').innerText();
 		check('the Polish reader gets the Polish description', body.includes(PL_START));
 		check('and NOT the English one glued to it', !body.includes(EN_START));
@@ -339,7 +407,7 @@ try {
 	if (ownerToken) {
 		const ctx = await signedIn(browser, ownerToken);
 		const page = await ctx.newPage();
-		await page.goto(`${BASE}/about`, { waitUntil: 'load', timeout: 90000 });
+		await page.goto(`${BASE}/coop`, { waitUntil: 'load', timeout: 90000 });
 		await page.locator('h1').first().waitFor({ timeout: 30000 });
 		await page.waitForTimeout(3500);
 
@@ -362,12 +430,13 @@ try {
 		check('both panes carry text', (await areas.count()) === 2, `${await areas.count()}`);
 		const first = (await areas.nth(0).inputValue()).slice(0, 40);
 		const second = (await areas.nth(1).inputValue()).slice(0, 40);
-		check('the left pane is the Polish original', first.includes('Społecznościowa'), first);
-		check('the right pane is the English', second.includes('A community database'), second);
+		check('the left pane is the Polish original', first.includes(PL_START), first);
+		check('the right pane is the English', second.includes(EN_START), second);
 		await page.screenshot({ path: `${SHOTS}bilingual-editor.png` });
 		await page.keyboard.press('Escape');
 
 		// A need row's menu — the surface that had NO frontend edit path at all before this.
+		await openFold(page, 'needs');
 		const needsPanel = page.locator('.needs-panel').first();
 		if (await needsPanel.count()) {
 			const row = needsPanel.locator('.row').first();

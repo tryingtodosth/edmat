@@ -11,6 +11,8 @@ import type {
 	ChapterDraft,
 	CourseInvite,
 	CourseInviteDraft,
+	EmailInviteOutcome,
+	InviteRole,
 	CourseItem,
 	CourseFeedbackReview,
 	CourseReportRow,
@@ -38,6 +40,8 @@ import type {
 	TaughtCourseDraft
 } from '$lib/types/course';
 import { apiClient, ApiError } from '$lib/api/client';
+import { mapLicence } from '$lib/api/mappers';
+import type { Licence } from '$lib/types/licence';
 import { getLocale } from '$lib/paraglide/runtime';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -136,7 +140,8 @@ function mapLessonExerciseSet(raw: any): LessonExerciseSet {
 		sourceSlug: raw.source_slug ?? null,
 		sourceExists: raw.source_exists ?? false,
 		hasDrifted: raw.has_drifted ?? false,
-		hiddenExerciseCount: raw.hidden_exercise_count ?? 0
+		hiddenExerciseCount: raw.hidden_exercise_count ?? 0,
+		visibility: (raw.visibility ?? 'course') as LessonExerciseSet['visibility']
 	};
 }
 
@@ -184,6 +189,9 @@ function mapItem(raw: any): CourseItem {
 	return {
 		id: String(raw.id),
 		kind: raw.kind,
+		visibility: (raw.visibility ?? 'course') as CourseItem['visibility'],
+		targetLicence: raw.target_licence ? mapLicence(raw.target_licence) : null,
+		licenceRelation: (raw.licence_relation ?? null) as CourseItem['licenceRelation'],
 		lesson: optionalId(raw.lesson),
 		chapter: optionalId(raw.chapter),
 		material: optionalId(raw.material),
@@ -246,7 +254,8 @@ function mapInvite(raw: any): CourseInvite {
 		expiresAt: raw.expires_at ?? null,
 		revokedAt: raw.revoked_at ?? null,
 		isUsable: raw.is_usable ?? false,
-		unusableReason: raw.unusable_reason ?? null
+		unusableReason: raw.unusable_reason ?? null,
+		sentTo: raw.sent_to ?? ''
 	};
 }
 
@@ -287,6 +296,7 @@ export function mapCourse(raw: any): Course {
 		courseCode: raw.course_code ?? '',
 		currentTerm: raw.current_term ?? '',
 		visibility: raw.visibility,
+		licence: mapLicence(raw.licence, 'edmat-only'),
 		status: raw.status,
 		enrollmentPolicy: raw.enrollment_policy,
 		capacity: raw.capacity,
@@ -361,6 +371,8 @@ function draftToBody(draft: TaughtCourseDraft): Record<string, unknown> {
 		course_code: draft.courseCode,
 		current_term: draft.currentTerm,
 		visibility: draft.visibility,
+		// Only on create — an edit form leaves `licence` undefined and it is dropped from the body.
+		...(draft.licence ? { licence: draft.licence } : {}),
 		status: draft.status,
 		enrollment_policy: draft.enrollmentPolicy,
 		capacity: draft.capacity,
@@ -615,10 +627,31 @@ export async function linkSet(
 	parentKind: SetParentKind,
 	parentId: string,
 	setSlug: string,
-	note = ''
+	note = '',
+	visibility: LessonExerciseSet['visibility'] = 'course'
 ): Promise<LessonExerciseSet> {
 	return mapLessonExerciseSet(
-		await apiClient.post(setsUrl(courseId, parentKind, parentId), { set: setSlug, note })
+		await apiClient.post(setsUrl(courseId, parentKind, parentId), {
+			set: setSlug,
+			note,
+			...(visibility !== 'course' ? { visibility } : {})
+		})
+	);
+}
+
+/** Who may see a pinned set — a curator's change, the same ladder as a course item's. */
+export async function setLinkedSetVisibility(
+	courseId: string,
+	parentKind: SetParentKind,
+	parentId: string,
+	linkId: string,
+	visibility: LessonExerciseSet['visibility']
+): Promise<LessonExerciseSet> {
+	return mapLessonExerciseSet(
+		await apiClient.patch(
+			`${setsUrl(courseId, parentKind, parentId)}${encodeURIComponent(linkId)}/`,
+			{ visibility }
+		)
 	);
 }
 
@@ -765,6 +798,8 @@ export interface CourseItemSubmission {
 	chapterId?: string | null;
 	lessonId?: string | null;
 	note?: string;
+	/** Who may see it — a curator's choice past `course`; the server refuses it from anybody else. */
+	visibility?: CourseItem['visibility'];
 }
 
 export async function submitCourseItem(
@@ -783,6 +818,9 @@ export async function submitCourseItem(
 		body.link_title = submission.linkTitle ?? '';
 	}
 	if (submission.postId) body.post = Number(submission.postId);
+	// Only sent when narrowed — a participant's plain offer leaves it to the server's default.
+	if (submission.visibility && submission.visibility !== 'course')
+		body.visibility = submission.visibility;
 	// A lesson wins if both somehow arrive, rather than sending both and letting the server refuse
 	// the whole request: the caller asked for the more specific of the two.
 	if (submission.lessonId) body.lesson = Number(submission.lessonId);
@@ -842,6 +880,18 @@ export async function reorderCourse(
 	await apiClient.post(`/courses/${encodeURIComponent(courseId)}/reorder/`, body);
 }
 
+/** Who may see one item (`course` / `participants` / `staff`) — a curator's change. */
+export async function setCourseItemVisibility(
+	courseId: string,
+	itemId: string,
+	visibility: CourseItem['visibility']
+): Promise<CourseItem> {
+	const raw = await apiClient.patch<unknown>(`/courses/${courseId}/items/${itemId}/`, {
+		visibility
+	});
+	return mapItem(raw);
+}
+
 export async function removeCourseItem(courseId: string, itemId: string): Promise<void> {
 	await apiClient.delete(`/courses/${courseId}/items/${itemId}/`);
 }
@@ -871,6 +921,32 @@ export async function revokeInvite(courseId: string, inviteId: string): Promise<
 	return mapInvite(raw);
 }
 
+/** Mail an invite to each address (`backend/courses/mailinvite.py`). One result per address —
+ *  partial success is the normal answer. A refusal of the whole request (`email_not_confirmed`,
+ *  `email_invite_too_many`, …) throws an `ApiError` whose `detail` is that word. */
+export async function sendEmailInvites(
+	courseId: string,
+	emails: string[],
+	role: InviteRole
+): Promise<EmailInviteOutcome> {
+	/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+	const raw = await apiClient.post<any>(`/courses/${encodeURIComponent(courseId)}/email-invites/`, {
+		emails,
+		role
+	});
+	return {
+		/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+		results: (raw.results ?? []).map((row: any) => ({
+			email: row.email,
+			ok: Boolean(row.ok),
+			reason: row.reason ?? '',
+			invite: row.invite ? mapInvite(row.invite) : null
+		})),
+		sentToday: raw.sent_today ?? 0,
+		maxPerDay: raw.max_per_day ?? 0
+	};
+}
+
 /** Readable while logged out, on purpose: telling somebody to sign up without saying what for is
  * how an invite gets ignored. Returns null for a token that does not exist at all. */
 export async function previewInvite(token: string): Promise<InvitePreview | null> {
@@ -883,7 +959,8 @@ export async function previewInvite(token: string): Promise<InvitePreview | null
 			instructorName: raw.instructor_name,
 			role: raw.role,
 			isUsable: raw.is_usable,
-			unusableReason: raw.unusable_reason ?? null
+			unusableReason: raw.unusable_reason ?? null,
+			courseLicence: mapLicence(raw.course_licence, 'edmat-only')
 		};
 	} catch (error) {
 		if (error instanceof ApiError && error.status === 404) return null;
@@ -945,7 +1022,10 @@ function mapAttachment(raw: any): Attachment {
 		uploadedBy: raw.uploaded_by ? mapParticipant(raw.uploaded_by) : null,
 		createdAt: raw.created_at,
 		reviewCount: raw.review_count ?? 0,
-		averageRating: raw.average_rating ?? null
+		averageRating: raw.average_rating ?? null,
+		licence: mapLicence(raw.licence, 'edmat-only'),
+		visibility: raw.visibility === 'staff' ? 'staff' : 'participants',
+		canChangeVisibility: Boolean(raw.can_change_visibility)
 	};
 }
 
@@ -989,14 +1069,33 @@ export async function uploadAttachment(
 	courseId: string,
 	file: File,
 	title: string,
-	description = ''
+	description = '',
+	licence: Licence | '' = '',
+	visibility: Attachment['visibility'] = 'participants'
 ): Promise<Attachment> {
 	const form = new FormData();
 	form.append('file', file);
 	form.append('title', title);
 	form.append('description', description);
+	// Absent = the course's own licence, decided by the server.
+	if (licence) form.append('licence', licence);
+	if (visibility !== 'participants') form.append('visibility', visibility);
 	return mapAttachment(
 		await apiClient.postForm(`/courses/${encodeURIComponent(courseId)}/attachments/`, form)
+	);
+}
+
+/** Who in the course sees one file — its uploader's or a curator's change. */
+export async function setAttachmentVisibility(
+	courseId: string,
+	attachmentId: string,
+	visibility: Attachment['visibility']
+): Promise<Attachment> {
+	return mapAttachment(
+		await apiClient.patch(
+			`/courses/${encodeURIComponent(courseId)}/attachments/${encodeURIComponent(attachmentId)}/`,
+			{ visibility }
+		)
 	);
 }
 
