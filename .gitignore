@@ -15,7 +15,7 @@ backend/db.sqlite3
 # Timestamped copies taken before a migration or a merge. Untracked but not ignored until
 # now, so a stray `git add -A` staged several megabytes of database.
 backend/db.sqlite3.bak-*
-backend/media/
+backend/media
 backend/staticfiles/
 
 # Env files (frontend/.gitignore already covers frontend/.env*, this catches any elsewhere)
